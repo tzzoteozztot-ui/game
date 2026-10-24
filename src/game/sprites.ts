@@ -1,7 +1,7 @@
 /**
  * Sprites for «Тёмный рубеж»: loading public/sprites/ and preparing canvas variants.
- * Each variant (faction tint, hit flash) is baked once with a light 2 px outline
- * so figures stay readable on dark ground. Until loading finishes (or if it fails)
+ * Each variant (faction tint, hit flash) is baked once into its own canvas.
+ * Until loading finishes (or if it fails)
  * get() returns null and the engine draws its fallback shapes.
  */
 
@@ -19,13 +19,10 @@ export interface PreparedSprite {
   canvas: HTMLCanvasElement;
   meta: SpriteMeta;
   scale: number; // sprite px per field px
-  pad: number; // outline margin around the image, sprite px
 }
 
 export type SpriteVariant = 'normal' | 'flash' | 'shield';
 
-const OUTLINE_PX = 2; // outline width on the field
-const OUTLINE_COLOR = 'rgba(238, 230, 212, 0.9)';
 const TINT_STRENGTH = 0.26;
 
 class SpriteStore {
@@ -72,13 +69,12 @@ class SpriteStore {
 
     const { img, meta } = src;
     const scale = meta.h / meta.drawH;
-    const pad = Math.ceil(OUTLINE_PX * scale);
 
     // Figure with tint / flash applied
-    const body = document.createElement('canvas');
-    body.width = meta.w;
-    body.height = meta.h;
-    const bctx = body.getContext('2d')!;
+    const canvas = document.createElement('canvas');
+    canvas.width = meta.w;
+    canvas.height = meta.h;
+    const bctx = canvas.getContext('2d')!;
     bctx.drawImage(img, 0, 0, meta.w, meta.h);
     bctx.globalCompositeOperation = 'source-atop';
     if (tint) {
@@ -92,28 +88,7 @@ class SpriteStore {
       bctx.fillRect(0, 0, meta.w, meta.h);
     }
 
-    // Light silhouette for the outline
-    const sil = document.createElement('canvas');
-    sil.width = meta.w;
-    sil.height = meta.h;
-    const sctx = sil.getContext('2d')!;
-    sctx.drawImage(img, 0, 0, meta.w, meta.h);
-    sctx.globalCompositeOperation = 'source-in';
-    sctx.fillStyle = OUTLINE_COLOR;
-    sctx.fillRect(0, 0, meta.w, meta.h);
-
-    const canvas = document.createElement('canvas');
-    canvas.width = meta.w + pad * 2;
-    canvas.height = meta.h + pad * 2;
-    const ctx = canvas.getContext('2d')!;
-    const steps = 16;
-    for (let i = 0; i < steps; i++) {
-      const ang = (i / steps) * Math.PI * 2;
-      ctx.drawImage(sil, pad + Math.cos(ang) * pad, pad + Math.sin(ang) * pad);
-    }
-    ctx.drawImage(body, pad, pad);
-
-    const prepared = { canvas, meta, scale, pad };
+    const prepared = { canvas, meta, scale };
     this.cache.set(key, prepared);
     return prepared;
   }
@@ -136,8 +111,8 @@ export function drawSprite(
   const k = height ? height / s.meta.drawH : 1;
   const w = (s.canvas.width / s.scale) * k;
   const h = (s.canvas.height / s.scale) * k;
-  const ax = ((s.pad + s.meta.anchorX * s.meta.w) / s.scale) * k;
-  const ay = ((s.pad + s.meta.anchorY * s.meta.h) / s.scale) * k;
+  const ax = ((s.meta.anchorX * s.meta.w) / s.scale) * k;
+  const ay = ((s.meta.anchorY * s.meta.h) / s.scale) * k;
   const flip = dir * s.meta.facing < 0;
   ctx.save();
   ctx.translate(footX, footY);
