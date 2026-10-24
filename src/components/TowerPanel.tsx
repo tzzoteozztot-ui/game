@@ -1,7 +1,7 @@
 /**
  * Tower Detail & Management Panel for «Тёмный рубеж»
  * Always visible beneath the shop with fixed height.
- * Shows selected tower stats, target priority switch, sell and merge in one line.
+ * Shows selected tower stats; target priority, merge and sell share one row.
  * Shows "Коснитесь башни" when no tower is selected.
  */
 
@@ -29,12 +29,8 @@ export function TowerPanel({
   // If no tower selected, render fixed-height placeholder
   if (!tower) {
     return (
-      <div className="w-full h-[156px] flex flex-col items-center justify-center p-1.5 text-center text-stone-500 bg-[#171520] border-t border-[#2d2938] shrink-0 select-none">
-        <div className="w-7 h-7 rounded-full border border-dashed border-stone-700 flex items-center justify-center mb-1 text-stone-500 text-xs">
-          ⚔
-        </div>
-        <div className="text-xs font-semibold text-stone-400">Коснитесь башни</div>
-        <div className="text-[10px] text-stone-600 mt-0.5">на поле для просмотра параметров</div>
+      <div className="w-full h-[112px] flex items-center justify-center p-1.5 text-center text-xs font-semibold text-stone-500 bg-[#171520] border-t border-[#2d2938] shrink-0 select-none">
+        Коснитесь башни
       </div>
     );
   }
@@ -75,7 +71,7 @@ export function TowerPanel({
       : 'Ближний';
 
   return (
-    <div className="w-full h-[156px] flex flex-col justify-between p-1.5 bg-[#171520] border-t border-[#2d2938] text-[#f4f2e6] text-xs shrink-0 select-none">
+    <div className="w-full h-[112px] flex flex-col justify-between gap-1 p-1.5 bg-[#171520] border-t border-[#2d2938] text-[#f4f2e6] text-xs shrink-0 select-none">
       {/* 1. Header: Name, level, specialization */}
       <div className="flex items-center gap-2 h-7 shrink-0">
         <div className="w-7 h-7 flex items-center justify-center bg-[#13111a] rounded border border-[#2e2a3b] shrink-0 overflow-hidden">
@@ -116,44 +112,41 @@ export function TowerPanel({
         </div>
       </div>
 
-      {/* 3. Target Priority Switcher */}
-      <button
-        type="button"
-        onClick={onCyclePriority}
-        className="w-full h-10 px-2 rounded bg-[#221f2d] hover:bg-[#2c283a] border border-[#383347] flex items-center justify-between text-xs font-semibold cursor-pointer shrink-0"
-        title="Приоритет цели (Tab)"
-      >
-        <span className="text-stone-400 text-[11px]">Цель (Tab):</span>
-        <span className="text-amber-300 font-bold text-xs">{priorityLabel}</span>
-      </button>
+      {/* 3. Target priority, merge and sell in one row */}
+      <div className="grid grid-cols-3 gap-1 h-10 shrink-0">
+        <button
+          type="button"
+          onClick={onCyclePriority}
+          className="h-10 px-1 rounded bg-[#221f2d] hover:bg-[#2c283a] border border-[#383347] flex flex-col items-center justify-center leading-none cursor-pointer"
+          title="Приоритет цели (Tab)"
+        >
+          <span className="text-[9px] text-stone-400">Цель</span>
+          <span className="text-amber-300 font-bold text-[11px] mt-0.5">{priorityLabel}</span>
+        </button>
 
-      {/* 4. Action Buttons in One Row: Merge & Sell */}
-      <div className="grid grid-cols-2 gap-1.5 h-10 shrink-0">
         <button
           type="button"
           onClick={onMerge}
           disabled={!canMerge}
-          className={`h-10 px-1 rounded font-bold text-xs flex items-center justify-center gap-1 transition-all ${
+          className={`h-10 px-1 rounded font-bold flex flex-col items-center justify-center leading-none transition-all ${
             canMerge
               ? 'bg-amber-500 hover:bg-amber-400 text-stone-950 border border-amber-300 shadow-md shadow-amber-950/40 animate-pulse cursor-pointer'
               : 'bg-[#1b1926] text-stone-600 border border-[#2d2938] cursor-not-allowed'
           }`}
           title="Слить 3 башни в одну (M)"
         >
-          <span>Слить</span>
-          <span className="text-[11px] tabular-nums">
-            [{tower.level >= 3 ? 'MAX' : `${eligibleMergeCount}/3`}]
-          </span>
+          <span className="text-[11px]">Слить</span>
+          <span className="text-[10px] tabular-nums mt-0.5">{tower.level >= 3 ? 'макс' : `${eligibleMergeCount}/3`}</span>
         </button>
 
         <button
           type="button"
           onClick={onSell}
-          className="h-10 px-1 rounded bg-red-950/40 hover:bg-red-900/50 text-red-300 border border-red-800/50 text-xs font-semibold flex items-center justify-center gap-1 transition-colors cursor-pointer"
+          className="h-10 px-1 rounded bg-red-950/40 hover:bg-red-900/50 text-red-300 border border-red-800/50 flex flex-col items-center justify-center leading-none transition-colors cursor-pointer"
           title="Продать башню (S)"
         >
-          <span>Продать</span>
-          <span className="text-amber-300 font-bold tabular-nums">({refund})</span>
+          <span className="text-[11px] font-semibold">Продать</span>
+          <span className="text-amber-300 font-bold text-[10px] tabular-nums mt-0.5">{refund}</span>
         </button>
       </div>
     </div>

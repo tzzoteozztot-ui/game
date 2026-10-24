@@ -1,6 +1,6 @@
 /**
- * Top HUD Bar for «Тёмный рубеж»
- * Displays Gold, Lives, Wave N/12, Speed toggle and Pause.
+ * HUD block at the top of the side column for «Тёмный рубеж»
+ * Gold, lives, wave N/12 in one line; speed, sound and pause buttons below.
  */
 
 import React from 'react';
@@ -31,43 +31,32 @@ export function TopBar({
   onToggleSpeed,
   onToggleMute,
 }: TopBarProps) {
+  const btn =
+    'h-10 min-w-[40px] flex-1 flex items-center justify-center text-xs font-bold rounded border transition-colors cursor-pointer';
   return (
-    <header className="h-11 px-2 sm:px-3 bg-[#15131c]/95 border-b border-[#2d2938] flex items-center justify-between select-none z-20 shrink-0">
-      {/* Left: Stats */}
-      <div className="flex items-center gap-4 sm:gap-6">
-        {/* Gold */}
-        <div className="flex items-center gap-1.5" title="Золото">
-          <GoldIcon size={18} />
-          <span className="font-bold text-amber-300 text-sm sm:text-base tabular-nums">
-            {gold}
-          </span>
-        </div>
-
-        {/* Lives */}
-        <div className="flex items-center gap-1.5" title="Жизни замка">
-          <HeartCastleIcon size={18} />
-          <span className="font-bold text-red-400 text-sm sm:text-base tabular-nums">
-            {lives} / 20
-          </span>
-        </div>
-
-        {/* Wave */}
-        <div className="flex items-center gap-1 bg-[#221f2d] px-2.5 py-0.5 rounded text-xs sm:text-sm font-semibold border border-[#373347]">
-          <span className="text-stone-400">Волна</span>
-          <span className="text-amber-200 tabular-nums">
-            {Math.min(wave, maxWaves)} / {maxWaves}
-          </span>
-        </div>
+    <header className="w-full px-1.5 pt-1.5 flex flex-col gap-1 select-none shrink-0">
+      {/* Stats: gold, lives, wave */}
+      <div className="h-6 flex items-center justify-between text-xs tabular-nums">
+        <span className="flex items-center gap-1 font-bold text-amber-300" title="Золото">
+          <GoldIcon size={14} />
+          {gold}
+        </span>
+        <span className="flex items-center gap-1 font-bold text-red-400" title="Жизни замка">
+          <HeartCastleIcon size={14} />
+          {lives}
+        </span>
+        <span className="font-semibold text-stone-400" title="Волна">
+          Волна <span className="text-amber-200">{Math.min(wave, maxWaves)}/{maxWaves}</span>
+        </span>
       </div>
 
-      {/* Right: Controls */}
-      <div className="flex items-center gap-1.5 sm:gap-2">
-        {/* Speed button */}
+      {/* Controls: speed, sound, pause */}
+      <div className="flex gap-1">
         <button
           type="button"
           onClick={onToggleSpeed}
           title="Скорость игры (×0,5 / ×1 / ×1,5 / ×3)"
-          className={`px-2.5 py-1 min-h-[40px] min-w-[44px] text-xs font-bold rounded border transition-colors cursor-pointer ${
+          className={`${btn} ${
             speed !== 1
               ? 'bg-amber-600/30 text-amber-300 border-amber-500/50'
               : 'bg-[#221f2d] text-stone-300 border-[#373347] hover:bg-[#2c283a]'
@@ -75,29 +64,25 @@ export function TopBar({
         >
           ×{String(speed).replace('.', ',')}
         </button>
-
-        {/* Audio Mute toggle */}
         <button
           type="button"
           onClick={onToggleMute}
           title={isMuted ? 'Включить звук' : 'Выключить звук'}
-          className="p-1.5 min-h-[40px] min-w-[44px] flex items-center justify-center text-xs font-semibold rounded bg-[#221f2d] text-stone-300 border border-[#373347] hover:bg-[#2c283a] cursor-pointer"
+          className={`${btn} bg-[#221f2d] text-stone-300 border-[#373347] hover:bg-[#2c283a]`}
         >
           {isMuted ? '🔇' : '🔊'}
         </button>
-
-        {/* Pause button */}
         <button
           type="button"
           onClick={onTogglePause}
           title="Пауза (P)"
-          className={`px-3 py-1 min-h-[40px] min-w-[44px] text-xs font-bold rounded border transition-colors cursor-pointer ${
+          className={`${btn} ${
             isPaused
-              ? 'bg-red-950/60 text-red-300 border-red-700/60 animate-pulse'
+              ? 'bg-red-950/60 text-red-300 border-red-700/60'
               : 'bg-[#221f2d] text-stone-200 border-[#373347] hover:bg-[#2c283a]'
           }`}
         >
-          {isPaused ? 'Пауза ||' : 'Пауза'}
+          {isPaused ? '▶' : '❚❚'}
         </button>
       </div>
     </header>

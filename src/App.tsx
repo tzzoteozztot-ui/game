@@ -604,20 +604,6 @@ export default function App() {
       {/* 4. Active Gameplay Screen */}
       {screen === 'playing' && (
         <div className="w-full h-full flex flex-col">
-          {/* Top Bar HUD */}
-          <TopBar
-            gold={gameState.gold}
-            lives={gameState.lives}
-            wave={gameState.wave}
-            maxWaves={gameState.maxWaves}
-            speed={gameState.speed}
-            isPaused={gameState.isPaused}
-            isMuted={audioSettings.muted}
-            onTogglePause={() => engineRef.current?.togglePause()}
-            onToggleSpeed={() => engineRef.current?.toggleSpeed()}
-            onToggleMute={handleToggleMute}
-          />
-
           {/* Main Game Stage: Canvas (left/center) + Right Panel */}
           <div className="flex-1 flex overflow-hidden min-h-0 relative">
             {/* Canvas Container with strict 3:2 aspect ratio preservation */}
@@ -646,10 +632,22 @@ export default function App() {
               </div>
             </div>
 
-            {/* Right Column: Compact Shop (Top) + Fixed-height Tower Panel (Bottom) */}
+            {/* Right Column: HUD, compact shop, fixed-height tower panel; the field takes the rest */}
             <div
-              className="w-[248px] h-full shrink-0 flex flex-col justify-between bg-[#171520] border-l border-[#2d2938] text-[#f4f2e6] overflow-hidden select-none z-10"
+              className="w-[232px] h-full shrink-0 flex flex-col bg-[#171520] border-l border-[#2d2938] text-[#f4f2e6] overflow-hidden select-none z-10"
             >
+              <TopBar
+                gold={gameState.gold}
+                lives={gameState.lives}
+                wave={gameState.wave}
+                maxWaves={gameState.maxWaves}
+                speed={gameState.speed}
+                isPaused={gameState.isPaused}
+                isMuted={audioSettings.muted}
+                onTogglePause={() => engineRef.current?.togglePause()}
+                onToggleSpeed={() => engineRef.current?.toggleSpeed()}
+                onToggleMute={handleToggleMute}
+              />
               <ShopPanel
                 cards={shopCards}
                 tier={gameState.tier}

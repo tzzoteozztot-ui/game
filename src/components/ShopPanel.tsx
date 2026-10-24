@@ -53,7 +53,7 @@ export function ShopPanel({
   return (
     <div className="w-full p-1.5 bg-[#171520] text-[#f4f2e6] text-xs flex flex-col gap-1 shrink-0 select-none">
       {/* Hand Status / Shop Header Line */}
-      <div className="h-[18px] flex items-center justify-between text-[11px] px-0.5 leading-none shrink-0">
+      <div className="h-4 flex items-center justify-between text-[11px] px-0.5 leading-none shrink-0">
         {inHandDef ? (
           <>
             <span className="text-amber-300 font-bold flex items-center gap-1 truncate">
@@ -61,7 +61,7 @@ export function ShopPanel({
               <span>{inHandDef.name}</span>
               {placingIsTriplet && <span className="text-amber-400 font-black">★</span>}
             </span>
-            <span className="text-[10px] text-stone-400 shrink-0">кликните поле</span>
+            <span className="text-[10px] text-stone-400 shrink-0">тапните клетку</span>
           </>
         ) : (
           <>
