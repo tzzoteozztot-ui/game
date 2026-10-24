@@ -140,6 +140,9 @@ export interface GameStateSnapshot {
   isVictory: boolean;
   isPaused: boolean;
   allWavesLaunched: boolean;
+  waveCountdown: number | null; // whole seconds left, null while a wave runs
+  earlyStartBonus: number;
+  speed: number;
   selectedTower: Tower | null;
   eligibleMergeCount: number;
 }
@@ -156,7 +159,9 @@ export class GameEngine {
   public wave: number = 1;
   public tier: number = 1;
   public isPaused: boolean = false;
-  public speedMultiplier: number = 1; // 1 or 2
+  public speedMultiplier: number = 1; // one of CONFIG.speeds
+  // Real-time countdown to the next wave (not scaled by game speed); null while a wave runs
+  public waveCountdown: number | null = null;
   public isGameOver: boolean = false;
   public isVictory: boolean = false;
 
@@ -189,6 +194,7 @@ export class GameEngine {
   // Callbacks to UI
   public onStateChange?: (snapshot: GameStateSnapshot) => void;
   public onNeedSpecChoice?: (tower: Tower) => void;
+  public onWaveStarted?: () => void;
 
   private animFrameId: number | null = null;
   private lastTime: number = 0;
@@ -245,6 +251,7 @@ export class GameEngine {
     this.tier = 1;
     this.isPaused = false;
     this.speedMultiplier = 1;
+    this.waveCountdown = CONFIG.waveTimer.first;
     this.isGameOver = false;
     this.isVictory = false;
 
@@ -338,10 +345,13 @@ export class GameEngine {
       const dt = Math.min(rawDt, 0.05);
 
       if (!this.isPaused && !this.isGameOver && !this.isVictory) {
-        const steps = this.speedMultiplier === 2 ? 2 : 1;
+        // Game time runs at the chosen speed in steps of at most 0.05 s
+        const gameDt = dt * this.speedMultiplier;
+        const steps = Math.max(1, Math.ceil(gameDt / 0.05 - 1e-9));
         for (let s = 0; s < steps; s++) {
-          this.update(dt);
+          this.update(gameDt / steps);
         }
+        this.tickWaveCountdown(Math.min(rawDt, 0.25));
       }
 
       this.render();
@@ -363,8 +373,30 @@ export class GameEngine {
   }
 
   public toggleSpeed() {
-    this.speedMultiplier = this.speedMultiplier === 1 ? 2 : 1;
+    const speeds = CONFIG.speeds;
+    const idx = speeds.indexOf(this.speedMultiplier);
+    this.speedMultiplier = speeds[(idx + 1) % speeds.length];
     this.notifyState();
+  }
+
+  // Counts down in real seconds, whatever the game speed; starts the wave at zero
+  private tickWaveCountdown(realDt: number) {
+    if (this.waveCountdown === null) return;
+    const before = Math.ceil(this.waveCountdown);
+    this.waveCountdown = Math.max(0, this.waveCountdown - realDt);
+    if (this.waveCountdown <= 0) {
+      this.startNextWave();
+    } else if (Math.ceil(this.waveCountdown) !== before) {
+      this.notifyState();
+    }
+  }
+
+  /** Gold for starting the next wave now instead of waiting. */
+  public earlyStartBonus(): number {
+    if (this.waveCountdown !== null) {
+      return Math.floor(this.waveCountdown) * CONFIG.waveTimer.goldPerSecond;
+    }
+    return this.enemies.length > 0 ? 10 : 0;
   }
 
   // -------------------------------------------------------------
@@ -374,12 +406,14 @@ export class GameEngine {
     if (this.isSpawning || this.isGameOver || this.isVictory) return false;
     if (this.wavesLaunched >= CONFIG.waves.length) return false;
 
-    // Check if enemies from previous wave are still alive -> give +10 early bonus
-    if (this.enemies.length > 0) {
-      this.gold += 10;
-      this.addFloatingText('+10 за ранний старт', CONFIG.grid.totalWidth / 2, 40, '#f4c06a');
+    // Early start: gold for the seconds left on the timer, or +10 while enemies are still alive
+    const bonus = this.earlyStartBonus();
+    if (bonus > 0) {
+      this.gold += bonus;
+      this.addFloatingText(`+${bonus} за ранний старт`, CONFIG.grid.totalWidth / 2, 40, '#f4c06a');
       sound.playBuy();
     }
+    this.waveCountdown = null;
 
     // An early start launches the next wave, not the current one again
     this.wave = this.wavesLaunched + 1;
@@ -456,6 +490,7 @@ export class GameEngine {
     this.isSpawning = true;
     this.waveInProgress = true;
     this.spawnTimer = 0;
+    this.onWaveStarted?.();
     this.notifyState();
     return true;
   }
@@ -560,6 +595,7 @@ export class GameEngine {
           return;
         } else {
           this.wave++;
+          this.waveCountdown = CONFIG.waveTimer.between;
           this.notifyState();
         }
       }
@@ -1510,6 +1546,9 @@ export class GameEngine {
       isVictory: this.isVictory,
       isPaused: this.isPaused,
       allWavesLaunched: this.wavesLaunched >= CONFIG.waves.length,
+      waveCountdown: this.waveCountdown === null ? null : Math.ceil(this.waveCountdown),
+      earlyStartBonus: this.earlyStartBonus(),
+      speed: this.speedMultiplier,
       selectedTower: selected,
       eligibleMergeCount: eligibleCount,
     });

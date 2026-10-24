@@ -266,6 +266,14 @@ export function HowToPlayModal({ onClose }: { onClose: () => void }) {
             </p>
           </section>
 
+          {/* Waves */}
+          <section>
+            <h3 className="font-bold text-amber-200 text-sm mb-1">Волны и таймер</h3>
+            <p className="text-stone-300">
+              Между волнами идёт таймер: 30 с до первой волны и 20 с после каждой зачищенной. Он идёт в реальном времени и не зависит от скорости игры. Когда он доходит до нуля, волна начинается сама. Запустите её раньше и получите 1 золото за каждую оставшуюся секунду. Скорость игры: ×0,5, ×1, ×1,5 и ×3.
+            </p>
+          </section>
+
           {/* Merging */}
           <section>
             <h3 className="font-bold text-amber-200 text-sm mb-1">Слияние и специализации</h3>

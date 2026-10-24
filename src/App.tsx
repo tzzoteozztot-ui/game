@@ -59,6 +59,9 @@ export default function App() {
     isVictory: false,
     isPaused: false,
     allWavesLaunched: false,
+    waveCountdown: null,
+    earlyStartBonus: 0,
+    speed: 1,
     selectedTower: null,
     eligibleMergeCount: 0,
   });
@@ -128,6 +131,13 @@ export default function App() {
 
     engine.onStateChange = (snap) => {
       setGameState(snap);
+    };
+
+    // Free shop refresh at the start of every wave, by button or by timer
+    engine.onWaveStarted = () => {
+      setShopCards(generateShopCards(engine.tier));
+      setPlacingCardIndex(null);
+      engine.placingTowerType = null;
     };
 
     engine.onNeedSpecChoice = (tower: Tower) => {
@@ -368,11 +378,7 @@ export default function App() {
     sound.init();
     const engine = engineRef.current;
     if (!engine) return;
-    const started = engine.startNextWave();
-    if (started) {
-      // Free shop refresh at start of wave
-      setShopCards(generateShopCards(engine.tier));
-    }
+    engine.startNextWave();
   };
 
   // Merge selected tower
@@ -604,7 +610,7 @@ export default function App() {
             lives={gameState.lives}
             wave={gameState.wave}
             maxWaves={gameState.maxWaves}
-            speed={engineRef.current?.speedMultiplier || 1}
+            speed={gameState.speed}
             isPaused={gameState.isPaused}
             isMuted={audioSettings.muted}
             onTogglePause={() => engineRef.current?.togglePause()}
@@ -653,6 +659,8 @@ export default function App() {
                 isSpawning={gameState.isSpawning}
                 isWaveActive={gameState.isWaveActive}
                 allWavesLaunched={gameState.allWavesLaunched}
+                waveCountdown={gameState.waveCountdown}
+                earlyStartBonus={gameState.earlyStartBonus}
                 onSelectCard={handleSelectShopCard}
                 onReroll={handleRerollShop}
                 onUpgradeTier={handleUpgradeTier}

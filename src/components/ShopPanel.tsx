@@ -22,6 +22,8 @@ interface ShopPanelProps {
   isSpawning: boolean;
   isWaveActive: boolean;
   allWavesLaunched: boolean;
+  waveCountdown: number | null;
+  earlyStartBonus: number;
   onSelectCard: (index: number) => void;
   onReroll: () => void;
   onUpgradeTier: () => void;
@@ -37,6 +39,8 @@ export function ShopPanel({
   isSpawning,
   isWaveActive,
   allWavesLaunched,
+  waveCountdown,
+  earlyStartBonus,
   onSelectCard,
   onReroll,
   onUpgradeTier,
@@ -186,8 +190,13 @@ export function ShopPanel({
           <span>Последняя волна</span>
         ) : isSpawning ? (
           <span>Враги выходят...</span>
+        ) : waveCountdown !== null ? (
+          <>
+            <span>Волна через {waveCountdown} с</span>
+            {earlyStartBonus > 0 && <span className="tabular-nums">· сейчас +{earlyStartBonus}</span>}
+          </>
         ) : isWaveActive ? (
-          <span>Следующая (+10G)</span>
+          <span>Следующая (+{earlyStartBonus})</span>
         ) : (
           <span>Начать волну</span>
         )}

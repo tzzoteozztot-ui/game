@@ -318,6 +318,13 @@ export const CONFIG = {
     tripletChances: [0, 0.03, 0.06, 0.10, 0.15], // for tier 1..5
   },
 
+  waveTimer: {
+    first: 30, // real seconds before wave 1 starts by itself
+    between: 20, // real seconds between a cleared wave and the next one
+    goldPerSecond: 1, // early start bonus per second left on the timer
+  },
+  speeds: [0.5, 1, 1.5, 3], // game speed steps, cycled by the speed button
+
   spawnInterval: 0.8, // seconds between spawns
   swarmInterval: 0.25, // seconds between swarm individuals
   swarmGroupCount: 8, // individuals per swarm group

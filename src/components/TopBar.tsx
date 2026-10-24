@@ -66,14 +66,14 @@ export function TopBar({
         <button
           type="button"
           onClick={onToggleSpeed}
-          title="Скорость игры (×1 / ×2)"
+          title="Скорость игры (×0,5 / ×1 / ×1,5 / ×3)"
           className={`px-2.5 py-1 min-h-[40px] min-w-[44px] text-xs font-bold rounded border transition-colors cursor-pointer ${
-            speed === 2
+            speed !== 1
               ? 'bg-amber-600/30 text-amber-300 border-amber-500/50'
               : 'bg-[#221f2d] text-stone-300 border-[#373347] hover:bg-[#2c283a]'
           }`}
         >
-          ×{speed}
+          ×{String(speed).replace('.', ',')}
         </button>
 
         {/* Audio Mute toggle */}
