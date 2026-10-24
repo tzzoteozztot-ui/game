@@ -1,0 +1,6 @@
+{
+  "name": "Тёмный рубеж",
+  "description": "Браузерная игра в жанре оборона башнями (Tower Defense) в стиле тёмного фэнтези.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
