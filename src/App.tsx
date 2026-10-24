@@ -9,6 +9,7 @@ import { validateAllMaps } from './game/maps';
 import { sound, AudioSettings } from './game/audio';
 import { GameEngine, GameStateSnapshot, Tower } from './game/engine';
 import { calculateStars } from './game/rules';
+import { sprites } from './game/sprites';
 
 import { TopBar } from './components/TopBar';
 import { ShopPanel, ShopCard } from './components/ShopPanel';
@@ -96,6 +97,9 @@ export default function App() {
   useEffect(() => {
     // Validate all maps programmatically at startup
     validateAllMaps();
+
+    // Sprites load in the background; until then the engine draws fallback shapes
+    sprites.load();
 
     // Load saved progression
     try {
