@@ -89,13 +89,15 @@ test('economy and reward calculations', () => {
 test('enemy scaling and damage formulas', () => {
   // Regular enemy HP scaling
   // base=30, wave=1, level=1, normal -> 30
-  assert.equal(calculateEnemyHp(30, 'infantry', 1, 1, 'normal'), 30);
-  // wave 5, level 2, normal: 30 * (1 + 0.15*4) * (1 + 0.3*1) * 1 = 30 * 1.6 * 1.3 = 62.4 -> 62
-  assert.equal(calculateEnemyHp(30, 'infantry', 5, 2, 'normal'), 62);
+  assert.equal(calculateEnemyHp(30, 'infantry', 1, 1, 'normal'), 39); // 30 * 1.3
+  // wave 5, level 2, normal: 30 * 1.3 * (1 + 0.18*4 + 0.012*16) * (1 + 0.3*1) = 30 * 1.3 * 1.912 * 1.3 = 96.9 -> 97
+  assert.equal(calculateEnemyHp(30, 'infantry', 5, 2, 'normal'), 97);
+  // wave 12, level 1: 30 * 1.3 * (1 + 0.18*11 + 0.012*121) = 30 * 1.3 * 4.432 = 172.8 -> 173
+  assert.equal(calculateEnemyHp(30, 'infantry', 12, 1, 'normal'), 173);
 
   // Boss does NOT have wave multiplier
-  assert.equal(calculateEnemyHp(1200, 'boss', 12, 1, 'normal'), 1200);
-  assert.equal(calculateEnemyHp(1200, 'boss', 12, 2, 'normal'), 1560);
+  assert.equal(calculateEnemyHp(1200, 'boss', 12, 1, 'normal'), 1560);
+  assert.equal(calculateEnemyHp(1200, 'boss', 12, 2, 'normal'), 2028);
 
   // Enemy count scaling: ceil(table * (1 + 0.2*(lvl-1)))
   assert.equal(calculateEnemyCount(6, 1), 6);
@@ -233,5 +235,7 @@ test('hunter and execute power', () => {
   assert.equal(hit({ isExecuteSpec: true, isTargetBoss: true }).damage, 15);
   assert.equal(hit({ isExecuteSpec: true, executePower: 3, isTargetBoss: true }).damage, 25);
   assert.equal(hit({ isExecuteSpec: true, targetCurrentHp: 50, targetMaxHp: 100 }).isExecuted, false);
-  assert.equal(hit({ isExecuteSpec: true, executePower: 3, targetCurrentHp: 50, targetMaxHp: 100 }).isExecuted, true);
+  // three copies: threshold 45%, not 75%
+  assert.equal(hit({ isExecuteSpec: true, executePower: 3, targetCurrentHp: 44, targetMaxHp: 100 }).isExecuted, true);
+  assert.equal(hit({ isExecuteSpec: true, executePower: 3, targetCurrentHp: 50, targetMaxHp: 100 }).isExecuted, false);
 });

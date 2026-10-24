@@ -16,14 +16,16 @@ export function calculateEnemyHp(
   level: number,
   difficulty: Difficulty
 ): number {
+  const sc = CONFIG.enemyScaling;
   const diffMult = CONFIG.difficulty[difficulty].hpMult;
-  const levelMult = 1 + 0.3 * (level - 1);
+  const levelMult = 1 + sc.level * (level - 1);
   if (type === 'boss') {
     // Boss does not scale with wave
-    return Math.round(baseHp * levelMult * diffMult);
+    return Math.round(baseHp * sc.hpMult * levelMult * diffMult);
   }
-  const waveMult = 1 + 0.15 * (wave - 1);
-  return Math.round(baseHp * waveMult * levelMult * diffMult);
+  const w = wave - 1;
+  const waveMult = 1 + sc.waveLinear * w + sc.waveQuad * w * w;
+  return Math.round(baseHp * sc.hpMult * waveMult * levelMult * diffMult);
 }
 
 export function calculateEnemyCount(tableCount: number, level: number): number {
@@ -100,7 +102,7 @@ export function calculateDamage(params: DamageCalculationParams): DamageCalculat
 
   // Execute specialization (Ballista):
   // Target with hp < 25% max dies immediately; boss instead takes +50% damage
-  // (n copies: threshold 25%·n, boss bonus +50%·n)
+  // (n copies: threshold 25% + 10%·(n−1), at most 45%; boss bonus +50%·n)
   if (params.isExecuteSpec) {
     const power = params.executePower ?? 1;
     if (params.isTargetBoss) {
@@ -108,7 +110,7 @@ export function calculateDamage(params: DamageCalculationParams): DamageCalculat
     } else if (
       params.targetCurrentHp !== undefined &&
       params.targetMaxHp !== undefined &&
-      params.targetCurrentHp < params.targetMaxHp * 0.25 * power
+      params.targetCurrentHp < params.targetMaxHp * (0.25 + 0.1 * (power - 1))
     ) {
       return { damage: params.targetCurrentHp, isEvaded: false, isExecuted: true };
     }

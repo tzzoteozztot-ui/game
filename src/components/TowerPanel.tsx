@@ -127,7 +127,13 @@ export function TowerPanel({
       const spec = def.specs.find((x) => x.id === id);
       if (!spec) continue;
       const n = part.specs.filter((x) => x === id).length;
-      notes.push({ title: n > 1 ? `${spec.name} ×${n}` : spec.name, text: n > 1 ? `${spec.desc} (прибавка ×${n})` : spec.desc });
+      const text =
+        n === 1
+          ? spec.desc
+          : id === 'execute'
+          ? `Цель с HP < ${25 + 10 * (n - 1)}% гибнет сразу; босс получает +${50 * n}% урона`
+          : `${spec.desc} (прибавка ×${n})`;
+      notes.push({ title: n > 1 ? `${spec.name} ×${n}` : spec.name, text });
     }
     if (seen.length === 0) {
       notes.push({
