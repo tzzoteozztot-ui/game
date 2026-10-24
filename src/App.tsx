@@ -679,6 +679,8 @@ export default function App() {
         } else if (screen === 'playing' && engine.selectedBinderId) {
           handleMergeBinders();
         }
+      } else if (e.key === '+' || e.key === '=' || e.key === '-' || e.key === '_') {
+        if (screen === 'playing') engine.stepSpeed(e.key === '+' || e.key === '=' ? 1 : -1);
       } else if (e.key === 's' || e.key === 'S' || e.key === 'ы' || e.key === 'Ы') {
         if (screen === 'playing' && (engine.selectedTowerId || engine.selectedBinderId)) {
           handleSell();
@@ -807,7 +809,7 @@ export default function App() {
                   waveCountdown={gameState.waveCountdown}
                   earlyStartBonus={gameState.earlyStartBonus}
                   onTogglePause={() => engineRef.current?.togglePause()}
-                  onToggleSpeed={() => engineRef.current?.toggleSpeed()}
+                  onSetSpeed={(v) => engineRef.current?.setSpeed(v)}
                   onToggleMute={handleToggleMute}
                   onStartWave={handleStartWave}
                 />

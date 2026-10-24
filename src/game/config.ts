@@ -346,7 +346,7 @@ export const CONFIG = {
     between: 20, // real seconds between a cleared wave and the next one
     goldPerSecond: 1, // early start bonus per second left on the timer
   },
-  speeds: [0.5, 1, 1.5, 3], // game speed steps, cycled by the speed button
+  speeds: [0.5, 1, 1.5, 2, 2.5, 3, 5], // game speed steps, picked from the speed button's list
 
   // Endless mode (Артур: «после каждой 12 босс, волны бесконечно усиливаются, пауза 45 секунд»).
   // The 12 waves repeat in cycles; HP keeps growing with the wave number (enemyScaling),
