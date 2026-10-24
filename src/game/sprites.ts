@@ -9,7 +9,7 @@ export interface SpriteMeta {
   file: string;
   w: number;
   h: number;
-  drawH: number; // height on the 768×512 field, px
+  drawH: number; // height on the field, px (cell = 64)
   anchorX: number; // 0..1 across the sprite
   anchorY: number; // 0..1 down the sprite (1 = feet)
   facing: number; // 1 = looks right, -1 = looks left

@@ -606,7 +606,7 @@ export default function App() {
         <div className="w-full h-full flex flex-col">
           {/* Main Game Stage: Canvas (left/center) + Right Panel */}
           <div className="flex-1 flex overflow-hidden min-h-0 relative">
-            {/* Canvas Container with strict 3:2 aspect ratio preservation */}
+            {/* Canvas Container keeps the field's aspect ratio */}
             <div
               ref={containerRef}
               className="flex-1 h-full bg-[#121118] flex items-center justify-center p-1 sm:p-2 overflow-hidden"
@@ -614,7 +614,7 @@ export default function App() {
               <div
                 className="relative shadow-2xl rounded overflow-hidden"
                 style={{
-                  aspectRatio: '3 / 2',
+                  aspectRatio: `${CONFIG.grid.cols} / ${CONFIG.grid.rows}`,
                   maxWidth: '100%',
                   maxHeight: '100%',
                   width: 'auto',

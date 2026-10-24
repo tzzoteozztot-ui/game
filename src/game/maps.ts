@@ -1,13 +1,11 @@
 /**
  * 5 Fixed Maps for «Тёмный рубеж»
- * Field: 12x8 (x 0..11, y 0..7)
- * Castle: x=11, y in 2..5
- * Road ends: x=10, y in 2..5
+ * Field: 17x11 (x 0..16, y 0..10), castle is a single cell in the centre (8,5)
  * Rules:
- * - Every path >= 18 cells
- * - Total road cells <= 56
- * - Free cells >= 36
- * - Roads before castle <= 3
+ * - Entrances on the field edge, every path ends next to the castle
+ * - Every path >= 26 cells
+ * - Total road cells <= 90
+ * - Free cells >= 96
  * - Turns only 90 deg
  * - Road cells touch by a side only where a path steps between them
  *   (separate stretches never run side by side; branches only meet at merges)
@@ -17,6 +15,13 @@ export interface Point {
   x: number;
   y: number;
 }
+
+export const GRID_COLS = 17;
+export const GRID_ROWS = 11;
+export const CASTLE: Point = { x: 8, y: 5 };
+export const MIN_PATH_LENGTH = 26;
+export const MAX_ROAD_CELLS = 90;
+export const MIN_FREE_CELLS = GRID_COLS * GRID_ROWS - 1 - MAX_ROAD_CELLS;
 
 export interface MapDef {
   level: number;
@@ -52,159 +57,47 @@ export function makePath(points: Point[]): Point[] {
 }
 
 // -------------------------------------------------------------
+// Maps 1–5. Waypoints were laid out by a search for long snaking roads that obey
+// every rule below; each path runs from its entrance to a cell next to the castle.
+// -------------------------------------------------------------
 // MAP 1 (Level 1: 2 entrances)
-// Trunk snakes through columns x=3, 6, 9; E2 joins at (3,5).
-// -------------------------------------------------------------
-const map1Trunk: Point[] = [
-  { x: 3, y: 5 },
-  { x: 6, y: 5 },
-  { x: 6, y: 2 },
-  { x: 9, y: 2 },
-  { x: 9, y: 4 },
-  { x: 10, y: 4 },
-];
-
 const map1Paths: Point[][] = [
-  // E1: (0,1) -> (3,1) -> (3,5) -> trunk
-  makePath([
-    { x: 0, y: 1 },
-    { x: 3, y: 1 },
-    ...map1Trunk,
-  ]),
-  // E2: (0,7) -> (3,7) -> (3,5) -> trunk
-  makePath([
-    { x: 0, y: 7 },
-    { x: 3, y: 7 },
-    ...map1Trunk,
-  ]),
+  makePath([{ x: 6, y: 10 }, { x: 6, y: 5 }, { x: 4, y: 5 }, { x: 4, y: 1 }, { x: 10, y: 1 }, { x: 10, y: 3 }, { x: 15, y: 3 }, { x: 15, y: 5 }, { x: 9, y: 5 }]),
+  makePath([{ x: 0, y: 7 }, { x: 1, y: 7 }, { x: 1, y: 5 }, { x: 4, y: 5 }, { x: 4, y: 1 }, { x: 10, y: 1 }, { x: 10, y: 3 }, { x: 15, y: 3 }, { x: 15, y: 5 }, { x: 9, y: 5 }]),
 ];
 
-// -------------------------------------------------------------
 // MAP 2 (Level 2: 3 entrances)
-// Branches meet at (3,4); trunk snakes through columns x=5, 7, 9.
-// -------------------------------------------------------------
-const map2Trunk: Point[] = [
-  { x: 3, y: 4 },
-  { x: 5, y: 4 },
-  { x: 5, y: 1 },
-  { x: 7, y: 1 },
-  { x: 7, y: 6 },
-  { x: 9, y: 6 },
-  { x: 9, y: 3 },
-  { x: 10, y: 3 },
-];
-
 const map2Paths: Point[][] = [
-  // E1: (0,0) -> (3,0) -> (3,4) -> trunk
-  makePath([
-    { x: 0, y: 0 },
-    { x: 3, y: 0 },
-    ...map2Trunk,
-  ]),
-  // E2: (0,2) -> (1,2) -> (1,4) -> (3,4) -> trunk
-  makePath([
-    { x: 0, y: 2 },
-    { x: 1, y: 2 },
-    { x: 1, y: 4 },
-    ...map2Trunk,
-  ]),
-  // E3: (0,7) -> (3,7) -> (3,4) -> trunk
-  makePath([
-    { x: 0, y: 7 },
-    { x: 3, y: 7 },
-    ...map2Trunk,
-  ]),
+  makePath([{ x: 9, y: 0 }, { x: 9, y: 1 }, { x: 14, y: 1 }, { x: 14, y: 3 }, { x: 12, y: 3 }, { x: 12, y: 7 }, { x: 15, y: 7 }, { x: 15, y: 9 }, { x: 10, y: 9 }, { x: 10, y: 7 }, { x: 8, y: 7 }, { x: 8, y: 6 }]),
+  makePath([{ x: 7, y: 10 }, { x: 7, y: 8 }, { x: 4, y: 8 }, { x: 4, y: 3 }, { x: 10, y: 3 }, { x: 10, y: 5 }, { x: 12, y: 5 }, { x: 12, y: 7 }, { x: 15, y: 7 }, { x: 15, y: 9 }, { x: 10, y: 9 }, { x: 10, y: 7 }, { x: 8, y: 7 }, { x: 8, y: 6 }]),
+  makePath([{ x: 0, y: 4 }, { x: 4, y: 4 }, { x: 4, y: 3 }, { x: 10, y: 3 }, { x: 10, y: 5 }, { x: 12, y: 5 }, { x: 12, y: 7 }, { x: 15, y: 7 }, { x: 15, y: 9 }, { x: 10, y: 9 }, { x: 10, y: 7 }, { x: 8, y: 7 }, { x: 8, y: 6 }]),
 ];
 
-// -------------------------------------------------------------
 // MAP 3 (Level 3: 4 entrances)
-// Branches meet at (2,1); trunk snakes through rows y=1, 3, 5, 7.
-// -------------------------------------------------------------
-const map3Trunk: Point[] = [
-  { x: 2, y: 1 },
-  { x: 9, y: 1 },
-  { x: 9, y: 3 },
-  { x: 4, y: 3 },
-  { x: 4, y: 5 },
-  { x: 8, y: 5 },
-  { x: 8, y: 7 },
-  { x: 10, y: 7 },
-  { x: 10, y: 5 },
-];
-
 const map3Paths: Point[][] = [
-  // E1: (0,1) -> (2,1) -> trunk
-  makePath([{ x: 0, y: 1 }, ...map3Trunk]),
-  // E2: (2,0) -> (2,1) -> trunk
-  makePath([{ x: 2, y: 0 }, ...map3Trunk]),
-  // E3: (2,7) -> (2,1) -> trunk
-  makePath([{ x: 2, y: 7 }, ...map3Trunk]),
-  // E4: (0,4) -> (2,4) -> (2,1) -> trunk
-  makePath([{ x: 0, y: 4 }, { x: 2, y: 4 }, ...map3Trunk]),
+  makePath([{ x: 5, y: 0 }, { x: 5, y: 4 }, { x: 7, y: 4 }, { x: 7, y: 2 }, { x: 13, y: 2 }, { x: 13, y: 6 }, { x: 14, y: 6 }, { x: 14, y: 9 }, { x: 8, y: 9 }, { x: 8, y: 6 }]),
+  makePath([{ x: 2, y: 10 }, { x: 2, y: 9 }, { x: 5, y: 9 }, { x: 5, y: 4 }, { x: 7, y: 4 }, { x: 7, y: 2 }, { x: 13, y: 2 }, { x: 13, y: 6 }, { x: 14, y: 6 }, { x: 14, y: 9 }, { x: 8, y: 9 }, { x: 8, y: 6 }]),
+  makePath([{ x: 0, y: 7 }, { x: 5, y: 7 }, { x: 5, y: 4 }, { x: 7, y: 4 }, { x: 7, y: 2 }, { x: 13, y: 2 }, { x: 13, y: 6 }, { x: 14, y: 6 }, { x: 14, y: 9 }, { x: 8, y: 9 }, { x: 8, y: 6 }]),
+  makePath([{ x: 0, y: 4 }, { x: 3, y: 4 }, { x: 3, y: 7 }, { x: 5, y: 7 }, { x: 5, y: 4 }, { x: 7, y: 4 }, { x: 7, y: 2 }, { x: 13, y: 2 }, { x: 13, y: 6 }, { x: 14, y: 6 }, { x: 14, y: 9 }, { x: 8, y: 9 }, { x: 8, y: 6 }]),
 ];
 
-// -------------------------------------------------------------
 // MAP 4 (Level 4: 5 entrances)
-// Branches gather in column x=1 and meet at (3,6);
-// trunk snakes through columns x=3, 5, 7, 9.
-// -------------------------------------------------------------
-const map4Trunk: Point[] = [
-  { x: 3, y: 6 },
-  { x: 3, y: 1 },
-  { x: 5, y: 1 },
-  { x: 5, y: 6 },
-  { x: 7, y: 6 },
-  { x: 7, y: 1 },
-  { x: 9, y: 1 },
-  { x: 9, y: 4 },
-  { x: 10, y: 4 },
-];
-
 const map4Paths: Point[][] = [
-  // E1: (0,1) -> (1,1) -> (1,6) -> (3,6) -> trunk
-  makePath([{ x: 0, y: 1 }, { x: 1, y: 1 }, { x: 1, y: 6 }, ...map4Trunk]),
-  // E2: (0,3) -> (1,3) -> (1,6) -> (3,6) -> trunk
-  makePath([{ x: 0, y: 3 }, { x: 1, y: 3 }, { x: 1, y: 6 }, ...map4Trunk]),
-  // E3: (0,5) -> (1,5) -> (1,6) -> (3,6) -> trunk
-  makePath([{ x: 0, y: 5 }, { x: 1, y: 5 }, { x: 1, y: 6 }, ...map4Trunk]),
-  // E4: (1,7) -> (1,6) -> (3,6) -> trunk
-  makePath([{ x: 1, y: 7 }, { x: 1, y: 6 }, ...map4Trunk]),
-  // E5: (3,7) -> (3,6) -> trunk
-  makePath([{ x: 3, y: 7 }, ...map4Trunk]),
+  makePath([{ x: 1, y: 10 }, { x: 1, y: 9 }, { x: 7, y: 9 }, { x: 7, y: 7 }, { x: 3, y: 7 }, { x: 3, y: 5 }, { x: 1, y: 5 }, { x: 1, y: 1 }, { x: 5, y: 1 }, { x: 5, y: 3 }, { x: 8, y: 3 }, { x: 8, y: 4 }]),
+  makePath([{ x: 0, y: 7 }, { x: 1, y: 7 }, { x: 1, y: 9 }, { x: 7, y: 9 }, { x: 7, y: 7 }, { x: 3, y: 7 }, { x: 3, y: 5 }, { x: 1, y: 5 }, { x: 1, y: 1 }, { x: 5, y: 1 }, { x: 5, y: 3 }, { x: 8, y: 3 }, { x: 8, y: 4 }]),
+  makePath([{ x: 7, y: 0 }, { x: 7, y: 1 }, { x: 10, y: 1 }, { x: 10, y: 7 }, { x: 3, y: 7 }, { x: 3, y: 5 }, { x: 1, y: 5 }, { x: 1, y: 1 }, { x: 5, y: 1 }, { x: 5, y: 3 }, { x: 8, y: 3 }, { x: 8, y: 4 }]),
+  makePath([{ x: 16, y: 7 }, { x: 13, y: 7 }, { x: 13, y: 9 }, { x: 7, y: 9 }, { x: 7, y: 7 }, { x: 3, y: 7 }, { x: 3, y: 5 }, { x: 1, y: 5 }, { x: 1, y: 1 }, { x: 5, y: 1 }, { x: 5, y: 3 }, { x: 8, y: 3 }, { x: 8, y: 4 }]),
+  makePath([{ x: 16, y: 3 }, { x: 15, y: 3 }, { x: 15, y: 1 }, { x: 10, y: 1 }, { x: 10, y: 7 }, { x: 3, y: 7 }, { x: 3, y: 5 }, { x: 1, y: 5 }, { x: 1, y: 1 }, { x: 5, y: 1 }, { x: 5, y: 3 }, { x: 8, y: 3 }, { x: 8, y: 4 }]),
 ];
 
-// -------------------------------------------------------------
 // MAP 5 (Level 5: 6 entrances)
-// Northern branches come down column x=4, southern ones up column x=3;
-// they meet at (4,3), trunk snakes through columns x=5, 7, 9.
-// -------------------------------------------------------------
-const map5Trunk: Point[] = [
-  { x: 4, y: 3 },
-  { x: 5, y: 3 },
-  { x: 5, y: 7 },
-  { x: 7, y: 7 },
-  { x: 7, y: 0 },
-  { x: 9, y: 0 },
-  { x: 9, y: 4 },
-  { x: 10, y: 4 },
-];
-
-const map5North: Point[] = [{ x: 4, y: 1 }, ...map5Trunk];
-const map5South: Point[] = [{ x: 3, y: 3 }, ...map5Trunk];
-
 const map5Paths: Point[][] = [
-  // E1: (0,1) -> (4,1) -> (4,3) -> trunk
-  makePath([{ x: 0, y: 1 }, ...map5North]),
-  // E2: (4,0) -> (4,3) -> trunk
-  makePath([{ x: 4, y: 0 }, ...map5North]),
-  // E3: (2,0) -> (2,1) -> (4,1) -> (4,3) -> trunk
-  makePath([{ x: 2, y: 0 }, { x: 2, y: 1 }, ...map5North]),
-  // E4: (3,7) -> (3,3) -> (4,3) -> trunk
-  makePath([{ x: 3, y: 7 }, ...map5South]),
-  // E5: (0,5) -> (3,5) -> (3,3) -> (4,3) -> trunk
-  makePath([{ x: 0, y: 5 }, { x: 3, y: 5 }, ...map5South]),
-  // E6: (0,3) -> (3,3) -> (4,3) -> trunk
-  makePath([{ x: 0, y: 3 }, ...map5South]),
+  makePath([{ x: 0, y: 5 }, { x: 6, y: 5 }, { x: 6, y: 2 }, { x: 10, y: 2 }, { x: 10, y: 7 }, { x: 12, y: 7 }, { x: 12, y: 9 }, { x: 5, y: 9 }, { x: 5, y: 7 }, { x: 8, y: 7 }, { x: 8, y: 6 }]),
+  makePath([{ x: 4, y: 0 }, { x: 4, y: 3 }, { x: 6, y: 3 }, { x: 6, y: 2 }, { x: 10, y: 2 }, { x: 10, y: 7 }, { x: 12, y: 7 }, { x: 12, y: 9 }, { x: 5, y: 9 }, { x: 5, y: 7 }, { x: 8, y: 7 }, { x: 8, y: 6 }]),
+  makePath([{ x: 16, y: 7 }, { x: 15, y: 7 }, { x: 15, y: 2 }, { x: 10, y: 2 }, { x: 10, y: 7 }, { x: 12, y: 7 }, { x: 12, y: 9 }, { x: 5, y: 9 }, { x: 5, y: 7 }, { x: 8, y: 7 }, { x: 8, y: 6 }]),
+  makePath([{ x: 0, y: 2 }, { x: 4, y: 2 }, { x: 4, y: 3 }, { x: 6, y: 3 }, { x: 6, y: 2 }, { x: 10, y: 2 }, { x: 10, y: 7 }, { x: 12, y: 7 }, { x: 12, y: 9 }, { x: 5, y: 9 }, { x: 5, y: 7 }, { x: 8, y: 7 }, { x: 8, y: 6 }]),
+  makePath([{ x: 15, y: 10 }, { x: 15, y: 2 }, { x: 10, y: 2 }, { x: 10, y: 7 }, { x: 12, y: 7 }, { x: 12, y: 9 }, { x: 5, y: 9 }, { x: 5, y: 7 }, { x: 8, y: 7 }, { x: 8, y: 6 }]),
+  makePath([{ x: 3, y: 10 }, { x: 3, y: 9 }, { x: 1, y: 9 }, { x: 1, y: 5 }, { x: 6, y: 5 }, { x: 6, y: 2 }, { x: 10, y: 2 }, { x: 10, y: 7 }, { x: 12, y: 7 }, { x: 12, y: 9 }, { x: 5, y: 9 }, { x: 5, y: 7 }, { x: 8, y: 7 }, { x: 8, y: 6 }]),
 ];
 
 export const MAPS: MapDef[] = [
@@ -270,36 +163,36 @@ export function validateMap(mapDef: MapDef): MapValidationResult {
 
   const allRoadCells = new Set<string>();
   const roadSteps = new Set<string>();
-  const roadsBeforeCastle = new Set<number>();
+  const roadsBeforeCastle = new Set<string>();
   const pathLengths: number[] = [];
 
   for (let i = 0; i < mapDef.paths.length; i++) {
     const path = mapDef.paths[i];
     pathLengths.push(path.length);
 
-    // Rule 1: path length >= 18
-    if (path.length < 18) {
+    // Rule 1: path length
+    if (path.length < MIN_PATH_LENGTH) {
       errors.push(
-        `Уровень ${mapDef.level}, путь ${i + 1}: длина ${path.length} < 18 клеток (вход [${path[0].x}, ${path[0].y}])`
+        `Уровень ${mapDef.level}, путь ${i + 1}: длина ${path.length} < ${MIN_PATH_LENGTH} клеток (вход [${path[0].x}, ${path[0].y}])`
       );
     }
 
     // Check entrance is on border
     const entrance = path[0];
     const isBorder =
-      entrance.x === 0 || entrance.y === 0 || entrance.y === 7 || entrance.x === 11;
+      entrance.x === 0 || entrance.y === 0 || entrance.x === GRID_COLS - 1 || entrance.y === GRID_ROWS - 1;
     if (!isBorder) {
       errors.push(`Уровень ${mapDef.level}, вход ${i + 1} (${entrance.x}, ${entrance.y}) не на границе`);
     }
 
-    // Check path ends at x=10, y in 2..5
+    // Check path ends next to the castle
     const end = path[path.length - 1];
-    if (end.x !== 10 || end.y < 2 || end.y > 5) {
+    if (Math.abs(end.x - CASTLE.x) + Math.abs(end.y - CASTLE.y) !== 1) {
       errors.push(
-        `Уровень ${mapDef.level}, путь ${i + 1} заканчивается в (${end.x}, ${end.y}), а должен в x=10, y in 2..5`
+        `Уровень ${mapDef.level}, путь ${i + 1} заканчивается в (${end.x}, ${end.y}), а должен у замка (${CASTLE.x}, ${CASTLE.y})`
       );
     } else {
-      roadsBeforeCastle.add(end.y);
+      roadsBeforeCastle.add(`${end.x},${end.y}`);
     }
 
     // Check step by step adjacency (only 90 deg turns, step 1)
@@ -324,6 +217,13 @@ export function validateMap(mapDef: MapDef): MapValidationResult {
       visited.add(key);
     }
 
+    if (path.some((c) => c.x === CASTLE.x && c.y === CASTLE.y)) {
+      errors.push(`Уровень ${mapDef.level}, путь ${i + 1} проходит через замок`);
+    }
+    if (path.some((c) => c.x < 0 || c.y < 0 || c.x >= GRID_COLS || c.y >= GRID_ROWS)) {
+      errors.push(`Уровень ${mapDef.level}, путь ${i + 1} выходит за поле`);
+    }
+
     // Add to allRoadCells and remember every step as an allowed contact
     for (let j = 0; j < path.length; j++) {
       const cell = path[j];
@@ -344,24 +244,24 @@ export function validateMap(mapDef: MapDef): MapValidationResult {
     }
   }
 
-  // Rule 2: total road cells <= 56
+  // Rule 2: total road cells
   const roadCellsCount = allRoadCells.size;
-  if (roadCellsCount > 56) {
-    errors.push(`Уровень ${mapDef.level}: клеток дороги ${roadCellsCount} > 56`);
+  if (roadCellsCount > MAX_ROAD_CELLS) {
+    errors.push(`Уровень ${mapDef.level}: клеток дороги ${roadCellsCount} > ${MAX_ROAD_CELLS}`);
   }
 
-  // Rule 3: free cells >= 36
-  // Total cells = 12 * 8 = 96. Castle cells = 4.
-  const freeCellsCount = 96 - 4 - roadCellsCount;
-  if (freeCellsCount < 36) {
-    errors.push(`Уровень ${mapDef.level}: свободных клеток ${freeCellsCount} < 36`);
+  // Rule 3: free cells (the castle takes one cell)
+  const freeCellsCount = GRID_COLS * GRID_ROWS - 1 - roadCellsCount;
+  if (freeCellsCount < MIN_FREE_CELLS) {
+    errors.push(`Уровень ${mapDef.level}: свободных клеток ${freeCellsCount} < ${MIN_FREE_CELLS}`);
   }
 
-  // Rule 4: roads before castle <= 3
-  if (roadsBeforeCastle.size > 3) {
-    errors.push(
-      `Уровень ${mapDef.level}: дорог перед замком ${roadsBeforeCastle.size} > 3`
-    );
+  // A cell next to the castle is road only where a path ends
+  for (const d of [{ x: 1, y: 0 }, { x: -1, y: 0 }, { x: 0, y: 1 }, { x: 0, y: -1 }]) {
+    const key = `${CASTLE.x + d.x},${CASTLE.y + d.y}`;
+    if (allRoadCells.has(key) && !roadsBeforeCastle.has(key)) {
+      errors.push(`Уровень ${mapDef.level}: дорога касается замка в (${key}), но не входит в него`);
+    }
   }
 
   return {

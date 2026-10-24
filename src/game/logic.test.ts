@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { MAPS, makePath, validateMap, validateAllMaps } from './maps';
+import { MAPS, makePath, validateMap, validateAllMaps, MAX_ROAD_CELLS, MIN_FREE_CELLS, MIN_PATH_LENGTH, CASTLE } from './maps';
 import { CONFIG } from './config';
 
 test('all 5 maps meet the game rules', () => {
@@ -35,9 +35,13 @@ test('map constraints by level', () => {
   for (const m of MAPS) {
     const { stats } = validateMap(m);
     assert.equal(stats.entrancesCount, m.level + 1);
-    assert.ok(stats.roadCellsCount <= 56);
-    assert.ok(stats.freeCellsCount >= 36);
-    for (const len of stats.pathLengths) assert.ok(len >= 18);
+    assert.ok(stats.roadCellsCount <= MAX_ROAD_CELLS);
+    assert.ok(stats.freeCellsCount >= MIN_FREE_CELLS);
+    for (const len of stats.pathLengths) assert.ok(len >= MIN_PATH_LENGTH);
+    for (const p of m.paths) {
+      const end = p[p.length - 1];
+      assert.equal(Math.abs(end.x - CASTLE.x) + Math.abs(end.y - CASTLE.y), 1, `Level ${m.level}: path must end next to the castle`);
+    }
   }
   assert.equal(validateAllMaps(), true);
 });

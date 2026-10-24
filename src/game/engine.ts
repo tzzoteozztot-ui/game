@@ -233,7 +233,7 @@ export class GameEngine {
   public resizeCanvas() {
     if (!this.canvas) return;
     const dpr = window.devicePixelRatio || 1;
-    // Logical dimensions: 768 x 512
+    // Logical dimensions: CONFIG.grid.totalWidth x totalHeight
     this.canvas.width = CONFIG.grid.totalWidth * dpr;
     this.canvas.height = CONFIG.grid.totalHeight * dpr;
     if (this.ctx) {
@@ -293,7 +293,8 @@ export class GameEngine {
       const dir = this.entranceInward(path[0]);
       pts.unshift({ x: pts[0].x - dir.x * 0.6, y: pts[0].y - dir.y * 0.6 });
       const last = pts[pts.length - 1];
-      pts.push({ x: last.x + 0.75, y: last.y });
+      const castle = CONFIG.grid.castleTarget;
+      pts.push({ x: last.x + (castle.x - last.x) * 0.6, y: last.y + (castle.y - last.y) * 0.6 });
       this.roadLines.push(pts);
       for (let i = 1; i < pts.length; i++) {
         const key = `${pts[i - 1].x},${pts[i - 1].y}>${pts[i].x},${pts[i].y}`;
@@ -308,7 +309,8 @@ export class GameEngine {
     if (e.x === 0) return { x: 1, y: 0 };
     if (e.y === 0) return { x: 0, y: 1 };
     if (e.y === CONFIG.grid.rows - 1) return { x: 0, y: -1 };
-    return { x: -1, y: 0 };
+    if (e.x === CONFIG.grid.cols - 1) return { x: -1, y: 0 };
+    return { x: 1, y: 0 };
   }
 
   private generateGrass() {
@@ -767,7 +769,7 @@ export class GameEngine {
         const dy = targetPxY - e.y;
         const dist = Math.hypot(dx, dy);
 
-        if (dist < 12 || e.x >= 11 * CONFIG.grid.cellSize) {
+        if (dist < 12) {
           // Reached castle!
           this.damageCastle(e, i);
           continue;
@@ -784,13 +786,21 @@ export class GameEngine {
         const nextCell = path[e.pathIndex + 1];
 
         if (!nextCell) {
-          // Reached end of road at x=10, move straight into castle (x=11)
-          e.x += speed * dt;
-          e.distanceTraveled += speed * dt;
-          if (e.x >= 11 * CONFIG.grid.cellSize) {
+          // Reached the end of the road next to the castle: walk into the castle cell
+          const cx = CONFIG.grid.castleTarget.x * CONFIG.grid.cellSize;
+          const cy = CONFIG.grid.castleTarget.y * CONFIG.grid.cellSize;
+          const dx = cx - e.x;
+          const dy = cy - e.y;
+          const dist = Math.hypot(dx, dy);
+          const moveStep = speed * dt;
+          if (dist <= Math.max(moveStep, 14)) {
             this.damageCastle(e, i);
             continue;
           }
+          e.x += (dx / dist) * moveStep;
+          e.y += (dy / dist) * moveStep;
+          e.distanceTraveled += moveStep;
+          if (Math.abs(dx) > 1) e.facing = dx < 0 ? -1 : 1;
         } else {
           const targetPxX = (nextCell.x + 0.5) * CONFIG.grid.cellSize;
           const targetPxY = (nextCell.y + 0.5) * CONFIG.grid.cellSize;
@@ -1260,7 +1270,12 @@ export class GameEngine {
     const cost = e.type === 'boss' ? CONFIG.lives.bossCost : CONFIG.lives.regularCost;
     this.lives = Math.max(0, this.lives - cost);
     sound.playError();
-    this.addFloatingText(`-${cost} ЖИЗНИ`, CONFIG.grid.totalWidth - 48, (CONFIG.grid.castleTarget.y) * CONFIG.grid.cellSize, '#e0452f');
+    this.addFloatingText(
+      `-${cost} ЖИЗНИ`,
+      CONFIG.grid.castleTarget.x * CONFIG.grid.cellSize,
+      (CONFIG.grid.castleTarget.y - 0.7) * CONFIG.grid.cellSize,
+      '#e0452f'
+    );
 
     if (this.lives <= 0) {
       this.isGameOver = true;
@@ -1804,85 +1819,73 @@ export class GameEngine {
   }
 
   private renderCastle(ctx: CanvasRenderingContext2D, cellSize: number, light: string, timeSec: number) {
-    const cells = CONFIG.grid.castleCells;
-    const x0 = cells[0].x * cellSize;
-    const y0 = cells[0].y * cellSize;
-    const h = cells.length * cellSize;
+    const c = CONFIG.grid.castleCells[0];
+    const x0 = c.x * cellSize;
+    const y0 = c.y * cellSize;
+    const cx = x0 + cellSize / 2;
+    const cy = y0 + cellSize / 2;
 
     // Glow halo
-    ctx.fillStyle = light;
-    ctx.globalAlpha = 0.12 + 0.04 * Math.sin(timeSec * 2);
-    ctx.fillRect(x0 - 6, y0 - 14, cellSize + 6, h + 28);
+    const halo = ctx.createRadialGradient(cx, cy, cellSize * 0.3, cx, cy, cellSize * 0.95);
+    halo.addColorStop(0, light);
+    halo.addColorStop(1, 'rgba(0, 0, 0, 0)');
+    ctx.globalAlpha = 0.35 + 0.08 * Math.sin(timeSec * 2);
+    ctx.fillStyle = halo;
+    ctx.fillRect(x0 - cellSize / 2, y0 - cellSize / 2, cellSize * 2, cellSize * 2);
     ctx.globalAlpha = 1;
 
-    // Wall body
+    // Keep: square wall with corner towers
     ctx.fillStyle = '#121118';
-    ctx.fillRect(x0 + 2, y0 - 2, cellSize - 2, h + 4);
+    ctx.fillRect(x0 + 3, y0 + 3, cellSize - 6, cellSize - 6);
     ctx.fillStyle = '#4b3f5c';
-    ctx.fillRect(x0 + 4, y0, cellSize - 4, h);
-    ctx.strokeStyle = 'rgba(18, 17, 24, 0.5)';
-    ctx.lineWidth = 1;
-    for (let row = 0; row < h / 16; row++) {
-      const ry = y0 + row * 16;
-      ctx.beginPath();
-      ctx.moveTo(x0 + 4, ry);
-      ctx.lineTo(x0 + cellSize, ry);
-      ctx.stroke();
-      const off = row % 2 === 0 ? 20 : 38;
-      ctx.beginPath();
-      ctx.moveTo(x0 + off, ry);
-      ctx.lineTo(x0 + off, ry + 16);
-      ctx.stroke();
+    ctx.fillRect(x0 + 5, y0 + 5, cellSize - 10, cellSize - 10);
+    ctx.fillStyle = '#6a5a80';
+    for (let bx = x0 + 9; bx < x0 + cellSize - 9; bx += 10) {
+      ctx.fillRect(bx, y0 + 5, 6, 5);
+      ctx.fillRect(bx, y0 + cellSize - 10, 6, 5);
     }
-
-    // Crenellations facing the field
-    for (let cy = y0; cy < y0 + h; cy += 16) {
+    for (const [tx, ty] of [
+      [x0 + 2, y0 + 2],
+      [x0 + cellSize - 16, y0 + 2],
+      [x0 + 2, y0 + cellSize - 16],
+      [x0 + cellSize - 16, y0 + cellSize - 16],
+    ]) {
       ctx.fillStyle = '#121118';
-      ctx.fillRect(x0 - 1, cy + 1, 10, 9);
-      ctx.fillStyle = '#6a5a80';
-      ctx.fillRect(x0, cy + 2, 8, 7);
-    }
-
-    // Corner bastions
-    for (const by of [y0 - 12, y0 + h - 12]) {
-      ctx.fillStyle = '#121118';
-      ctx.fillRect(x0 - 2, by - 1, cellSize + 2, 26);
-      ctx.fillStyle = '#5a4b6e';
-      ctx.fillRect(x0, by, cellSize, 24);
+      ctx.fillRect(tx, ty, 14, 14);
       ctx.fillStyle = '#7a6894';
-      for (let bx = x0; bx < x0 + cellSize; bx += 16) ctx.fillRect(bx + 2, by, 9, 6);
+      ctx.fillRect(tx + 1, ty + 1, 12, 12);
     }
 
-    // Gates where roads arrive
-    const gateRows = new Set(this.currentMap.paths.map((p) => p[p.length - 1].y));
-    for (const gyCell of gateRows) {
-      const gy = (gyCell + 0.5) * cellSize;
+    // Gates on the sides where roads arrive
+    for (const path of this.currentMap.paths) {
+      const end = path[path.length - 1];
+      const dx = end.x - c.x;
+      const dy = end.y - c.y;
+      const gx = cx + dx * (cellSize / 2 - 4);
+      const gy = cy + dy * (cellSize / 2 - 4);
       ctx.fillStyle = light;
-      ctx.beginPath();
-      ctx.arc(x0 + 6, gy, 17, -Math.PI / 2, Math.PI / 2);
-      ctx.fill();
+      ctx.fillRect(gx - 9 - Math.abs(dy) * 2, gy - 9 - Math.abs(dx) * 2, 18 + Math.abs(dy) * 4, 18 + Math.abs(dx) * 4);
       ctx.fillStyle = '#120f18';
-      ctx.beginPath();
-      ctx.arc(x0 + 6, gy, 14, -Math.PI / 2, Math.PI / 2);
-      ctx.fill();
-      ctx.fillRect(x0 + 1, gy - 14, 5, 28);
+      ctx.fillRect(gx - 7 - Math.abs(dy) * 2, gy - 7 - Math.abs(dx) * 2, 14 + Math.abs(dy) * 4, 14 + Math.abs(dx) * 4);
     }
 
-    // Banner on the upper bastion
-    const fx = x0 + cellSize / 2;
-    const fy = y0 - 12;
+    // Central tower with a banner
+    ctx.fillStyle = '#121118';
+    ctx.fillRect(cx - 11, cy - 11, 22, 22);
+    ctx.fillStyle = '#5a4b6e';
+    ctx.fillRect(cx - 10, cy - 10, 20, 20);
     ctx.strokeStyle = '#2a2233';
     ctx.lineWidth = 2;
     ctx.beginPath();
-    ctx.moveTo(fx, fy);
-    ctx.lineTo(fx, fy - 26);
+    ctx.moveTo(cx, cy);
+    ctx.lineTo(cx, cy - 30);
     ctx.stroke();
     const wave = Math.sin(timeSec * 4) * 3;
     ctx.fillStyle = light;
     ctx.beginPath();
-    ctx.moveTo(fx, fy - 26);
-    ctx.quadraticCurveTo(fx - 9, fy - 22 + wave, fx - 18, fy - 20);
-    ctx.lineTo(fx, fy - 14);
+    ctx.moveTo(cx, cy - 30);
+    ctx.quadraticCurveTo(cx + 9, cy - 26 + wave, cx + 18, cy - 24);
+    ctx.lineTo(cx, cy - 18);
     ctx.closePath();
     ctx.fill();
   }

@@ -56,18 +56,13 @@ export interface FactionDef {
 
 export const CONFIG = {
   grid: {
-    cols: 12,
-    rows: 8,
+    cols: 17,
+    rows: 11,
     cellSize: 64, // logical width & height
-    totalWidth: 768, // 12 * 64
-    totalHeight: 512, // 8 * 64
-    castleCells: [
-      { x: 11, y: 2 },
-      { x: 11, y: 3 },
-      { x: 11, y: 4 },
-      { x: 11, y: 5 },
-    ],
-    castleTarget: { x: 11.5, y: 3.5 }, // center of castle for flyers
+    totalWidth: 1088, // 17 * 64
+    totalHeight: 704, // 11 * 64
+    castleCells: [{ x: 8, y: 5 }], // single cell in the centre
+    castleTarget: { x: 8.5, y: 5.5 }, // center of castle for flyers
   },
 
   lives: {
