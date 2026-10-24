@@ -34,6 +34,10 @@ npm run preview      # локальный просмотр сборки
 
 Проверка после каждой правки: `npm run lint && npm test && npm run build`.
 
+Выкладка: `.github/workflows/pages.yml` на каждом PR прогоняет lint, тест и сборку, а при вливании в
+`main` выкладывает `dist/` на GitHub Pages (https://tzzoteozztot-ui.github.io/game/). Сборка с
+`base: './'`, поэтому все пути в коде — относительные (`sprites/…`, а не `/sprites/…`).
+
 ## Архитектура
 
 ```
