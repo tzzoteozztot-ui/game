@@ -12,11 +12,14 @@ interface MainMenuProps {
   unlockedLevel: number; // 1..5
   levelStars: Record<number, number>; // level -> stars
   selectedDifficulty: Difficulty;
+  endless: boolean;
+  endlessBest: Record<number, number>; // level -> best wave reached in endless mode
   musicVol: number;
   sfxVol: number;
   isMuted: boolean;
   onSelectLevel: (lvl: number) => void;
   onChangeDifficulty: (diff: Difficulty) => void;
+  onChangeEndless: (endless: boolean) => void;
   onOpenHowToPlay: () => void;
   onMusicChange: (val: number) => void;
   onSfxChange: (val: number) => void;
@@ -27,11 +30,14 @@ export function MainMenu({
   unlockedLevel,
   levelStars,
   selectedDifficulty,
+  endless,
+  endlessBest,
   musicVol,
   sfxVol,
   isMuted,
   onSelectLevel,
   onChangeDifficulty,
+  onChangeEndless,
   onOpenHowToPlay,
   onMusicChange,
   onSfxChange,
@@ -112,11 +118,17 @@ export function MainMenu({
                 </div>
 
                 <div className="mt-1.5 pt-1 border-t border-[#262233] flex items-center justify-between">
-                  <div className="flex items-center gap-0.5">
-                    <StarIcon filled={stars >= 1} size={12} />
-                    <StarIcon filled={stars >= 2} size={12} />
-                    <StarIcon filled={stars >= 3} size={12} />
-                  </div>
+                  {endless ? (
+                    <span className="text-[9px] sm:text-[10px] font-semibold text-amber-300">
+                      {endlessBest[lvl] ? `Рекорд: волна ${endlessBest[lvl]}` : 'Рекорда нет'}
+                    </span>
+                  ) : (
+                    <div className="flex items-center gap-0.5">
+                      <StarIcon filled={stars >= 1} size={12} />
+                      <StarIcon filled={stars >= 2} size={12} />
+                      <StarIcon filled={stars >= 3} size={12} />
+                    </div>
+                  )}
                   <div
                     className="w-2 h-2 sm:w-2.5 sm:h-2.5 rounded-full border border-black/40"
                     style={{ backgroundColor: palette.enemies }}
@@ -131,6 +143,28 @@ export function MainMenu({
 
       {/* Difficulty & Quick Actions */}
       <div className="w-full max-w-md flex flex-col items-center gap-2">
+        {/* Mode Selector: campaign of 12 waves or endless waves */}
+        <div className="w-full flex items-center justify-between p-1 bg-[#171520] rounded-lg border border-[#2d2938]">
+          <span className="text-xs font-semibold text-stone-400 pl-3">Режим:</span>
+          <div className="flex items-center gap-1">
+            {[false, true].map((v) => (
+              <button
+                key={String(v)}
+                type="button"
+                onClick={() => onChangeEndless(v)}
+                title={v ? 'Волны без конца, босс каждую 12-ю волну, враги всё сильнее' : '12 волн, в последней босс'}
+                className={`px-3 py-1.5 min-h-[36px] rounded text-xs font-bold transition-colors cursor-pointer ${
+                  endless === v
+                    ? 'bg-amber-600 text-stone-950 font-black'
+                    : 'text-stone-400 hover:text-stone-200 hover:bg-[#221f2d]'
+                }`}
+              >
+                {v ? 'Бесконечный' : 'Кампания'}
+              </button>
+            ))}
+          </div>
+        </div>
+
         {/* Difficulty Selector */}
         <div className="w-full flex items-center justify-between p-1 bg-[#171520] rounded-lg border border-[#2d2938]">
           <span className="text-xs font-semibold text-stone-400 pl-3">Сложность:</span>

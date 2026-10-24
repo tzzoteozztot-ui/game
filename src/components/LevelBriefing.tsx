@@ -9,6 +9,7 @@ import { CONFIG } from '../game/config';
 interface LevelBriefingProps {
   level: number;
   difficulty: 'easy' | 'normal' | 'hard';
+  endless: boolean;
   onStartBattle: () => void;
   onBack: () => void;
 }
@@ -16,6 +17,7 @@ interface LevelBriefingProps {
 export function LevelBriefing({
   level,
   difficulty,
+  endless,
   onStartBattle,
   onBack,
 }: LevelBriefingProps) {
@@ -23,12 +25,13 @@ export function LevelBriefing({
   const palette = CONFIG.palettes[level - 1];
 
   return (
-    <div className="fixed inset-0 z-40 bg-[#121118] text-[#f4f2e6] flex flex-col items-center justify-center p-4 sm:p-6 select-none animate-fade-in">
-      <div className="max-w-md w-full bg-[#171520] border-2 border-[#3b354a] rounded-xl p-5 sm:p-6 shadow-2xl relative">
+    <div className="fixed inset-0 z-40 bg-[#121118] text-[#f4f2e6] flex flex-col items-center overflow-y-auto p-4 sm:p-6 select-none animate-fade-in">
+      {/* my-auto centres the card and lets a low phone screen scroll to its top */}
+      <div className="my-auto max-w-md w-full bg-[#171520] border-2 border-[#3b354a] rounded-xl p-5 sm:p-6 shadow-2xl relative">
         {/* Level & Region Header */}
         <div className="text-center mb-5 pb-4 border-b border-[#2d2938]">
           <div className="text-xs uppercase tracking-widest font-bold text-amber-500 mb-1">
-            Рубеж {level} из 5
+            Рубеж {level} из 5{endless && ' · бесконечный режим'}
           </div>
           <h2 className="text-2xl sm:text-3xl font-black text-amber-300 tracking-wide">
             {faction.location}
@@ -51,9 +54,18 @@ export function LevelBriefing({
         <div className="bg-[#121118] p-3.5 rounded-lg border border-[#2d2938] mb-5">
           <div className="text-xs font-bold text-red-400 flex items-center gap-1.5 mb-1">
             <span className="w-2 h-2 rounded-full bg-red-500" />
-            <span>Босс 12-й волны: {faction.bossName}</span>
+            <span>
+              {endless ? 'Босс каждой 12-й волны' : 'Босс 12-й волны'}: {faction.bossName}
+            </span>
           </div>
           <p className="text-xs text-stone-300 leading-relaxed">{faction.bossDesc}</p>
+          {endless && (
+            <p className="text-xs text-stone-400 leading-relaxed mt-1.5">
+              Волны идут без конца и с каждой становятся сильнее. Каждые 12 волн врагов становится
+              больше, а босс крепче. Между волнами {CONFIG.endless.between} с. Бой идёт, пока стоит
+              замок.
+            </p>
+          )}
         </div>
 
         {/* Actions */}

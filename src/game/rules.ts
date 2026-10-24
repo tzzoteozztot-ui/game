@@ -2,7 +2,7 @@
  * Core Game Rules & Formulas for «Тёмный рубеж»
  */
 
-import { CONFIG, TowerType, Difficulty, EnemyType } from './config';
+import { CONFIG, TowerType, Difficulty, EnemyType, WaveDef } from './config';
 
 export function calculateStartingGold(level: number, difficulty: Difficulty): number {
   const diffMult = CONFIG.difficulty[difficulty].goldMult;
@@ -14,22 +14,35 @@ export function calculateEnemyHp(
   type: EnemyType,
   wave: number,
   level: number,
-  difficulty: Difficulty
+  difficulty: Difficulty,
+  endless = false
 ): number {
   const sc = CONFIG.enemyScaling;
   const diffMult = CONFIG.difficulty[difficulty].hpMult;
   const levelMult = 1 + sc.level * (level - 1);
   if (type === 'boss') {
-    // Boss does not scale with wave
-    return Math.round(baseHp * sc.hpMult * levelMult * diffMult);
+    // Boss does not scale with wave; in endless mode it grows with every finished cycle
+    const cycleMult = endless ? 1 + CONFIG.endless.bossHpPerCycle * endlessCycle(wave) : 1;
+    return Math.round(baseHp * sc.hpMult * levelMult * diffMult * cycleMult);
   }
   const w = wave - 1;
   const waveMult = 1 + sc.waveLinear * w + sc.waveQuad * w * w;
   return Math.round(baseHp * sc.hpMult * waveMult * levelMult * diffMult);
 }
 
-export function calculateEnemyCount(tableCount: number, level: number): number {
-  return Math.ceil(tableCount * (1 + 0.2 * (level - 1)));
+export function calculateEnemyCount(tableCount: number, level: number, wave = 1, endless = false): number {
+  const cycleMult = endless ? 1 + CONFIG.endless.countPerCycle * endlessCycle(wave) : 1;
+  return Math.ceil(tableCount * (1 + 0.2 * (level - 1)) * cycleMult);
+}
+
+/** Endless mode: finished cycles of 12 waves before this wave (waves 1–12 → 0, 13–24 → 1…) */
+export function endlessCycle(wave: number): number {
+  return Math.floor((wave - 1) / CONFIG.waves.length);
+}
+
+/** Wave table entry: campaign waves 1–12; endless mode repeats them, the boss on every 12th */
+export function waveDefinition(wave: number): WaveDef {
+  return CONFIG.waves[(wave - 1) % CONFIG.waves.length];
 }
 
 export function calculateKillGold(baseGold: number, level: number): number {

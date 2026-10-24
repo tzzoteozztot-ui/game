@@ -37,6 +37,16 @@ export interface EnemyBaseDef {
   shape: 'circle' | 'small_triangle' | 'large_square' | 'rhombus' | 'shaman_circle' | 'swarm_dot' | 'boss_spiked';
 }
 
+export interface WaveDef {
+  infantry?: number;
+  scout?: number;
+  heavy?: number;
+  flyer?: number;
+  shaman?: number;
+  swarm?: number; // groups of swarmGroupCount
+  boss?: boolean;
+}
+
 export interface LevelPalette {
   ground: string;
   road: string;
@@ -314,7 +324,7 @@ export const CONFIG = {
     { infantry: 18, heavy: 10, flyer: 8, shaman: 5, swarm: 4 },
     { infantry: 20, scout: 14, heavy: 12, flyer: 10, shaman: 6, swarm: 4 },
     { infantry: 20, heavy: 14, flyer: 10, shaman: 8, swarm: 5, boss: true },
-  ],
+  ] as WaveDef[],
 
   shop: {
     slotsCount: 5,
@@ -337,6 +347,15 @@ export const CONFIG = {
     goldPerSecond: 1, // early start bonus per second left on the timer
   },
   speeds: [0.5, 1, 1.5, 3], // game speed steps, cycled by the speed button
+
+  // Endless mode (Артур: «после каждой 12 босс, волны бесконечно усиливаются, пауза 45 секунд»).
+  // The 12 waves repeat in cycles; HP keeps growing with the wave number (enemyScaling),
+  // each finished cycle adds enemies and boss HP.
+  endless: {
+    between: 45, // real seconds before wave 1 and between waves
+    countPerCycle: 0.25, // +25% enemies of every type per finished cycle of 12 waves
+    bossHpPerCycle: 0.6, // +60% boss HP per finished cycle
+  },
 
   spawnInterval: 0.8, // seconds between spawns
   swarmInterval: 0.25, // seconds between swarm individuals

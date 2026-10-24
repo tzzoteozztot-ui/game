@@ -57,6 +57,8 @@ import {
   calculateStars,
   calculateDamage,
   calculateEffectiveSlow,
+  endlessCycle,
+  waveDefinition,
 } from './rules';
 
 test('economy and reward calculations', () => {
@@ -238,4 +240,26 @@ test('hunter and execute power', () => {
   // three copies: threshold 45%, not 75%
   assert.equal(hit({ isExecuteSpec: true, executePower: 3, targetCurrentHp: 44, targetMaxHp: 100 }).isExecuted, true);
   assert.equal(hit({ isExecuteSpec: true, executePower: 3, targetCurrentHp: 50, targetMaxHp: 100 }).isExecuted, false);
+});
+
+test('endless mode: waves repeat in cycles and keep getting stronger', () => {
+  assert.equal(endlessCycle(1), 0);
+  assert.equal(endlessCycle(12), 0);
+  assert.equal(endlessCycle(13), 1);
+  assert.equal(endlessCycle(25), 2);
+  // The boss comes on every 12th wave and only then
+  for (let w = 1; w <= 48; w++) assert.equal(!!waveDefinition(w).boss, w % 12 === 0, `wave ${w}`);
+  assert.deepEqual(waveDefinition(13), CONFIG.waves[0]);
+  // HP keeps growing past wave 12
+  assert.equal(calculateEnemyHp(30, 'infantry', 13, 1, 'normal', true), 191);
+  assert.ok(calculateEnemyHp(30, 'infantry', 40, 1, 'normal', true) > calculateEnemyHp(30, 'infantry', 28, 1, 'normal', true));
+  // Boss: +60% per finished cycle, campaign boss unchanged
+  assert.equal(calculateEnemyHp(1200, 'boss', 12, 1, 'normal', true), 1560);
+  assert.equal(calculateEnemyHp(1200, 'boss', 24, 1, 'normal', true), 2496);
+  assert.equal(calculateEnemyHp(1200, 'boss', 24, 1, 'normal'), 1560);
+  // Counts: +25% per finished cycle
+  assert.equal(calculateEnemyCount(20, 1, 12, true), 20);
+  assert.equal(calculateEnemyCount(20, 1, 13, true), 25);
+  assert.equal(calculateEnemyCount(20, 1, 25, true), 30);
+  assert.equal(calculateEnemyCount(20, 1, 13), 20);
 });
