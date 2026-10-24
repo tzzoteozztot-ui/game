@@ -47,12 +47,14 @@ export default function App() {
   const [screen, setScreen] = useState<ScreenState>('menu');
   const [selectedLevel, setSelectedLevel] = useState<number>(1);
   const [difficulty, setDifficulty] = useState<Difficulty>('normal');
+  const [endless, setEndless] = useState<boolean>(false);
   const [showHowToPlay, setShowHowToPlay] = useState<boolean>(false);
   const [isPortrait, setIsPortrait] = useState<boolean>(false);
 
   // Persistent progression
   const [unlockedLevel, setUnlockedLevel] = useState<number>(1);
   const [levelStars, setLevelStars] = useState<Record<number, number>>({});
+  const [endlessBest, setEndlessBest] = useState<Record<number, number>>({}); // level -> best wave reached
 
   // Audio settings
   const [audioSettings, setAudioSettings] = useState<AudioSettings>({
@@ -75,6 +77,7 @@ export default function App() {
     isVictory: false,
     isPaused: false,
     allWavesLaunched: false,
+    endless: false,
     waveCountdown: null,
     earlyStartBonus: 0,
     speed: 1,
@@ -136,6 +139,8 @@ export default function App() {
       if (savedLvl) setUnlockedLevel(parseInt(savedLvl, 10) || 1);
       const savedStars = localStorage.getItem('dark_frontier_stars');
       if (savedStars) setLevelStars(JSON.parse(savedStars));
+      const savedBest = localStorage.getItem('dark_frontier_endless_best');
+      if (savedBest) setEndlessBest(JSON.parse(savedBest));
     } catch {
       // ignore localStorage error
     }
@@ -231,6 +236,20 @@ export default function App() {
     }
   }, [gameState.isVictory, gameState.lives, gameState.level]);
 
+  // Endless mode ends only in defeat: keep the best wave reached on this level
+  useEffect(() => {
+    if (gameState.isGameOver && gameState.endless) {
+      setEndlessBest((prev) => {
+        if ((prev[gameState.level] || 0) >= gameState.wave) return prev;
+        const updated = { ...prev, [gameState.level]: gameState.wave };
+        try {
+          localStorage.setItem('dark_frontier_endless_best', JSON.stringify(updated));
+        } catch {}
+        return updated;
+      });
+    }
+  }, [gameState.isGameOver, gameState.endless, gameState.wave, gameState.level]);
+
   // Handle Level Start from briefing
   const handleStartBattle = () => {
     sound.init();
@@ -238,7 +257,7 @@ export default function App() {
     setTimeout(() => {
       if (canvasRef.current && engineRef.current) {
         engineRef.current.setCanvas(canvasRef.current);
-        engineRef.current.startLevel(selectedLevel, difficulty);
+        engineRef.current.startLevel(selectedLevel, difficulty, endless);
         setShopCards(generateShopCards(1));
         setPlacingCardIndex(null);
       }
@@ -277,13 +296,13 @@ export default function App() {
 
     if (screen === 'playing' && canvasRef.current) {
       engine.setCanvas(canvasRef.current);
-      engine.startLevel(selectedLevel, difficulty);
+      engine.startLevel(selectedLevel, difficulty, endless);
     } else {
       setScreen('playing');
       setTimeout(() => {
         if (canvasRef.current && engineRef.current) {
           engineRef.current.setCanvas(canvasRef.current);
-          engineRef.current.startLevel(selectedLevel, difficulty);
+          engineRef.current.startLevel(selectedLevel, difficulty, endless);
         }
       }, 50);
     }
@@ -667,6 +686,8 @@ export default function App() {
           unlockedLevel={unlockedLevel}
           levelStars={levelStars}
           selectedDifficulty={difficulty}
+          endless={endless}
+          endlessBest={endlessBest}
           musicVol={audioSettings.musicVolume}
           sfxVol={audioSettings.sfxVolume}
           isMuted={audioSettings.muted}
@@ -678,6 +699,10 @@ export default function App() {
           onChangeDifficulty={(d) => {
             sound.init();
             setDifficulty(d);
+          }}
+          onChangeEndless={(v) => {
+            sound.init();
+            setEndless(v);
           }}
           onOpenHowToPlay={() => setShowHowToPlay(true)}
           onMusicChange={handleMusicChange}
@@ -691,6 +716,7 @@ export default function App() {
         <LevelBriefing
           level={selectedLevel}
           difficulty={difficulty}
+          endless={endless}
           onStartBattle={handleStartBattle}
           onBack={() => setScreen('menu')}
         />
@@ -742,6 +768,7 @@ export default function App() {
                 lives={gameState.lives}
                 wave={gameState.wave}
                 maxWaves={gameState.maxWaves}
+                endless={gameState.endless}
                 speed={gameState.speed}
                 isPaused={gameState.isPaused}
                 isMuted={audioSettings.muted}
@@ -825,6 +852,8 @@ export default function App() {
       {screen === 'playing' && gameState.isGameOver && (
         <DefeatModal
           wave={gameState.wave}
+          endless={gameState.endless}
+          best={endlessBest[gameState.level] || 0}
           onRestart={handleRestartLevel}
           onToMenu={handleToMenu}
         />

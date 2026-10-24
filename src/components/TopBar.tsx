@@ -12,6 +12,7 @@ interface TopBarProps {
   lives: number;
   wave: number;
   maxWaves: number;
+  endless: boolean;
   speed: number;
   isPaused: boolean;
   isMuted: boolean;
@@ -25,6 +26,7 @@ export function TopBar({
   lives,
   wave,
   maxWaves,
+  endless,
   speed,
   isPaused,
   isMuted,
@@ -48,7 +50,7 @@ export function TopBar({
           {lives}
         </span>
         <span className="font-semibold text-stone-400" title="Волна">
-          Волна <span className="text-amber-200">{Math.min(wave, maxWaves)}/{maxWaves}</span>
+          Волна <span className="text-amber-200">{endless ? wave : `${Math.min(wave, maxWaves)}/${maxWaves}`}</span>
         </span>
       </div>
 

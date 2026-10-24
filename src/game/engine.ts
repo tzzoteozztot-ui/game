@@ -8,6 +8,7 @@ import {
   calculateDamage,
   calculateEffectiveSlow,
   calculateEnemyHp,
+  waveDefinition,
   calculateEnemyCount,
   calculateKillGold,
   calculateWaveClearReward,
@@ -150,6 +151,7 @@ export interface GameStateSnapshot {
   isVictory: boolean;
   isPaused: boolean;
   allWavesLaunched: boolean;
+  endless: boolean;
   waveCountdown: number | null; // whole seconds left, null while a wave runs
   earlyStartBonus: number;
   speed: number;
@@ -179,6 +181,8 @@ export class GameEngine {
   public waveCountdown: number | null = null;
   public isGameOver: boolean = false;
   public isVictory: boolean = false;
+  // Endless mode: the 12 waves repeat, a boss every 12th wave, no victory
+  public endless: boolean = false;
 
   // Entities
   public towers: Tower[] = [];
@@ -260,9 +264,10 @@ export class GameEngine {
     }
   }
 
-  public startLevel(level: number, diff: Difficulty) {
+  public startLevel(level: number, diff: Difficulty, endless = false) {
     this.level = Math.max(1, Math.min(5, level));
     this.difficulty = diff;
+    this.endless = endless;
     this.currentMap = MAPS[this.level - 1];
     this.lives = CONFIG.lives.start;
     this.gold = Math.floor((200 + 25 * (this.level - 1)) * CONFIG.difficulty[diff].goldMult);
@@ -270,7 +275,7 @@ export class GameEngine {
     this.tier = 1;
     this.isPaused = false;
     this.speedMultiplier = 1;
-    this.waveCountdown = CONFIG.waveTimer.first;
+    this.waveCountdown = endless ? CONFIG.endless.between : CONFIG.waveTimer.first;
     this.isGameOver = false;
     this.isVictory = false;
 
@@ -429,7 +434,7 @@ export class GameEngine {
   // -------------------------------------------------------------
   public startNextWave(): boolean {
     if (this.isSpawning || this.isGameOver || this.isVictory) return false;
-    if (this.wavesLaunched >= CONFIG.waves.length) return false;
+    if (!this.endless && this.wavesLaunched >= CONFIG.waves.length) return false;
 
     // Early start: gold for the seconds left on the timer, or +10 while enemies are still alive
     const bonus = this.earlyStartBonus();
@@ -443,12 +448,12 @@ export class GameEngine {
     // An early start launches the next wave, not the current one again
     this.wave = this.wavesLaunched + 1;
     this.wavesLaunched++;
-    const waveDef = CONFIG.waves[this.wave - 1];
+    const waveDef = waveDefinition(this.wave);
     this.spawnQueue = [];
 
     // Helper to calculate count
     const getCount = (count?: number) =>
-      count ? calculateEnemyCount(count, this.level) : 0;
+      count ? calculateEnemyCount(count, this.level, this.wave, this.endless) : 0;
 
     const list: EnemyType[] = [];
     if (waveDef.infantry) {
@@ -538,7 +543,7 @@ export class GameEngine {
       totalLen = path.length * CONFIG.grid.cellSize;
     }
 
-    const hp = calculateEnemyHp(baseDef.hp, type, this.wave, this.level, this.difficulty);
+    const hp = calculateEnemyHp(baseDef.hp, type, this.wave, this.level, this.difficulty, this.endless);
     const gold = calculateKillGold(baseDef.gold, this.level);
 
     const enemy: Enemy = {
@@ -606,14 +611,14 @@ export class GameEngine {
     // 2. Wave completion check
     if (this.waveInProgress && !this.isSpawning && this.enemies.length === 0 && !this.isGameOver && !this.isVictory) {
       this.waveInProgress = false;
-      if (this.wave <= 12) {
+      if (this.endless || this.wave <= 12) {
         // Wave cleared!
         const reward = calculateWaveClearReward(this.wave);
         this.gold += reward;
         this.addFloatingText(`Волна ${this.wave} зачищена! +${reward} золота`, CONFIG.grid.totalWidth / 2, 80, '#f4c06a');
         sound.playBuy();
 
-        if (this.wave === 12) {
+        if (!this.endless && this.wave === 12) {
           // Level Completed!
           this.isVictory = true;
           sound.playVictory();
@@ -621,7 +626,7 @@ export class GameEngine {
           return;
         } else {
           this.wave++;
-          this.waveCountdown = CONFIG.waveTimer.between;
+          this.waveCountdown = this.endless ? CONFIG.endless.between : CONFIG.waveTimer.between;
           this.notifyState();
         }
       }
@@ -1679,7 +1684,8 @@ export class GameEngine {
       isGameOver: this.isGameOver,
       isVictory: this.isVictory,
       isPaused: this.isPaused,
-      allWavesLaunched: this.wavesLaunched >= CONFIG.waves.length,
+      allWavesLaunched: !this.endless && this.wavesLaunched >= CONFIG.waves.length,
+      endless: this.endless,
       waveCountdown: this.waveCountdown === null ? null : Math.ceil(this.waveCountdown),
       earlyStartBonus: this.earlyStartBonus(),
       speed: this.speedMultiplier,

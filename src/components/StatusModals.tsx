@@ -2,9 +2,10 @@
  * Status Modals: Pause, Victory, Defeat, and How-To-Play Guide
  */
 
-import React from 'react';
+import React, { useState } from 'react';
 import { StarIcon } from './Icons';
 import { sound } from '../game/audio';
+import { CONFIG } from '../game/config';
 
 // -------------------------------------------------------------
 // Pause Modal
@@ -189,11 +190,15 @@ export function VictoryModal({
 // -------------------------------------------------------------
 interface DefeatModalProps {
   wave: number;
+  endless: boolean;
+  best: number; // best wave reached in endless mode on this level, this run included
   onRestart: () => void;
   onToMenu: () => void;
 }
 
-export function DefeatModal({ wave, onRestart, onToMenu }: DefeatModalProps) {
+export function DefeatModal({ wave, endless, best, onRestart, onToMenu }: DefeatModalProps) {
+  // The record before this run: App saves the new one right after this modal appears
+  const [prevBest] = useState(best);
   return (
     <div className="fixed inset-0 bg-black/85 flex items-center justify-center p-4 z-50">
       <div className="bg-[#171520] border-2 border-red-800/70 rounded-xl p-6 max-w-sm w-full shadow-2xl text-center text-[#f4f2e6]">
@@ -204,7 +209,12 @@ export function DefeatModal({ wave, onRestart, onToMenu }: DefeatModalProps) {
           Враги прорвали оборону и захватили замок.
         </p>
         <p className="text-sm font-bold text-amber-300 mb-5 bg-[#121118] py-2 px-3 rounded border border-[#2d2938]">
-          Вы дошли до волны {Math.min(wave, 12)} из 12
+          {endless ? `Вы продержались до волны ${wave}` : `Вы дошли до волны ${Math.min(wave, 12)} из 12`}
+          {endless && (
+            <span className="block text-xs font-semibold text-stone-400 mt-0.5">
+              {wave > prevBest ? 'Это новый рекорд рубежа!' : `Рекорд рубежа: волна ${prevBest}`}
+            </span>
+          )}
         </p>
 
         {/* Actions */}
@@ -290,6 +300,14 @@ export function HowToPlayModal({ onClose }: { onClose: () => void }) {
             <h3 className="font-bold text-amber-200 text-sm mb-1">Перестановка башен</h3>
             <p className="text-stone-300">
               Пока идёт таймер между волнами и на поле нет врагов, башню можно переставить бесплатно: выберите её и коснитесь свободной клетки или перетащите мышью.
+            </p>
+          </section>
+
+          {/* Endless mode */}
+          <section>
+            <h3 className="font-bold text-amber-200 text-sm mb-1">Бесконечный режим</h3>
+            <p className="text-stone-300">
+              Выбирается в меню. Волны идут без конца, босс приходит каждую 12-ю волну, враги с каждой волной крепче, а после каждых 12 волн их больше. Между волнами {CONFIG.endless.between} с. Рекорд волны хранится для каждого рубежа.
             </p>
           </section>
 
