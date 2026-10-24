@@ -22,6 +22,13 @@ export const CASTLE: Point = { x: 8, y: 5 };
 export const MIN_PATH_LENGTH = 26;
 export const MAX_ROAD_CELLS = 90;
 export const MIN_FREE_CELLS = GRID_COLS * GRID_ROWS - 1 - MAX_ROAD_CELLS;
+// Top-row corners hold the buttons drawn over the field (wave on the left, speed / sound /
+// full screen / pause on the right): no road and no towers there
+export const HUD_LEFT_COLS = 4;
+export const HUD_RIGHT_COLS = 4;
+export function isHudCell(x: number, y: number): boolean {
+  return y === 0 && (x < HUD_LEFT_COLS || x >= GRID_COLS - HUD_RIGHT_COLS);
+}
 
 export interface MapDef {
   level: number;
@@ -254,6 +261,11 @@ export function validateMap(mapDef: MapDef): MapValidationResult {
   const freeCellsCount = GRID_COLS * GRID_ROWS - 1 - roadCellsCount;
   if (freeCellsCount < MIN_FREE_CELLS) {
     errors.push(`Уровень ${mapDef.level}: свободных клеток ${freeCellsCount} < ${MIN_FREE_CELLS}`);
+  }
+
+  for (const key of allRoadCells) {
+    const [x, y] = key.split(',').map(Number);
+    if (isHudCell(x, y)) errors.push(`Уровень ${mapDef.level}: дорога под кнопками поля в (${x}, ${y})`);
   }
 
   // A cell next to the castle is road only where a path ends

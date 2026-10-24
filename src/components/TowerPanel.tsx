@@ -2,8 +2,8 @@
  * Tower Detail & Management Panel for «Тёмный рубеж»
  * Always visible beneath the shop with fixed height.
  * Shows selected tower stats; target priority, merge and sell share one row.
- * Shows "Коснитесь башни" when no tower is selected, and a short note with a sell button
- * for a selected «Связка». A bound tower shows both parts' stats as «main / second».
+ * Shows "Коснитесь башни" when no tower is selected; for a selected «Связка» a note with
+ * merge (three into a triple one) or raise (triple) and sell buttons. A bound tower shows both parts' stats as «main / second».
  */
 
 import React from 'react';
@@ -20,6 +20,12 @@ interface TowerPanelProps {
   binderCount: number;
   bindPartnerCount: number;
   isBinding: boolean;
+  selectedBinderTriple: boolean;
+  canMergeBinders: boolean;
+  upgradeTargetCount: number;
+  isUpgrading: boolean;
+  onMergeBinders: () => void;
+  onUpgradeWithBinder: () => void;
   onCyclePriority: () => void;
   onMerge: () => void;
   onBind: () => void;
@@ -44,13 +50,21 @@ export function TowerPanel({
   binderCount,
   bindPartnerCount,
   isBinding,
+  selectedBinderTriple,
+  canMergeBinders,
+  upgradeTargetCount,
+  isUpgrading,
+  onMergeBinders,
+  onUpgradeWithBinder,
   onCyclePriority,
   onMerge,
   onBind,
   onSell,
 }: TowerPanelProps) {
   if (!tower && selectedBinder) {
-    const binderRefund = Math.floor(CONFIG.binder.cost * CONFIG.upgrade.sellRatio);
+    const triple = selectedBinderTriple;
+    const binderRefund = Math.floor(CONFIG.binder.cost * (triple ? 3 : 1) * CONFIG.upgrade.sellRatio);
+    const canAct = triple ? isUpgrading || upgradeTargetCount > 0 : canMergeBinders;
     return (
       <div className="w-full flex-1 min-h-[112px] flex flex-col justify-between gap-1 p-1.5 bg-[#171520] border-t border-[#2d2938] text-[#f4f2e6] text-[length:var(--fs-md)] shrink-0 select-none">
         <div className="flex items-center gap-2 h-[var(--h-head)] shrink-0">
@@ -58,21 +72,45 @@ export function TowerPanel({
             <BinderIcon size="80%" />
           </div>
           <div className="font-bold text-[length:var(--fs-md)]" style={{ color: CONFIG.binder.color }}>
-            {CONFIG.binder.name}
+            {triple ? 'Тройная связка' : CONFIG.binder.name}
           </div>
         </div>
         <div className="flex-1 flex items-center text-[length:var(--fs-sm)] leading-tight text-stone-400">
-          Выберите башню, нажмите «Связать» и коснитесь башни другого вида: обе станут одной.
+          {triple
+            ? isUpgrading
+              ? 'Коснитесь башни или пары: каждая её башня ниже Ур.3 поднимется на уровень.'
+              : 'Поднимает любую башню или пару на уровень, кроме Ур.3.'
+            : 'Выберите башню, нажмите «Связать» и коснитесь башни другого вида. Три связки сливаются в тройную.'}
         </div>
-        <button
-          type="button"
-          onClick={onSell}
-          className="h-[var(--h-btn)] w-full px-1 rounded bg-red-950/40 hover:bg-red-900/50 text-red-300 border border-red-800/50 flex items-center justify-center gap-1.5 leading-none transition-colors cursor-pointer shrink-0"
-          title="Продать связку (S)"
-        >
-          <span className="text-[length:var(--fs-md)] font-semibold">Продать</span>
-          <span className="text-amber-300 font-bold text-[length:var(--fs-sm)] tabular-nums">{binderRefund}</span>
-        </button>
+        <div className="grid grid-cols-2 gap-1 h-[var(--h-btn)] shrink-0">
+          <button
+            type="button"
+            onClick={triple ? onUpgradeWithBinder : onMergeBinders}
+            disabled={!canAct}
+            className={`h-[var(--h-btn)] px-1 rounded font-bold flex flex-col items-center justify-center leading-none transition-all ${
+              isUpgrading
+                ? 'bg-[#3ed6c4] text-stone-950 border border-teal-200 cursor-pointer'
+                : canAct
+                  ? 'bg-teal-950/60 hover:bg-teal-900/60 text-[#3ed6c4] border border-[#3ed6c4]/60 cursor-pointer'
+                  : 'bg-[#1b1926] text-stone-600 border border-[#2d2938] cursor-not-allowed'
+            }`}
+            title={triple ? 'Поднять уровень башни (B)' : 'Слить три связки в тройную (M)'}
+          >
+            <span className="text-[length:var(--fs-btn4)]">{triple ? 'Усилить' : 'Слить'}</span>
+            <span className="text-[length:var(--fs-xs)] mt-0.5 tabular-nums">
+              {triple ? (isUpgrading ? 'отмена' : 'башню') : `${Math.min(binderCount, 3)}/3`}
+            </span>
+          </button>
+          <button
+            type="button"
+            onClick={onSell}
+            className="h-[var(--h-btn)] px-1 rounded bg-red-950/40 hover:bg-red-900/50 text-red-300 border border-red-800/50 flex flex-col items-center justify-center leading-none transition-colors cursor-pointer"
+            title="Продать связку (S)"
+          >
+            <span className="text-[length:var(--fs-btn4)] font-semibold">Продать</span>
+            <span className="text-amber-300 font-bold text-[length:var(--fs-xs)] tabular-nums mt-0.5">{binderRefund}</span>
+          </button>
+        </div>
       </div>
     );
   }
@@ -85,7 +123,7 @@ export function TowerPanel({
         <ul className="text-[length:var(--fs-xs)] leading-snug text-stone-500 space-y-1 [@container(max-height:520px)]:hidden">
           <li>Три одинаковые башни одного уровня сливаются в одну (M).</li>
           <li>На Ур.2 башня получает свойство, на Ур.3 — все свойства трёх башен.</li>
-          <li>«Связка» объединяет две башни разных видов (B).</li>
+          <li>«Связка» объединяет две башни разных видов (B), три связки — в тройную (M).</li>
         </ul>
       </div>
     );

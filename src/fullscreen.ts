@@ -15,6 +15,10 @@ type FsElement = HTMLElement & { webkitRequestFullscreen?: () => Promise<void> }
 
 const doc = () => document as FsDocument;
 
+/** Shown where the browser has no page full screen (iPhone Safari) */
+export const HOME_SCREEN_HINT =
+  'На iPhone браузер не даёт открыть страницу во весь экран. Нажмите «Поделиться» (квадрат со стрелкой) → «На экран «Домой»», и игра будет открываться с рабочего стола телефона без адресной строки.';
+
 export function fullscreenSupported(): boolean {
   return !!(doc().fullscreenEnabled || doc().webkitFullscreenEnabled);
 }

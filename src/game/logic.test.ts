@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { MAPS, makePath, validateMap, validateAllMaps, MAX_ROAD_CELLS, MIN_FREE_CELLS, MIN_PATH_LENGTH, CASTLE } from './maps';
+import { MAPS, makePath, validateMap, validateAllMaps, MAX_ROAD_CELLS, MIN_FREE_CELLS, MIN_PATH_LENGTH, CASTLE, isHudCell } from './maps';
 import { CONFIG } from './config';
 import { attackStats, specSummary, stackedSlow } from './towerStats';
 
@@ -29,6 +29,18 @@ test('road stretches must not touch by a side except at merges', () => {
   for (const m of MAPS) {
     const res = validateMap(m);
     assert.ok(!res.errors.some((e) => e.includes('соприкасаются')), `Level ${m.level}: ${res.errors.join('; ')}`);
+  }
+});
+
+test('cells under the field buttons stay free of road', () => {
+  assert.equal(isHudCell(0, 0), true);
+  assert.equal(isHudCell(16, 0), true);
+  assert.equal(isHudCell(8, 0), false);
+  assert.equal(isHudCell(0, 1), false);
+  for (const m of MAPS) {
+    for (const path of m.paths) {
+      for (const p of path) assert.equal(isHudCell(p.x, p.y), false, `уровень ${m.level}: (${p.x}, ${p.y})`);
+    }
   }
 });
 

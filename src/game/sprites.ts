@@ -100,9 +100,17 @@ class SpriteStore {
 
 export const sprites = new SpriteStore();
 
+/** Simple motion around the feet: lift up, lean (radians), stretch across / along */
+export interface SpritePose {
+  lift?: number;
+  tilt?: number;
+  sx?: number;
+  sy?: number;
+}
+
 /**
  * Draws a prepared sprite with its feet at (footX, footY), facing `dir` (1 right, -1 left).
- * `height` overrides the field height from sprites.json.
+ * `height` overrides the field height from sprites.json, `pose` animates it around the feet.
  */
 export function drawSprite(
   ctx: CanvasRenderingContext2D,
@@ -110,7 +118,8 @@ export function drawSprite(
   footX: number,
   footY: number,
   dir: number,
-  height?: number
+  height?: number,
+  pose?: SpritePose
 ) {
   const k = height ? height / s.meta.drawH : 1;
   const w = (s.canvas.width / s.scale) * k;
@@ -119,8 +128,9 @@ export function drawSprite(
   const ay = ((s.meta.anchorY * s.meta.h) / s.scale) * k;
   const flip = dir * s.meta.facing < 0;
   ctx.save();
-  ctx.translate(footX, footY);
-  if (flip) ctx.scale(-1, 1);
+  ctx.translate(footX, footY - (pose?.lift ?? 0));
+  if (pose?.tilt) ctx.rotate(pose.tilt);
+  ctx.scale((flip ? -1 : 1) * (pose?.sx ?? 1), pose?.sy ?? 1);
   ctx.drawImage(s.canvas, -ax, -ay, w, h);
   ctx.restore();
 }

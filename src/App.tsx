@@ -12,6 +12,7 @@ import { calculateStars } from './game/rules';
 import { sprites } from './game/sprites';
 
 import { TopBar } from './components/TopBar';
+import { FieldHud } from './components/FieldHud';
 import { ShopPanel, ShopCard } from './components/ShopPanel';
 import { TowerPanel } from './components/TowerPanel';
 import { SpecModal } from './components/SpecModal';
@@ -33,7 +34,7 @@ const SIDE_VARS = {
   '--h-line': 'max(16px, 3.6cqh)',
   '--fs-btn4': 'clamp(10px, min(2.6cqh, 4.8cqw), 15px)', // four buttons in a row
   '--h-btn': 'max(40px, 11cqh - 8px)',
-  '--h-card': 'max(44px, 17cqh - 20px)',
+  '--h-card': 'clamp(56px, min(19cqh, 34cqw), 160px)',
   '--h-head': 'max(28px, 6.5cqh)',
 } as React.CSSProperties;
 
@@ -85,6 +86,10 @@ export default function App() {
     eligibleMergeCount: 0,
     selectedBinder: false,
     binderCount: 0,
+    selectedBinderTriple: false,
+    canMergeBinders: false,
+    upgradeTargetCount: 0,
+    isUpgrading: false,
     bindPartnerCount: 0,
     isBinding: false,
     canMoveTowers: false,
@@ -98,6 +103,7 @@ export default function App() {
   const [specModalTower, setSpecModalTower] = useState<{
     id: string;
     type: TowerType;
+    part?: 'main' | 'second'; // which part of a bound pair reached Ур.2
     isPrePlacement?: boolean;
     cardIndex?: number;
   } | null>(null);
@@ -172,8 +178,9 @@ export default function App() {
       engine.placingBinder = false;
     };
 
-    engine.onNeedSpecChoice = (tower: Tower) => {
-      setSpecModalTower({ id: tower.id, type: tower.type });
+    engine.onNeedSpecChoice = (tower: Tower, part) => {
+      const type = part === 'second' && tower.second ? tower.second.type : tower.type;
+      setSpecModalTower({ id: tower.id, type, part });
     };
 
     // Auto-start check for ?autostart=1
@@ -249,6 +256,13 @@ export default function App() {
       });
     }
   }, [gameState.isGameOver, gameState.endless, gameState.wave, gameState.level]);
+
+  // Menu «Играть»: the selected level (never a locked one) goes to its briefing
+  const handleOpenBriefing = () => {
+    sound.init();
+    setSelectedLevel((lvl) => Math.min(lvl, unlockedLevel));
+    setScreen('briefing');
+  };
 
   // Handle Level Start from briefing
   const handleStartBattle = () => {
@@ -408,8 +422,11 @@ export default function App() {
       engine.notifyState();
     } else {
       // Tower upgraded to lvl 2 via merge
-      engine.setTowerSpecialization(specModalTower.id, specId);
+      // Closed first: for a pair the engine may ask again right away for the second part
+      setSpecModalTower(null);
+      engine.setTowerSpecialization(specModalTower.id, specId, specModalTower.part);
       sound.playBuy();
+      return;
     }
     setSpecModalTower(null);
   };
@@ -471,6 +488,16 @@ export default function App() {
     engineRef.current?.toggleBinding();
   };
 
+  // Selected binder: merge three into a triple one, or (triple) start raising a tower
+  const handleMergeBinders = () => {
+    sound.init();
+    engineRef.current?.mergeBinders();
+  };
+  const handleUpgradeWithBinder = () => {
+    sound.init();
+    engineRef.current?.toggleUpgrading();
+  };
+
   // Cycle Priority
   const handleCyclePriority = () => {
     sound.init();
@@ -517,6 +544,12 @@ export default function App() {
       // Binding: a tap on a partner binds, any other tap cancels
       if (clickedTower && clickedTower.id !== engine.bindingFromId) engine.bindWith(clickedTower);
       else engine.toggleBinding();
+      return;
+    }
+    if (engine.upgradingFromBinderId) {
+      // Triple binder: a tap on a tower raises it, any other tap cancels
+      if (clickedTower) engine.upgradeWithBinder(clickedTower);
+      else engine.toggleUpgrading();
       return;
     }
     const clickedBinder = engine.binders.find((b) => b.x === cellX && b.y === cellY);
@@ -591,7 +624,10 @@ export default function App() {
           handleStartWave();
         }
       } else if (e.key === 'Enter') {
-        if (screen === 'briefing') {
+        if (screen === 'menu' && !showHowToPlay) {
+          e.preventDefault();
+          handleOpenBriefing();
+        } else if (screen === 'briefing') {
           e.preventDefault();
           handleStartBattle();
         }
@@ -617,6 +653,8 @@ export default function App() {
           engine.notifyState();
         } else if (engine.bindingFromId) {
           engine.toggleBinding();
+        } else if (engine.upgradingFromBinderId) {
+          engine.toggleUpgrading();
         } else if (engine.selectedTowerId || engine.selectedBinderId) {
           engine.selectTower(null);
         } else if (screen === 'playing') {
@@ -638,6 +676,8 @@ export default function App() {
       } else if (e.key === 'm' || e.key === 'M' || e.key === 'ь' || e.key === 'Ь') {
         if (screen === 'playing' && engine.selectedTowerId) {
           handleMerge();
+        } else if (screen === 'playing' && engine.selectedBinderId) {
+          handleMergeBinders();
         }
       } else if (e.key === 's' || e.key === 'S' || e.key === 'ы' || e.key === 'Ы') {
         if (screen === 'playing' && (engine.selectedTowerId || engine.selectedBinderId)) {
@@ -646,6 +686,8 @@ export default function App() {
       } else if (e.key === 'b' || e.key === 'B' || e.key === 'и' || e.key === 'И') {
         if (screen === 'playing' && engine.selectedTowerId) {
           handleBind();
+        } else if (screen === 'playing' && engine.selectedBinderId) {
+          handleUpgradeWithBinder();
         }
       } else if (e.key === 'Tab') {
         if (screen === 'playing' && engine.selectedTowerId) {
@@ -657,7 +699,7 @@ export default function App() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [screen, specModalTower, placingCardIndex, shopCards]);
+  }, [screen, specModalTower, placingCardIndex, shopCards, unlockedLevel, showHowToPlay]);
 
   // Audio Handlers
   const handleMusicChange = (val: number) => {
@@ -691,11 +733,12 @@ export default function App() {
           musicVol={audioSettings.musicVolume}
           sfxVol={audioSettings.sfxVolume}
           isMuted={audioSettings.muted}
+          selectedLevel={Math.min(selectedLevel, unlockedLevel)}
           onSelectLevel={(lvl) => {
             sound.init();
             setSelectedLevel(lvl);
-            setScreen('briefing');
           }}
+          onPlay={handleOpenBriefing}
           onChangeDifficulty={(d) => {
             sound.init();
             setDifficulty(d);
@@ -754,6 +797,20 @@ export default function App() {
                   className="w-full h-full block cursor-crosshair touch-none"
                   style={{ imageRendering: 'pixelated' }}
                 />
+                <FieldHud
+                  speed={gameState.speed}
+                  isPaused={gameState.isPaused}
+                  isMuted={audioSettings.muted}
+                  isSpawning={gameState.isSpawning}
+                  isWaveActive={gameState.isWaveActive}
+                  allWavesLaunched={gameState.allWavesLaunched}
+                  waveCountdown={gameState.waveCountdown}
+                  earlyStartBonus={gameState.earlyStartBonus}
+                  onTogglePause={() => engineRef.current?.togglePause()}
+                  onToggleSpeed={() => engineRef.current?.toggleSpeed()}
+                  onToggleMute={handleToggleMute}
+                  onStartWave={handleStartWave}
+                />
               </div>
             </div>
 
@@ -769,12 +826,6 @@ export default function App() {
                 wave={gameState.wave}
                 maxWaves={gameState.maxWaves}
                 endless={gameState.endless}
-                speed={gameState.speed}
-                isPaused={gameState.isPaused}
-                isMuted={audioSettings.muted}
-                onTogglePause={() => engineRef.current?.togglePause()}
-                onToggleSpeed={() => engineRef.current?.toggleSpeed()}
-                onToggleMute={handleToggleMute}
               />
               <ShopPanel
                 cards={shopCards}
@@ -786,15 +837,9 @@ export default function App() {
                 isBinding={gameState.isBinding}
                 isMoving={gameState.canMoveTowers && gameState.selectedTower !== null && !gameState.isBinding}
                 placingIsTriplet={engineRef.current?.placingIsTriplet || false}
-                isSpawning={gameState.isSpawning}
-                isWaveActive={gameState.isWaveActive}
-                allWavesLaunched={gameState.allWavesLaunched}
-                waveCountdown={gameState.waveCountdown}
-                earlyStartBonus={gameState.earlyStartBonus}
                 onSelectCard={handleSelectShopCard}
                 onReroll={handleRerollShop}
                 onUpgradeTier={handleUpgradeTier}
-                onStartWave={handleStartWave}
               />
               <TowerPanel
                 tower={gameState.selectedTower}
@@ -803,6 +848,12 @@ export default function App() {
                 binderCount={gameState.binderCount}
                 bindPartnerCount={gameState.bindPartnerCount}
                 isBinding={gameState.isBinding}
+                selectedBinderTriple={gameState.selectedBinderTriple}
+                canMergeBinders={gameState.canMergeBinders}
+                upgradeTargetCount={gameState.upgradeTargetCount}
+                isUpgrading={gameState.isUpgrading}
+                onMergeBinders={handleMergeBinders}
+                onUpgradeWithBinder={handleUpgradeWithBinder}
                 onCyclePriority={handleCyclePriority}
                 onMerge={handleMerge}
                 onBind={handleBind}
