@@ -3,7 +3,7 @@
  */
 
 import { CONFIG, TowerType, TargetPriority, Difficulty, EnemyType } from './config';
-import { MAPS, Point, MapDef } from './maps';
+import { MAPS, Point, MapDef, isHudCell } from './maps';
 import {
   calculateDamage,
   calculateEffectiveSlow,
@@ -1398,8 +1398,9 @@ export class GameEngine {
 
   public isCellFree(cx: number, cy: number): boolean {
     if (cx < 0 || cx >= CONFIG.grid.cols || cy < 0 || cy >= CONFIG.grid.rows) return false;
-    // Check castle
+    // Check castle and the corners under the field buttons
     if (CONFIG.grid.castleCells.some((c) => c.x === cx && c.y === cy)) return false;
+    if (isHudCell(cx, cy)) return false;
     // Check road
     for (const p of this.currentMap.paths) {
       if (p.some((c) => c.x === cx && c.y === cy)) return false;
