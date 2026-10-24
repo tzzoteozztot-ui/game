@@ -5,7 +5,7 @@
 
 import React from 'react';
 import { CONFIG, TowerType } from '../game/config';
-import { TowerShapeIcon, GoldIcon } from './Icons';
+import { TowerSpriteIcon, GoldIcon } from './Icons';
 
 export interface ShopCard {
   id: string;
@@ -115,8 +115,8 @@ export function ShopPanel({
               )}
 
               {/* Tower Shape & Color Icon */}
-              <div className="w-5 h-5 flex items-center justify-center shrink-0">
-                <TowerShapeIcon type={card.type} size={18} color={baseDef.color} />
+              <div className="w-8 h-[26px] flex items-center justify-center shrink-0">
+                <TowerSpriteIcon type={card.type} size={26} color={baseDef.color} />
               </div>
 
               {/* Price below icon */}

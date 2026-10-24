@@ -6,6 +6,21 @@
 import React from 'react';
 import { TowerType } from '../game/config';
 
+/** Tower picture from public/sprites; falls back to the shape icon if the file is missing. */
+export function TowerSpriteIcon({ type, size = 24, color }: { type: TowerType; size?: number; color?: string }) {
+  const [failed, setFailed] = React.useState(false);
+  if (failed) return <TowerShapeIcon type={type} size={size} color={color} />;
+  return (
+    <img
+      src={`sprites/tower_${type}.png`}
+      alt=""
+      draggable={false}
+      onError={() => setFailed(true)}
+      style={{ height: size, width: 'auto', maxWidth: size * 1.1, objectFit: 'contain' }}
+    />
+  );
+}
+
 export function TowerShapeIcon({ type, size = 24, color }: { type: TowerType; size?: number; color?: string }) {
   if (type === 'archer') {
     // Triangle

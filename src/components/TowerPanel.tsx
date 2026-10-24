@@ -9,7 +9,7 @@ import React from 'react';
 import { Tower } from '../game/engine';
 import { CONFIG } from '../game/config';
 import { calculateSellRefund } from '../game/rules';
-import { TowerShapeIcon } from './Icons';
+import { TowerSpriteIcon } from './Icons';
 
 interface TowerPanelProps {
   tower: Tower | null;
@@ -78,8 +78,8 @@ export function TowerPanel({
     <div className="w-full h-[156px] flex flex-col justify-between p-1.5 bg-[#171520] border-t border-[#2d2938] text-[#f4f2e6] text-xs shrink-0 select-none">
       {/* 1. Header: Name, level, specialization */}
       <div className="flex items-center gap-2 h-7 shrink-0">
-        <div className="w-6 h-6 flex items-center justify-center bg-[#13111a] rounded border border-[#2e2a3b] shrink-0">
-          <TowerShapeIcon type={tower.type} size={16} color={baseDef.color} />
+        <div className="w-7 h-7 flex items-center justify-center bg-[#13111a] rounded border border-[#2e2a3b] shrink-0 overflow-hidden">
+          <TowerSpriteIcon type={tower.type} size={22} color={baseDef.color} />
         </div>
         <div className="min-w-0 flex-1 flex items-baseline justify-between gap-1 leading-none">
           <div className="font-bold text-stone-200 text-xs truncate">

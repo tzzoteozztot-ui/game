@@ -5,7 +5,7 @@
 
 import React from 'react';
 import { TowerType, CONFIG } from '../game/config';
-import { TowerShapeIcon } from './Icons';
+import { TowerSpriteIcon } from './Icons';
 
 interface SpecModalProps {
   towerType: TowerType;
@@ -21,7 +21,7 @@ export function SpecModal({ towerType, onSelectSpec }: SpecModalProps) {
         {/* Header */}
         <div className="text-center mb-5">
           <div className="w-12 h-12 mx-auto mb-2 flex items-center justify-center bg-[#13111a] rounded-lg border border-[#383347]">
-            <TowerShapeIcon type={towerType} size={32} color={baseDef.color} />
+            <TowerSpriteIcon type={towerType} size={40} color={baseDef.color} />
           </div>
           <h2 className="text-xl font-black text-amber-300 tracking-wide">
             Выберите специализацию
