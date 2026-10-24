@@ -12,6 +12,7 @@ import { calculateStars } from './game/rules';
 import { sprites } from './game/sprites';
 
 import { TopBar } from './components/TopBar';
+import { FieldHud } from './components/FieldHud';
 import { ShopPanel, ShopCard } from './components/ShopPanel';
 import { TowerPanel } from './components/TowerPanel';
 import { SpecModal } from './components/SpecModal';
@@ -33,7 +34,7 @@ const SIDE_VARS = {
   '--h-line': 'max(16px, 3.6cqh)',
   '--fs-btn4': 'clamp(10px, min(2.6cqh, 4.8cqw), 15px)', // four buttons in a row
   '--h-btn': 'max(40px, 11cqh - 8px)',
-  '--h-card': 'max(44px, 17cqh - 20px)',
+  '--h-card': 'clamp(56px, min(19cqh, 34cqw), 160px)',
   '--h-head': 'max(28px, 6.5cqh)',
 } as React.CSSProperties;
 
@@ -796,6 +797,20 @@ export default function App() {
                   className="w-full h-full block cursor-crosshair touch-none"
                   style={{ imageRendering: 'pixelated' }}
                 />
+                <FieldHud
+                  speed={gameState.speed}
+                  isPaused={gameState.isPaused}
+                  isMuted={audioSettings.muted}
+                  isSpawning={gameState.isSpawning}
+                  isWaveActive={gameState.isWaveActive}
+                  allWavesLaunched={gameState.allWavesLaunched}
+                  waveCountdown={gameState.waveCountdown}
+                  earlyStartBonus={gameState.earlyStartBonus}
+                  onTogglePause={() => engineRef.current?.togglePause()}
+                  onToggleSpeed={() => engineRef.current?.toggleSpeed()}
+                  onToggleMute={handleToggleMute}
+                  onStartWave={handleStartWave}
+                />
               </div>
             </div>
 
@@ -811,12 +826,6 @@ export default function App() {
                 wave={gameState.wave}
                 maxWaves={gameState.maxWaves}
                 endless={gameState.endless}
-                speed={gameState.speed}
-                isPaused={gameState.isPaused}
-                isMuted={audioSettings.muted}
-                onTogglePause={() => engineRef.current?.togglePause()}
-                onToggleSpeed={() => engineRef.current?.toggleSpeed()}
-                onToggleMute={handleToggleMute}
               />
               <ShopPanel
                 cards={shopCards}
@@ -828,15 +837,9 @@ export default function App() {
                 isBinding={gameState.isBinding}
                 isMoving={gameState.canMoveTowers && gameState.selectedTower !== null && !gameState.isBinding}
                 placingIsTriplet={engineRef.current?.placingIsTriplet || false}
-                isSpawning={gameState.isSpawning}
-                isWaveActive={gameState.isWaveActive}
-                allWavesLaunched={gameState.allWavesLaunched}
-                waveCountdown={gameState.waveCountdown}
-                earlyStartBonus={gameState.earlyStartBonus}
                 onSelectCard={handleSelectShopCard}
                 onReroll={handleRerollShop}
                 onUpgradeTier={handleUpgradeTier}
-                onStartWave={handleStartWave}
               />
               <TowerPanel
                 tower={gameState.selectedTower}

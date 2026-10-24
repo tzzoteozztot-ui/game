@@ -1,6 +1,7 @@
 /**
- * Compact Shop Panel for «Тёмный рубеж»
- * 5 tower cards in a single row, reroll and tier upgrade in one row, start wave button.
+ * Shop Panel for «Тёмный рубеж»
+ * 5 large tower cards in a 3-column grid with the reroll button as the 6th cell, tier upgrade below.
+ * The wave button is over the field (FieldHud).
  */
 
 import React from 'react';
@@ -23,15 +24,9 @@ interface ShopPanelProps {
   isBinding: boolean;
   isMoving: boolean; // a tower is selected in the pause between waves
   placingIsTriplet: boolean;
-  isSpawning: boolean;
-  isWaveActive: boolean;
-  allWavesLaunched: boolean;
-  waveCountdown: number | null;
-  earlyStartBonus: number;
   onSelectCard: (index: number) => void;
   onReroll: () => void;
   onUpgradeTier: () => void;
-  onStartWave: () => void;
 }
 
 export function ShopPanel({
@@ -44,15 +39,9 @@ export function ShopPanel({
   isBinding,
   isMoving,
   placingIsTriplet,
-  isSpawning,
-  isWaveActive,
-  allWavesLaunched,
-  waveCountdown,
-  earlyStartBonus,
   onSelectCard,
   onReroll,
   onUpgradeTier,
-  onStartWave,
 }: ShopPanelProps) {
   const rerollCost = CONFIG.shop.rerollCost;
   const tierCost = tier < 5 ? CONFIG.shop.tierUpgradeCosts[tier - 1] : null;
@@ -97,8 +86,8 @@ export function ShopPanel({
         )}
       </div>
 
-      {/* 5 Cards in One Row (~44px wide each, icon + price, triplet marked with ★, no name) */}
-      <div className="grid grid-cols-5 gap-1 shrink-0">
+      {/* 5 cards and the reroll button in a 3×2 grid (big icon + price, triplet marked with ★) */}
+      <div className="grid grid-cols-3 gap-1 shrink-0">
         {cards.map((card, idx) => {
           if (!card) {
             return (
@@ -128,15 +117,15 @@ export function ShopPanel({
                     : 'border-[#262330] bg-[#181622] opacity-50'
                 }`}
               >
-                <div className="w-full h-[calc(var(--h-card)-16px)] flex items-center justify-center shrink-0">
+                <div className="w-full h-[calc(var(--h-card)-var(--fs-md)-10px)] flex items-center justify-center shrink-0">
                   <BinderIcon size="100%" />
                 </div>
                 <div
-                  className={`flex items-center gap-0.5 font-bold text-[length:var(--fs-sm)] tabular-nums leading-none mt-0.5 ${
+                  className={`flex items-center gap-0.5 font-bold text-[length:var(--fs-md)] tabular-nums leading-none mt-1 ${
                     canAffordBinder ? 'text-amber-300' : 'text-stone-500'
                   }`}
                 >
-                  <GoldIcon size="0.9em" />
+                  <GoldIcon size="0.95em" />
                   <span>{CONFIG.binder.cost}</span>
                 </div>
               </button>
@@ -165,7 +154,7 @@ export function ShopPanel({
               {/* Triplet Star Badge */}
               {card.isTriplet && (
                 <span
-                  className="absolute -top-1 -right-0.5 text-amber-400 text-[length:var(--fs-md)] font-black leading-none drop-shadow"
+                  className="absolute top-0.5 right-1 text-amber-400 text-[length:var(--fs-lg)] font-black leading-none drop-shadow"
                   title="Триплет (Ур.2)"
                 >
                   ★
@@ -173,90 +162,64 @@ export function ShopPanel({
               )}
 
               {/* Tower Shape & Color Icon */}
-              <div className="w-full h-[calc(var(--h-card)-16px)] flex items-center justify-center shrink-0">
+              <div className="w-full h-[calc(var(--h-card)-var(--fs-md)-10px)] flex items-center justify-center shrink-0">
                 <TowerSpriteIcon type={card.type} size="100%" color={baseDef.color} />
               </div>
 
               {/* Price below icon */}
               <div
-                className={`flex items-center gap-0.5 font-bold text-[length:var(--fs-sm)] tabular-nums leading-none mt-0.5 ${
+                className={`flex items-center gap-0.5 font-bold text-[length:var(--fs-md)] tabular-nums leading-none mt-1 ${
                   canAfford ? 'text-amber-300' : 'text-stone-500'
                 }`}
               >
-                <GoldIcon size="0.9em" />
+                <GoldIcon size="0.95em" />
                 <span>{cost}</span>
               </div>
             </button>
           );
         })}
-      </div>
-
-      {/* Reroll & Tier Upgrade in One Line */}
-      <div className="grid grid-cols-2 gap-1 h-[var(--h-btn)] shrink-0">
-        {/* Reroll Button */}
         <button
           type="button"
           onClick={onReroll}
           disabled={gold < rerollCost}
-          className={`h-[var(--h-btn)] px-1 rounded border text-[length:var(--fs-md)] font-semibold flex items-center justify-center gap-1 transition-colors cursor-pointer ${
+          className={`h-[var(--h-card)] px-1 rounded border text-[length:var(--fs-md)] font-semibold flex flex-col items-center justify-center gap-1 transition-colors cursor-pointer ${
             gold >= rerollCost
               ? 'bg-[#221f2d] hover:bg-[#2c283a] text-stone-200 border-[#383347]'
               : 'bg-[#181622] text-stone-600 border-[#262330] cursor-not-allowed'
           }`}
           title="Обновить лавку (R)"
         >
+          <span className="text-[length:var(--fs-lg)] leading-none">↻</span>
           <span>Обновить</span>
-          <span className="text-amber-300 tabular-nums font-bold">({rerollCost})</span>
-        </button>
-
-        {/* Tier Upgrade Button */}
-        <button
-          type="button"
-          onClick={onUpgradeTier}
-          disabled={tier >= 5 || (tierCost !== null && gold < tierCost)}
-          className={`h-[var(--h-btn)] px-1 rounded border text-[length:var(--fs-md)] font-semibold flex items-center justify-center gap-1 transition-colors cursor-pointer ${
-            tier < 5 && tierCost !== null && gold >= tierCost
-              ? 'bg-[#221f2d] hover:bg-[#2c283a] text-stone-200 border-[#383347]'
-              : 'bg-[#181622] text-stone-600 border-[#262330] cursor-not-allowed'
-          }`}
-          title="Поднять ярус лавки (U)"
-        >
-          {tier >= 5 ? (
-            <span>Ярус 5 (макс)</span>
-          ) : (
-            <>
-              <span>Ярус {tier}→{tier + 1}</span>
-              <span className="text-amber-300 tabular-nums font-bold">({tierCost})</span>
-            </>
-          )}
+          <span className="flex items-center gap-0.5 text-amber-300 tabular-nums font-bold leading-none">
+            <GoldIcon size="0.95em" />
+            {rerollCost}
+          </span>
         </button>
       </div>
 
-      {/* Full-width Wave Button */}
+      {/* Tier Upgrade Button */}
       <button
         type="button"
-        onClick={onStartWave}
-        disabled={isSpawning || allWavesLaunched}
-        className={`h-[var(--h-btn)] w-full px-2 rounded font-bold text-[length:var(--fs-md)] tracking-wide transition-all shadow-md flex flex-wrap content-center items-center justify-center gap-x-1.5 leading-tight cursor-pointer shrink-0 ${
-          isSpawning || allWavesLaunched
-            ? 'bg-[#221f2d] text-stone-500 border border-[#2d2938] cursor-not-allowed'
-            : 'bg-amber-600 hover:bg-amber-500 text-stone-950 font-black border border-amber-400/50 shadow-amber-950/40 active:translate-y-0.5'
+        onClick={onUpgradeTier}
+        disabled={tier >= 5 || (tierCost !== null && gold < tierCost)}
+        className={`h-[clamp(36px,9cqh,56px)] w-full px-1 rounded border text-[length:var(--fs-md)] font-semibold flex items-center justify-center gap-1 transition-colors cursor-pointer shrink-0 ${
+          tier < 5 && tierCost !== null && gold >= tierCost
+            ? 'bg-[#221f2d] hover:bg-[#2c283a] text-stone-200 border-[#383347]'
+            : 'bg-[#181622] text-stone-600 border-[#262330] cursor-not-allowed'
         }`}
-        title="Начать волну (Пробел)"
+        title="Поднять ярус лавки (U)"
       >
-        {allWavesLaunched ? (
-          <span>Последняя волна</span>
-        ) : isSpawning ? (
-          <span>Враги выходят...</span>
-        ) : waveCountdown !== null ? (
-          <>
-            <span className="whitespace-nowrap">Волна через {waveCountdown} с</span>
-            {earlyStartBonus > 0 && <span className="tabular-nums whitespace-nowrap">· сейчас +{earlyStartBonus}</span>}
-          </>
-        ) : isWaveActive ? (
-          <span>Следующая (+{earlyStartBonus})</span>
+        {tier >= 5 ? (
+          <span>Ярус лавки 5 (макс)</span>
         ) : (
-          <span>Начать волну</span>
+          <>
+            <span>Ярус лавки {tier}→{tier + 1}</span>
+            <span className="flex items-center gap-0.5 text-amber-300 tabular-nums font-bold">
+              <GoldIcon size="0.95em" />
+              {tierCost}
+            </span>
+          </>
         )}
       </button>
     </div>
