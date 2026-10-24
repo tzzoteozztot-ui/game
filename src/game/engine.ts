@@ -1810,7 +1810,7 @@ export class GameEngine {
 
     // Between waves the selected tower can move: free cells are marked, the hovered one shows the target
     if (selectedTower && !this.bindingFromId && this.canMoveTowers()) {
-      ctx.fillStyle = 'rgba(244, 192, 106, 0.07)';
+      ctx.fillStyle = 'rgba(244, 192, 106, 0.045)';
       for (let y = 0; y < CONFIG.grid.rows; y++) {
         for (let x = 0; x < CONFIG.grid.cols; x++) {
           if (this.isCellFree(x, y)) ctx.fillRect(x * cellSize + 6, y * cellSize + 6, cellSize - 12, cellSize - 12);

@@ -1,1 +1,9 @@
 @import "tailwindcss";
+
+/* The game fills its page: works both as a standalone site and inside a frame that pads the root */
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}

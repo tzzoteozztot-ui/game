@@ -651,7 +651,7 @@ export default function App() {
   };
 
   return (
-    <div className="w-screen h-screen overflow-hidden bg-[#121118] text-[#f4f2e6] flex flex-col font-sans select-none">
+    <div className="w-full h-full overflow-hidden bg-[#121118] text-[#f4f2e6] flex flex-col font-sans select-none">
       {/* 1. Portrait Warning */}
       {isPortrait && <OrientationWarning />}
 
@@ -694,21 +694,21 @@ export default function App() {
       {screen === 'playing' && (
         <div className="w-full h-full flex flex-col">
           {/* Main Game Stage: Canvas (left/center) + Right Panel */}
-          <div className="flex-1 flex overflow-hidden min-h-0 relative">
+          <div className="flex-1 flex overflow-hidden min-h-0 relative [container-type:size]">
             {/* Canvas Container keeps the field's aspect ratio */}
             <div
               ref={containerRef}
               className="h-full min-w-0 bg-[#121118] flex items-center justify-center p-1 sm:p-2 overflow-hidden"
               // As wide as the field at full height (it shrinks when the screen is narrower);
               // the side column takes whatever width is left
-              style={{ flex: '0 1 auto', width: `calc((100vh - 16px) * ${CONFIG.grid.cols} / ${CONFIG.grid.rows} + 16px)` }}
+              style={{ flex: '0 1 auto', width: `calc((100cqh - 16px) * ${CONFIG.grid.cols} / ${CONFIG.grid.rows} + 16px)` }}
             >
               <div
                 className="relative shadow-2xl rounded overflow-hidden"
                 style={{
                   aspectRatio: `${CONFIG.grid.cols} / ${CONFIG.grid.rows}`,
                   // Explicit width: 'auto' would follow the canvas bitmap, which is smaller on dpr 1 screens
-                  width: `min(100%, (100vh - 16px) * ${CONFIG.grid.cols} / ${CONFIG.grid.rows})`,
+                  width: `min(100%, (100cqh - 16px) * ${CONFIG.grid.cols} / ${CONFIG.grid.rows})`,
                   maxHeight: '100%',
                   height: 'auto',
                 }}
