@@ -39,6 +39,7 @@ const SIDE_VARS = {
 export default function App() {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const dragTowerRef = useRef<string | null>(null); // tower pressed between waves, for drag-to-move
   const engineRef = useRef<GameEngine | null>(null);
 
   // App screen state
@@ -82,6 +83,7 @@ export default function App() {
     binderCount: 0,
     bindPartnerCount: 0,
     isBinding: false,
+    canMoveTowers: false,
   });
 
   // Shop state (5 card slots)
@@ -504,6 +506,10 @@ export default function App() {
     } else if (clickedTower) {
       engine.selectTower(clickedTower.id);
       sound.playBuy();
+      // Between waves a press on a tower can drag it to another cell
+      if (engine.canMoveTowers()) dragTowerRef.current = clickedTower.id;
+    } else if (engine.selectedTowerId && engine.moveSelectedTower(cellX, cellY)) {
+      // Between waves: a tap on a free cell moves the selected tower there
     } else {
       // Tapped empty cell: deselect
       engine.selectTower(null);
@@ -530,6 +536,20 @@ export default function App() {
     } else {
       engine.hoverCell = null;
     }
+  };
+
+  // Drag a tower between waves: release over a free cell moves it
+  const handleCanvasPointerUp = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    const engine = engineRef.current;
+    const canvas = canvasRef.current;
+    const dragId = dragTowerRef.current;
+    dragTowerRef.current = null;
+    if (!engine || !canvas || !dragId || engine.selectedTowerId !== dragId) return;
+    const rect = canvas.getBoundingClientRect();
+    const cellX = Math.floor(((e.clientX - rect.left) * CONFIG.grid.totalWidth) / rect.width / CONFIG.grid.cellSize);
+    const cellY = Math.floor(((e.clientY - rect.top) * CONFIG.grid.totalHeight) / rect.height / CONFIG.grid.cellSize);
+    const tower = engine.towers.find((t) => t.id === dragId);
+    if (tower && (tower.x !== cellX || tower.y !== cellY)) engine.moveSelectedTower(cellX, cellY);
   };
 
   const handleCanvasPointerLeave = () => {
@@ -631,7 +651,7 @@ export default function App() {
   };
 
   return (
-    <div className="w-screen h-screen overflow-hidden bg-[#121118] text-[#f4f2e6] flex flex-col font-sans select-none">
+    <div className="w-full h-full overflow-hidden bg-[#121118] text-[#f4f2e6] flex flex-col font-sans select-none">
       {/* 1. Portrait Warning */}
       {isPortrait && <OrientationWarning />}
 
@@ -674,21 +694,21 @@ export default function App() {
       {screen === 'playing' && (
         <div className="w-full h-full flex flex-col">
           {/* Main Game Stage: Canvas (left/center) + Right Panel */}
-          <div className="flex-1 flex overflow-hidden min-h-0 relative">
+          <div className="flex-1 flex overflow-hidden min-h-0 relative [container-type:size]">
             {/* Canvas Container keeps the field's aspect ratio */}
             <div
               ref={containerRef}
               className="h-full min-w-0 bg-[#121118] flex items-center justify-center p-1 sm:p-2 overflow-hidden"
               // As wide as the field at full height (it shrinks when the screen is narrower);
               // the side column takes whatever width is left
-              style={{ flex: '0 1 auto', width: `calc((100vh - 16px) * ${CONFIG.grid.cols} / ${CONFIG.grid.rows} + 16px)` }}
+              style={{ flex: '0 1 auto', width: `calc((100cqh - 16px) * ${CONFIG.grid.cols} / ${CONFIG.grid.rows} + 16px)` }}
             >
               <div
                 className="relative shadow-2xl rounded overflow-hidden"
                 style={{
                   aspectRatio: `${CONFIG.grid.cols} / ${CONFIG.grid.rows}`,
                   // Explicit width: 'auto' would follow the canvas bitmap, which is smaller on dpr 1 screens
-                  width: `min(100%, (100vh - 16px) * ${CONFIG.grid.cols} / ${CONFIG.grid.rows})`,
+                  width: `min(100%, (100cqh - 16px) * ${CONFIG.grid.cols} / ${CONFIG.grid.rows})`,
                   maxHeight: '100%',
                   height: 'auto',
                 }}
@@ -697,6 +717,7 @@ export default function App() {
                   ref={canvasRef}
                   onPointerDown={handleCanvasPointerDown}
                   onPointerMove={handleCanvasPointerMove}
+                  onPointerUp={handleCanvasPointerUp}
                   onPointerLeave={handleCanvasPointerLeave}
                   className="w-full h-full block cursor-crosshair touch-none"
                   style={{ imageRendering: 'pixelated' }}
@@ -707,7 +728,7 @@ export default function App() {
             {/* Right Column: HUD, shop, tower panel. Sizes follow the column's height (cqh) so the
                 buttons grow on tall screens and the tower panel takes the rest: no empty space */}
             <div
-              className="flex-1 min-w-[232px] max-w-[420px] h-full flex flex-col bg-[#171520] border-l border-[#2d2938] text-[#f4f2e6] overflow-hidden select-none z-10 [container-type:size]"
+              className="flex-1 min-w-[232px] h-full flex flex-col bg-[#171520] border-l border-[#2d2938] text-[#f4f2e6] overflow-hidden select-none z-10 [container-type:size]"
               style={SIDE_VARS}
             >
               <TopBar
@@ -730,6 +751,7 @@ export default function App() {
                 placingBinder={engineRef.current?.placingBinder || false}
                 placingIndex={placingCardIndex}
                 isBinding={gameState.isBinding}
+                isMoving={gameState.canMoveTowers && gameState.selectedTower !== null && !gameState.isBinding}
                 placingIsTriplet={engineRef.current?.placingIsTriplet || false}
                 isSpawning={gameState.isSpawning}
                 isWaveActive={gameState.isWaveActive}

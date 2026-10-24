@@ -159,6 +159,7 @@ export interface GameStateSnapshot {
   binderCount: number; // binders on the field
   bindPartnerCount: number; // towers the selected one can be bound with
   isBinding: boolean; // waiting for a tap on the second tower
+  canMoveTowers: boolean; // between waves towers can be moved to a free cell
 }
 
 export class GameEngine {
@@ -1373,6 +1374,25 @@ export class GameEngine {
     this.notifyState();
   }
 
+  // Towers can be moved only in the pause between waves: the timer runs and no enemy is on the field
+  public canMoveTowers(): boolean {
+    return this.waveCountdown !== null && !this.isSpawning && this.enemies.length === 0 && !this.isGameOver;
+  }
+
+  // Moves the selected tower to a free cell; it stays selected
+  public moveSelectedTower(cellX: number, cellY: number): boolean {
+    const tower = this.selectedTowerId ? this.towers.find((t) => t.id === this.selectedTowerId) : null;
+    if (!tower || !this.canMoveTowers() || !this.isCellFree(cellX, cellY)) return false;
+    const cs = CONFIG.grid.cellSize;
+    this.spawnPuff((tower.x + 0.5) * cs, (tower.y + 0.5) * cs, '#f4c06a');
+    tower.x = cellX;
+    tower.y = cellY;
+    this.spawnRing((cellX + 0.5) * cs, (cellY + 0.5) * cs, '#d9b44a');
+    sound.playBuy();
+    this.notifyState();
+    return true;
+  }
+
   public selectBinder(id: string | null) {
     this.selectTower(null);
     this.selectedBinderId = id;
@@ -1669,6 +1689,7 @@ export class GameEngine {
       binderCount: this.binders.length,
       bindPartnerCount,
       isBinding: this.bindingFromId !== null,
+      canMoveTowers: this.canMoveTowers(),
     });
   }
 
@@ -1784,6 +1805,24 @@ export class GameEngine {
         ctx.arc((selectedTower.x + 0.5) * cellSize, (selectedTower.y + 0.5) * cellSize, rangePx, 0, Math.PI * 2);
         ctx.fill();
         ctx.stroke();
+      }
+    }
+
+    // Between waves the selected tower can move: free cells are marked, the hovered one shows the target
+    if (selectedTower && !this.bindingFromId && this.canMoveTowers()) {
+      ctx.fillStyle = 'rgba(244, 192, 106, 0.045)';
+      for (let y = 0; y < CONFIG.grid.rows; y++) {
+        for (let x = 0; x < CONFIG.grid.cols; x++) {
+          if (this.isCellFree(x, y)) ctx.fillRect(x * cellSize + 6, y * cellSize + 6, cellSize - 12, cellSize - 12);
+        }
+      }
+      const h = this.hoverCell;
+      if (h && this.isCellFree(h.x, h.y)) {
+        ctx.setLineDash([6, 4]);
+        ctx.strokeStyle = '#f4c06a';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(h.x * cellSize + 3, h.y * cellSize + 3, cellSize - 6, cellSize - 6);
+        ctx.setLineDash([]);
       }
     }
 
@@ -2292,8 +2331,11 @@ export class GameEngine {
   private renderEnemy(ctx: CanvasRenderingContext2D, e: Enemy, enemyColor: string) {
     const isBoss = e.type === 'boss';
     const isImp = e.type === 'imp';
-    const name = isBoss ? `boss_${this.level}` : isImp ? 'enemy_scout' : `enemy_${e.type}`;
-    const tint = isBoss ? null : isImp ? '#e0452f' : enemyColor;
+    // Faction figure (enemy_<type>_<level>) is drawn in its own colors; otherwise the common one gets the faction tint
+    const factionName = `enemy_${e.type}_${this.level}`;
+    const hasFaction = !isBoss && !isImp && sprites.has(factionName);
+    const name = isBoss ? `boss_${this.level}` : isImp ? 'enemy_scout' : hasFaction ? factionName : `enemy_${e.type}`;
+    const tint = isBoss || hasFaction ? null : isImp ? '#e0452f' : enemyColor;
     const variant: SpriteVariant = e.hitFlashTimer > 0 ? 'flash' : e.invulnerableTimer > 0 ? 'shield' : 'normal';
     const spr = sprites.get(name, tint, variant);
 

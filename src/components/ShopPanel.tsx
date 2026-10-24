@@ -21,6 +21,7 @@ interface ShopPanelProps {
   placingBinder: boolean;
   placingIndex: number | null; // card being placed
   isBinding: boolean;
+  isMoving: boolean; // a tower is selected in the pause between waves
   placingIsTriplet: boolean;
   isSpawning: boolean;
   isWaveActive: boolean;
@@ -41,6 +42,7 @@ export function ShopPanel({
   placingBinder,
   placingIndex,
   isBinding,
+  isMoving,
   placingIsTriplet,
   isSpawning,
   isWaveActive,
@@ -72,6 +74,11 @@ export function ShopPanel({
               <span>{CONFIG.binder.name}</span>
             </span>
             <span className="text-[length:var(--fs-sm)] text-stone-400 shrink-0">тапните клетку</span>
+          </>
+        ) : isMoving && !inHandDef && !placingBinder ? (
+          <>
+            <span className="text-amber-300 font-bold truncate">Перестановка</span>
+            <span className="text-[length:var(--fs-sm)] text-stone-400 shrink-0">тапните свободную клетку</span>
           </>
         ) : inHandDef ? (
           <>

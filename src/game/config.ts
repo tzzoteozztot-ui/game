@@ -152,6 +152,16 @@ export const CONFIG = {
     sellRatio: 0.7,
   },
 
+  // Enemy HP: base × hpMult × (1 + waveLinear·(w−1) + waveQuad·(w−1)²) × (1 + level·(L−1)) × difficulty
+  // (the boss skips the wave factor)
+  // Raised at Артур's request («враги очень быстро умирают»): was hpMult 1, waveLinear 0.15, waveQuad 0
+  enemyScaling: {
+    hpMult: 1.3,
+    waveLinear: 0.18,
+    waveQuad: 0.012,
+    level: 0.3,
+  },
+
   enemies: {
     infantry: {
       type: 'infantry',

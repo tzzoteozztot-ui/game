@@ -33,6 +33,28 @@ SPRITES = {
     'enemy_flyer': ('enemies', (35, 515, 565, 905), (330, 720), 34, 1),
     'enemy_shaman': ('enemies', (605, 485, 910, 965), (720, 800), 36, 1),
     'enemy_swarm': ('enemies', (1105, 695, 1355, 865), (1240, 800), 16, 1),
+    # Враги фракций (art/concepts/enemies): enemy_<тип>_<уровень>; остальные типы — общие спрайты выше
+    'enemy_heavy_1': ('enemies/factions', (30, 82, 227, 332), (128, 219), 40, 1),
+    'enemy_scout_1': ('enemies/factions', (252, 104, 387, 329), (319, 228), 32, 1),
+    'enemy_infantry_1': ('enemies/factions', (400, 105, 571, 330), (485, 229), 34, 1),
+    'enemy_shaman_1': ('enemies/factions', (569, 55, 733, 335), (651, 209), 36, 1),
+    'enemy_infantry_2': ('enemies/factions', (772, 117, 957, 328), (864, 233), 34, 1),
+    'enemy_scout_2': ('enemies/factions', (977, 104, 1122, 336), (1047, 233), 32, 1),
+    'enemy_shaman_2': ('enemies/factions', (1138, 104, 1290, 328), (1214, 227), 36, 1),
+    'enemy_heavy_2': ('enemies/factions', (1294, 54, 1477, 342), (1385, 212), 40, 1),
+    'enemy_infantry_3': ('enemies/ice-legion', (823, 137, 1062, 512), (939, 343), 34, 1),
+    'enemy_scout_3': ('enemies/ice-legion', (1075, 207, 1276, 510), (1174, 374), 32, 1),
+    'enemy_heavy_3': ('enemies/ice-legion', (40, 540, 361, 942), (201, 761), 40, 1),
+    'enemy_flyer_3': ('enemies/ice-legion', (595, 553, 1020, 896), (807, 738), 34, 1),
+    'enemy_shaman_3': ('enemies/ice-legion', (565, 153, 786, 512), (676, 352), 36, 1),
+    'enemy_swarm_3': ('enemies/ice-legion', (404, 659, 653, 950), (521, 820), 16, 1),
+    'enemy_infantry_4': ('enemies/factions', (752, 404, 944, 644), (848, 536), 34, 1),
+    'enemy_flyer_4': ('enemies/factions', (958, 372, 1156, 646), (1057, 523), 34, 1),
+    'enemy_heavy_4': ('enemies/factions', (1139, 471, 1313, 649), (1226, 569), 40, 1),
+    'enemy_shaman_4': ('enemies/factions', (1323, 339, 1483, 654), (1403, 512), 36, 1),
+    'enemy_infantry_5': ('enemies/factions', (302, 714, 493, 951), (397, 844), 34, 1),
+    'enemy_heavy_5': ('enemies/factions', (520, 728, 734, 965), (627, 858), 40, 1),
+    'enemy_scout_5': ('enemies/factions', (759, 718, 973, 963), (866, 853), 32, 1),
     'boss_1': ('bosses', (45, 0, 425, 515), (280, 330), 72, 1),
     'boss_2': ('bosses', (585, 0, 925, 525), (760, 330), 72, 1),
     'boss_3': ('bosses', (1085, 15, 1405, 535), (1220, 330), 72, 1),
@@ -73,22 +95,36 @@ def box_mean(a, r):
     return s / (k * k)
 
 
-def sheet_alpha(rgb):
+# Листы с менее ровным фоном: тени в «карманах» темнее фона, вокруг фигур светлый серый ободок
+SHEET_OPTS = {
+    'enemies/factions': {'pocket': (9, 13), 'light_rim': True},
+    'enemies/ice-legion': {'pocket': (9, 13), 'light_rim': True},
+}
+
+
+def sheet_alpha(rgb, pocket=(5, 8), light_rim=False):
     h, w, _ = rgb.shape
     border = np.concatenate([rgb[:8].reshape(-1, 3), rgb[-8:].reshape(-1, 3)])
     bg = np.median(border, axis=0)
     dist = np.sqrt(((rgb - bg) ** 2).sum(-1))
 
     near = dist < 16
+    grey = (rgb.max(-1) - rgb.min(-1)) < 14
+    if light_rim:
+        near |= grey & (rgb.mean(-1) > bg.mean() - 2)
     edge = np.zeros_like(near)
     edge[0, :] = edge[-1, :] = edge[:, 0] = edge[:, -1] = True
     background = reconstruct(edge, near)
     # Замкнутые карманы фона (между ногами, под тетивой): ровные участки цвета фона
-    pockets = (box_mean(dist, 4) < 5) & (dist < 8)
+    pockets = (box_mean(dist, 4) < pocket[0]) & (dist < pocket[1])
+    if light_rim:
+        pockets &= grey
     background |= reconstruct(pockets, near)
 
     alpha = np.ones((h, w))
     soft = np.clip((dist - 5) / 11, 0, 1)
+    if light_rim:
+        soft[grey & (rgb.mean(-1) > bg.mean() - 2)] = 0
     alpha[background] = soft[background]
     return alpha, bg
 
@@ -106,7 +142,7 @@ def main():
     for name, (sheet, rect, seed_pt, draw_h, facing) in SPRITES.items():
         if sheet not in sheets:
             rgb = np.asarray(Image.open(os.path.join(SRC, sheet + '.png')).convert('RGB')).astype(float)
-            alpha, bg = sheet_alpha(rgb)
+            alpha, bg = sheet_alpha(rgb, **SHEET_OPTS.get(sheet, {}))
             sheets[sheet] = (decontaminate(rgb, alpha, bg), alpha)
         rgb, alpha = sheets[sheet]
 

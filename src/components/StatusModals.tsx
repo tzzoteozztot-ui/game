@@ -285,6 +285,14 @@ export function HowToPlayModal({ onClose }: { onClose: () => void }) {
             </p>
           </section>
 
+          {/* Moving towers */}
+          <section>
+            <h3 className="font-bold text-amber-200 text-sm mb-1">Перестановка башен</h3>
+            <p className="text-stone-300">
+              Пока идёт таймер между волнами и на поле нет врагов, башню можно переставить бесплатно: выберите её и коснитесь свободной клетки или перетащите мышью.
+            </p>
+          </section>
+
           {/* Binder */}
           <section>
             <h3 className="font-bold text-sm mb-1" style={{ color: '#3ed6c4' }}>Связка</h3>
