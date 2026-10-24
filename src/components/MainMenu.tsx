@@ -17,7 +17,9 @@ interface MainMenuProps {
   musicVol: number;
   sfxVol: number;
   isMuted: boolean;
-  onSelectLevel: (lvl: number) => void;
+  selectedLevel: number;
+  onSelectLevel: (lvl: number) => void; // highlights the card; the game starts with onPlay
+  onPlay: () => void;
   onChangeDifficulty: (diff: Difficulty) => void;
   onChangeEndless: (endless: boolean) => void;
   onOpenHowToPlay: () => void;
@@ -35,7 +37,9 @@ export function MainMenu({
   musicVol,
   sfxVol,
   isMuted,
+  selectedLevel,
   onSelectLevel,
+  onPlay,
   onChangeDifficulty,
   onChangeEndless,
   onOpenHowToPlay,
@@ -91,6 +95,7 @@ export function MainMenu({
             const isUnlocked = lvl <= unlockedLevel;
             const stars = levelStars[lvl] || 0;
             const palette = CONFIG.palettes[idx];
+            const isSelected = isUnlocked && lvl === selectedLevel;
 
             return (
               <button
@@ -98,10 +103,14 @@ export function MainMenu({
                 type="button"
                 disabled={!isUnlocked}
                 onClick={() => onSelectLevel(lvl)}
+                onDoubleClick={() => isUnlocked && onPlay()}
+                aria-pressed={isSelected}
                 className={`p-2 sm:p-2.5 rounded-lg border text-left flex flex-col justify-between transition-all min-h-[75px] sm:min-h-[96px] cursor-pointer ${
-                  isUnlocked
-                    ? 'border-[#3d384d] bg-[#1a1724] hover:bg-[#252033] hover:border-amber-400 hover:scale-[1.02] shadow-md'
-                    : 'border-[#201d29] bg-[#14121c] opacity-40 cursor-not-allowed'
+                  isSelected
+                    ? 'border-amber-400 bg-[#2a2236] ring-2 ring-amber-500/60 shadow-md'
+                    : isUnlocked
+                      ? 'border-[#3d384d] bg-[#1a1724] hover:bg-[#252033] hover:border-amber-400 hover:scale-[1.02] shadow-md'
+                      : 'border-[#201d29] bg-[#14121c] opacity-40 cursor-not-allowed'
                 }`}
               >
                 <div>
@@ -185,6 +194,15 @@ export function MainMenu({
             ))}
           </div>
         </div>
+
+        {/* Play: starts the selected level in the selected mode */}
+        <button
+          type="button"
+          onClick={onPlay}
+          className="w-full min-h-[46px] py-2 px-4 rounded bg-amber-500 hover:bg-amber-400 text-stone-950 font-black text-sm tracking-wider uppercase transition-all shadow-lg shadow-amber-950/50 cursor-pointer active:translate-y-0.5"
+        >
+          Играть: {CONFIG.factions[selectedLevel - 1].location} · {endless ? 'бесконечный' : 'кампания'}
+        </button>
 
         {/* Buttons Row */}
         <div className="w-full grid grid-cols-2 gap-2">

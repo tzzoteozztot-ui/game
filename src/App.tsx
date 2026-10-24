@@ -250,6 +250,13 @@ export default function App() {
     }
   }, [gameState.isGameOver, gameState.endless, gameState.wave, gameState.level]);
 
+  // Menu «Играть»: the selected level (never a locked one) goes to its briefing
+  const handleOpenBriefing = () => {
+    sound.init();
+    setSelectedLevel((lvl) => Math.min(lvl, unlockedLevel));
+    setScreen('briefing');
+  };
+
   // Handle Level Start from briefing
   const handleStartBattle = () => {
     sound.init();
@@ -591,7 +598,10 @@ export default function App() {
           handleStartWave();
         }
       } else if (e.key === 'Enter') {
-        if (screen === 'briefing') {
+        if (screen === 'menu' && !showHowToPlay) {
+          e.preventDefault();
+          handleOpenBriefing();
+        } else if (screen === 'briefing') {
           e.preventDefault();
           handleStartBattle();
         }
@@ -657,7 +667,7 @@ export default function App() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [screen, specModalTower, placingCardIndex, shopCards]);
+  }, [screen, specModalTower, placingCardIndex, shopCards, unlockedLevel, showHowToPlay]);
 
   // Audio Handlers
   const handleMusicChange = (val: number) => {
@@ -691,11 +701,12 @@ export default function App() {
           musicVol={audioSettings.musicVolume}
           sfxVol={audioSettings.sfxVolume}
           isMuted={audioSettings.muted}
+          selectedLevel={Math.min(selectedLevel, unlockedLevel)}
           onSelectLevel={(lvl) => {
             sound.init();
             setSelectedLevel(lvl);
-            setScreen('briefing');
           }}
+          onPlay={handleOpenBriefing}
           onChangeDifficulty={(d) => {
             sound.init();
             setDifficulty(d);
