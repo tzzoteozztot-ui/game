@@ -6,6 +6,21 @@
 import React from 'react';
 import { TowerType } from '../game/config';
 
+/** Tower picture from public/sprites; falls back to the shape icon if the file is missing. */
+export function TowerSpriteIcon({ type, size = 24, color }: { type: TowerType; size?: number; color?: string }) {
+  const [failed, setFailed] = React.useState(false);
+  if (failed) return <TowerShapeIcon type={type} size={size} color={color} />;
+  return (
+    <img
+      src={`sprites/tower_${type}.png`}
+      alt=""
+      draggable={false}
+      onError={() => setFailed(true)}
+      style={{ height: size, width: 'auto', maxWidth: size * 1.1, objectFit: 'contain' }}
+    />
+  );
+}
+
 export function TowerShapeIcon({ type, size = 24, color }: { type: TowerType; size?: number; color?: string }) {
   if (type === 'archer') {
     // Triangle
@@ -38,6 +53,18 @@ export function TowerShapeIcon({ type, size = 24, color }: { type: TowerType; si
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
       <circle cx="12" cy="12" r="9" fill={color || '#f2f0e0'} stroke="#121118" strokeWidth="2" />
       <circle cx="12" cy="12" r="4.5" stroke="#121118" strokeWidth="2" fill="none" />
+    </svg>
+  );
+}
+
+// «Связка»: two interlocked rings on a plinth, as drawn on the field
+export function BinderIcon({ size = 24 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <path d="M7 22 L8.5 16 L15.5 16 L17 22 Z" fill="#2b2838" stroke="#121118" strokeWidth="1.2" />
+      <ellipse cx="9.5" cy="9" rx="4.5" ry="6" stroke="#3ed6c4" strokeWidth="2" />
+      <ellipse cx="14.5" cy="9" rx="4.5" ry="6" stroke="#3ed6c4" strokeWidth="2" />
+      <circle cx="12" cy="9" r="1.4" fill="#3ed6c4" />
     </svg>
   );
 }

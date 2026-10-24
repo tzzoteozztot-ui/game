@@ -56,18 +56,13 @@ export interface FactionDef {
 
 export const CONFIG = {
   grid: {
-    cols: 12,
-    rows: 8,
+    cols: 17,
+    rows: 11,
     cellSize: 64, // logical width & height
-    totalWidth: 768, // 12 * 64
-    totalHeight: 512, // 8 * 64
-    castleCells: [
-      { x: 11, y: 2 },
-      { x: 11, y: 3 },
-      { x: 11, y: 4 },
-      { x: 11, y: 5 },
-    ],
-    castleTarget: { x: 11.5, y: 3.5 }, // center of castle for flyers
+    totalWidth: 1088, // 17 * 64
+    totalHeight: 704, // 11 * 64
+    castleCells: [{ x: 8, y: 5 }], // single cell in the centre
+    castleTarget: { x: 8.5, y: 5.5 }, // center of castle for flyers
   },
 
   lives: {
@@ -316,7 +311,22 @@ export const CONFIG = {
     rerollCost: 10,
     tierUpgradeCosts: [30, 60, 100, 150], // for 1->2, 2->3, 3->4, 4->5
     tripletChances: [0, 0.03, 0.06, 0.10, 0.15], // for tier 1..5
+    binderChances: [0, 0, 0.06, 0.12, 0.18], // «Связка» card per slot, for tier 1..5
   },
+
+  // «Связка»: rare figure that binds two towers of different types into one cell
+  binder: {
+    name: 'Связка',
+    cost: 80,
+    color: '#3ed6c4',
+  },
+
+  waveTimer: {
+    first: 30, // real seconds before wave 1 starts by itself
+    between: 20, // real seconds between a cleared wave and the next one
+    goldPerSecond: 1, // early start bonus per second left on the timer
+  },
+  speeds: [0.5, 1, 1.5, 3], // game speed steps, cycled by the speed button
 
   spawnInterval: 0.8, // seconds between spawns
   swarmInterval: 0.25, // seconds between swarm individuals

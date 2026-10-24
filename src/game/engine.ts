@@ -15,23 +15,36 @@ import {
 } from './rules';
 import { sound } from './audio';
 import { sprites, drawSprite, PreparedSprite, SpriteVariant } from './sprites';
+import { attackStats, specBadge, specPower, specsOfType, stackedSlow } from './towerStats';
 
 // -------------------------------------------------------------
 // Entity Interfaces
 // -------------------------------------------------------------
 
-export interface Tower {
+// What attacks: a tower has one part, a tower bound by «Связка» has two of different types
+export interface TowerPart {
+  type: TowerType;
+  level: number; // 1, 2, 3
+  specs: string[]; // specialization ids; repeats are power, see towerStats.ts
+  cooldownTimer: number; // seconds until ready
+  smiteTimer: number; // priest smite pulse timer
+}
+
+export interface Tower extends TowerPart {
   id: string;
   x: number; // grid cell x
   y: number; // grid cell y
-  type: TowerType;
-  level: number; // 1, 2, 3
-  spec: string | null;
   priority: TargetPriority;
-  cooldownTimer: number; // seconds until ready
   frozenTimer: number; // frozen by Ice Priest boss
-  smiteTimer: number; // priest smite pulse timer
   facing: number; // 1 = right, -1 = left (towards last target)
+  second: TowerPart | null; // bound tower of another type, shoots from the same cell
+}
+
+// «Связка» standing on the field until it is spent on binding two towers
+export interface Binder {
+  id: string;
+  x: number;
+  y: number;
 }
 
 export interface Enemy {
@@ -57,6 +70,7 @@ export interface Enemy {
   burnDps: number;
   burnTimer: number;
   curseTimer: number;
+  curseBonus: number;
   rageTriggered: boolean;
   warcryTimer: number;
   hasRevived: boolean; // undead trait
@@ -85,13 +99,9 @@ export interface Projectile {
   damage: number;
   damageType: 'phys' | 'mag';
   towerType: TowerType;
-  spec: string | null;
+  specs: string[]; // specializations of this tower type
   isRam: boolean;
-  isSiege: boolean;
-  isExecute: boolean;
-  isFire: boolean;
-  isFrost: boolean;
-  isCurse: boolean;
+  aoeRadius: number; // cells, 0 = single target
   piercedEnemyIds: Set<string>;
 }
 
@@ -140,8 +150,15 @@ export interface GameStateSnapshot {
   isVictory: boolean;
   isPaused: boolean;
   allWavesLaunched: boolean;
+  waveCountdown: number | null; // whole seconds left, null while a wave runs
+  earlyStartBonus: number;
+  speed: number;
   selectedTower: Tower | null;
   eligibleMergeCount: number;
+  selectedBinder: boolean;
+  binderCount: number; // binders on the field
+  bindPartnerCount: number; // towers the selected one can be bound with
+  isBinding: boolean; // waiting for a tap on the second tower
 }
 
 export class GameEngine {
@@ -156,12 +173,15 @@ export class GameEngine {
   public wave: number = 1;
   public tier: number = 1;
   public isPaused: boolean = false;
-  public speedMultiplier: number = 1; // 1 or 2
+  public speedMultiplier: number = 1; // one of CONFIG.speeds
+  // Real-time countdown to the next wave (not scaled by game speed); null while a wave runs
+  public waveCountdown: number | null = null;
   public isGameOver: boolean = false;
   public isVictory: boolean = false;
 
   // Entities
   public towers: Tower[] = [];
+  public binders: Binder[] = [];
   public enemies: Enemy[] = [];
   public projectiles: Projectile[] = [];
   public floatingTexts: FloatingText[] = [];
@@ -184,11 +204,15 @@ export class GameEngine {
   public placingTowerType: TowerType | null = null;
   public placingIsTriplet: boolean = false;
   public pendingTripletSpec: string | null = null;
+  public placingBinder: boolean = false;
+  public selectedBinderId: string | null = null;
+  public bindingFromId: string | null = null; // tower waiting for its partner
   public hoverCell: Point | null = null;
 
   // Callbacks to UI
   public onStateChange?: (snapshot: GameStateSnapshot) => void;
   public onNeedSpecChoice?: (tower: Tower) => void;
+  public onWaveStarted?: () => void;
 
   private animFrameId: number | null = null;
   private lastTime: number = 0;
@@ -227,7 +251,7 @@ export class GameEngine {
   public resizeCanvas() {
     if (!this.canvas) return;
     const dpr = window.devicePixelRatio || 1;
-    // Logical dimensions: 768 x 512
+    // Logical dimensions: CONFIG.grid.totalWidth x totalHeight
     this.canvas.width = CONFIG.grid.totalWidth * dpr;
     this.canvas.height = CONFIG.grid.totalHeight * dpr;
     if (this.ctx) {
@@ -245,10 +269,12 @@ export class GameEngine {
     this.tier = 1;
     this.isPaused = false;
     this.speedMultiplier = 1;
+    this.waveCountdown = CONFIG.waveTimer.first;
     this.isGameOver = false;
     this.isVictory = false;
 
     this.towers = [];
+    this.binders = [];
     this.enemies = [];
     this.projectiles = [];
     this.floatingTexts = [];
@@ -266,6 +292,9 @@ export class GameEngine {
     this.placingTowerType = null;
     this.placingIsTriplet = false;
     this.pendingTripletSpec = null;
+    this.placingBinder = false;
+    this.selectedBinderId = null;
+    this.bindingFromId = null;
     this.hoverCell = null;
 
     this.levelStartTime = performance.now();
@@ -286,7 +315,8 @@ export class GameEngine {
       const dir = this.entranceInward(path[0]);
       pts.unshift({ x: pts[0].x - dir.x * 0.6, y: pts[0].y - dir.y * 0.6 });
       const last = pts[pts.length - 1];
-      pts.push({ x: last.x + 0.75, y: last.y });
+      const castle = CONFIG.grid.castleTarget;
+      pts.push({ x: last.x + (castle.x - last.x) * 0.6, y: last.y + (castle.y - last.y) * 0.6 });
       this.roadLines.push(pts);
       for (let i = 1; i < pts.length; i++) {
         const key = `${pts[i - 1].x},${pts[i - 1].y}>${pts[i].x},${pts[i].y}`;
@@ -301,7 +331,8 @@ export class GameEngine {
     if (e.x === 0) return { x: 1, y: 0 };
     if (e.y === 0) return { x: 0, y: 1 };
     if (e.y === CONFIG.grid.rows - 1) return { x: 0, y: -1 };
-    return { x: -1, y: 0 };
+    if (e.x === CONFIG.grid.cols - 1) return { x: -1, y: 0 };
+    return { x: 1, y: 0 };
   }
 
   private generateGrass() {
@@ -338,10 +369,13 @@ export class GameEngine {
       const dt = Math.min(rawDt, 0.05);
 
       if (!this.isPaused && !this.isGameOver && !this.isVictory) {
-        const steps = this.speedMultiplier === 2 ? 2 : 1;
+        // Game time runs at the chosen speed in steps of at most 0.05 s
+        const gameDt = dt * this.speedMultiplier;
+        const steps = Math.max(1, Math.ceil(gameDt / 0.05 - 1e-9));
         for (let s = 0; s < steps; s++) {
-          this.update(dt);
+          this.update(gameDt / steps);
         }
+        this.tickWaveCountdown(Math.min(rawDt, 0.25));
       }
 
       this.render();
@@ -363,8 +397,30 @@ export class GameEngine {
   }
 
   public toggleSpeed() {
-    this.speedMultiplier = this.speedMultiplier === 1 ? 2 : 1;
+    const speeds = CONFIG.speeds;
+    const idx = speeds.indexOf(this.speedMultiplier);
+    this.speedMultiplier = speeds[(idx + 1) % speeds.length];
     this.notifyState();
+  }
+
+  // Counts down in real seconds, whatever the game speed; starts the wave at zero
+  private tickWaveCountdown(realDt: number) {
+    if (this.waveCountdown === null) return;
+    const before = Math.ceil(this.waveCountdown);
+    this.waveCountdown = Math.max(0, this.waveCountdown - realDt);
+    if (this.waveCountdown <= 0) {
+      this.startNextWave();
+    } else if (Math.ceil(this.waveCountdown) !== before) {
+      this.notifyState();
+    }
+  }
+
+  /** Gold for starting the next wave now instead of waiting. */
+  public earlyStartBonus(): number {
+    if (this.waveCountdown !== null) {
+      return Math.floor(this.waveCountdown) * CONFIG.waveTimer.goldPerSecond;
+    }
+    return this.enemies.length > 0 ? 10 : 0;
   }
 
   // -------------------------------------------------------------
@@ -374,12 +430,14 @@ export class GameEngine {
     if (this.isSpawning || this.isGameOver || this.isVictory) return false;
     if (this.wavesLaunched >= CONFIG.waves.length) return false;
 
-    // Check if enemies from previous wave are still alive -> give +10 early bonus
-    if (this.enemies.length > 0) {
-      this.gold += 10;
-      this.addFloatingText('+10 за ранний старт', CONFIG.grid.totalWidth / 2, 40, '#f4c06a');
+    // Early start: gold for the seconds left on the timer, or +10 while enemies are still alive
+    const bonus = this.earlyStartBonus();
+    if (bonus > 0) {
+      this.gold += bonus;
+      this.addFloatingText(`+${bonus} за ранний старт`, CONFIG.grid.totalWidth / 2, 40, '#f4c06a');
       sound.playBuy();
     }
+    this.waveCountdown = null;
 
     // An early start launches the next wave, not the current one again
     this.wave = this.wavesLaunched + 1;
@@ -456,6 +514,7 @@ export class GameEngine {
     this.isSpawning = true;
     this.waveInProgress = true;
     this.spawnTimer = 0;
+    this.onWaveStarted?.();
     this.notifyState();
     return true;
   }
@@ -503,6 +562,7 @@ export class GameEngine {
       burnDps: 0,
       burnTimer: 0,
       curseTimer: 0,
+      curseBonus: 0.25,
       rageTriggered: false,
       warcryTimer: 0,
       hasRevived: false,
@@ -560,6 +620,7 @@ export class GameEngine {
           return;
         } else {
           this.wave++;
+          this.waveCountdown = CONFIG.waveTimer.between;
           this.notifyState();
         }
       }
@@ -571,17 +632,21 @@ export class GameEngine {
         tower.frozenTimer -= dt;
         continue;
       }
-      if (tower.cooldownTimer > 0) {
-        tower.cooldownTimer -= dt;
-      }
-      if (tower.spec === 'smite') {
-        tower.smiteTimer -= dt;
-        if (tower.smiteTimer <= 0) {
-          this.triggerPriestSmite(tower);
-          tower.smiteTimer = 2.5;
+      for (const part of tower.second ? [tower, tower.second] : [tower]) {
+        if (part.cooldownTimer > 0) {
+          part.cooldownTimer -= dt;
         }
-      } else if (tower.cooldownTimer <= 0) {
-        this.towerAttack(tower);
+        const stats = attackStats(part.type, part.level, part.specs);
+        if (stats.smiteDamage > 0) {
+          part.smiteTimer -= dt;
+          if (part.smiteTimer <= 0) {
+            this.triggerPriestSmite(tower, part);
+            part.smiteTimer = 2.5;
+          }
+        }
+        if (stats.normalAttack && part.cooldownTimer <= 0) {
+          this.towerAttack(tower, part);
+        }
       }
     }
 
@@ -603,7 +668,7 @@ export class GameEngine {
             const dist = Math.hypot(e.x - p.currentX, e.y - p.currentY);
             if (dist < 24) {
               p.piercedEnemyIds.add(e.id);
-              this.applyDamageToEnemy(e, p.damage, p.damageType, p.towerType, p.spec);
+              this.applyDamageToEnemy(e, p.damage, p.damageType, p.towerType, p.specs);
               this.spawnSpark(e.x, e.y, '#c9663a');
             }
           }
@@ -611,6 +676,8 @@ export class GameEngine {
 
         const traveled = Math.hypot(p.currentX - p.startX, p.currentY - p.startY);
         if (traveled > len + 32) {
+          // «Таран» + «Осада»: the bolt bursts where it stops
+          if (p.aoeRadius > 0) this.handleProjectileImpact(p, null, p.currentX, p.currentY);
           this.projectiles.splice(i, 1);
         }
       } else {
@@ -731,7 +798,7 @@ export class GameEngine {
         const dy = targetPxY - e.y;
         const dist = Math.hypot(dx, dy);
 
-        if (dist < 12 || e.x >= 11 * CONFIG.grid.cellSize) {
+        if (dist < 12) {
           // Reached castle!
           this.damageCastle(e, i);
           continue;
@@ -748,13 +815,21 @@ export class GameEngine {
         const nextCell = path[e.pathIndex + 1];
 
         if (!nextCell) {
-          // Reached end of road at x=10, move straight into castle (x=11)
-          e.x += speed * dt;
-          e.distanceTraveled += speed * dt;
-          if (e.x >= 11 * CONFIG.grid.cellSize) {
+          // Reached the end of the road next to the castle: walk into the castle cell
+          const cx = CONFIG.grid.castleTarget.x * CONFIG.grid.cellSize;
+          const cy = CONFIG.grid.castleTarget.y * CONFIG.grid.cellSize;
+          const dx = cx - e.x;
+          const dy = cy - e.y;
+          const dist = Math.hypot(dx, dy);
+          const moveStep = speed * dt;
+          if (dist <= Math.max(moveStep, 14)) {
             this.damageCastle(e, i);
             continue;
           }
+          e.x += (dx / dist) * moveStep;
+          e.y += (dy / dist) * moveStep;
+          e.distanceTraveled += moveStep;
+          if (Math.abs(dx) > 1) e.facing = dx < 0 ? -1 : 1;
         } else {
           const targetPxX = (nextCell.x + 0.5) * CONFIG.grid.cellSize;
           const targetPxY = (nextCell.y + 0.5) * CONFIG.grid.cellSize;
@@ -902,33 +977,15 @@ export class GameEngine {
   // -------------------------------------------------------------
   // Tower Attacks & Targeting
   // -------------------------------------------------------------
-  private towerAttack(tower: Tower) {
-    const baseDef = CONFIG.towers[tower.type];
+  private towerAttack(tower: Tower, part: TowerPart) {
+    const baseDef = CONFIG.towers[part.type];
     const towerPxX = (tower.x + 0.5) * CONFIG.grid.cellSize;
     const towerPxY = (tower.y + 0.5) * CONFIG.grid.cellSize;
-
-    // Range calculation
-    let rangeCells = baseDef.range;
-    if (tower.level >= 2) rangeCells *= CONFIG.upgrade.lvl2RangeMult;
-    if (tower.level >= 3) rangeCells *= CONFIG.upgrade.lvl3RangeMult;
-    if (tower.spec === 'sniper') rangeCells *= 1.6;
-    const rangePx = rangeCells * CONFIG.grid.cellSize;
-
-    // Damage calculation
-    let rawDamage = baseDef.damage;
-    if (tower.level >= 2) rawDamage *= CONFIG.upgrade.lvl2DamageMult;
-    if (tower.level >= 3) rawDamage *= CONFIG.upgrade.lvl3DamageMult;
-    if (tower.spec === 'sniper') rawDamage *= 1.8;
-    if (tower.spec === 'arrow_hail') rawDamage *= 0.8;
-    if (tower.spec === 'frost') rawDamage *= 0.8;
-    if (tower.spec === 'ram') rawDamage *= 0.8;
-    if (tower.spec === 'siege') rawDamage *= 0.9;
-
-    // Cooldown calculation
-    let cooldown = baseDef.cooldown;
-    if (tower.spec === 'sniper') cooldown *= 1.6;
-    if (tower.spec === 'arrow_hail') cooldown *= 0.6;
-    if (tower.spec === 'siege') cooldown *= 1.15;
+    const stats = attackStats(part.type, part.level, part.specs);
+    const specs = specsOfType(part.type, part.specs);
+    const rangePx = stats.range * CONFIG.grid.cellSize;
+    const rawDamage = stats.damage;
+    const cooldown = stats.cooldown;
 
     // Find enemies in range
     const inRange = this.enemies.filter((e) => {
@@ -942,19 +999,13 @@ export class GameEngine {
     // Sort according to priority
     this.sortEnemiesByPriority(inRange, tower.priority, towerPxX, towerPxY);
 
-    // Number of targets
-    let targetCount = 1;
-    if (tower.spec === 'arrow_hail') {
-      targetCount = tower.level >= 3 ? 3 : 2;
-    }
-
-    const targets = inRange.slice(0, targetCount);
+    const targets = inRange.slice(0, stats.targets);
     if (Math.abs(targets[0].x - towerPxX) > 2) tower.facing = targets[0].x < towerPxX ? -1 : 1;
 
     for (const target of targets) {
-      sound.playShot(tower.type);
+      sound.playShot(part.type);
 
-      if (tower.spec === 'ram') {
+      if (stats.pierce) {
         // Fire penetrating line projectile
         this.projectiles.push({
           id: Math.random().toString(36).substring(2, 9),
@@ -968,19 +1019,15 @@ export class GameEngine {
           speed: 600,
           damage: rawDamage,
           damageType: 'phys',
-          towerType: tower.type,
-          spec: tower.spec,
+          towerType: part.type,
+          specs,
           isRam: true,
-          isSiege: false,
-          isExecute: false,
-          isFire: false,
-          isFrost: false,
-          isCurse: false,
+          aoeRadius: stats.aoeRadius,
           piercedEnemyIds: new Set<string>(),
         });
-      } else if (tower.spec === 'lightning') {
-        // Chain lightning: hits target + up to 3 (or 4 at lvl3) additional bounces
-        this.triggerLightningChain(tower, target, rawDamage, towerPxX, towerPxY);
+      } else if (stats.chain > 0) {
+        // Chain lightning: hits the target and bounces on (4 targets, 5 at lvl3, ×n)
+        this.triggerLightningChain(stats.chain, specs, target, rawDamage);
       } else {
         // Normal or AoE projectile
         this.projectiles.push({
@@ -992,55 +1039,42 @@ export class GameEngine {
           targetEnemyId: target.id,
           targetX: target.x,
           targetY: target.y,
-          speed: tower.type === 'ballista' ? 520 : 380,
+          speed: part.type === 'ballista' ? 520 : 380,
           damage: rawDamage,
           damageType: baseDef.damageType,
-          towerType: tower.type,
-          spec: tower.spec,
+          towerType: part.type,
+          specs,
           isRam: false,
-          isSiege: tower.spec === 'siege',
-          isExecute: tower.spec === 'execute',
-          isFire: tower.spec === 'fire',
-          isFrost: tower.spec === 'frost',
-          isCurse: tower.spec === 'curse',
+          aoeRadius: stats.aoeRadius,
           piercedEnemyIds: new Set<string>(),
         });
       }
     }
 
-    tower.cooldownTimer = cooldown;
+    part.cooldownTimer = cooldown;
   }
 
-  // Priest Smite: pulses every 2.5s hitting all enemies in radius with damage * 2.5
-  private triggerPriestSmite(tower: Tower) {
-    const baseDef = CONFIG.towers.priest;
+  // Priest Smite: pulses every 2.5s hitting all enemies in radius with damage * 2.5 (×n)
+  private triggerPriestSmite(tower: Tower, part: TowerPart) {
     const towerPxX = (tower.x + 0.5) * CONFIG.grid.cellSize;
     const towerPxY = (tower.y + 0.5) * CONFIG.grid.cellSize;
-
-    let rangeCells = baseDef.range;
-    if (tower.level >= 2) rangeCells *= CONFIG.upgrade.lvl2RangeMult;
-    if (tower.level >= 3) rangeCells *= CONFIG.upgrade.lvl3RangeMult;
-    const rangePx = rangeCells * CONFIG.grid.cellSize;
-
-    let rawDamage = baseDef.damage * 2.5;
-    if (tower.level >= 2) rawDamage *= CONFIG.upgrade.lvl2DamageMult;
-    if (tower.level >= 3) rawDamage *= CONFIG.upgrade.lvl3DamageMult;
+    const stats = attackStats('priest', part.level, part.specs);
+    const rangePx = stats.range * CONFIG.grid.cellSize;
 
     sound.playShot('priest');
     this.spawnRing(towerPxX, towerPxY, '#f2f0e0');
 
-    for (const e of this.enemies) {
-      if (e.isReviving) return;
+    for (const e of [...this.enemies]) {
+      if (e.isReviving) continue;
       if (Math.hypot(e.x - towerPxX, e.y - towerPxY) <= rangePx) {
-        this.applyDamageToEnemy(e, rawDamage, 'mag', 'priest', 'smite');
+        this.applyDamageToEnemy(e, stats.smiteDamage, 'mag', 'priest', ['smite']);
         this.spawnSpark(e.x, e.y, '#f2f0e0');
       }
     }
   }
 
-  // Mage Lightning Chain: jumps 4 targets (lvl3: 5), each taking 75% of previous
-  private triggerLightningChain(tower: Tower, firstTarget: Enemy, rawDamage: number, startX: number, startY: number) {
-    const maxBounces = tower.level >= 3 ? 5 : 4;
+  // Mage Lightning Chain: jumps between targets, each taking 75% of the previous hit
+  private triggerLightningChain(maxBounces: number, specs: string[], firstTarget: Enemy, rawDamage: number) {
     const chainTargets: Enemy[] = [firstTarget];
     let curEnemy = firstTarget;
 
@@ -1062,15 +1096,10 @@ export class GameEngine {
     }
 
     let currentDmg = rawDamage;
-    let prevX = startX;
-    let prevY = startY;
-
     for (const target of chainTargets) {
       this.spawnSpark(target.x, target.y, '#8f6bff');
-      this.applyDamageToEnemy(target, currentDmg, 'mag', 'mage', 'lightning');
+      this.applyDamageToEnemy(target, currentDmg, 'mag', 'mage', specs);
       currentDmg *= 0.75;
-      prevX = target.x;
-      prevY = target.y;
     }
   }
 
@@ -1078,24 +1107,20 @@ export class GameEngine {
     sound.playHit();
     this.spawnSpark(impactX, impactY, p.damageType === 'mag' ? '#8f6bff' : '#d9b44a');
 
-    const isAoe = p.towerType === 'mage' || p.isSiege;
-    if (isAoe) {
-      let aoeRadiusCells = 0.9;
-      if (p.isFire) aoeRadiusCells = 0.9 * 1.4;
-      if (p.isFrost) aoeRadiusCells = 0.9 * 1.2;
-      if (p.isSiege) aoeRadiusCells = 1.0;
-      const aoeRadiusPx = aoeRadiusCells * CONFIG.grid.cellSize;
+    if (p.aoeRadius > 0) {
+      const aoeRadiusPx = p.aoeRadius * CONFIG.grid.cellSize;
+      const isFire = p.specs.includes('fire');
+      const isFrost = p.specs.includes('frost');
+      this.spawnRing(impactX, impactY, isFire ? '#ff4a2f' : isFrost ? '#7fc8f0' : '#8f6bff');
 
-      this.spawnRing(impactX, impactY, p.isFire ? '#ff4a2f' : p.isFrost ? '#7fc8f0' : '#8f6bff');
-
-      for (const e of this.enemies) {
+      for (const e of [...this.enemies]) {
         if (e.isReviving) continue;
         if (Math.hypot(e.x - impactX, e.y - impactY) <= aoeRadiusPx) {
-          this.applyDamageToEnemy(e, p.damage, p.damageType, p.towerType, p.spec);
+          this.applyDamageToEnemy(e, p.damage, p.damageType, p.towerType, p.specs);
         }
       }
     } else if (target && !target.isReviving) {
-      this.applyDamageToEnemy(target, p.damage, p.damageType, p.towerType, p.spec);
+      this.applyDamageToEnemy(target, p.damage, p.damageType, p.towerType, p.specs);
     }
   }
 
@@ -1104,9 +1129,10 @@ export class GameEngine {
     rawDmg: number,
     dmgType: 'phys' | 'mag',
     towerType: TowerType,
-    spec: string | null
+    specs: string[]
   ) {
     if (e.invulnerableTimer > 0) return;
+    const n = (id: string) => specPower(specs, id);
 
     const res = calculateDamage({
       rawDamage: rawDmg,
@@ -1114,11 +1140,14 @@ export class GameEngine {
       targetArmor: e.armor,
       targetMagicResist: e.magicResist,
       isCursed: e.curseTimer > 0,
-      isFireSpec: spec === 'fire',
+      curseBonus: e.curseBonus,
+      isFireSpec: n('fire') > 0,
       factionId: this.level,
       isTargetHeavyOrBoss: e.type === 'heavy' || e.type === 'boss',
-      isHunterSpec: spec === 'hunter',
-      isExecuteSpec: spec === 'execute',
+      isHunterSpec: n('hunter') > 0,
+      hunterPower: n('hunter'),
+      isExecuteSpec: n('execute') > 0,
+      executePower: n('execute'),
       isTargetBoss: e.type === 'boss',
       targetCurrentHp: e.hp,
       targetMaxHp: e.maxHp,
@@ -1138,41 +1167,32 @@ export class GameEngine {
 
     e.hitFlashTimer = 0.06;
 
-    // Apply specialization secondary effects:
-    if (spec === 'fire') {
+    // Apply specialization secondary effects (n copies make each stronger):
+    if (n('fire')) {
       // Burn 30% of shot damage per second for 3s (non-stacking)
-      e.burnDps = rawDmg * 0.3;
+      e.burnDps = rawDmg * 0.3 * n('fire');
       e.burnTimer = 3.0;
     }
 
-    if (spec === 'frost') {
+    if (n('frost')) {
       // Slow 35% for 2s
-      const effectiveSlow = calculateEffectiveSlow(0.35, this.level);
-      if (effectiveSlow > e.slowPercent) {
-        e.slowPercent = effectiveSlow;
-        e.slowTimer = 2.0;
-      }
+      this.applySlow(e, stackedSlow(0.35, n('frost')), 2.0);
     }
 
     if (towerType === 'priest') {
-      if (spec === 'ward') {
+      if (n('ward')) {
         // Slow 50% for 2.5s
-        const effectiveSlow = calculateEffectiveSlow(0.5, this.level);
-        if (effectiveSlow > e.slowPercent) {
-          e.slowPercent = effectiveSlow;
-          e.slowTimer = 2.5;
-        }
-      } else if (spec === 'curse') {
+        this.applySlow(e, stackedSlow(0.5, n('ward')), 2.5);
+      }
+      if (n('curse')) {
         // Curse +25% damage from all sources for 4s
         e.curseTimer = 4.0;
+        e.curseBonus = 0.25 * n('curse');
         this.addFloatingText('ПРОКЛЯТИЕ', e.x, e.y - 10, '#f2f0e0');
-      } else if (spec !== 'smite') {
+      }
+      if (!n('ward') && !n('curse') && !n('smite')) {
         // Default priest: slow 25% for 2s
-        const effectiveSlow = calculateEffectiveSlow(0.25, this.level);
-        if (effectiveSlow > e.slowPercent) {
-          e.slowPercent = effectiveSlow;
-          e.slowTimer = 2.0;
-        }
+        this.applySlow(e, 0.25, 2.0);
       }
     }
 
@@ -1181,6 +1201,14 @@ export class GameEngine {
       if (idx !== -1) {
         this.killEnemy(e, idx);
       }
+    }
+  }
+
+  private applySlow(e: Enemy, slow: number, duration: number) {
+    const effectiveSlow = calculateEffectiveSlow(slow, this.level);
+    if (effectiveSlow > e.slowPercent) {
+      e.slowPercent = effectiveSlow;
+      e.slowTimer = duration;
     }
   }
 
@@ -1224,7 +1252,12 @@ export class GameEngine {
     const cost = e.type === 'boss' ? CONFIG.lives.bossCost : CONFIG.lives.regularCost;
     this.lives = Math.max(0, this.lives - cost);
     sound.playError();
-    this.addFloatingText(`-${cost} ЖИЗНИ`, CONFIG.grid.totalWidth - 48, (CONFIG.grid.castleTarget.y) * CONFIG.grid.cellSize, '#e0452f');
+    this.addFloatingText(
+      `-${cost} ЖИЗНИ`,
+      CONFIG.grid.castleTarget.x * CONFIG.grid.cellSize,
+      (CONFIG.grid.castleTarget.y - 0.7) * CONFIG.grid.cellSize,
+      '#e0452f'
+    );
 
     if (this.lives <= 0) {
       this.isGameOver = true;
@@ -1294,12 +1327,13 @@ export class GameEngine {
       y: cellY,
       type: this.placingTowerType,
       level: this.placingIsTriplet ? 2 : 1,
-      spec: this.placingIsTriplet ? this.pendingTripletSpec : null,
+      specs: this.placingIsTriplet && this.pendingTripletSpec ? [this.pendingTripletSpec] : [],
       priority: 'first',
       cooldownTimer: 0,
       frozenTimer: 0,
       smiteTimer: 2.5,
       facing: 1,
+      second: null,
     };
 
     this.towers.push(newTower);
@@ -1324,15 +1358,121 @@ export class GameEngine {
     for (const p of this.currentMap.paths) {
       if (p.some((c) => c.x === cx && c.y === cy)) return false;
     }
-    // Check existing tower
+    // Check existing tower or binder
     if (this.towers.some((t) => t.x === cx && t.y === cy)) return false;
+    if (this.binders.some((b) => b.x === cx && b.y === cy)) return false;
     return true;
   }
 
   public selectTower(id: string | null) {
     this.selectedTowerId = id;
+    this.selectedBinderId = null;
+    this.bindingFromId = null;
     this.placingTowerType = null;
+    this.placingBinder = false;
     this.notifyState();
+  }
+
+  public selectBinder(id: string | null) {
+    this.selectTower(null);
+    this.selectedBinderId = id;
+    this.notifyState();
+  }
+
+  public placeBinder(cellX: number, cellY: number): boolean {
+    if (!this.placingBinder) return false;
+    if (!this.isCellFree(cellX, cellY) || this.gold < CONFIG.binder.cost) {
+      sound.playError();
+      return false;
+    }
+    this.gold -= CONFIG.binder.cost;
+    const binder: Binder = { id: Math.random().toString(36).substring(2, 9), x: cellX, y: cellY };
+    this.binders.push(binder);
+    sound.playBuy();
+    this.spawnRing((cellX + 0.5) * CONFIG.grid.cellSize, (cellY + 0.5) * CONFIG.grid.cellSize, CONFIG.binder.color);
+    this.placingBinder = false;
+    this.selectedBinderId = binder.id;
+    this.notifyState();
+    return true;
+  }
+
+  public sellBinder(id: string): boolean {
+    const idx = this.binders.findIndex((b) => b.id === id);
+    if (idx === -1) return false;
+    const b = this.binders[idx];
+    const refund = Math.floor(CONFIG.binder.cost * CONFIG.upgrade.sellRatio);
+    this.gold += refund;
+    this.binders.splice(idx, 1);
+    this.selectedBinderId = null;
+    sound.playBuy();
+    this.addFloatingText(`+${refund} золота`, (b.x + 0.5) * CONFIG.grid.cellSize, (b.y + 0.5) * CONFIG.grid.cellSize, '#f4c06a');
+    this.notifyState();
+    return true;
+  }
+
+  // Towers the given one can be bound with: another type, neither already bound
+  public getBindPartners(tower: Tower): Tower[] {
+    if (tower.second || this.binders.length === 0) return [];
+    // a level-2 tower still choosing its specialization can't be bound yet
+    if (tower.level === 2 && tower.specs.length === 0) return [];
+    return this.towers.filter(
+      (t) => t !== tower && t.type !== tower.type && !t.second && (t.level !== 2 || t.specs.length > 0)
+    );
+  }
+
+  // Selected tower waits for a tap on its partner (tap again to cancel)
+  public toggleBinding(): boolean {
+    if (this.bindingFromId) {
+      this.bindingFromId = null;
+      this.notifyState();
+      return true;
+    }
+    const tower = this.selectedTowerId ? this.towers.find((t) => t.id === this.selectedTowerId) : null;
+    if (!tower || this.getBindPartners(tower).length === 0) {
+      sound.playError();
+      return false;
+    }
+    this.bindingFromId = tower.id;
+    this.notifyState();
+    return true;
+  }
+
+  // Binds the waiting tower with `partner`; the partner and the nearest binder leave the field
+  public bindWith(partner: Tower): boolean {
+    const tower = this.bindingFromId ? this.towers.find((t) => t.id === this.bindingFromId) : null;
+    this.bindingFromId = null;
+    if (!tower || !this.getBindPartners(tower).includes(partner)) {
+      sound.playError();
+      this.notifyState();
+      return false;
+    }
+    let binderIdx = 0;
+    let best = Infinity;
+    this.binders.forEach((b, i) => {
+      const d = Math.hypot(b.x - tower.x, b.y - tower.y);
+      if (d < best) {
+        best = d;
+        binderIdx = i;
+      }
+    });
+    const [binder] = this.binders.splice(binderIdx, 1);
+    this.towers.splice(this.towers.indexOf(partner), 1);
+    tower.second = {
+      type: partner.type,
+      level: partner.level,
+      specs: partner.specs,
+      cooldownTimer: 0,
+      smiteTimer: 2.5,
+    };
+    const cs = CONFIG.grid.cellSize;
+    this.spawnPuff((partner.x + 0.5) * cs, (partner.y + 0.5) * cs, CONFIG.binder.color);
+    this.spawnPuff((binder.x + 0.5) * cs, (binder.y + 0.5) * cs, CONFIG.binder.color);
+    this.spawnRing((tower.x + 0.5) * cs, (tower.y + 0.5) * cs, CONFIG.binder.color);
+    this.addFloatingText('СВЯЗКА!', (tower.x + 0.5) * cs, (tower.y + 0.5) * cs - 16, CONFIG.binder.color);
+    sound.playMerge();
+    this.selectedTowerId = tower.id;
+    this.notifyState();
+    return true;
   }
 
   public cycleTargetPriority(towerId: string) {
@@ -1348,8 +1488,11 @@ export class GameEngine {
     const idx = this.towers.indexOf(this.towers.find((t) => t.id === towerId)!);
     if (idx === -1) return false;
     const tower = this.towers[idx];
-    const baseCost = CONFIG.towers[tower.type].cost;
-    const refund = calculateSellRefund(baseCost, tower.level);
+    let refund = calculateSellRefund(CONFIG.towers[tower.type].cost, tower.level);
+    if (tower.second) {
+      refund += calculateSellRefund(CONFIG.towers[tower.second.type].cost, tower.second.level);
+      refund += Math.floor(CONFIG.binder.cost * CONFIG.upgrade.sellRatio);
+    }
 
     this.gold += refund;
     this.towers.splice(idx, 1);
@@ -1362,12 +1505,14 @@ export class GameEngine {
 
   // Get eligible towers for merging with the selected tower
   public getEligibleMergeTowers(selected: Tower): Tower[] {
-    if (selected.level >= 3) return [];
+    if (selected.level >= 3 || selected.second) return [];
     return this.towers.filter(
       (t) =>
+        !t.second &&
         t.type === selected.type &&
         t.level === selected.level &&
-        (selected.level === 1 || t.spec === selected.spec)
+        // a level-2 tower waiting for its specialization can't merge yet
+        (selected.level === 1 || t.specs.length > 0)
     );
   }
 
@@ -1399,11 +1544,15 @@ export class GameEngine {
     }
 
     selected.level += 1;
+    // Level 3 keeps every specialization of the three towers (repeats add power)
+    if (selected.level === 3) {
+      selected.specs = [...selected.specs, ...mergePair.flatMap((m) => m.specs)];
+    }
     sound.playMerge();
     this.spawnRing((selected.x + 0.5) * CONFIG.grid.cellSize, (selected.y + 0.5) * CONFIG.grid.cellSize, '#f4c06a');
     this.addFloatingText('СЛИЯНИЕ!', (selected.x + 0.5) * CONFIG.grid.cellSize, (selected.y + 0.5) * CONFIG.grid.cellSize - 16, '#f4c06a');
 
-    if (selected.level === 2 && !selected.spec) {
+    if (selected.level === 2 && selected.specs.length === 0) {
       // Immediate mandatory specialization choice modal
       if (this.onNeedSpecChoice) {
         this.onNeedSpecChoice(selected);
@@ -1417,7 +1566,7 @@ export class GameEngine {
   public setTowerSpecialization(towerId: string, specId: string) {
     const tower = this.towers.find((t) => t.id === towerId);
     if (!tower) return;
-    tower.spec = specId;
+    tower.specs = [specId];
     this.notifyState();
   }
 
@@ -1496,6 +1645,7 @@ export class GameEngine {
     if (!this.onStateChange) return;
     const selected = this.selectedTowerId ? this.towers.find((t) => t.id === this.selectedTowerId) || null : null;
     const eligibleCount = selected ? this.getEligibleMergeTowers(selected).length : 0;
+    const bindPartnerCount = selected ? this.getBindPartners(selected).length : 0;
 
     this.onStateChange({
       lives: this.lives,
@@ -1510,8 +1660,15 @@ export class GameEngine {
       isVictory: this.isVictory,
       isPaused: this.isPaused,
       allWavesLaunched: this.wavesLaunched >= CONFIG.waves.length,
+      waveCountdown: this.waveCountdown === null ? null : Math.ceil(this.waveCountdown),
+      earlyStartBonus: this.earlyStartBonus(),
+      speed: this.speedMultiplier,
       selectedTower: selected,
       eligibleMergeCount: eligibleCount,
+      selectedBinder: this.selectedBinderId !== null,
+      binderCount: this.binders.length,
+      bindPartnerCount,
+      isBinding: this.bindingFromId !== null,
     });
   }
 
@@ -1597,32 +1754,56 @@ export class GameEngine {
     const selectedTower = this.selectedTowerId ? this.towers.find((t) => t.id === this.selectedTowerId) : null;
 
     if (selectedTower) {
-      // Highlight eligible merge towers
-      const eligible = this.getEligibleMergeTowers(selectedTower);
-      ctx.strokeStyle = '#f4c06a';
-      ctx.lineWidth = 2.5;
-      for (const el of eligible) {
-        ctx.strokeRect(el.x * cellSize + 2, el.y * cellSize + 2, cellSize - 4, cellSize - 4);
+      // Highlight eligible merge towers, or bind partners while binding
+      if (this.bindingFromId === selectedTower.id) {
+        const pulse = 0.55 + 0.45 * Math.sin(timeSec * 6);
+        ctx.strokeStyle = CONFIG.binder.color;
+        ctx.globalAlpha = pulse;
+        ctx.lineWidth = 3;
+        for (const el of this.getBindPartners(selectedTower)) {
+          ctx.strokeRect(el.x * cellSize + 2, el.y * cellSize + 2, cellSize - 4, cellSize - 4);
+        }
+        ctx.globalAlpha = 1;
+      } else {
+        const eligible = this.getEligibleMergeTowers(selectedTower);
+        ctx.strokeStyle = '#f4c06a';
+        ctx.lineWidth = 2.5;
+        for (const el of eligible) {
+          ctx.strokeRect(el.x * cellSize + 2, el.y * cellSize + 2, cellSize - 4, cellSize - 4);
+        }
       }
 
-      // Draw attack range circle for selected tower
-      const baseDef = CONFIG.towers[selectedTower.type];
-      let rangeCells = baseDef.range;
-      if (selectedTower.level >= 2) rangeCells *= CONFIG.upgrade.lvl2RangeMult;
-      if (selectedTower.level >= 3) rangeCells *= CONFIG.upgrade.lvl3RangeMult;
-      if (selectedTower.spec === 'sniper') rangeCells *= 1.6;
-      const rangePx = rangeCells * cellSize;
-
-      ctx.fillStyle = 'rgba(244, 192, 106, 0.09)';
-      ctx.strokeStyle = 'rgba(244, 192, 106, 0.45)';
-      ctx.lineWidth = 1.5;
-      ctx.beginPath();
-      ctx.arc((selectedTower.x + 0.5) * cellSize, (selectedTower.y + 0.5) * cellSize, rangePx, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.stroke();
+      // Attack range circle of each part of the selected tower
+      const parts: TowerPart[] = selectedTower.second ? [selectedTower, selectedTower.second] : [selectedTower];
+      for (const part of parts) {
+        const rangePx = attackStats(part.type, part.level, part.specs).range * cellSize;
+        ctx.fillStyle = 'rgba(244, 192, 106, 0.09)';
+        ctx.strokeStyle = part === selectedTower ? 'rgba(244, 192, 106, 0.45)' : 'rgba(62, 214, 196, 0.5)';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.arc((selectedTower.x + 0.5) * cellSize, (selectedTower.y + 0.5) * cellSize, rangePx, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+      }
     }
 
-    // 6. Placement preview when placing tower
+    const selectedBinder = this.selectedBinderId ? this.binders.find((b) => b.id === this.selectedBinderId) : null;
+    if (selectedBinder) {
+      ctx.strokeStyle = CONFIG.binder.color;
+      ctx.lineWidth = 2.5;
+      ctx.strokeRect(selectedBinder.x * cellSize + 2, selectedBinder.y * cellSize + 2, cellSize - 4, cellSize - 4);
+    }
+
+    // 6. Placement preview when placing a tower or a binder
+    if (this.placingBinder && this.hoverCell) {
+      const { x: hx, y: hy } = this.hoverCell;
+      const isFree = this.isCellFree(hx, hy);
+      ctx.fillStyle = isFree ? 'rgba(62, 214, 196, 0.22)' : 'rgba(224, 69, 47, 0.28)';
+      ctx.fillRect(hx * cellSize, hy * cellSize, cellSize, cellSize);
+      ctx.strokeStyle = isFree ? CONFIG.binder.color : '#e0452f';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(hx * cellSize + 1, hy * cellSize + 1, cellSize - 2, cellSize - 2);
+    }
     if (this.placingTowerType && this.hoverCell) {
       const hx = this.hoverCell.x;
       const hy = this.hoverCell.y;
@@ -1647,6 +1828,9 @@ export class GameEngine {
 
     // 7. Render Towers
     // Sorted by y so lower figures overlap the ones behind them; flyers on top
+    for (const b of this.binders) {
+      this.renderBinder(ctx, b, cellSize, timeSec);
+    }
     const towersByDepth = [...this.towers].sort((a, b) => a.y - b.y);
     for (const t of towersByDepth) {
       this.renderTower(ctx, t, cellSize);
@@ -1765,85 +1949,73 @@ export class GameEngine {
   }
 
   private renderCastle(ctx: CanvasRenderingContext2D, cellSize: number, light: string, timeSec: number) {
-    const cells = CONFIG.grid.castleCells;
-    const x0 = cells[0].x * cellSize;
-    const y0 = cells[0].y * cellSize;
-    const h = cells.length * cellSize;
+    const c = CONFIG.grid.castleCells[0];
+    const x0 = c.x * cellSize;
+    const y0 = c.y * cellSize;
+    const cx = x0 + cellSize / 2;
+    const cy = y0 + cellSize / 2;
 
     // Glow halo
-    ctx.fillStyle = light;
-    ctx.globalAlpha = 0.12 + 0.04 * Math.sin(timeSec * 2);
-    ctx.fillRect(x0 - 6, y0 - 14, cellSize + 6, h + 28);
+    const halo = ctx.createRadialGradient(cx, cy, cellSize * 0.3, cx, cy, cellSize * 0.95);
+    halo.addColorStop(0, light);
+    halo.addColorStop(1, 'rgba(0, 0, 0, 0)');
+    ctx.globalAlpha = 0.35 + 0.08 * Math.sin(timeSec * 2);
+    ctx.fillStyle = halo;
+    ctx.fillRect(x0 - cellSize / 2, y0 - cellSize / 2, cellSize * 2, cellSize * 2);
     ctx.globalAlpha = 1;
 
-    // Wall body
+    // Keep: square wall with corner towers
     ctx.fillStyle = '#121118';
-    ctx.fillRect(x0 + 2, y0 - 2, cellSize - 2, h + 4);
+    ctx.fillRect(x0 + 3, y0 + 3, cellSize - 6, cellSize - 6);
     ctx.fillStyle = '#4b3f5c';
-    ctx.fillRect(x0 + 4, y0, cellSize - 4, h);
-    ctx.strokeStyle = 'rgba(18, 17, 24, 0.5)';
-    ctx.lineWidth = 1;
-    for (let row = 0; row < h / 16; row++) {
-      const ry = y0 + row * 16;
-      ctx.beginPath();
-      ctx.moveTo(x0 + 4, ry);
-      ctx.lineTo(x0 + cellSize, ry);
-      ctx.stroke();
-      const off = row % 2 === 0 ? 20 : 38;
-      ctx.beginPath();
-      ctx.moveTo(x0 + off, ry);
-      ctx.lineTo(x0 + off, ry + 16);
-      ctx.stroke();
+    ctx.fillRect(x0 + 5, y0 + 5, cellSize - 10, cellSize - 10);
+    ctx.fillStyle = '#6a5a80';
+    for (let bx = x0 + 9; bx < x0 + cellSize - 9; bx += 10) {
+      ctx.fillRect(bx, y0 + 5, 6, 5);
+      ctx.fillRect(bx, y0 + cellSize - 10, 6, 5);
     }
-
-    // Crenellations facing the field
-    for (let cy = y0; cy < y0 + h; cy += 16) {
+    for (const [tx, ty] of [
+      [x0 + 2, y0 + 2],
+      [x0 + cellSize - 16, y0 + 2],
+      [x0 + 2, y0 + cellSize - 16],
+      [x0 + cellSize - 16, y0 + cellSize - 16],
+    ]) {
       ctx.fillStyle = '#121118';
-      ctx.fillRect(x0 - 1, cy + 1, 10, 9);
-      ctx.fillStyle = '#6a5a80';
-      ctx.fillRect(x0, cy + 2, 8, 7);
-    }
-
-    // Corner bastions
-    for (const by of [y0 - 12, y0 + h - 12]) {
-      ctx.fillStyle = '#121118';
-      ctx.fillRect(x0 - 2, by - 1, cellSize + 2, 26);
-      ctx.fillStyle = '#5a4b6e';
-      ctx.fillRect(x0, by, cellSize, 24);
+      ctx.fillRect(tx, ty, 14, 14);
       ctx.fillStyle = '#7a6894';
-      for (let bx = x0; bx < x0 + cellSize; bx += 16) ctx.fillRect(bx + 2, by, 9, 6);
+      ctx.fillRect(tx + 1, ty + 1, 12, 12);
     }
 
-    // Gates where roads arrive
-    const gateRows = new Set(this.currentMap.paths.map((p) => p[p.length - 1].y));
-    for (const gyCell of gateRows) {
-      const gy = (gyCell + 0.5) * cellSize;
+    // Gates on the sides where roads arrive
+    for (const path of this.currentMap.paths) {
+      const end = path[path.length - 1];
+      const dx = end.x - c.x;
+      const dy = end.y - c.y;
+      const gx = cx + dx * (cellSize / 2 - 4);
+      const gy = cy + dy * (cellSize / 2 - 4);
       ctx.fillStyle = light;
-      ctx.beginPath();
-      ctx.arc(x0 + 6, gy, 17, -Math.PI / 2, Math.PI / 2);
-      ctx.fill();
+      ctx.fillRect(gx - 9 - Math.abs(dy) * 2, gy - 9 - Math.abs(dx) * 2, 18 + Math.abs(dy) * 4, 18 + Math.abs(dx) * 4);
       ctx.fillStyle = '#120f18';
-      ctx.beginPath();
-      ctx.arc(x0 + 6, gy, 14, -Math.PI / 2, Math.PI / 2);
-      ctx.fill();
-      ctx.fillRect(x0 + 1, gy - 14, 5, 28);
+      ctx.fillRect(gx - 7 - Math.abs(dy) * 2, gy - 7 - Math.abs(dx) * 2, 14 + Math.abs(dy) * 4, 14 + Math.abs(dx) * 4);
     }
 
-    // Banner on the upper bastion
-    const fx = x0 + cellSize / 2;
-    const fy = y0 - 12;
+    // Central tower with a banner
+    ctx.fillStyle = '#121118';
+    ctx.fillRect(cx - 11, cy - 11, 22, 22);
+    ctx.fillStyle = '#5a4b6e';
+    ctx.fillRect(cx - 10, cy - 10, 20, 20);
     ctx.strokeStyle = '#2a2233';
     ctx.lineWidth = 2;
     ctx.beginPath();
-    ctx.moveTo(fx, fy);
-    ctx.lineTo(fx, fy - 26);
+    ctx.moveTo(cx, cy);
+    ctx.lineTo(cx, cy - 30);
     ctx.stroke();
     const wave = Math.sin(timeSec * 4) * 3;
     ctx.fillStyle = light;
     ctx.beginPath();
-    ctx.moveTo(fx, fy - 26);
-    ctx.quadraticCurveTo(fx - 9, fy - 22 + wave, fx - 18, fy - 20);
-    ctx.lineTo(fx, fy - 14);
+    ctx.moveTo(cx, cy - 30);
+    ctx.quadraticCurveTo(cx + 9, cy - 26 + wave, cx + 18, cy - 24);
+    ctx.lineTo(cx, cy - 18);
     ctx.closePath();
     ctx.fill();
   }
@@ -1851,6 +2023,48 @@ export class GameEngine {
   // -------------------------------------------------------------
   // Entity Drawing
   // -------------------------------------------------------------
+  // «Связка»: stone plinth with two interlocked rings slowly turning
+  private renderBinder(ctx: CanvasRenderingContext2D, b: Binder, cellSize: number, timeSec: number) {
+    const cx = (b.x + 0.5) * cellSize;
+    const cy = (b.y + 0.5) * cellSize;
+    const color = CONFIG.binder.color;
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
+    ctx.beginPath();
+    ctx.ellipse(cx, cy + 22, 22, 7, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#2b2838';
+    ctx.strokeStyle = '#121118';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(cx - 14, cy + 22);
+    ctx.lineTo(cx - 10, cy + 6);
+    ctx.lineTo(cx + 10, cy + 6);
+    ctx.lineTo(cx + 14, cy + 22);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+    const glow = 0.6 + 0.4 * Math.sin(timeSec * 3 + b.x);
+    ctx.save();
+    ctx.shadowColor = color;
+    ctx.shadowBlur = 10 * glow;
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 3;
+    const turn = timeSec * 0.8;
+    for (const side of [-1, 1]) {
+      ctx.beginPath();
+      ctx.ellipse(cx + side * 6, cy - 8, 10, 13, turn * side * 0.3, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    ctx.restore();
+    ctx.fillStyle = color;
+    ctx.globalAlpha = glow;
+    ctx.beginPath();
+    ctx.arc(cx, cy - 8, 3, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+  }
+
   private renderTower(ctx: CanvasRenderingContext2D, t: Tower, cellSize: number) {
     const spr = sprites.get(`tower_${t.type}`);
     if (spr) {
@@ -1894,19 +2108,38 @@ export class GameEngine {
         ctx.stroke();
       }
     };
+    if (t.second) {
+      // Binding ring under both figures
+      ctx.strokeStyle = CONFIG.binder.color;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.ellipse(cx, ringY + 2, 30, 9, 0, 0, Math.PI * 2);
+      ctx.stroke();
+    }
     rings(Math.PI, Math.PI * 2);
 
-    drawSprite(ctx, spr, cx, cy + 30, t.facing, 62);
+    if (t.second) {
+      // Second figure smaller, at the right; the main one shifted left
+      const spr2 = sprites.get(`tower_${t.second.type}`);
+      drawSprite(ctx, spr, cx - 9, cy + 30, t.facing, 56);
+      if (spr2) drawSprite(ctx, spr2, cx + 15, cy + 30, t.facing, 48);
+    } else {
+      drawSprite(ctx, spr, cx, cy + 30, t.facing, 62);
+    }
 
     // Front half of the rings over the pedestal
     rings(0, Math.PI);
 
-    if (t.spec) {
-      const bx = cx + 21;
-      const by = cy + 20;
+    const allSpecs = t.second ? [...t.specs, ...t.second.specs] : t.specs;
+    if (allSpecs.length > 0) {
+      const badge = specBadge(allSpecs);
+      // A bound tower keeps the badge above the second figure
+      const bx = cx + 21 - (badge.length - 1) * 3;
+      const by = t.second ? cy - 24 : cy + 20;
+      const halfW = (badge.length - 1) * 3.5;
       ctx.fillStyle = '#121118';
       ctx.beginPath();
-      ctx.arc(bx, by, 7, 0, Math.PI * 2);
+      ctx.roundRect(bx - 7 - halfW, by - 7, 14 + halfW * 2, 14, 7);
       ctx.fill();
       ctx.strokeStyle = '#f4c06a';
       ctx.lineWidth = 1;
@@ -1915,7 +2148,7 @@ export class GameEngine {
       ctx.font = 'bold 8px sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText(t.spec[0].toUpperCase(), bx, by + 0.5);
+      ctx.fillText(badge, bx, by + 0.5);
       ctx.textBaseline = 'alphabetic';
     }
 
@@ -2018,18 +2251,31 @@ export class GameEngine {
       ctx.stroke();
     }
 
+    // Bound tower: small disc of the second type's color
+    if (t.second) {
+      ctx.fillStyle = CONFIG.towers[t.second.type].color;
+      ctx.strokeStyle = CONFIG.binder.color;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(cx + 16, cy + 14, 7, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+    }
+
     // Specialization badge (small icon/letter on tower)
-    if (t.spec) {
+    const allSpecs = t.second ? [...t.specs, ...t.second.specs] : t.specs;
+    if (allSpecs.length > 0) {
+      const specLetters = specBadge(allSpecs);
+      const halfW = (specLetters.length - 1) * 3.5;
       ctx.fillStyle = '#121118';
       ctx.beginPath();
-      ctx.arc(cx, cy, 6, 0, Math.PI * 2);
+      ctx.roundRect(cx - 6 - halfW, cy - 6, 12 + halfW * 2, 12, 6);
       ctx.fill();
       ctx.fillStyle = '#f4c06a';
       ctx.font = 'bold 8px sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      const specLetter = t.spec[0].toUpperCase();
-      ctx.fillText(specLetter, cx, cy);
+      ctx.fillText(specLetters, cx, cy);
       ctx.textBaseline = 'alphabetic';
     }
 
@@ -2255,7 +2501,7 @@ export class GameEngine {
       ctx.lineTo(p.currentX, p.currentY);
       ctx.stroke();
     } else if (p.towerType === 'mage') {
-      ctx.fillStyle = p.isFire ? '#ff4a2f' : p.isFrost ? '#7fc8f0' : '#8f6bff';
+      ctx.fillStyle = p.specs.includes('fire') ? '#ff4a2f' : p.specs.includes('frost') ? '#7fc8f0' : '#8f6bff';
       ctx.beginPath();
       ctx.arc(p.currentX, p.currentY, 4, 0, Math.PI * 2);
       ctx.fill();

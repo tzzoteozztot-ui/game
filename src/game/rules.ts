@@ -59,13 +59,16 @@ export interface DamageCalculationParams {
   targetArmor: number;
   targetMagicResist: number;
   isCursed?: boolean;
+  curseBonus?: number; // extra damage while cursed, default 0.25
   isFireSpec?: boolean;
   factionId: number; // 1: Orcs, 2: Undead, 3: Ice Cultists, 4: Demons, 5: Dark Elves
   isTargetHeavyOrBoss?: boolean;
   isHunterSpec?: boolean;
+  hunterPower?: number; // copies of «Охотник», default 1
   isRamSpec?: boolean;
   isSiegeSpec?: boolean;
   isExecuteSpec?: boolean;
+  executePower?: number; // copies of «Казнь», default 1
   isTargetBoss?: boolean;
   targetCurrentHp?: number;
   targetMaxHp?: number;
@@ -90,20 +93,22 @@ export function calculateDamage(params: DamageCalculationParams): DamageCalculat
 
   let baseDmg = params.rawDamage;
 
-  // Hunter specialization (Archer): x2 against heavy & boss
+  // Hunter specialization (Archer): x2 against heavy & boss; each extra copy adds another x1
   if (params.isHunterSpec && params.isTargetHeavyOrBoss) {
-    baseDmg *= 2.0;
+    baseDmg *= 1 + (params.hunterPower ?? 1);
   }
 
   // Execute specialization (Ballista):
   // Target with hp < 25% max dies immediately; boss instead takes +50% damage
+  // (n copies: threshold 25%·n, boss bonus +50%·n)
   if (params.isExecuteSpec) {
+    const power = params.executePower ?? 1;
     if (params.isTargetBoss) {
-      baseDmg *= 1.5;
+      baseDmg *= 1 + 0.5 * power;
     } else if (
       params.targetCurrentHp !== undefined &&
       params.targetMaxHp !== undefined &&
-      params.targetCurrentHp < params.targetMaxHp * 0.25
+      params.targetCurrentHp < params.targetMaxHp * 0.25 * power
     ) {
       return { damage: params.targetCurrentHp, isEvaded: false, isExecuted: true };
     }
@@ -124,7 +129,7 @@ export function calculateDamage(params: DamageCalculationParams): DamageCalculat
 
   // Priest Curse: +25% damage from all sources for 4s
   if (params.isCursed) {
-    finalDmg *= 1.25;
+    finalDmg *= 1 + (params.curseBonus ?? 0.25);
   }
 
   return {
