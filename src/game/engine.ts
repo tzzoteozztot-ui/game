@@ -47,6 +47,8 @@ export interface Binder {
   id: string;
   x: number;
   y: number;
+  // «Тройная связка» (three binders merged): raises any tower or pair by one level, up to Ур.3
+  triple?: boolean;
 }
 
 export interface Enemy {
@@ -184,7 +186,11 @@ export interface GameStateSnapshot {
   selectedTower: Tower | null;
   eligibleMergeCount: number;
   selectedBinder: boolean;
-  binderCount: number; // binders on the field
+  binderCount: number; // plain binders on the field
+  selectedBinderTriple: boolean;
+  canMergeBinders: boolean; // the selected plain binder and two more can merge
+  upgradeTargetCount: number; // towers a triple binder can raise
+  isUpgrading: boolean; // triple binder waiting for a tap on a tower
   bindPartnerCount: number; // towers the selected one can be bound with
   isBinding: boolean; // waiting for a tap on the second tower
   canMoveTowers: boolean; // between waves towers can be moved to a free cell
@@ -239,11 +245,12 @@ export class GameEngine {
   public placingBinder: boolean = false;
   public selectedBinderId: string | null = null;
   public bindingFromId: string | null = null; // tower waiting for its partner
+  public upgradingFromBinderId: string | null = null; // triple binder waiting for the tower to raise
   public hoverCell: Point | null = null;
 
   // Callbacks to UI
   public onStateChange?: (snapshot: GameStateSnapshot) => void;
-  public onNeedSpecChoice?: (tower: Tower) => void;
+  public onNeedSpecChoice?: (tower: Tower, part: 'main' | 'second') => void;
   public onWaveStarted?: () => void;
 
   private animFrameId: number | null = null;
@@ -329,6 +336,7 @@ export class GameEngine {
     this.placingBinder = false;
     this.selectedBinderId = null;
     this.bindingFromId = null;
+    this.upgradingFromBinderId = null;
     this.hoverCell = null;
 
     this.levelStartTime = performance.now();
@@ -1406,6 +1414,7 @@ export class GameEngine {
     this.selectedTowerId = id;
     this.selectedBinderId = null;
     this.bindingFromId = null;
+    this.upgradingFromBinderId = null;
     this.placingTowerType = null;
     this.placingBinder = false;
     this.notifyState();
@@ -1433,6 +1442,7 @@ export class GameEngine {
   public selectBinder(id: string | null) {
     this.selectTower(null);
     this.selectedBinderId = id;
+    this.upgradingFromBinderId = null;
     this.notifyState();
   }
 
@@ -1457,7 +1467,7 @@ export class GameEngine {
     const idx = this.binders.findIndex((b) => b.id === id);
     if (idx === -1) return false;
     const b = this.binders[idx];
-    const refund = Math.floor(CONFIG.binder.cost * CONFIG.upgrade.sellRatio);
+    const refund = Math.floor(CONFIG.binder.cost * (b.triple ? 3 : 1) * CONFIG.upgrade.sellRatio);
     this.gold += refund;
     this.binders.splice(idx, 1);
     this.selectedBinderId = null;
@@ -1467,9 +1477,14 @@ export class GameEngine {
     return true;
   }
 
+  // Plain binders bind two towers; a triple one only raises levels
+  private plainBinders(): Binder[] {
+    return this.binders.filter((b) => !b.triple);
+  }
+
   // Towers the given one can be bound with: another type, neither already bound
   public getBindPartners(tower: Tower): Tower[] {
-    if (tower.second || this.binders.length === 0) return [];
+    if (tower.second || this.plainBinders().length === 0) return [];
     // a level-2 tower still choosing its specialization can't be bound yet
     if (tower.level === 2 && tower.specs.length === 0) return [];
     return this.towers.filter(
@@ -1503,16 +1518,8 @@ export class GameEngine {
       this.notifyState();
       return false;
     }
-    let binderIdx = 0;
-    let best = Infinity;
-    this.binders.forEach((b, i) => {
-      const d = Math.hypot(b.x - tower.x, b.y - tower.y);
-      if (d < best) {
-        best = d;
-        binderIdx = i;
-      }
-    });
-    const [binder] = this.binders.splice(binderIdx, 1);
+    const binder = this.nearest(this.plainBinders(), tower)[0];
+    this.binders.splice(this.binders.indexOf(binder), 1);
     this.towers.splice(this.towers.indexOf(partner), 1);
     tower.second = {
       type: partner.type,
@@ -1530,6 +1537,96 @@ export class GameEngine {
     this.selectedTowerId = tower.id;
     this.notifyState();
     return true;
+  }
+
+  private nearest<T extends { x: number; y: number }>(list: T[], to: { x: number; y: number }): T[] {
+    return [...list].sort((a, b) => Math.hypot(a.x - to.x, a.y - to.y) - Math.hypot(b.x - to.x, b.y - to.y));
+  }
+
+  // Three plain binders merge into a triple one: the selected stays, the two nearest leave
+  public canMergeBinders(): boolean {
+    const sel = this.binders.find((b) => b.id === this.selectedBinderId);
+    return !!sel && !sel.triple && this.plainBinders().length >= 3;
+  }
+
+  public mergeBinders(): boolean {
+    const sel = this.binders.find((b) => b.id === this.selectedBinderId);
+    if (!sel || !this.canMergeBinders()) {
+      sound.playError();
+      return false;
+    }
+    const cs = CONFIG.grid.cellSize;
+    for (const b of this.nearest(this.plainBinders().filter((b) => b !== sel), sel).slice(0, 2)) {
+      this.binders.splice(this.binders.indexOf(b), 1);
+      this.spawnPuff((b.x + 0.5) * cs, (b.y + 0.5) * cs, CONFIG.binder.color);
+    }
+    sel.triple = true;
+    this.spawnRing((sel.x + 0.5) * cs, (sel.y + 0.5) * cs, CONFIG.binder.color);
+    this.addFloatingText('ТРОЙНАЯ СВЯЗКА!', (sel.x + 0.5) * cs, (sel.y + 0.5) * cs - 16, CONFIG.binder.color);
+    sound.playMerge();
+    this.notifyState();
+    return true;
+  }
+
+  // A tower or pair a triple binder can raise: some part below Ур.3, none still choosing a specialization
+  public getUpgradeTargets(): Tower[] {
+    const waiting = (p: TowerPart) => p.level === 2 && p.specs.length === 0;
+    return this.towers.filter((t) => {
+      const parts: TowerPart[] = t.second ? [t, t.second] : [t];
+      return parts.some((p) => p.level < 3) && !parts.some(waiting);
+    });
+  }
+
+  // Selected triple binder waits for a tap on the tower to raise (tap again to cancel)
+  public toggleUpgrading(): boolean {
+    if (this.upgradingFromBinderId) {
+      this.upgradingFromBinderId = null;
+      this.notifyState();
+      return true;
+    }
+    const sel = this.binders.find((b) => b.id === this.selectedBinderId);
+    if (!sel?.triple || this.getUpgradeTargets().length === 0) {
+      sound.playError();
+      return false;
+    }
+    this.upgradingFromBinderId = sel.id;
+    this.notifyState();
+    return true;
+  }
+
+  // Every part of the tower below Ур.3 goes one level up; the triple binder is spent.
+  // Ур.1 → Ур.2 asks for a specialization, Ур.2 → Ур.3 repeats the one it has (power ×3)
+  public upgradeWithBinder(tower: Tower): boolean {
+    const binder = this.binders.find((b) => b.id === this.upgradingFromBinderId);
+    this.upgradingFromBinderId = null;
+    if (!binder?.triple || !this.getUpgradeTargets().includes(tower)) {
+      sound.playError();
+      this.notifyState();
+      return false;
+    }
+    this.binders.splice(this.binders.indexOf(binder), 1);
+    for (const part of tower.second ? [tower, tower.second] : [tower]) {
+      if (part.level >= 3) continue;
+      part.level += 1;
+      part.specs = part.level === 3 ? [...part.specs, ...part.specs, ...part.specs] : [];
+    }
+    const cs = CONFIG.grid.cellSize;
+    this.spawnPuff((binder.x + 0.5) * cs, (binder.y + 0.5) * cs, CONFIG.binder.color);
+    this.spawnRing((tower.x + 0.5) * cs, (tower.y + 0.5) * cs, '#f4c06a');
+    this.addFloatingText('УРОВЕНЬ +1!', (tower.x + 0.5) * cs, (tower.y + 0.5) * cs - 16, '#f4c06a');
+    sound.playMerge();
+    this.selectedBinderId = null;
+    this.selectedTowerId = tower.id;
+    this.askSpecIfNeeded(tower);
+    this.notifyState();
+    return true;
+  }
+
+  // A part that just reached Ур.2 without a specialization asks for one: the main part first
+  private askSpecIfNeeded(tower: Tower) {
+    if (tower.level === 2 && tower.specs.length === 0) this.onNeedSpecChoice?.(tower, 'main');
+    else if (tower.second && tower.second.level === 2 && tower.second.specs.length === 0)
+      this.onNeedSpecChoice?.(tower, 'second');
   }
 
   public cycleTargetPriority(towerId: string) {
@@ -1612,7 +1709,7 @@ export class GameEngine {
     if (selected.level === 2 && selected.specs.length === 0) {
       // Immediate mandatory specialization choice modal
       if (this.onNeedSpecChoice) {
-        this.onNeedSpecChoice(selected);
+        this.onNeedSpecChoice(selected, 'main');
       }
     }
 
@@ -1620,10 +1717,12 @@ export class GameEngine {
     return true;
   }
 
-  public setTowerSpecialization(towerId: string, specId: string) {
+  public setTowerSpecialization(towerId: string, specId: string, part: 'main' | 'second' = 'main') {
     const tower = this.towers.find((t) => t.id === towerId);
     if (!tower) return;
-    tower.specs = [specId];
+    if (part === 'second' && tower.second) tower.second.specs = [specId];
+    else tower.specs = [specId];
+    this.askSpecIfNeeded(tower);
     this.notifyState();
   }
 
@@ -1724,7 +1823,11 @@ export class GameEngine {
       selectedTower: selected,
       eligibleMergeCount: eligibleCount,
       selectedBinder: this.selectedBinderId !== null,
-      binderCount: this.binders.length,
+      binderCount: this.plainBinders().length,
+      selectedBinderTriple: !!this.binders.find((b) => b.id === this.selectedBinderId)?.triple,
+      canMergeBinders: this.canMergeBinders(),
+      upgradeTargetCount: this.getUpgradeTargets().length,
+      isUpgrading: this.upgradingFromBinderId !== null,
       bindPartnerCount,
       isBinding: this.bindingFromId !== null,
       canMoveTowers: this.canMoveTowers(),
@@ -1869,6 +1972,18 @@ export class GameEngine {
       ctx.strokeStyle = CONFIG.binder.color;
       ctx.lineWidth = 2.5;
       ctx.strokeRect(selectedBinder.x * cellSize + 2, selectedBinder.y * cellSize + 2, cellSize - 4, cellSize - 4);
+      // Merging: the binders that would join; raising: the towers it can raise
+      const marks: { x: number; y: number }[] = this.upgradingFromBinderId
+        ? this.getUpgradeTargets()
+        : this.canMergeBinders()
+          ? this.nearest(this.plainBinders().filter((b) => b !== selectedBinder), selectedBinder).slice(0, 2)
+          : [];
+      const pulse = 0.55 + 0.45 * Math.sin(timeSec * 6);
+      ctx.strokeStyle = this.upgradingFromBinderId ? '#f4c06a' : CONFIG.binder.color;
+      ctx.globalAlpha = this.upgradingFromBinderId ? pulse : 0.6;
+      ctx.lineWidth = 3;
+      for (const m of marks) ctx.strokeRect(m.x * cellSize + 2, m.y * cellSize + 2, cellSize - 4, cellSize - 4);
+      ctx.globalAlpha = 1;
     }
 
     // 6. Placement preview when placing a tower or a binder
@@ -2129,10 +2244,21 @@ export class GameEngine {
     ctx.strokeStyle = color;
     ctx.lineWidth = 3;
     const turn = timeSec * 0.8;
-    for (const side of [-1, 1]) {
-      ctx.beginPath();
-      ctx.ellipse(cx + side * 6, cy - 8, 10, 13, turn * side * 0.3, 0, Math.PI * 2);
-      ctx.stroke();
+    if (b.triple) {
+      // Three interlocked rings slowly turning, a brighter glow
+      ctx.shadowBlur = 16 * glow;
+      for (let i = 0; i < 3; i++) {
+        const a = turn + (i * Math.PI * 2) / 3;
+        ctx.beginPath();
+        ctx.ellipse(cx + Math.cos(a) * 6, cy - 9 + Math.sin(a) * 4, 9, 12, a * 0.4, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+    } else {
+      for (const side of [-1, 1]) {
+        ctx.beginPath();
+        ctx.ellipse(cx + side * 6, cy - 8, 10, 13, turn * side * 0.3, 0, Math.PI * 2);
+        ctx.stroke();
+      }
     }
     ctx.restore();
     ctx.fillStyle = color;
