@@ -194,9 +194,10 @@ export function TowerPanel({
       </div>
 
       {/* Specialization notes: fill the room tall screens leave, hidden when there is none */}
-      <div className="flex-1 min-h-0 overflow-hidden text-[length:var(--fs-xs)] leading-snug text-stone-400 space-y-0.5 [@container(max-height:520px)]:hidden">
+      {/* Column wrap: a note that doesn't fit whole moves to a clipped second column */}
+      <div className="flex-1 min-h-0 overflow-hidden flex flex-col flex-wrap gap-y-0.5 gap-x-4 text-[length:var(--fs-xs)] leading-snug text-stone-400 [@container(max-height:520px)]:hidden">
         {notes.map((n) => (
-          <div key={n.title}>
+          <div key={n.title} className="w-full">
             <span className="text-amber-300 font-semibold">{n.title}</span> — {n.text}
           </div>
         ))}

@@ -707,7 +707,7 @@ export default function App() {
             {/* Right Column: HUD, shop, tower panel. Sizes follow the column's height (cqh) so the
                 buttons grow on tall screens and the tower panel takes the rest: no empty space */}
             <div
-              className="flex-1 min-w-[232px] max-w-[420px] h-full flex flex-col bg-[#171520] border-l border-[#2d2938] text-[#f4f2e6] overflow-hidden select-none z-10 [container-type:size]"
+              className="flex-1 min-w-[232px] h-full flex flex-col bg-[#171520] border-l border-[#2d2938] text-[#f4f2e6] overflow-hidden select-none z-10 [container-type:size]"
               style={SIDE_VARS}
             >
               <TopBar
