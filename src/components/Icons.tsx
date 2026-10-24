@@ -7,7 +7,7 @@ import React from 'react';
 import { TowerType } from '../game/config';
 
 /** Tower picture from public/sprites; falls back to the shape icon if the file is missing. */
-export function TowerSpriteIcon({ type, size = 24, color }: { type: TowerType; size?: number; color?: string }) {
+export function TowerSpriteIcon({ type, size = 24, color }: { type: TowerType; size?: number | string; color?: string }) {
   const [failed, setFailed] = React.useState(false);
   if (failed) return <TowerShapeIcon type={type} size={size} color={color} />;
   return (
@@ -16,12 +16,12 @@ export function TowerSpriteIcon({ type, size = 24, color }: { type: TowerType; s
       alt=""
       draggable={false}
       onError={() => setFailed(true)}
-      style={{ height: size, width: 'auto', maxWidth: size * 1.1, objectFit: 'contain' }}
+      style={{ height: size, width: 'auto', maxWidth: typeof size === 'number' ? size * 1.1 : '100%', objectFit: 'contain' }}
     />
   );
 }
 
-export function TowerShapeIcon({ type, size = 24, color }: { type: TowerType; size?: number; color?: string }) {
+export function TowerShapeIcon({ type, size = 24, color }: { type: TowerType; size?: number | string; color?: string }) {
   if (type === 'archer') {
     // Triangle
     return (
@@ -58,7 +58,7 @@ export function TowerShapeIcon({ type, size = 24, color }: { type: TowerType; si
 }
 
 // «Связка»: two interlocked rings on a plinth, as drawn on the field
-export function BinderIcon({ size = 24 }: { size?: number }) {
+export function BinderIcon({ size = 24 }: { size?: number | string }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
       <path d="M7 22 L8.5 16 L15.5 16 L17 22 Z" fill="#2b2838" stroke="#121118" strokeWidth="1.2" />
@@ -69,7 +69,7 @@ export function BinderIcon({ size = 24 }: { size?: number }) {
   );
 }
 
-export function GoldIcon({ size = 18 }: { size?: number }) {
+export function GoldIcon({ size = 18 }: { size?: number | string }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
       <circle cx="12" cy="12" r="9" fill="#f4c06a" stroke="#8a6519" strokeWidth="1.5" />
@@ -81,7 +81,7 @@ export function GoldIcon({ size = 18 }: { size?: number }) {
   );
 }
 
-export function HeartCastleIcon({ size = 18 }: { size?: number }) {
+export function HeartCastleIcon({ size = 18 }: { size?: number | string }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
       <path
@@ -95,7 +95,7 @@ export function HeartCastleIcon({ size = 18 }: { size?: number }) {
   );
 }
 
-export function StarIcon({ filled, size = 18 }: { filled: boolean; size?: number }) {
+export function StarIcon({ filled, size = 18 }: { filled: boolean; size?: number | string }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
       <polygon
@@ -108,7 +108,7 @@ export function StarIcon({ filled, size = 18 }: { filled: boolean; size?: number
   );
 }
 
-export function LockIcon({ size = 18 }: { size?: number }) {
+export function LockIcon({ size = 18 }: { size?: number | string }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
       <rect x="5" y="11" width="14" height="10" rx="2" fill="#4a3a38" stroke="#121118" strokeWidth="1.5" />
