@@ -188,6 +188,10 @@ export class GameEngine {
   private animFrameId: number | null = null;
   private lastTime: number = 0;
   private currentMap: MapDef = MAPS[0];
+  private levelStartTime: number = 0;
+  // Road geometry cached per level: ribbon polylines and unique steps for chevrons
+  private roadLines: Point[][] = [];
+  private roadSteps: { a: Point; b: Point }[] = [];
 
   constructor() {
     // Pre-allocate fixed particle pool (zero garbage collection)
@@ -258,9 +262,40 @@ export class GameEngine {
     this.pendingTripletSpec = null;
     this.hoverCell = null;
 
+    this.levelStartTime = performance.now();
+    this.buildRoadGeometry();
     this.generateGrass();
     this.notifyState();
     this.startLoop();
+  }
+
+  // Polylines run through cell centers (in cells), starting just outside the field edge
+  // at the entrance and ending inside the castle, so the ribbon visibly enters and leaves.
+  private buildRoadGeometry() {
+    this.roadLines = [];
+    this.roadSteps = [];
+    const seen = new Set<string>();
+    for (const path of this.currentMap.paths) {
+      const pts: Point[] = path.map((c) => ({ x: c.x + 0.5, y: c.y + 0.5 }));
+      const dir = this.entranceInward(path[0]);
+      pts.unshift({ x: pts[0].x - dir.x * 0.6, y: pts[0].y - dir.y * 0.6 });
+      const last = pts[pts.length - 1];
+      pts.push({ x: last.x + 0.75, y: last.y });
+      this.roadLines.push(pts);
+      for (let i = 1; i < pts.length; i++) {
+        const key = `${pts[i - 1].x},${pts[i - 1].y}>${pts[i].x},${pts[i].y}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        this.roadSteps.push({ a: pts[i - 1], b: pts[i] });
+      }
+    }
+  }
+
+  private entranceInward(e: Point): Point {
+    if (e.x === 0) return { x: 1, y: 0 };
+    if (e.y === 0) return { x: 0, y: 1 };
+    if (e.y === CONFIG.grid.rows - 1) return { x: 0, y: -1 };
+    return { x: -1, y: 0 };
   }
 
   private generateGrass() {
@@ -1490,47 +1525,49 @@ export class GameEngine {
       }
     }
 
-    // 2. Roads
-    ctx.fillStyle = palette.road;
-    for (const path of this.currentMap.paths) {
-      for (const c of path) {
-        ctx.fillRect(c.x * cellSize, c.y * cellSize, cellSize, cellSize);
+    // 2. Roads: solid ribbon with a dark outline, rounded turns and running chevrons
+    const outline = mixColor(palette.ground, '#000000', 0.6);
+    const rim = mixColor(palette.road, '#ffffff', 0.32);
+    const fill = mixColor(palette.road, '#ffffff', 0.14);
+    this.strokeRoad(ctx, outline, cellSize * 0.94);
+    this.strokeRoad(ctx, rim, cellSize * 0.8);
+    this.strokeRoad(ctx, fill, cellSize * 0.7);
+
+    const timeSec = performance.now() / 1000;
+    const spacing = cellSize / 2;
+    const phase = (timeSec * 18) % spacing;
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.22)';
+    ctx.lineWidth = 2.5;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    for (const st of this.roadSteps) {
+      const ax = st.a.x * cellSize;
+      const ay = st.a.y * cellSize;
+      const dx = st.b.x * cellSize - ax;
+      const dy = st.b.y * cellSize - ay;
+      const len = Math.hypot(dx, dy);
+      const ux = dx / len;
+      const uy = dy / len;
+      for (let d = phase; d < len; d += spacing) {
+        const px = ax + ux * d;
+        const py = ay + uy * d;
+        ctx.beginPath();
+        ctx.moveTo(px - ux * 4 - uy * 6, py - uy * 4 + ux * 6);
+        ctx.lineTo(px + ux * 2, py + uy * 2);
+        ctx.lineTo(px - ux * 4 + uy * 6, py - uy * 4 - ux * 6);
+        ctx.stroke();
       }
     }
+    ctx.lineCap = 'butt';
+    ctx.lineJoin = 'miter';
 
-    // Road borders / subtle inner contour
-    ctx.strokeStyle = 'rgba(0, 0, 0, 0.25)';
-    ctx.lineWidth = 1;
-    for (const path of this.currentMap.paths) {
-      for (const c of path) {
-        ctx.strokeRect(c.x * cellSize + 0.5, c.y * cellSize + 0.5, cellSize - 1, cellSize - 1);
-      }
+    // 3. Gates at entrances and the castle
+    for (const e of this.currentMap.entrances) {
+      this.renderGate(ctx, e, cellSize, palette.light, timeSec);
     }
-
-    // 3. Castle Cells (x=11, y=2..5)
-    for (const c of CONFIG.grid.castleCells) {
-      ctx.fillStyle = '#2a2233';
-      ctx.fillRect(c.x * cellSize, c.y * cellSize, cellSize, cellSize);
-      ctx.fillStyle = '#3f324c';
-      ctx.fillRect(c.x * cellSize + 4, c.y * cellSize + 4, cellSize - 8, cellSize - 8);
-
-      // Battlements
-      ctx.fillStyle = '#554266';
-      ctx.fillRect(c.x * cellSize + 6, c.y * cellSize + 6, 12, 12);
-      ctx.fillRect(c.x * cellSize + cellSize - 18, c.y * cellSize + 6, 12, 12);
-      ctx.fillRect(c.x * cellSize + 6, c.y * cellSize + cellSize - 18, 12, 12);
-      ctx.fillRect(c.x * cellSize + cellSize - 18, c.y * cellSize + cellSize - 18, 12, 12);
-    }
-
-    // Castle Gate / Core Glow
-    const castleMidY = CONFIG.grid.castleTarget.y * cellSize;
-    ctx.fillStyle = palette.light;
-    ctx.beginPath();
-    ctx.arc(11 * cellSize + 2, castleMidY, 8, 0, Math.PI * 2);
-    ctx.fill();
+    this.renderCastle(ctx, cellSize, palette.light, timeSec);
 
     // 4. Grass blades (swaying gently)
-    const timeSec = performance.now() / 1000;
     ctx.strokeStyle = 'rgba(255, 255, 255, 0.07)';
     ctx.lineWidth = 1.5;
     for (const g of this.grassBlades) {
@@ -1642,6 +1679,155 @@ export class GameEngine {
       ctx.fillText(ft.text, ft.x, ft.y);
       ctx.globalAlpha = 1;
     }
+  }
+
+  private strokeRoad(ctx: CanvasRenderingContext2D, color: string, width: number) {
+    const cellSize = CONFIG.grid.cellSize;
+    const radius = cellSize * 0.5;
+    ctx.strokeStyle = color;
+    ctx.lineWidth = width;
+    ctx.lineJoin = 'round';
+    ctx.lineCap = 'butt';
+    for (const pts of this.roadLines) {
+      ctx.beginPath();
+      ctx.moveTo(pts[0].x * cellSize, pts[0].y * cellSize);
+      for (let i = 1; i < pts.length - 1; i++) {
+        ctx.arcTo(pts[i].x * cellSize, pts[i].y * cellSize, pts[i + 1].x * cellSize, pts[i + 1].y * cellSize, radius);
+      }
+      const last = pts[pts.length - 1];
+      ctx.lineTo(last.x * cellSize, last.y * cellSize);
+      ctx.stroke();
+    }
+    ctx.lineJoin = 'miter';
+  }
+
+  private renderGate(ctx: CanvasRenderingContext2D, e: Point, cellSize: number, light: string, timeSec: number) {
+    const dir = this.entranceInward(e);
+    // Gate sits on the field edge, facing inward
+    const gx = (e.x + 0.5 - dir.x * 0.5) * cellSize;
+    const gy = (e.y + 0.5 - dir.y * 0.5) * cellSize;
+    ctx.save();
+    ctx.translate(gx, gy);
+    ctx.rotate(Math.atan2(dir.y, dir.x));
+
+    const half = cellSize / 2;
+    // Pillars
+    for (const side of [-1, 1]) {
+      const py = side * (half - 7);
+      ctx.fillStyle = '#121118';
+      ctx.fillRect(-1, py - 8, 14, 16);
+      ctx.fillStyle = '#5b5466';
+      ctx.fillRect(0, py - 7, 12, 14);
+      ctx.fillStyle = '#7a7287';
+      ctx.fillRect(0, py - 7, 12, 3);
+    }
+    // Lintel shadow across the passage
+    ctx.fillStyle = 'rgba(18, 17, 24, 0.55)';
+    ctx.fillRect(0, -half + 14, 5, cellSize - 28);
+
+    // Inward arrow: bright during the first 2 s of the level, then a calm pulse
+    const sinceStart = (performance.now() - this.levelStartTime) / 1000;
+    const intro = sinceStart < 2;
+    const alpha = intro ? 0.75 + 0.25 * Math.sin(timeSec * 12) : 0.3 + 0.12 * Math.sin(timeSec * 3);
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = light;
+    if (intro) {
+      ctx.shadowColor = light;
+      ctx.shadowBlur = 14;
+    }
+    ctx.beginPath();
+    ctx.moveTo(30, 0);
+    ctx.lineTo(18, -9);
+    ctx.lineTo(18, 9);
+    ctx.closePath();
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.globalAlpha = 1;
+    ctx.restore();
+  }
+
+  private renderCastle(ctx: CanvasRenderingContext2D, cellSize: number, light: string, timeSec: number) {
+    const cells = CONFIG.grid.castleCells;
+    const x0 = cells[0].x * cellSize;
+    const y0 = cells[0].y * cellSize;
+    const h = cells.length * cellSize;
+
+    // Glow halo
+    ctx.fillStyle = light;
+    ctx.globalAlpha = 0.12 + 0.04 * Math.sin(timeSec * 2);
+    ctx.fillRect(x0 - 6, y0 - 14, cellSize + 6, h + 28);
+    ctx.globalAlpha = 1;
+
+    // Wall body
+    ctx.fillStyle = '#121118';
+    ctx.fillRect(x0 + 2, y0 - 2, cellSize - 2, h + 4);
+    ctx.fillStyle = '#4b3f5c';
+    ctx.fillRect(x0 + 4, y0, cellSize - 4, h);
+    ctx.strokeStyle = 'rgba(18, 17, 24, 0.5)';
+    ctx.lineWidth = 1;
+    for (let row = 0; row < h / 16; row++) {
+      const ry = y0 + row * 16;
+      ctx.beginPath();
+      ctx.moveTo(x0 + 4, ry);
+      ctx.lineTo(x0 + cellSize, ry);
+      ctx.stroke();
+      const off = row % 2 === 0 ? 20 : 38;
+      ctx.beginPath();
+      ctx.moveTo(x0 + off, ry);
+      ctx.lineTo(x0 + off, ry + 16);
+      ctx.stroke();
+    }
+
+    // Crenellations facing the field
+    for (let cy = y0; cy < y0 + h; cy += 16) {
+      ctx.fillStyle = '#121118';
+      ctx.fillRect(x0 - 1, cy + 1, 10, 9);
+      ctx.fillStyle = '#6a5a80';
+      ctx.fillRect(x0, cy + 2, 8, 7);
+    }
+
+    // Corner bastions
+    for (const by of [y0 - 12, y0 + h - 12]) {
+      ctx.fillStyle = '#121118';
+      ctx.fillRect(x0 - 2, by - 1, cellSize + 2, 26);
+      ctx.fillStyle = '#5a4b6e';
+      ctx.fillRect(x0, by, cellSize, 24);
+      ctx.fillStyle = '#7a6894';
+      for (let bx = x0; bx < x0 + cellSize; bx += 16) ctx.fillRect(bx + 2, by, 9, 6);
+    }
+
+    // Gates where roads arrive
+    const gateRows = new Set(this.currentMap.paths.map((p) => p[p.length - 1].y));
+    for (const gyCell of gateRows) {
+      const gy = (gyCell + 0.5) * cellSize;
+      ctx.fillStyle = light;
+      ctx.beginPath();
+      ctx.arc(x0 + 6, gy, 17, -Math.PI / 2, Math.PI / 2);
+      ctx.fill();
+      ctx.fillStyle = '#120f18';
+      ctx.beginPath();
+      ctx.arc(x0 + 6, gy, 14, -Math.PI / 2, Math.PI / 2);
+      ctx.fill();
+      ctx.fillRect(x0 + 1, gy - 14, 5, 28);
+    }
+
+    // Banner on the upper bastion
+    const fx = x0 + cellSize / 2;
+    const fy = y0 - 12;
+    ctx.strokeStyle = '#2a2233';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(fx, fy);
+    ctx.lineTo(fx, fy - 26);
+    ctx.stroke();
+    const wave = Math.sin(timeSec * 4) * 3;
+    ctx.fillStyle = light;
+    ctx.beginPath();
+    ctx.moveTo(fx, fy - 26);
+    ctx.quadraticCurveTo(fx - 9, fy - 22 + wave, fx - 18, fy - 20);
+    ctx.lineTo(fx, fy - 14);
+    ctx.closePath();
+    ctx.fill();
   }
 
   // -------------------------------------------------------------
@@ -1939,4 +2125,16 @@ export class GameEngine {
       ctx.fill();
     }
   }
+}
+
+// Linear blend of two #rrggbb colors, t = 0..1 towards `to`
+function mixColor(from: string, to: string, t: number): string {
+  const a = parseInt(from.slice(1), 16);
+  const b = parseInt(to.slice(1), 16);
+  const ch = (shift: number) => {
+    const ca = (a >> shift) & 0xff;
+    const cb = (b >> shift) & 0xff;
+    return Math.round(ca + (cb - ca) * t);
+  };
+  return `rgb(${ch(16)}, ${ch(8)}, ${ch(0)})`;
 }
