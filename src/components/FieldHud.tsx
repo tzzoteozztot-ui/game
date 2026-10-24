@@ -1,7 +1,7 @@
 /**
  * Semi-transparent buttons over the field for «Тёмный рубеж»
- * Wave button over the 4 top-left cells; speed, sound, full screen and pause over the 4 top-right
- * cells. Those cells are kept free of road and towers (isHudCell in maps.ts), so nothing is covered.
+ * Wave button over the 4 top-left cells; speed (opens a list to pick from), sound, full screen and
+ * pause over the 4 top-right cells. Those cells are kept free of road and towers (isHudCell in maps.ts), so nothing is covered.
  * The overlay is an inline-size container: one cell is 100cqw / 17.
  */
 
@@ -20,12 +20,14 @@ interface FieldHudProps {
   waveCountdown: number | null;
   earlyStartBonus: number;
   onTogglePause: () => void;
-  onToggleSpeed: () => void;
+  onSetSpeed: (speed: number) => void;
   onToggleMute: () => void;
   onStartWave: () => void;
 }
 
 const CELL = `calc(100cqw / ${CONFIG.grid.cols})`;
+
+const fmtSpeed = (v: number) => String(v).replace('.', ',');
 
 const glass =
   'pointer-events-auto rounded-[calc(var(--cell)*0.18)] border backdrop-blur-[2px] flex items-center justify-center leading-none transition-colors cursor-pointer select-none';
@@ -41,11 +43,12 @@ export function FieldHud({
   waveCountdown,
   earlyStartBonus,
   onTogglePause,
-  onToggleSpeed,
+  onSetSpeed,
   onToggleMute,
   onStartWave,
 }: FieldHudProps) {
   const fullscreen = useFullscreen();
+  const [speedOpen, setSpeedOpen] = React.useState(false);
   const waveOff = isSpawning || allWavesLaunched;
   const iconBtn = `${glass} w-[calc(var(--cell)-var(--gap))] h-[calc(var(--cell)-var(--gap))] font-bold`;
   const iconSize = 'text-[max(11px,calc(var(--cell)*0.42))]';
@@ -93,17 +96,41 @@ export function FieldHud({
 
         {/* Speed, sound, full screen, pause: 4 cells at the top right */}
         <div className="h-full flex items-center justify-end" style={{ width: `calc(var(--cell) * ${HUD_RIGHT_COLS})` }}>
-          <div className="w-[var(--cell)] h-full flex items-center justify-center">
+          <div className="relative w-[var(--cell)] h-full flex items-center justify-center">
             <button
               type="button"
-              onClick={onToggleSpeed}
-              title="Скорость игры (×0,5 / ×1 / ×1,5 / ×3)"
+              onClick={() => setSpeedOpen((o) => !o)}
+              title="Скорость игры (+ / −)"
+              aria-expanded={speedOpen}
               className={`${iconBtn} text-[max(10px,calc(var(--cell)*0.34))] tabular-nums ${
-                speed !== 1 ? 'bg-amber-600/45 hover:bg-amber-500/60 border-amber-300/50 text-white' : plain
+                speedOpen || speed !== 1 ? 'bg-amber-600/45 hover:bg-amber-500/60 border-amber-300/50 text-white' : plain
               }`}
             >
-              ×{String(speed).replace('.', ',')}
+              ×{fmtSpeed(speed)}
             </button>
+            {speedOpen && (
+              <>
+                {/* A tap anywhere else closes the list */}
+                <div className="fixed inset-0 pointer-events-auto" onPointerDown={() => setSpeedOpen(false)} />
+                <div className="absolute top-full right-0 mt-[calc(var(--gap)*0.5)] pointer-events-auto flex flex-col gap-[calc(var(--gap)*0.5)] p-[calc(var(--gap)*0.5)] rounded-[calc(var(--cell)*0.18)] bg-black/60 border border-white/15 backdrop-blur-sm">
+                  {CONFIG.speeds.map((v) => (
+                    <button
+                      key={v}
+                      type="button"
+                      onClick={() => {
+                        onSetSpeed(v);
+                        setSpeedOpen(false);
+                      }}
+                      className={`h-[max(28px,calc(var(--cell)*0.8))] min-w-[max(52px,calc(var(--cell)*1.5))] px-2 rounded-[calc(var(--cell)*0.14)] text-[max(12px,calc(var(--cell)*0.34))] font-bold tabular-nums leading-none cursor-pointer transition-colors ${
+                        v === speed ? 'bg-amber-500/80 text-stone-950' : 'bg-white/5 hover:bg-white/15 text-white/90'
+                      }`}
+                    >
+                      ×{fmtSpeed(v)}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
           </div>
           <div className="w-[var(--cell)] h-full flex items-center justify-center">
             <button

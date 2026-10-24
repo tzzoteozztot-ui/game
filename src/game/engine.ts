@@ -438,11 +438,17 @@ export class GameEngine {
     this.notifyState();
   }
 
-  public toggleSpeed() {
+  public setSpeed(speed: number) {
+    if (!CONFIG.speeds.includes(speed)) return;
+    this.speedMultiplier = speed;
+    this.notifyState();
+  }
+
+  // One step up or down the speed list (keys + and −), without wrapping around
+  public stepSpeed(dir: 1 | -1) {
     const speeds = CONFIG.speeds;
     const idx = speeds.indexOf(this.speedMultiplier);
-    this.speedMultiplier = speeds[(idx + 1) % speeds.length];
-    this.notifyState();
+    this.setSpeed(speeds[Math.max(0, Math.min(speeds.length - 1, idx + dir))]);
   }
 
   // Counts down in real seconds, whatever the game speed; starts the wave at zero
