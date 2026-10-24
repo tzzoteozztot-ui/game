@@ -1,10 +1,11 @@
 /**
  * HUD block at the top of the side column for «Тёмный рубеж»
- * Gold, lives, wave N/12 in one line; speed, sound and pause buttons below.
+ * Gold, lives, wave N/12 in one line; speed, sound, full screen and pause buttons below.
  */
 
 import React from 'react';
 import { GoldIcon, HeartCastleIcon } from './Icons';
+import { useFullscreen } from '../fullscreen';
 
 interface TopBarProps {
   gold: number;
@@ -31,6 +32,7 @@ export function TopBar({
   onToggleSpeed,
   onToggleMute,
 }: TopBarProps) {
+  const fullscreen = useFullscreen();
   const btn =
     'h-[var(--h-btn)] min-w-[40px] flex-1 flex items-center justify-center text-[length:var(--fs-lg)] font-bold rounded border transition-colors cursor-pointer';
   return (
@@ -72,6 +74,16 @@ export function TopBar({
         >
           {isMuted ? '🔇' : '🔊'}
         </button>
+        {fullscreen.supported && (
+          <button
+            type="button"
+            onClick={fullscreen.toggle}
+            title={fullscreen.active ? 'Выйти из полноэкранного режима (F)' : 'Во весь экран (F)'}
+            className={`${btn} bg-[#221f2d] text-stone-300 border-[#373347] hover:bg-[#2c283a]`}
+          >
+            {fullscreen.active ? '🗗' : '⛶'}
+          </button>
+        )}
         <button
           type="button"
           onClick={onTogglePause}

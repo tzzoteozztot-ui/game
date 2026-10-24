@@ -34,12 +34,18 @@ npm run preview      # локальный просмотр сборки
 
 Проверка после каждой правки: `npm run lint && npm test && npm run build`.
 
+Выкладка: `.github/workflows/pages.yml` на каждом PR прогоняет lint, тест и сборку, а при вливании в
+`main` выкладывает `dist/` на GitHub Pages (https://tzzoteozztot-ui.github.io/game/). Сборка с
+`base: './'`, поэтому все пути в коде — относительные (`sprites/…`, а не `/sprites/…`).
+
 ## Архитектура
 
 ```
 index.html               точка входа, lang="ru", мета для мобильных
 src/main.tsx             монтирует <App/>
-src/index.css            @import "tailwindcss" и высота html/body/#root 100%
+src/index.css            @import "tailwindcss", высота html/body/#root 100%, отступы под вырез экрана
+src/fullscreen.ts        кнопка «Во весь экран» (Fullscreen API, клавиша F), признак запуска с экрана «Домой»
+public/manifest.webmanifest, public/icons/  установка на экран «Домой» (значки — scripts/make_icons.py)
 src/App.tsx              корневой компонент: экраны (menu → briefing → playing), магазин,
                          клавиатура, ввод с холста, сохранение прогресса, связь с движком
 src/components/          UI-оверлеи поверх холста (чистый React + Tailwind)

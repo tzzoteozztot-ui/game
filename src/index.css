@@ -7,3 +7,9 @@ body,
   height: 100%;
   margin: 0;
 }
+
+/* Phones with a notch (home-screen launch, viewport-fit=cover): keep the game out of the cut-outs */
+#root {
+  box-sizing: border-box;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+}
