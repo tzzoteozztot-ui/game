@@ -325,7 +325,7 @@ export function HowToPlayModal({ onClose }: { onClose: () => void }) {
           <section>
             <h3 className="font-bold text-amber-200 text-sm mb-1">Горячие клавиши</h3>
             <p className="text-stone-400 text-[11px]">
-              Пробел — начать волну • P — пауза • 1–5 — купить карту • R — обновить лавку • U — поднять ярус • M — слить • B — связать • S — продать • Tab — цель • Esc — отмена
+              Пробел — начать волну • P — пауза • F — во весь экран • 1–5 — купить карту • R — обновить лавку • U — поднять ярус • M — слить • B — связать • S — продать • Tab — цель • Esc — отмена
             </p>
           </section>
         </div>

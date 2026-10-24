@@ -19,6 +19,7 @@ import { MainMenu } from './components/MainMenu';
 import { LevelBriefing } from './components/LevelBriefing';
 import { PauseModal, VictoryModal, DefeatModal, HowToPlayModal } from './components/StatusModals';
 import { OrientationWarning } from './components/OrientationWarning';
+import { fullscreenSupported, toggleFullscreen } from './fullscreen';
 
 type ScreenState = 'menu' | 'briefing' | 'playing';
 
@@ -579,6 +580,11 @@ export default function App() {
         if (screen === 'playing') {
           e.preventDefault();
           engine.togglePause();
+        }
+      } else if (e.key === 'f' || e.key === 'F' || e.key === 'а' || e.key === 'А') {
+        if (fullscreenSupported()) {
+          e.preventDefault();
+          toggleFullscreen();
         }
       } else if (e.key === 'Escape') {
         if (specModalTower) {

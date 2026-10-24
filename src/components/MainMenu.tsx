@@ -6,6 +6,7 @@
 import React, { useState } from 'react';
 import { CONFIG, Difficulty } from '../game/config';
 import { StarIcon, LockIcon } from './Icons';
+import { useFullscreen, isStandalone } from '../fullscreen';
 
 interface MainMenuProps {
   unlockedLevel: number; // 1..5
@@ -37,6 +38,9 @@ export function MainMenu({
   onToggleMute,
 }: MainMenuProps) {
   const [showSoundSettings, setShowSoundSettings] = useState(false);
+  const [showHomeScreenHint, setShowHomeScreenHint] = useState(false);
+  const fullscreen = useFullscreen();
+  const standalone = isStandalone();
 
   return (
     <div className="fixed inset-0 z-30 bg-[#121118] text-[#f4f2e6] flex flex-col items-center justify-center p-2 sm:p-3 overflow-y-auto select-none gap-1 sm:gap-2">
@@ -165,7 +169,24 @@ export function MainMenu({
             <span>{isMuted ? '🔇' : '🔊'}</span>
             <span>Звук</span>
           </button>
+          {!standalone && (
+            <button
+              type="button"
+              onClick={() => (fullscreen.supported ? fullscreen.toggle() : setShowHomeScreenHint(!showHomeScreenHint))}
+              className="col-span-2 min-h-[40px] px-3 py-2 rounded bg-[#221f2d] hover:bg-[#2c283a] border border-[#383347] text-xs font-bold text-stone-200 transition-colors cursor-pointer"
+            >
+              {fullscreen.active ? 'Выйти из полноэкранного режима' : 'Во весь экран'}
+            </button>
+          )}
         </div>
+
+        {showHomeScreenHint && (
+          <div className="w-full bg-[#171520] p-3 rounded-lg border border-[#2d2938] text-xs text-stone-300 leading-relaxed animate-fade-in">
+            На iPhone браузер не даёт открыть страницу во весь экран. Нажмите «Поделиться» (квадрат
+            со стрелкой) → «На экран «Домой»», и игра будет открываться с рабочего стола телефона
+            без адресной строки.
+          </div>
+        )}
 
         {/* Sound Settings Accordion */}
         {showSoundSettings && (
