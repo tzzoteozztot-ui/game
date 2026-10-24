@@ -22,6 +22,20 @@ import { OrientationWarning } from './components/OrientationWarning';
 
 type ScreenState = 'menu' | 'briefing' | 'playing';
 
+// Side column sizes: phone-size minimums, growing with the column height (cqh) and width (cqw)
+const SIDE_VARS = {
+  '--fs-xs': 'clamp(9px, min(2.3cqh, 4.6cqw), 14px)',
+  '--fs-sm': 'clamp(10px, min(2.6cqh, 5.2cqw), 15px)',
+  '--fs-md': 'clamp(11px, min(2.9cqh, 5.8cqw), 17px)',
+  '--fs-lg': 'clamp(12px, min(3.3cqh, 6.4cqw), 20px)',
+  '--h-stat': 'max(24px, 5cqh)',
+  '--h-line': 'max(16px, 3.6cqh)',
+  '--fs-btn4': 'clamp(10px, min(2.6cqh, 4.8cqw), 15px)', // four buttons in a row
+  '--h-btn': 'max(40px, 11cqh - 8px)',
+  '--h-card': 'max(44px, 17cqh - 20px)',
+  '--h-head': 'max(28px, 6.5cqh)',
+} as React.CSSProperties;
+
 export default function App() {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -664,15 +678,18 @@ export default function App() {
             {/* Canvas Container keeps the field's aspect ratio */}
             <div
               ref={containerRef}
-              className="flex-1 h-full bg-[#121118] flex items-center justify-center p-1 sm:p-2 overflow-hidden"
+              className="h-full min-w-0 bg-[#121118] flex items-center justify-center p-1 sm:p-2 overflow-hidden"
+              // As wide as the field at full height (it shrinks when the screen is narrower);
+              // the side column takes whatever width is left
+              style={{ flex: '0 1 auto', width: `calc((100vh - 16px) * ${CONFIG.grid.cols} / ${CONFIG.grid.rows} + 16px)` }}
             >
               <div
                 className="relative shadow-2xl rounded overflow-hidden"
                 style={{
                   aspectRatio: `${CONFIG.grid.cols} / ${CONFIG.grid.rows}`,
-                  maxWidth: '100%',
+                  // Explicit width: 'auto' would follow the canvas bitmap, which is smaller on dpr 1 screens
+                  width: `min(100%, (100vh - 16px) * ${CONFIG.grid.cols} / ${CONFIG.grid.rows})`,
                   maxHeight: '100%',
-                  width: 'auto',
                   height: 'auto',
                 }}
               >
@@ -687,9 +704,11 @@ export default function App() {
               </div>
             </div>
 
-            {/* Right Column: HUD, compact shop, fixed-height tower panel; the field takes the rest */}
+            {/* Right Column: HUD, shop, tower panel. Sizes follow the column's height (cqh) so the
+                buttons grow on tall screens and the tower panel takes the rest: no empty space */}
             <div
-              className="w-[232px] h-full shrink-0 flex flex-col bg-[#171520] border-l border-[#2d2938] text-[#f4f2e6] overflow-hidden select-none z-10"
+              className="flex-1 min-w-[232px] max-w-[420px] h-full flex flex-col bg-[#171520] border-l border-[#2d2938] text-[#f4f2e6] overflow-hidden select-none z-10 [container-type:size]"
+              style={SIDE_VARS}
             >
               <TopBar
                 gold={gameState.gold}

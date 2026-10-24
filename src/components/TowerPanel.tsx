@@ -52,36 +52,41 @@ export function TowerPanel({
   if (!tower && selectedBinder) {
     const binderRefund = Math.floor(CONFIG.binder.cost * CONFIG.upgrade.sellRatio);
     return (
-      <div className="w-full h-[112px] flex flex-col justify-between gap-1 p-1.5 bg-[#171520] border-t border-[#2d2938] text-[#f4f2e6] text-xs shrink-0 select-none">
-        <div className="flex items-center gap-2 h-7 shrink-0">
-          <div className="w-7 h-7 flex items-center justify-center bg-[#13111a] rounded border border-[#2e2a3b] shrink-0">
-            <BinderIcon size={22} />
+      <div className="w-full flex-1 min-h-[112px] flex flex-col justify-between gap-1 p-1.5 bg-[#171520] border-t border-[#2d2938] text-[#f4f2e6] text-[length:var(--fs-md)] shrink-0 select-none">
+        <div className="flex items-center gap-2 h-[var(--h-head)] shrink-0">
+          <div className="w-[var(--h-head)] h-[var(--h-head)] flex items-center justify-center bg-[#13111a] rounded border border-[#2e2a3b] shrink-0">
+            <BinderIcon size="80%" />
           </div>
-          <div className="font-bold text-xs" style={{ color: CONFIG.binder.color }}>
+          <div className="font-bold text-[length:var(--fs-md)]" style={{ color: CONFIG.binder.color }}>
             {CONFIG.binder.name}
           </div>
         </div>
-        <div className="text-[10px] leading-tight text-stone-400">
+        <div className="flex-1 flex items-center text-[length:var(--fs-sm)] leading-tight text-stone-400">
           Выберите башню, нажмите «Связать» и коснитесь башни другого вида: обе станут одной.
         </div>
         <button
           type="button"
           onClick={onSell}
-          className="h-10 w-full px-1 rounded bg-red-950/40 hover:bg-red-900/50 text-red-300 border border-red-800/50 flex items-center justify-center gap-1.5 leading-none transition-colors cursor-pointer shrink-0"
+          className="h-[var(--h-btn)] w-full px-1 rounded bg-red-950/40 hover:bg-red-900/50 text-red-300 border border-red-800/50 flex items-center justify-center gap-1.5 leading-none transition-colors cursor-pointer shrink-0"
           title="Продать связку (S)"
         >
-          <span className="text-[11px] font-semibold">Продать</span>
-          <span className="text-amber-300 font-bold text-[10px] tabular-nums">{binderRefund}</span>
+          <span className="text-[length:var(--fs-md)] font-semibold">Продать</span>
+          <span className="text-amber-300 font-bold text-[length:var(--fs-sm)] tabular-nums">{binderRefund}</span>
         </button>
       </div>
     );
   }
 
-  // If no tower selected, render fixed-height placeholder
+  // No tower selected: a short reminder of the controls fills the panel on tall screens
   if (!tower) {
     return (
-      <div className="w-full h-[112px] flex items-center justify-center p-1.5 text-center text-xs font-semibold text-stone-500 bg-[#171520] border-t border-[#2d2938] shrink-0 select-none">
-        Коснитесь башни
+      <div className="w-full flex-1 min-h-[112px] flex flex-col items-center justify-center gap-2 p-1.5 text-center bg-[#171520] border-t border-[#2d2938] select-none">
+        <div className="text-[length:var(--fs-md)] font-semibold text-stone-500">Коснитесь башни</div>
+        <ul className="text-[length:var(--fs-xs)] leading-snug text-stone-500 space-y-1 [@container(max-height:520px)]:hidden">
+          <li>Три одинаковые башни одного уровня сливаются в одну (M).</li>
+          <li>На Ур.2 башня получает свойство, на Ур.3 — все свойства трёх башен.</li>
+          <li>«Связка» объединяет две башни разных видов (B).</li>
+        </ul>
       </div>
     );
   }
@@ -113,6 +118,25 @@ export function TowerPanel({
     ? 'нет пары'
     : 'выбрать';
 
+  // Notes: what each specialization does, or which ones the tower can still pick
+  const notes: { title: string; text: string }[] = [];
+  for (const part of second ? [tower, second] : [tower]) {
+    const def = CONFIG.towers[part.type];
+    const seen = [...new Set(part.specs)];
+    for (const id of seen) {
+      const spec = def.specs.find((x) => x.id === id);
+      if (!spec) continue;
+      const n = part.specs.filter((x) => x === id).length;
+      notes.push({ title: n > 1 ? `${spec.name} ×${n}` : spec.name, text: n > 1 ? `${spec.desc} (прибавка ×${n})` : spec.desc });
+    }
+    if (seen.length === 0) {
+      notes.push({
+        title: def.name,
+        text: `${def.damageType === 'phys' ? 'физический' : 'магический'} урон. Свойства с Ур.2: ${def.specs.map((x) => x.name).join(', ')}`,
+      });
+    }
+  }
+
   const priorityLabel =
     tower.priority === 'first'
       ? 'Первый'
@@ -121,25 +145,25 @@ export function TowerPanel({
       : 'Ближний';
 
   return (
-    <div className="w-full h-[112px] flex flex-col justify-between gap-1 p-1.5 bg-[#171520] border-t border-[#2d2938] text-[#f4f2e6] text-xs shrink-0 select-none">
+    <div className="w-full flex-1 min-h-[112px] flex flex-col justify-between gap-1 p-1.5 bg-[#171520] border-t border-[#2d2938] text-[#f4f2e6] text-[length:var(--fs-md)] shrink-0 select-none">
       {/* 1. Header: Name, level, specialization */}
-      <div className="flex items-center gap-2 h-7 shrink-0">
-        <div className="w-7 h-7 flex items-center justify-center bg-[#13111a] rounded border border-[#2e2a3b] shrink-0 overflow-hidden">
-          <TowerSpriteIcon type={tower.type} size={22} color={baseDef.color} />
+      <div className="flex items-center gap-2 h-[var(--h-head)] shrink-0">
+        <div className="w-[var(--h-head)] h-[var(--h-head)] flex items-center justify-center bg-[#13111a] rounded border border-[#2e2a3b] shrink-0 overflow-hidden">
+          <TowerSpriteIcon type={tower.type} size="85%" color={baseDef.color} />
         </div>
         <div className="min-w-0 flex-1 flex items-baseline justify-between gap-1 leading-none">
-          <div className={`font-bold text-stone-200 text-xs ${second ? 'shrink-0' : 'truncate'}`}>
+          <div className={`font-bold text-stone-200 text-[length:var(--fs-md)] ${second ? 'shrink-0' : 'truncate'}`}>
             {baseDef.name}{' '}
-            <span className="text-amber-400 text-[11px] font-bold">{second ? tower.level : `Ур.${tower.level}`}</span>
+            <span className="text-amber-400 text-[length:var(--fs-md)] font-bold">{second ? tower.level : `Ур.${tower.level}`}</span>
             {second && secondDef && (
               <>
                 <span style={{ color: CONFIG.binder.color }}> + </span>
-                {secondDef.name} <span className="text-amber-400 text-[11px] font-bold">{second.level}</span>
+                {secondDef.name} <span className="text-amber-400 text-[length:var(--fs-md)] font-bold">{second.level}</span>
               </>
             )}
           </div>
           <div
-            className={`text-[10px] text-amber-300 font-semibold truncate ${second ? 'min-w-0' : 'shrink-0'}`}
+            className={`text-[length:var(--fs-sm)] text-amber-300 font-semibold truncate ${second ? 'min-w-0' : 'shrink-0'}`}
             title={specText}
           >
             {specText || (tower.level === 3 ? 'МАКС' : 'Базовая')}
@@ -148,52 +172,61 @@ export function TowerPanel({
       </div>
 
       {/* 2. Stats Grid: Damage, Period, Range */}
-      <div className="grid grid-cols-3 gap-1 bg-[#121118] p-1 rounded border border-[#2d2938] text-center shrink-0">
+      <div className="grid grid-cols-3 gap-1 bg-[#121118] shrink-0 p-1 rounded border border-[#2d2938] text-center">
         <div>
-          <div className="text-[9px] text-stone-400 uppercase leading-none">Урон</div>
-          <div className="font-bold text-amber-200 text-xs tabular-nums mt-0.5">
+          <div className="text-[length:var(--fs-xs)] text-stone-400 uppercase leading-none">Урон</div>
+          <div className={`font-bold text-amber-200 ${second ? 'text-[length:var(--fs-md)]' : 'text-[length:var(--fs-lg)]'} whitespace-nowrap tabular-nums mt-0.5`}>
             {pair(main.damage, other?.damage)}
           </div>
         </div>
         <div>
-          <div className="text-[9px] text-stone-400 uppercase leading-none">Период</div>
-          <div className="font-bold text-stone-200 text-xs tabular-nums mt-0.5">
+          <div className="text-[length:var(--fs-xs)] text-stone-400 uppercase leading-none">Период</div>
+          <div className={`font-bold text-stone-200 ${second ? 'text-[length:var(--fs-md)]' : 'text-[length:var(--fs-lg)]'} whitespace-nowrap tabular-nums mt-0.5`}>
             {pair(main.period, other?.period)}с
           </div>
         </div>
         <div>
-          <div className="text-[9px] text-stone-400 uppercase leading-none">Радиус</div>
-          <div className="font-bold text-stone-200 text-xs tabular-nums mt-0.5">
+          <div className="text-[length:var(--fs-xs)] text-stone-400 uppercase leading-none">Радиус</div>
+          <div className={`font-bold text-stone-200 ${second ? 'text-[length:var(--fs-md)]' : 'text-[length:var(--fs-lg)]'} whitespace-nowrap tabular-nums mt-0.5`}>
             {pair(main.range, other?.range)}
           </div>
         </div>
       </div>
 
-      {/* 3. Target priority, merge and sell in one row */}
-      <div className="grid grid-cols-4 gap-1 h-10 shrink-0">
+      {/* Specialization notes: fill the room tall screens leave, hidden when there is none */}
+      <div className="flex-1 min-h-0 overflow-hidden text-[length:var(--fs-xs)] leading-snug text-stone-400 space-y-0.5 [@container(max-height:520px)]:hidden">
+        {notes.map((n) => (
+          <div key={n.title}>
+            <span className="text-amber-300 font-semibold">{n.title}</span> — {n.text}
+          </div>
+        ))}
+      </div>
+
+      {/* 3. Target priority, merge, bind and sell: one row, a 2×2 grid on tall screens */}
+      <div className="grid grid-cols-4 gap-1 h-[var(--h-btn)] shrink-0 [@container(min-height:560px)]:grid-cols-2 [@container(min-height:560px)]:h-[calc(var(--h-btn)*2+4px)] [@container(min-height:560px)]:[--fs-btn4:var(--fs-md)] [@container(min-height:560px)]:[--fs-xs:var(--fs-sm)]">
         <button
           type="button"
           onClick={onCyclePriority}
-          className="h-10 px-1 rounded bg-[#221f2d] hover:bg-[#2c283a] border border-[#383347] flex flex-col items-center justify-center leading-none cursor-pointer"
+          className="h-[var(--h-btn)] px-1 rounded bg-[#221f2d] hover:bg-[#2c283a] border border-[#383347] flex flex-col items-center justify-center leading-none cursor-pointer"
           title="Приоритет цели (Tab)"
         >
-          <span className="text-[9px] text-stone-400">Цель</span>
-          <span className="text-amber-300 font-bold text-[11px] mt-0.5">{priorityLabel}</span>
+          <span className="text-[length:var(--fs-xs)] text-stone-400">Цель</span>
+          <span className="text-amber-300 font-bold text-[length:var(--fs-btn4)] mt-0.5">{priorityLabel}</span>
         </button>
 
         <button
           type="button"
           onClick={onMerge}
           disabled={!canMerge}
-          className={`h-10 px-1 rounded font-bold flex flex-col items-center justify-center leading-none transition-all ${
+          className={`h-[var(--h-btn)] px-1 rounded font-bold flex flex-col items-center justify-center leading-none transition-all ${
             canMerge
               ? 'bg-amber-500 hover:bg-amber-400 text-stone-950 border border-amber-300 shadow-md shadow-amber-950/40 animate-pulse cursor-pointer'
               : 'bg-[#1b1926] text-stone-600 border border-[#2d2938] cursor-not-allowed'
           }`}
           title="Слить 3 башни в одну (M)"
         >
-          <span className="text-[11px]">Слить</span>
-          <span className="text-[10px] tabular-nums mt-0.5">
+          <span className="text-[length:var(--fs-btn4)]">Слить</span>
+          <span className="text-[length:var(--fs-xs)] tabular-nums mt-0.5">
             {second ? '—' : tower.level >= 3 ? 'макс' : `${eligibleMergeCount}/3`}
           </span>
         </button>
@@ -202,7 +235,7 @@ export function TowerPanel({
           type="button"
           onClick={onBind}
           disabled={!canBind}
-          className={`h-10 px-0.5 rounded font-bold flex flex-col items-center justify-center leading-none transition-all ${
+          className={`h-[var(--h-btn)] px-0.5 rounded font-bold flex flex-col items-center justify-center leading-none transition-all ${
             isBinding
               ? 'bg-[#3ed6c4] text-stone-950 border border-teal-200 cursor-pointer'
               : canBind
@@ -211,18 +244,18 @@ export function TowerPanel({
           }`}
           title="Связать с башней другого вида (B)"
         >
-          <span className="text-[11px]">Связать</span>
-          <span className="text-[10px] mt-0.5 whitespace-nowrap">{bindLabel}</span>
+          <span className="text-[length:var(--fs-btn4)]">Связать</span>
+          <span className="text-[length:var(--fs-xs)] mt-0.5 whitespace-nowrap">{bindLabel}</span>
         </button>
 
         <button
           type="button"
           onClick={onSell}
-          className="h-10 px-1 rounded bg-red-950/40 hover:bg-red-900/50 text-red-300 border border-red-800/50 flex flex-col items-center justify-center leading-none transition-colors cursor-pointer"
+          className="h-[var(--h-btn)] px-1 rounded bg-red-950/40 hover:bg-red-900/50 text-red-300 border border-red-800/50 flex flex-col items-center justify-center leading-none transition-colors cursor-pointer"
           title="Продать башню (S)"
         >
-          <span className="text-[11px] font-semibold">Продать</span>
-          <span className="text-amber-300 font-bold text-[10px] tabular-nums mt-0.5">{refund}</span>
+          <span className="text-[length:var(--fs-btn4)] font-semibold">Продать</span>
+          <span className="text-amber-300 font-bold text-[length:var(--fs-xs)] tabular-nums mt-0.5">{refund}</span>
         </button>
       </div>
     </div>

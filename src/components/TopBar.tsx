@@ -32,17 +32,17 @@ export function TopBar({
   onToggleMute,
 }: TopBarProps) {
   const btn =
-    'h-10 min-w-[40px] flex-1 flex items-center justify-center text-xs font-bold rounded border transition-colors cursor-pointer';
+    'h-[var(--h-btn)] min-w-[40px] flex-1 flex items-center justify-center text-[length:var(--fs-lg)] font-bold rounded border transition-colors cursor-pointer';
   return (
     <header className="w-full px-1.5 pt-1.5 flex flex-col gap-1 select-none shrink-0">
       {/* Stats: gold, lives, wave */}
-      <div className="h-6 flex items-center justify-between text-xs tabular-nums">
+      <div className="h-[var(--h-stat)] flex items-center justify-between text-[length:var(--fs-lg)] tabular-nums">
         <span className="flex items-center gap-1 font-bold text-amber-300" title="Золото">
-          <GoldIcon size={14} />
+          <GoldIcon size="1.15em" />
           {gold}
         </span>
         <span className="flex items-center gap-1 font-bold text-red-400" title="Жизни замка">
-          <HeartCastleIcon size={14} />
+          <HeartCastleIcon size="1.15em" />
           {lives}
         </span>
         <span className="font-semibold text-stone-400" title="Волна">

@@ -57,13 +57,13 @@ export function ShopPanel({
   const inHandDef = placingTowerType ? CONFIG.towers[placingTowerType] : null;
 
   return (
-    <div className="w-full p-1.5 bg-[#171520] text-[#f4f2e6] text-xs flex flex-col gap-1 shrink-0 select-none">
+    <div className="w-full p-1.5 bg-[#171520] text-[#f4f2e6] text-[length:var(--fs-md)] flex flex-col gap-1 shrink-0 select-none">
       {/* Hand Status / Shop Header Line */}
-      <div className="h-4 flex items-center justify-between text-[11px] px-0.5 leading-none shrink-0">
+      <div className="h-[var(--h-line)] flex items-center justify-between text-[length:var(--fs-md)] px-0.5 leading-none shrink-0">
         {isBinding ? (
           <>
             <span className="font-bold truncate" style={{ color: CONFIG.binder.color }}>Связка</span>
-            <span className="text-[10px] text-stone-400 shrink-0">тапните вторую башню</span>
+            <span className="text-[length:var(--fs-sm)] text-stone-400 shrink-0">тапните вторую башню</span>
           </>
         ) : placingBinder ? (
           <>
@@ -71,7 +71,7 @@ export function ShopPanel({
               <span className="text-stone-400 font-normal">В руке:</span>
               <span>{CONFIG.binder.name}</span>
             </span>
-            <span className="text-[10px] text-stone-400 shrink-0">тапните клетку</span>
+            <span className="text-[length:var(--fs-sm)] text-stone-400 shrink-0">тапните клетку</span>
           </>
         ) : inHandDef ? (
           <>
@@ -80,12 +80,12 @@ export function ShopPanel({
               <span>{inHandDef.name}</span>
               {placingIsTriplet && <span className="text-amber-400 font-black">★</span>}
             </span>
-            <span className="text-[10px] text-stone-400 shrink-0">тапните клетку</span>
+            <span className="text-[length:var(--fs-sm)] text-stone-400 shrink-0">тапните клетку</span>
           </>
         ) : (
           <>
-            <span className="text-[10px] uppercase font-semibold tracking-wider text-stone-400">Лавка башен</span>
-            <span className="text-amber-400 font-bold text-[10px]">Ярус {tier}</span>
+            <span className="text-[length:var(--fs-sm)] uppercase font-semibold tracking-wider text-stone-400">Лавка башен</span>
+            <span className="text-amber-400 font-bold text-[length:var(--fs-sm)]">Ярус {tier}</span>
           </>
         )}
       </div>
@@ -97,7 +97,7 @@ export function ShopPanel({
             return (
               <div
                 key={`empty-${idx}`}
-                className="h-11 rounded border border-dashed border-[#2d2938] bg-[#121118]/50 flex items-center justify-center text-stone-700 text-xs shrink-0 select-none"
+                className="h-[var(--h-card)] rounded border border-dashed border-[#2d2938] bg-[#121118]/50 flex items-center justify-center text-stone-700 text-[length:var(--fs-md)] shrink-0 select-none"
               >
                 —
               </div>
@@ -113,7 +113,7 @@ export function ShopPanel({
                 type="button"
                 onClick={() => onSelectCard(idx)}
                 title={`${CONFIG.binder.name}: связывает две башни разных видов в одну — ${CONFIG.binder.cost} золота (${idx + 1})`}
-                className={`h-11 rounded border flex flex-col items-center justify-center relative transition-all cursor-pointer select-none shrink-0 ${
+                className={`h-[var(--h-card)] rounded border flex flex-col items-center justify-center relative transition-all cursor-pointer select-none shrink-0 ${
                   isPicked
                     ? 'border-[#3ed6c4] bg-teal-950/40 ring-1 ring-[#3ed6c4] shadow-sm'
                     : canAffordBinder
@@ -121,15 +121,15 @@ export function ShopPanel({
                     : 'border-[#262330] bg-[#181622] opacity-50'
                 }`}
               >
-                <div className="w-8 h-[26px] flex items-center justify-center shrink-0">
-                  <BinderIcon size={26} />
+                <div className="w-full h-[calc(var(--h-card)-16px)] flex items-center justify-center shrink-0">
+                  <BinderIcon size="100%" />
                 </div>
                 <div
-                  className={`flex items-center gap-0.5 font-bold text-[10px] tabular-nums leading-none mt-0.5 ${
+                  className={`flex items-center gap-0.5 font-bold text-[length:var(--fs-sm)] tabular-nums leading-none mt-0.5 ${
                     canAffordBinder ? 'text-amber-300' : 'text-stone-500'
                   }`}
                 >
-                  <GoldIcon size={9} />
+                  <GoldIcon size="0.9em" />
                   <span>{CONFIG.binder.cost}</span>
                 </div>
               </button>
@@ -147,7 +147,7 @@ export function ShopPanel({
               type="button"
               onClick={() => onSelectCard(idx)}
               title={`${baseDef.name}${card.isTriplet ? ' ★ (Триплет)' : ''} — ${cost} золота (${idx + 1})`}
-              className={`h-11 rounded border flex flex-col items-center justify-center relative transition-all cursor-pointer select-none shrink-0 ${
+              className={`h-[var(--h-card)] rounded border flex flex-col items-center justify-center relative transition-all cursor-pointer select-none shrink-0 ${
                 isSelected
                   ? 'border-amber-400 bg-amber-950/40 ring-1 ring-amber-400 shadow-sm'
                   : canAfford
@@ -158,7 +158,7 @@ export function ShopPanel({
               {/* Triplet Star Badge */}
               {card.isTriplet && (
                 <span
-                  className="absolute -top-1 -right-0.5 text-amber-400 text-xs font-black leading-none drop-shadow"
+                  className="absolute -top-1 -right-0.5 text-amber-400 text-[length:var(--fs-md)] font-black leading-none drop-shadow"
                   title="Триплет (Ур.2)"
                 >
                   ★
@@ -166,17 +166,17 @@ export function ShopPanel({
               )}
 
               {/* Tower Shape & Color Icon */}
-              <div className="w-8 h-[26px] flex items-center justify-center shrink-0">
-                <TowerSpriteIcon type={card.type} size={26} color={baseDef.color} />
+              <div className="w-full h-[calc(var(--h-card)-16px)] flex items-center justify-center shrink-0">
+                <TowerSpriteIcon type={card.type} size="100%" color={baseDef.color} />
               </div>
 
               {/* Price below icon */}
               <div
-                className={`flex items-center gap-0.5 font-bold text-[10px] tabular-nums leading-none mt-0.5 ${
+                className={`flex items-center gap-0.5 font-bold text-[length:var(--fs-sm)] tabular-nums leading-none mt-0.5 ${
                   canAfford ? 'text-amber-300' : 'text-stone-500'
                 }`}
               >
-                <GoldIcon size={9} />
+                <GoldIcon size="0.9em" />
                 <span>{cost}</span>
               </div>
             </button>
@@ -185,13 +185,13 @@ export function ShopPanel({
       </div>
 
       {/* Reroll & Tier Upgrade in One Line */}
-      <div className="grid grid-cols-2 gap-1 h-10 shrink-0">
+      <div className="grid grid-cols-2 gap-1 h-[var(--h-btn)] shrink-0">
         {/* Reroll Button */}
         <button
           type="button"
           onClick={onReroll}
           disabled={gold < rerollCost}
-          className={`h-10 px-1 rounded border text-[11px] font-semibold flex items-center justify-center gap-1 transition-colors cursor-pointer ${
+          className={`h-[var(--h-btn)] px-1 rounded border text-[length:var(--fs-md)] font-semibold flex items-center justify-center gap-1 transition-colors cursor-pointer ${
             gold >= rerollCost
               ? 'bg-[#221f2d] hover:bg-[#2c283a] text-stone-200 border-[#383347]'
               : 'bg-[#181622] text-stone-600 border-[#262330] cursor-not-allowed'
@@ -207,7 +207,7 @@ export function ShopPanel({
           type="button"
           onClick={onUpgradeTier}
           disabled={tier >= 5 || (tierCost !== null && gold < tierCost)}
-          className={`h-10 px-1 rounded border text-[11px] font-semibold flex items-center justify-center gap-1 transition-colors cursor-pointer ${
+          className={`h-[var(--h-btn)] px-1 rounded border text-[length:var(--fs-md)] font-semibold flex items-center justify-center gap-1 transition-colors cursor-pointer ${
             tier < 5 && tierCost !== null && gold >= tierCost
               ? 'bg-[#221f2d] hover:bg-[#2c283a] text-stone-200 border-[#383347]'
               : 'bg-[#181622] text-stone-600 border-[#262330] cursor-not-allowed'
@@ -230,7 +230,7 @@ export function ShopPanel({
         type="button"
         onClick={onStartWave}
         disabled={isSpawning || allWavesLaunched}
-        className={`h-10 w-full px-2 rounded font-bold text-xs tracking-wide transition-all shadow-md flex items-center justify-center gap-1.5 cursor-pointer shrink-0 ${
+        className={`h-[var(--h-btn)] w-full px-2 rounded font-bold text-[length:var(--fs-md)] tracking-wide transition-all shadow-md flex flex-wrap content-center items-center justify-center gap-x-1.5 leading-tight cursor-pointer shrink-0 ${
           isSpawning || allWavesLaunched
             ? 'bg-[#221f2d] text-stone-500 border border-[#2d2938] cursor-not-allowed'
             : 'bg-amber-600 hover:bg-amber-500 text-stone-950 font-black border border-amber-400/50 shadow-amber-950/40 active:translate-y-0.5'
@@ -243,8 +243,8 @@ export function ShopPanel({
           <span>Враги выходят...</span>
         ) : waveCountdown !== null ? (
           <>
-            <span>Волна через {waveCountdown} с</span>
-            {earlyStartBonus > 0 && <span className="tabular-nums">· сейчас +{earlyStartBonus}</span>}
+            <span className="whitespace-nowrap">Волна через {waveCountdown} с</span>
+            {earlyStartBonus > 0 && <span className="tabular-nums whitespace-nowrap">· сейчас +{earlyStartBonus}</span>}
           </>
         ) : isWaveActive ? (
           <span>Следующая (+{earlyStartBonus})</span>
