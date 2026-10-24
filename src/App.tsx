@@ -56,6 +56,7 @@ export default function App() {
     isSpawning: false,
     isGameOver: false,
     isVictory: false,
+    isPaused: false,
     selectedTower: null,
     eligibleMergeCount: 0,
   });
@@ -157,12 +158,12 @@ export default function App() {
       document.body.dataset.state = 'title';
     } else if (gameState.isGameOver || gameState.isVictory) {
       document.body.dataset.state = 'gameover';
-    } else if (engineRef.current?.isPaused) {
+    } else if (gameState.isPaused) {
       document.body.dataset.state = 'paused';
     } else {
       document.body.dataset.state = 'playing';
     }
-  }, [screen, gameState.isGameOver, gameState.isVictory]);
+  }, [screen, gameState.isGameOver, gameState.isVictory, gameState.isPaused]);
 
   // When victory triggers, save unlocked level and stars
   useEffect(() => {
@@ -205,6 +206,8 @@ export default function App() {
   // Outcome screen action: Next level
   const handleNextLevel = () => {
     sound.init();
+    setSpecModalTower(null);
+    setPlacingCardIndex(null);
     if (engineRef.current) {
       engineRef.current.stopLoop();
       engineRef.current.isVictory = false;
@@ -224,6 +227,7 @@ export default function App() {
   // Outcome screen action: Restart level with clean state
   const handleRestartLevel = () => {
     sound.init();
+    setSpecModalTower(null);
     setPlacingCardIndex(null);
     setShopCards(generateShopCards(1));
     const engine = engineRef.current;
@@ -246,6 +250,7 @@ export default function App() {
   // Outcome screen action: Return to main menu
   const handleToMenu = () => {
     sound.init();
+    setSpecModalTower(null);
     if (engineRef.current) {
       engineRef.current.stopLoop();
       engineRef.current.isVictory = false;
@@ -595,7 +600,7 @@ export default function App() {
             wave={gameState.wave}
             maxWaves={gameState.maxWaves}
             speed={engineRef.current?.speedMultiplier || 1}
-            isPaused={engineRef.current?.isPaused || false}
+            isPaused={gameState.isPaused}
             isMuted={audioSettings.muted}
             onTogglePause={() => engineRef.current?.togglePause()}
             onToggleSpeed={() => engineRef.current?.toggleSpeed()}
@@ -660,7 +665,7 @@ export default function App() {
       )}
 
       {/* 5. Specialization Modal */}
-      {specModalTower && (
+      {specModalTower && !gameState.isGameOver && !gameState.isVictory && (
         <SpecModal
           towerType={specModalTower.type}
           onSelectSpec={handleSelectSpec}
@@ -668,7 +673,7 @@ export default function App() {
       )}
 
       {/* 6. Pause Modal */}
-      {screen === 'playing' && engineRef.current?.isPaused && !gameState.isGameOver && !gameState.isVictory && (
+      {screen === 'playing' && gameState.isPaused && !gameState.isGameOver && !gameState.isVictory && (
         <PauseModal
           onResume={() => engineRef.current?.togglePause()}
           onRestart={handleRestartLevel}

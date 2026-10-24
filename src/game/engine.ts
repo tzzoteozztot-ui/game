@@ -135,6 +135,7 @@ export interface GameStateSnapshot {
   isSpawning: boolean;
   isGameOver: boolean;
   isVictory: boolean;
+  isPaused: boolean;
   selectedTower: Tower | null;
   eligibleMergeCount: number;
 }
@@ -1458,6 +1459,7 @@ export class GameEngine {
       isSpawning: this.isSpawning,
       isGameOver: this.isGameOver,
       isVictory: this.isVictory,
+      isPaused: this.isPaused,
       selectedTower: selected,
       eligibleMergeCount: eligibleCount,
     });
