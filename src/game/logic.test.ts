@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { MAPS, validateMap, validateAllMaps } from './maps';
+import { MAPS, makePath, validateMap, validateAllMaps } from './maps';
 import { CONFIG } from './config';
 
 test('all 5 maps meet the game rules', () => {
@@ -8,6 +8,38 @@ test('all 5 maps meet the game rules', () => {
     const res = validateMap(m);
     assert.equal(res.valid, true, `Map for level ${m.level} failed validation: ${res.errors.join('; ')}`);
   }
+});
+
+test('road stretches must not touch by a side except at merges', () => {
+  // A snake whose parallel runs lie side by side: (1..9,2) and (2..9,3) touch along their length
+  const touching = makePath([
+    { x: 0, y: 2 },
+    { x: 9, y: 2 },
+    { x: 9, y: 3 },
+    { x: 2, y: 3 },
+    { x: 2, y: 5 },
+    { x: 10, y: 5 },
+  ]);
+  const bad = validateMap({ level: 1, name: 'test', entrances: [touching[0], touching[0]], paths: [touching, touching] });
+  assert.equal(bad.valid, false);
+  assert.ok(bad.errors.some((e) => e.includes('соприкасаются')), bad.errors.join('; '));
+
+  // The same rule holds for every shipped map, including branch merges
+  for (const m of MAPS) {
+    const res = validateMap(m);
+    assert.ok(!res.errors.some((e) => e.includes('соприкасаются')), `Level ${m.level}: ${res.errors.join('; ')}`);
+  }
+});
+
+test('map constraints by level', () => {
+  for (const m of MAPS) {
+    const { stats } = validateMap(m);
+    assert.equal(stats.entrancesCount, m.level + 1);
+    assert.ok(stats.roadCellsCount <= 56);
+    assert.ok(stats.freeCellsCount >= 36);
+    for (const len of stats.pathLengths) assert.ok(len >= 18);
+  }
+  assert.equal(validateAllMaps(), true);
 });
 
 import {

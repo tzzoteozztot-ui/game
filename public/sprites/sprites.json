@@ -1,0 +1,137 @@
+{
+  "tower_archer": {
+    "file": "tower_archer.png",
+    "w": 176,
+    "h": 198,
+    "drawH": 66,
+    "anchorX": 0.464,
+    "anchorY": 1,
+    "facing": 1
+  },
+  "tower_mage": {
+    "file": "tower_mage.png",
+    "w": 132,
+    "h": 198,
+    "drawH": 66,
+    "anchorX": 0.499,
+    "anchorY": 1,
+    "facing": 1
+  },
+  "tower_ballista": {
+    "file": "tower_ballista.png",
+    "w": 167,
+    "h": 198,
+    "drawH": 66,
+    "anchorX": 0.4,
+    "anchorY": 1,
+    "facing": 1
+  },
+  "tower_priest": {
+    "file": "tower_priest.png",
+    "w": 117,
+    "h": 198,
+    "drawH": 66,
+    "anchorX": 0.508,
+    "anchorY": 1,
+    "facing": 1
+  },
+  "enemy_infantry": {
+    "file": "enemy_infantry.png",
+    "w": 103,
+    "h": 102,
+    "drawH": 34,
+    "anchorX": 0.866,
+    "anchorY": 1,
+    "facing": -1
+  },
+  "enemy_scout": {
+    "file": "enemy_scout.png",
+    "w": 86,
+    "h": 96,
+    "drawH": 32,
+    "anchorX": 0.125,
+    "anchorY": 1,
+    "facing": -1
+  },
+  "enemy_heavy": {
+    "file": "enemy_heavy.png",
+    "w": 117,
+    "h": 120,
+    "drawH": 40,
+    "anchorX": 0.367,
+    "anchorY": 1,
+    "facing": 1
+  },
+  "enemy_flyer": {
+    "file": "enemy_flyer.png",
+    "w": 140,
+    "h": 102,
+    "drawH": 34,
+    "anchorX": 0.474,
+    "anchorY": 1,
+    "facing": 1
+  },
+  "enemy_shaman": {
+    "file": "enemy_shaman.png",
+    "w": 69,
+    "h": 108,
+    "drawH": 36,
+    "anchorX": 0.394,
+    "anchorY": 1,
+    "facing": 1
+  },
+  "enemy_swarm": {
+    "file": "enemy_swarm.png",
+    "w": 67,
+    "h": 48,
+    "drawH": 16,
+    "anchorX": 0.829,
+    "anchorY": 1,
+    "facing": 1
+  },
+  "boss_1": {
+    "file": "boss_1.png",
+    "w": 159,
+    "h": 216,
+    "drawH": 72,
+    "anchorX": 0.588,
+    "anchorY": 1,
+    "facing": 1
+  },
+  "boss_2": {
+    "file": "boss_2.png",
+    "w": 136,
+    "h": 216,
+    "drawH": 72,
+    "anchorX": 0.439,
+    "anchorY": 1,
+    "facing": 1
+  },
+  "boss_3": {
+    "file": "boss_3.png",
+    "w": 138,
+    "h": 216,
+    "drawH": 72,
+    "anchorX": 0.407,
+    "anchorY": 1,
+    "facing": 1
+  },
+  "boss_4": {
+    "file": "boss_4.png",
+    "w": 175,
+    "h": 216,
+    "drawH": 72,
+    "anchorX": 0.424,
+    "anchorY": 1,
+    "facing": 1
+  },
+  "boss_5": {
+    "file": "boss_5.png",
+    "w": 214,
+    "h": 216,
+    "drawH": 72,
+    "anchorX": 0.454,
+    "anchorY": 1,
+    "facing": 1
+  }
+}

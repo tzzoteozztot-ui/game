@@ -21,6 +21,7 @@ interface ShopPanelProps {
   placingIsTriplet: boolean;
   isSpawning: boolean;
   isWaveActive: boolean;
+  allWavesLaunched: boolean;
   onSelectCard: (index: number) => void;
   onReroll: () => void;
   onUpgradeTier: () => void;
@@ -35,6 +36,7 @@ export function ShopPanel({
   placingIsTriplet,
   isSpawning,
   isWaveActive,
+  allWavesLaunched,
   onSelectCard,
   onReroll,
   onUpgradeTier,
@@ -172,15 +174,17 @@ export function ShopPanel({
       <button
         type="button"
         onClick={onStartWave}
-        disabled={isSpawning}
+        disabled={isSpawning || allWavesLaunched}
         className={`h-10 w-full px-2 rounded font-bold text-xs tracking-wide transition-all shadow-md flex items-center justify-center gap-1.5 cursor-pointer shrink-0 ${
-          isSpawning
+          isSpawning || allWavesLaunched
             ? 'bg-[#221f2d] text-stone-500 border border-[#2d2938] cursor-not-allowed'
             : 'bg-amber-600 hover:bg-amber-500 text-stone-950 font-black border border-amber-400/50 shadow-amber-950/40 active:translate-y-0.5'
         }`}
         title="Начать волну (Пробел)"
       >
-        {isSpawning ? (
+        {allWavesLaunched ? (
+          <span>Последняя волна</span>
+        ) : isSpawning ? (
           <span>Враги выходят...</span>
         ) : isWaveActive ? (
           <span>Следующая (+10G)</span>

@@ -9,6 +9,8 @@
  * - Free cells >= 36
  * - Roads before castle <= 3
  * - Turns only 90 deg
+ * - Road cells touch by a side only where a path steps between them
+ *   (separate stretches never run side by side; branches only meet at merges)
  */
 
 export interface Point {
@@ -51,266 +53,158 @@ export function makePath(points: Point[]): Point[] {
 
 // -------------------------------------------------------------
 // MAP 1 (Level 1: 2 entrances)
+// Trunk snakes through columns x=3, 6, 9; E2 joins at (3,5).
 // -------------------------------------------------------------
+const map1Trunk: Point[] = [
+  { x: 3, y: 5 },
+  { x: 6, y: 5 },
+  { x: 6, y: 2 },
+  { x: 9, y: 2 },
+  { x: 9, y: 4 },
+  { x: 10, y: 4 },
+];
+
 const map1Paths: Point[][] = [
-  // E1: (0,1) -> (4,1) -> (4,3) -> (2,3) -> (2,4) -> (7,4) -> (7,2) -> (10,2)
+  // E1: (0,1) -> (3,1) -> (3,5) -> trunk
   makePath([
     { x: 0, y: 1 },
-    { x: 4, y: 1 },
-    { x: 4, y: 3 },
-    { x: 2, y: 3 },
-    { x: 2, y: 4 },
-    { x: 7, y: 4 },
-    { x: 7, y: 2 },
-    { x: 10, y: 2 },
+    { x: 3, y: 1 },
+    ...map1Trunk,
   ]),
-  // E2: (0,6) -> (3,6) -> (3,5) -> (1,5) -> (1,4) -> (2,4) -> (7,4) -> (7,2) -> (10,2)
+  // E2: (0,7) -> (3,7) -> (3,5) -> trunk
   makePath([
-    { x: 0, y: 6 },
-    { x: 3, y: 6 },
-    { x: 3, y: 5 },
-    { x: 1, y: 5 },
-    { x: 1, y: 4 },
-    { x: 2, y: 4 },
-    { x: 7, y: 4 },
-    { x: 7, y: 2 },
-    { x: 10, y: 2 },
+    { x: 0, y: 7 },
+    { x: 3, y: 7 },
+    ...map1Trunk,
   ]),
 ];
 
 // -------------------------------------------------------------
 // MAP 2 (Level 2: 3 entrances)
-// Common trunk from (3,3) to (10,3) is 20 cells.
+// Branches meet at (3,4); trunk snakes through columns x=5, 7, 9.
 // -------------------------------------------------------------
-const map2CommonTrunk: Point[] = [
-  { x: 3, y: 3 },
-  { x: 5, y: 3 },
+const map2Trunk: Point[] = [
+  { x: 3, y: 4 },
+  { x: 5, y: 4 },
   { x: 5, y: 1 },
-  { x: 8, y: 1 },
-  { x: 8, y: 4 },
-  { x: 6, y: 4 },
-  { x: 6, y: 5 },
-  { x: 9, y: 5 },
+  { x: 7, y: 1 },
+  { x: 7, y: 6 },
+  { x: 9, y: 6 },
   { x: 9, y: 3 },
   { x: 10, y: 3 },
 ];
 
 const map2Paths: Point[][] = [
-  // E1: (0,0) -> (3,0) -> (3,3) -> trunk
+  // E1: (0,0) -> (3,0) -> (3,4) -> trunk
   makePath([
     { x: 0, y: 0 },
     { x: 3, y: 0 },
-    ...map2CommonTrunk,
+    ...map2Trunk,
   ]),
-  // E2: (0,3) -> (0,2) -> (1,2) -> (1,3) -> (3,3) -> trunk
+  // E2: (0,2) -> (1,2) -> (1,4) -> (3,4) -> trunk
   makePath([
-    { x: 0, y: 3 },
     { x: 0, y: 2 },
     { x: 1, y: 2 },
-    { x: 1, y: 3 },
-    ...map2CommonTrunk,
+    { x: 1, y: 4 },
+    ...map2Trunk,
   ]),
-  // E3: (0,7) -> (3,7) -> (3,3) -> trunk
+  // E3: (0,7) -> (3,7) -> (3,4) -> trunk
   makePath([
     { x: 0, y: 7 },
     { x: 3, y: 7 },
-    ...map2CommonTrunk,
+    ...map2Trunk,
   ]),
 ];
 
 // -------------------------------------------------------------
 // MAP 3 (Level 3: 4 entrances)
-// Common trunk from (4,3) to (10,3)
+// Branches meet at (2,1); trunk snakes through rows y=1, 3, 5, 7.
 // -------------------------------------------------------------
-const map3CommonTrunk: Point[] = [
-  { x: 4, y: 3 },
-  { x: 4, y: 1 },
-  { x: 7, y: 1 },
-  { x: 7, y: 2 },
-  { x: 5, y: 2 },
-  { x: 5, y: 4 },
-  { x: 8, y: 4 },
-  { x: 8, y: 5 },
-  { x: 6, y: 5 },
-  { x: 6, y: 6 },
-  { x: 9, y: 6 },
+const map3Trunk: Point[] = [
+  { x: 2, y: 1 },
+  { x: 9, y: 1 },
   { x: 9, y: 3 },
-  { x: 10, y: 3 },
-]; // trunk is 23 cells!
+  { x: 4, y: 3 },
+  { x: 4, y: 5 },
+  { x: 8, y: 5 },
+  { x: 8, y: 7 },
+  { x: 10, y: 7 },
+  { x: 10, y: 5 },
+];
 
 const map3Paths: Point[][] = [
-  // E1: (0,0) -> (2,0) -> (2,3) -> (4,3) -> trunk
-  makePath([
-    { x: 0, y: 0 },
-    { x: 2, y: 0 },
-    { x: 2, y: 3 },
-    ...map3CommonTrunk,
-  ]),
-  // E2: (0,2) -> (1,2) -> (1,3) -> (4,3) -> trunk
-  makePath([
-    { x: 0, y: 2 },
-    { x: 1, y: 2 },
-    { x: 1, y: 3 },
-    ...map3CommonTrunk,
-  ]),
-  // E3: (0,5) -> (1,5) -> (1,4) -> (3,4) -> (3,3) -> (4,3) -> trunk
-  makePath([
-    { x: 0, y: 5 },
-    { x: 1, y: 5 },
-    { x: 1, y: 4 },
-    { x: 3, y: 4 },
-    { x: 3, y: 3 },
-    ...map3CommonTrunk,
-  ]),
-  // E4: (0,7) -> (2,7) -> (2,4) -> (3,4) -> (3,3) -> (4,3) -> trunk
-  makePath([
-    { x: 0, y: 7 },
-    { x: 2, y: 7 },
-    { x: 2, y: 4 },
-    { x: 3, y: 4 },
-    { x: 3, y: 3 },
-    ...map3CommonTrunk,
-  ]),
+  // E1: (0,1) -> (2,1) -> trunk
+  makePath([{ x: 0, y: 1 }, ...map3Trunk]),
+  // E2: (2,0) -> (2,1) -> trunk
+  makePath([{ x: 2, y: 0 }, ...map3Trunk]),
+  // E3: (2,7) -> (2,1) -> trunk
+  makePath([{ x: 2, y: 7 }, ...map3Trunk]),
+  // E4: (0,4) -> (2,4) -> (2,1) -> trunk
+  makePath([{ x: 0, y: 4 }, { x: 2, y: 4 }, ...map3Trunk]),
 ];
 
 // -------------------------------------------------------------
 // MAP 4 (Level 4: 5 entrances)
-// Entrances: E1 (0,0), E2 (0,2), E3 (0,4), E4 (0,6), E5 (0,7)
+// Branches gather in column x=1 and meet at (3,6);
+// trunk snakes through columns x=3, 5, 7, 9.
 // -------------------------------------------------------------
-const map4CommonTrunk: Point[] = [
-  { x: 3, y: 3 },
+const map4Trunk: Point[] = [
+  { x: 3, y: 6 },
   { x: 3, y: 1 },
-  { x: 6, y: 1 },
-  { x: 6, y: 2 },
-  { x: 5, y: 2 },
-  { x: 5, y: 4 },
-  { x: 8, y: 4 },
-  { x: 8, y: 2 },
-  { x: 7, y: 2 },
-  { x: 7, y: 5 },
-  { x: 9, y: 5 },
-  { x: 9, y: 3 },
-  { x: 10, y: 3 },
-]; // trunk is 23 cells!
+  { x: 5, y: 1 },
+  { x: 5, y: 6 },
+  { x: 7, y: 6 },
+  { x: 7, y: 1 },
+  { x: 9, y: 1 },
+  { x: 9, y: 4 },
+  { x: 10, y: 4 },
+];
 
 const map4Paths: Point[][] = [
-  // E1: (0,0) -> (1,0) -> (1,2) -> (2,2) -> (2,3) -> (3,3) -> trunk
-  makePath([
-    { x: 0, y: 0 },
-    { x: 1, y: 0 },
-    { x: 1, y: 2 },
-    { x: 2, y: 2 },
-    { x: 2, y: 3 },
-    ...map4CommonTrunk,
-  ]),
-  // E2: (0,1) -> (0,2) -> (2,2) -> (2,3) -> (3,3) -> trunk
-  makePath([
-    { x: 0, y: 1 },
-    { x: 0, y: 2 },
-    { x: 2, y: 2 },
-    { x: 2, y: 3 },
-    ...map4CommonTrunk,
-  ]),
-  // E3: (0,4) -> (1,4) -> (1,3) -> (3,3) -> trunk
-  makePath([
-    { x: 0, y: 4 },
-    { x: 1, y: 4 },
-    { x: 1, y: 3 },
-    ...map4CommonTrunk,
-  ]),
-  // E4: (0,6) -> (1,6) -> (1,5) -> (2,5) -> (2,4) -> (3,4) -> (3,3) -> trunk
-  makePath([
-    { x: 0, y: 6 },
-    { x: 1, y: 6 },
-    { x: 1, y: 5 },
-    { x: 2, y: 5 },
-    { x: 2, y: 4 },
-    { x: 3, y: 4 },
-    ...map4CommonTrunk,
-  ]),
-  // E5: (0,7) -> (2,7) -> (2,5) -> (2,4) -> (3,4) -> (3,3) -> trunk
-  makePath([
-    { x: 0, y: 7 },
-    { x: 2, y: 7 },
-    { x: 2, y: 5 },
-    { x: 2, y: 4 },
-    { x: 3, y: 4 },
-    ...map4CommonTrunk,
-  ]),
+  // E1: (0,1) -> (1,1) -> (1,6) -> (3,6) -> trunk
+  makePath([{ x: 0, y: 1 }, { x: 1, y: 1 }, { x: 1, y: 6 }, ...map4Trunk]),
+  // E2: (0,3) -> (1,3) -> (1,6) -> (3,6) -> trunk
+  makePath([{ x: 0, y: 3 }, { x: 1, y: 3 }, { x: 1, y: 6 }, ...map4Trunk]),
+  // E3: (0,5) -> (1,5) -> (1,6) -> (3,6) -> trunk
+  makePath([{ x: 0, y: 5 }, { x: 1, y: 5 }, { x: 1, y: 6 }, ...map4Trunk]),
+  // E4: (1,7) -> (1,6) -> (3,6) -> trunk
+  makePath([{ x: 1, y: 7 }, { x: 1, y: 6 }, ...map4Trunk]),
+  // E5: (3,7) -> (3,6) -> trunk
+  makePath([{ x: 3, y: 7 }, ...map4Trunk]),
 ];
 
 // -------------------------------------------------------------
 // MAP 5 (Level 5: 6 entrances)
-// Entrances on borders:
-// E1 (0,0), E2 (0,1), E3 (0,4), E4 (0,6), E5 (0,7), E6 (2,0)
+// Northern branches come down column x=4, southern ones up column x=3;
+// they meet at (4,3), trunk snakes through columns x=5, 7, 9.
 // -------------------------------------------------------------
-const map5CommonTrunk: Point[] = [
-  { x: 3, y: 3 },
-  { x: 3, y: 1 },
-  { x: 6, y: 1 },
-  { x: 6, y: 2 },
-  { x: 5, y: 2 },
-  { x: 5, y: 5 },
-  { x: 7, y: 5 },
-  { x: 7, y: 4 },
-  { x: 8, y: 4 },
-  { x: 8, y: 2 },
-  { x: 9, y: 2 },
+const map5Trunk: Point[] = [
+  { x: 4, y: 3 },
+  { x: 5, y: 3 },
+  { x: 5, y: 7 },
+  { x: 7, y: 7 },
+  { x: 7, y: 0 },
+  { x: 9, y: 0 },
   { x: 9, y: 4 },
   { x: 10, y: 4 },
-]; // trunk is 23 cells!
+];
+
+const map5North: Point[] = [{ x: 4, y: 1 }, ...map5Trunk];
+const map5South: Point[] = [{ x: 3, y: 3 }, ...map5Trunk];
 
 const map5Paths: Point[][] = [
-  // E1: (0,0) -> (1,0) -> (1,2) -> (2,2) -> (2,3) -> (3,3) -> trunk
-  makePath([
-    { x: 0, y: 0 },
-    { x: 1, y: 0 },
-    { x: 1, y: 2 },
-    { x: 2, y: 2 },
-    { x: 2, y: 3 },
-    ...map5CommonTrunk,
-  ]),
-  // E2: (0,1) -> (0,2) -> (2,2) -> (2,3) -> (3,3) -> trunk
-  makePath([
-    { x: 0, y: 1 },
-    { x: 0, y: 2 },
-    { x: 2, y: 2 },
-    { x: 2, y: 3 },
-    ...map5CommonTrunk,
-  ]),
-  // E3: (0,4) -> (1,4) -> (1,3) -> (3,3) -> trunk
-  makePath([
-    { x: 0, y: 4 },
-    { x: 1, y: 4 },
-    { x: 1, y: 3 },
-    ...map5CommonTrunk,
-  ]),
-  // E4: (0,6) -> (1,6) -> (1,5) -> (2,5) -> (2,4) -> (3,4) -> (3,3) -> trunk
-  makePath([
-    { x: 0, y: 6 },
-    { x: 1, y: 6 },
-    { x: 1, y: 5 },
-    { x: 2, y: 5 },
-    { x: 2, y: 4 },
-    { x: 3, y: 4 },
-    ...map5CommonTrunk,
-  ]),
-  // E5: (0,7) -> (2,7) -> (2,5) -> (2,4) -> (3,4) -> (3,3) -> trunk
-  makePath([
-    { x: 0, y: 7 },
-    { x: 2, y: 7 },
-    { x: 2, y: 5 },
-    { x: 2, y: 4 },
-    { x: 3, y: 4 },
-    ...map5CommonTrunk,
-  ]),
-  // E6: (2,0) -> (2,2) -> (2,3) -> (3,3) -> trunk
-  makePath([
-    { x: 2, y: 0 },
-    { x: 2, y: 2 },
-    { x: 2, y: 3 },
-    ...map5CommonTrunk,
-  ]),
+  // E1: (0,1) -> (4,1) -> (4,3) -> trunk
+  makePath([{ x: 0, y: 1 }, ...map5North]),
+  // E2: (4,0) -> (4,3) -> trunk
+  makePath([{ x: 4, y: 0 }, ...map5North]),
+  // E3: (2,0) -> (2,1) -> (4,1) -> (4,3) -> trunk
+  makePath([{ x: 2, y: 0 }, { x: 2, y: 1 }, ...map5North]),
+  // E4: (3,7) -> (3,3) -> (4,3) -> trunk
+  makePath([{ x: 3, y: 7 }, ...map5South]),
+  // E5: (0,5) -> (3,5) -> (3,3) -> (4,3) -> trunk
+  makePath([{ x: 0, y: 5 }, { x: 3, y: 5 }, ...map5South]),
+  // E6: (0,3) -> (3,3) -> (4,3) -> trunk
+  makePath([{ x: 0, y: 3 }, ...map5South]),
 ];
 
 export const MAPS: MapDef[] = [
@@ -359,6 +253,11 @@ export interface MapValidationResult {
   };
 }
 
+function edgeKey(a: Point, b: Point): string {
+  const [p, q] = a.x < b.x || (a.x === b.x && a.y < b.y) ? [a, b] : [b, a];
+  return `${p.x},${p.y}-${q.x},${q.y}`;
+}
+
 export function validateMap(mapDef: MapDef): MapValidationResult {
   const errors: string[] = [];
   const expectedEntrances = mapDef.level + 1; // 1->2, 2->3, 3->4, 4->5, 5->6
@@ -370,6 +269,7 @@ export function validateMap(mapDef: MapDef): MapValidationResult {
   }
 
   const allRoadCells = new Set<string>();
+  const roadSteps = new Set<string>();
   const roadsBeforeCastle = new Set<number>();
   const pathLengths: number[] = [];
 
@@ -414,9 +314,33 @@ export function validateMap(mapDef: MapDef): MapValidationResult {
       }
     }
 
-    // Add to allRoadCells
+    // A path never visits the same cell twice
+    const visited = new Set<string>();
     for (const cell of path) {
+      const key = `${cell.x},${cell.y}`;
+      if (visited.has(key)) {
+        errors.push(`Уровень ${mapDef.level}, путь ${i + 1} дважды проходит клетку (${cell.x}, ${cell.y})`);
+      }
+      visited.add(key);
+    }
+
+    // Add to allRoadCells and remember every step as an allowed contact
+    for (let j = 0; j < path.length; j++) {
+      const cell = path[j];
       allRoadCells.add(`${cell.x},${cell.y}`);
+      if (j > 0) roadSteps.add(edgeKey(path[j - 1], cell));
+    }
+  }
+
+  // Rule 5: road stretches don't touch by a side except where a path steps between them
+  for (const key of allRoadCells) {
+    const [x, y] = key.split(',').map(Number);
+    for (const n of [{ x: x + 1, y }, { x, y: y + 1 }]) {
+      if (allRoadCells.has(`${n.x},${n.y}`) && !roadSteps.has(edgeKey({ x, y }, n))) {
+        errors.push(
+          `Уровень ${mapDef.level}: участки дороги соприкасаются в (${x}, ${y}) и (${n.x}, ${n.y})`
+        );
+      }
     }
   }
 
