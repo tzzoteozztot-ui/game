@@ -311,6 +311,14 @@ export const CONFIG = {
     rerollCost: 10,
     tierUpgradeCosts: [30, 60, 100, 150], // for 1->2, 2->3, 3->4, 4->5
     tripletChances: [0, 0.03, 0.06, 0.10, 0.15], // for tier 1..5
+    binderChances: [0, 0, 0.06, 0.12, 0.18], // «Связка» card per slot, for tier 1..5
+  },
+
+  // «Связка»: rare figure that binds two towers of different types into one cell
+  binder: {
+    name: 'Связка',
+    cost: 80,
+    color: '#3ed6c4',
   },
 
   waveTimer: {

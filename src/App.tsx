@@ -64,6 +64,10 @@ export default function App() {
     speed: 1,
     selectedTower: null,
     eligibleMergeCount: 0,
+    selectedBinder: false,
+    binderCount: 0,
+    bindPartnerCount: 0,
+    isBinding: false,
   });
 
   // Shop state (5 card slots)
@@ -82,9 +86,14 @@ export default function App() {
   const generateShopCards = useCallback((currentTier: number): (ShopCard | null)[] => {
     const towerTypes: TowerType[] = ['archer', 'priest', 'mage', 'ballista'];
     const tripletChance = CONFIG.shop.tripletChances[currentTier - 1] || 0;
+    const binderChance = CONFIG.shop.binderChances[currentTier - 1] || 0;
     const cards: ShopCard[] = [];
 
     for (let i = 0; i < CONFIG.shop.slotsCount; i++) {
+      if (Math.random() < binderChance) {
+        cards.push({ id: Math.random().toString(36).substring(2, 9), type: 'binder', isTriplet: false });
+        continue;
+      }
       const type = towerTypes[Math.floor(Math.random() * towerTypes.length)];
       const isTriplet = Math.random() < tripletChance;
       cards.push({
@@ -138,6 +147,7 @@ export default function App() {
       setShopCards(generateShopCards(engine.tier));
       setPlacingCardIndex(null);
       engine.placingTowerType = null;
+      engine.placingBinder = false;
     };
 
     engine.onNeedSpecChoice = (tower: Tower) => {
@@ -286,6 +296,25 @@ export default function App() {
     const engine = engineRef.current;
     if (!engine) return;
 
+    if (card.type === 'binder') {
+      if (placingCardIndex === cardIdx) {
+        setPlacingCardIndex(null);
+        engine.placingBinder = false;
+        engine.notifyState();
+        return;
+      }
+      if (engine.gold < CONFIG.binder.cost) {
+        sound.playError();
+        engine.addFloatingText('Не хватает золота!', CONFIG.grid.totalWidth - 120, 100, '#e0452f');
+        return;
+      }
+      engine.selectTower(null);
+      engine.placingBinder = true;
+      setPlacingCardIndex(cardIdx);
+      engine.notifyState();
+      return;
+    }
+
     const baseDef = CONFIG.towers[card.type];
     const cost = card.isTriplet ? baseDef.cost * 3 : baseDef.cost;
 
@@ -307,6 +336,7 @@ export default function App() {
 
     // Tapping a shop card deselects any selected placed tower and enters placement mode
     engine.selectTower(null);
+    setPlacingCardIndex(null);
 
     // If card is a triplet, first choose specialization
     if (card.isTriplet) {
@@ -362,6 +392,7 @@ export default function App() {
     setShopCards(generateShopCards(engine.tier));
     setPlacingCardIndex(null);
     engine.placingTowerType = null;
+    engine.placingBinder = false;
     engine.notifyState();
   };
 
@@ -389,12 +420,19 @@ export default function App() {
     engine.mergeSelectedTower();
   };
 
-  // Sell selected tower
+  // Sell selected tower or binder
   const handleSell = () => {
     sound.init();
     const engine = engineRef.current;
-    if (!engine || !engine.selectedTowerId) return;
-    engine.sellTower(engine.selectedTowerId);
+    if (!engine) return;
+    if (engine.selectedBinderId) engine.sellBinder(engine.selectedBinderId);
+    else if (engine.selectedTowerId) engine.sellTower(engine.selectedTowerId);
+  };
+
+  // Start or cancel binding the selected tower with another one
+  const handleBind = () => {
+    sound.init();
+    engineRef.current?.toggleBinding();
   };
 
   // Cycle Priority
@@ -423,8 +461,8 @@ export default function App() {
     const cellY = Math.floor(clickY / CONFIG.grid.cellSize);
 
     // If in placement mode:
-    if (engine.placingTowerType && placingCardIndex !== null) {
-      const placed = engine.placeTower(cellX, cellY);
+    if ((engine.placingTowerType || engine.placingBinder) && placingCardIndex !== null) {
+      const placed = engine.placingBinder ? engine.placeBinder(cellX, cellY) : engine.placeTower(cellX, cellY);
       if (placed) {
         // Clear shop card slot
         setShopCards((prev) => {
@@ -439,7 +477,17 @@ export default function App() {
 
     // Normal click: check if a tower is clicked
     const clickedTower = engine.towers.find((t) => t.x === cellX && t.y === cellY);
-    if (clickedTower) {
+    if (engine.bindingFromId) {
+      // Binding: a tap on a partner binds, any other tap cancels
+      if (clickedTower && clickedTower.id !== engine.bindingFromId) engine.bindWith(clickedTower);
+      else engine.toggleBinding();
+      return;
+    }
+    const clickedBinder = engine.binders.find((b) => b.x === cellX && b.y === cellY);
+    if (clickedBinder) {
+      engine.selectBinder(clickedBinder.id);
+      sound.playBuy();
+    } else if (clickedTower) {
       engine.selectTower(clickedTower.id);
       sound.playBuy();
     } else {
@@ -503,11 +551,14 @@ export default function App() {
           // Specialization choice is mandatory, don't close with Esc
           return;
         }
-        if (engine.placingTowerType) {
+        if (engine.placingTowerType || engine.placingBinder) {
           setPlacingCardIndex(null);
           engine.placingTowerType = null;
+          engine.placingBinder = false;
           engine.notifyState();
-        } else if (engine.selectedTowerId) {
+        } else if (engine.bindingFromId) {
+          engine.toggleBinding();
+        } else if (engine.selectedTowerId || engine.selectedBinderId) {
           engine.selectTower(null);
         } else if (screen === 'playing') {
           engine.togglePause();
@@ -530,8 +581,12 @@ export default function App() {
           handleMerge();
         }
       } else if (e.key === 's' || e.key === 'S' || e.key === 'ы' || e.key === 'Ы') {
-        if (screen === 'playing' && engine.selectedTowerId) {
+        if (screen === 'playing' && (engine.selectedTowerId || engine.selectedBinderId)) {
           handleSell();
+        }
+      } else if (e.key === 'b' || e.key === 'B' || e.key === 'и' || e.key === 'И') {
+        if (screen === 'playing' && engine.selectedTowerId) {
+          handleBind();
         }
       } else if (e.key === 'Tab') {
         if (screen === 'playing' && engine.selectedTowerId) {
@@ -653,6 +708,9 @@ export default function App() {
                 tier={gameState.tier}
                 gold={gameState.gold}
                 placingTowerType={engineRef.current?.placingTowerType || null}
+                placingBinder={engineRef.current?.placingBinder || false}
+                placingIndex={placingCardIndex}
+                isBinding={gameState.isBinding}
                 placingIsTriplet={engineRef.current?.placingIsTriplet || false}
                 isSpawning={gameState.isSpawning}
                 isWaveActive={gameState.isWaveActive}
@@ -667,8 +725,13 @@ export default function App() {
               <TowerPanel
                 tower={gameState.selectedTower}
                 eligibleMergeCount={gameState.eligibleMergeCount}
+                selectedBinder={gameState.selectedBinder}
+                binderCount={gameState.binderCount}
+                bindPartnerCount={gameState.bindPartnerCount}
+                isBinding={gameState.isBinding}
                 onCyclePriority={handleCyclePriority}
                 onMerge={handleMerge}
+                onBind={handleBind}
                 onSell={handleSell}
               />
             </div>

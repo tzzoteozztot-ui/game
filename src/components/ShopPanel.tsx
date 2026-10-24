@@ -5,11 +5,11 @@
 
 import React from 'react';
 import { CONFIG, TowerType } from '../game/config';
-import { TowerSpriteIcon, GoldIcon } from './Icons';
+import { TowerSpriteIcon, GoldIcon, BinderIcon } from './Icons';
 
 export interface ShopCard {
   id: string;
-  type: TowerType;
+  type: TowerType | 'binder'; // 'binder' is the rare «Связка» card
   isTriplet: boolean;
 }
 
@@ -18,6 +18,9 @@ interface ShopPanelProps {
   tier: number;
   gold: number;
   placingTowerType: TowerType | null;
+  placingBinder: boolean;
+  placingIndex: number | null; // card being placed
+  isBinding: boolean;
   placingIsTriplet: boolean;
   isSpawning: boolean;
   isWaveActive: boolean;
@@ -35,6 +38,9 @@ export function ShopPanel({
   tier,
   gold,
   placingTowerType,
+  placingBinder,
+  placingIndex,
+  isBinding,
   placingIsTriplet,
   isSpawning,
   isWaveActive,
@@ -54,7 +60,20 @@ export function ShopPanel({
     <div className="w-full p-1.5 bg-[#171520] text-[#f4f2e6] text-xs flex flex-col gap-1 shrink-0 select-none">
       {/* Hand Status / Shop Header Line */}
       <div className="h-4 flex items-center justify-between text-[11px] px-0.5 leading-none shrink-0">
-        {inHandDef ? (
+        {isBinding ? (
+          <>
+            <span className="font-bold truncate" style={{ color: CONFIG.binder.color }}>Связка</span>
+            <span className="text-[10px] text-stone-400 shrink-0">тапните вторую башню</span>
+          </>
+        ) : placingBinder ? (
+          <>
+            <span className="font-bold flex items-center gap-1 truncate" style={{ color: CONFIG.binder.color }}>
+              <span className="text-stone-400 font-normal">В руке:</span>
+              <span>{CONFIG.binder.name}</span>
+            </span>
+            <span className="text-[10px] text-stone-400 shrink-0">тапните клетку</span>
+          </>
+        ) : inHandDef ? (
           <>
             <span className="text-amber-300 font-bold flex items-center gap-1 truncate">
               <span className="text-stone-400 font-normal">В руке:</span>
@@ -85,10 +104,42 @@ export function ShopPanel({
             );
           }
 
+          if (card.type === 'binder') {
+            const canAffordBinder = gold >= CONFIG.binder.cost;
+            const isPicked = placingBinder && placingIndex === idx;
+            return (
+              <button
+                key={card.id}
+                type="button"
+                onClick={() => onSelectCard(idx)}
+                title={`${CONFIG.binder.name}: связывает две башни разных видов в одну — ${CONFIG.binder.cost} золота (${idx + 1})`}
+                className={`h-11 rounded border flex flex-col items-center justify-center relative transition-all cursor-pointer select-none shrink-0 ${
+                  isPicked
+                    ? 'border-[#3ed6c4] bg-teal-950/40 ring-1 ring-[#3ed6c4] shadow-sm'
+                    : canAffordBinder
+                    ? 'border-[#3ed6c4]/60 bg-[#1d2a2c] hover:bg-[#233436]'
+                    : 'border-[#262330] bg-[#181622] opacity-50'
+                }`}
+              >
+                <div className="w-8 h-[26px] flex items-center justify-center shrink-0">
+                  <BinderIcon size={26} />
+                </div>
+                <div
+                  className={`flex items-center gap-0.5 font-bold text-[10px] tabular-nums leading-none mt-0.5 ${
+                    canAffordBinder ? 'text-amber-300' : 'text-stone-500'
+                  }`}
+                >
+                  <GoldIcon size={9} />
+                  <span>{CONFIG.binder.cost}</span>
+                </div>
+              </button>
+            );
+          }
+
           const baseDef = CONFIG.towers[card.type];
           const cost = card.isTriplet ? baseDef.cost * 3 : baseDef.cost;
           const canAfford = gold >= cost;
-          const isSelected = placingTowerType === card.type && placingIsTriplet === card.isTriplet;
+          const isSelected = placingTowerType === card.type && placingIndex === idx;
 
           return (
             <button

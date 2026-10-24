@@ -57,6 +57,18 @@ export function TowerShapeIcon({ type, size = 24, color }: { type: TowerType; si
   );
 }
 
+// «Связка»: two interlocked rings on a plinth, as drawn on the field
+export function BinderIcon({ size = 24 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <path d="M7 22 L8.5 16 L15.5 16 L17 22 Z" fill="#2b2838" stroke="#121118" strokeWidth="1.2" />
+      <ellipse cx="9.5" cy="9" rx="4.5" ry="6" stroke="#3ed6c4" strokeWidth="2" />
+      <ellipse cx="14.5" cy="9" rx="4.5" ry="6" stroke="#3ed6c4" strokeWidth="2" />
+      <circle cx="12" cy="9" r="1.4" fill="#3ed6c4" />
+    </svg>
+  );
+}
+
 export function GoldIcon({ size = 18 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none">

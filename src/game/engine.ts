@@ -21,18 +21,30 @@ import { attackStats, specBadge, specPower, specsOfType, stackedSlow } from './t
 // Entity Interfaces
 // -------------------------------------------------------------
 
-export interface Tower {
-  id: string;
-  x: number; // grid cell x
-  y: number; // grid cell y
+// What attacks: a tower has one part, a tower bound by «Связка» has two of different types
+export interface TowerPart {
   type: TowerType;
   level: number; // 1, 2, 3
   specs: string[]; // specialization ids; repeats are power, see towerStats.ts
-  priority: TargetPriority;
   cooldownTimer: number; // seconds until ready
-  frozenTimer: number; // frozen by Ice Priest boss
   smiteTimer: number; // priest smite pulse timer
+}
+
+export interface Tower extends TowerPart {
+  id: string;
+  x: number; // grid cell x
+  y: number; // grid cell y
+  priority: TargetPriority;
+  frozenTimer: number; // frozen by Ice Priest boss
   facing: number; // 1 = right, -1 = left (towards last target)
+  second: TowerPart | null; // bound tower of another type, shoots from the same cell
+}
+
+// «Связка» standing on the field until it is spent on binding two towers
+export interface Binder {
+  id: string;
+  x: number;
+  y: number;
 }
 
 export interface Enemy {
@@ -143,6 +155,10 @@ export interface GameStateSnapshot {
   speed: number;
   selectedTower: Tower | null;
   eligibleMergeCount: number;
+  selectedBinder: boolean;
+  binderCount: number; // binders on the field
+  bindPartnerCount: number; // towers the selected one can be bound with
+  isBinding: boolean; // waiting for a tap on the second tower
 }
 
 export class GameEngine {
@@ -165,6 +181,7 @@ export class GameEngine {
 
   // Entities
   public towers: Tower[] = [];
+  public binders: Binder[] = [];
   public enemies: Enemy[] = [];
   public projectiles: Projectile[] = [];
   public floatingTexts: FloatingText[] = [];
@@ -187,6 +204,9 @@ export class GameEngine {
   public placingTowerType: TowerType | null = null;
   public placingIsTriplet: boolean = false;
   public pendingTripletSpec: string | null = null;
+  public placingBinder: boolean = false;
+  public selectedBinderId: string | null = null;
+  public bindingFromId: string | null = null; // tower waiting for its partner
   public hoverCell: Point | null = null;
 
   // Callbacks to UI
@@ -254,6 +274,7 @@ export class GameEngine {
     this.isVictory = false;
 
     this.towers = [];
+    this.binders = [];
     this.enemies = [];
     this.projectiles = [];
     this.floatingTexts = [];
@@ -271,6 +292,9 @@ export class GameEngine {
     this.placingTowerType = null;
     this.placingIsTriplet = false;
     this.pendingTripletSpec = null;
+    this.placingBinder = false;
+    this.selectedBinderId = null;
+    this.bindingFromId = null;
     this.hoverCell = null;
 
     this.levelStartTime = performance.now();
@@ -608,19 +632,21 @@ export class GameEngine {
         tower.frozenTimer -= dt;
         continue;
       }
-      if (tower.cooldownTimer > 0) {
-        tower.cooldownTimer -= dt;
-      }
-      const stats = attackStats(tower.type, tower.level, tower.specs);
-      if (stats.smiteDamage > 0) {
-        tower.smiteTimer -= dt;
-        if (tower.smiteTimer <= 0) {
-          this.triggerPriestSmite(tower);
-          tower.smiteTimer = 2.5;
+      for (const part of tower.second ? [tower, tower.second] : [tower]) {
+        if (part.cooldownTimer > 0) {
+          part.cooldownTimer -= dt;
         }
-      }
-      if (stats.normalAttack && tower.cooldownTimer <= 0) {
-        this.towerAttack(tower);
+        const stats = attackStats(part.type, part.level, part.specs);
+        if (stats.smiteDamage > 0) {
+          part.smiteTimer -= dt;
+          if (part.smiteTimer <= 0) {
+            this.triggerPriestSmite(tower, part);
+            part.smiteTimer = 2.5;
+          }
+        }
+        if (stats.normalAttack && part.cooldownTimer <= 0) {
+          this.towerAttack(tower, part);
+        }
       }
     }
 
@@ -951,12 +977,12 @@ export class GameEngine {
   // -------------------------------------------------------------
   // Tower Attacks & Targeting
   // -------------------------------------------------------------
-  private towerAttack(tower: Tower) {
-    const baseDef = CONFIG.towers[tower.type];
+  private towerAttack(tower: Tower, part: TowerPart) {
+    const baseDef = CONFIG.towers[part.type];
     const towerPxX = (tower.x + 0.5) * CONFIG.grid.cellSize;
     const towerPxY = (tower.y + 0.5) * CONFIG.grid.cellSize;
-    const stats = attackStats(tower.type, tower.level, tower.specs);
-    const specs = specsOfType(tower.type, tower.specs);
+    const stats = attackStats(part.type, part.level, part.specs);
+    const specs = specsOfType(part.type, part.specs);
     const rangePx = stats.range * CONFIG.grid.cellSize;
     const rawDamage = stats.damage;
     const cooldown = stats.cooldown;
@@ -977,7 +1003,7 @@ export class GameEngine {
     if (Math.abs(targets[0].x - towerPxX) > 2) tower.facing = targets[0].x < towerPxX ? -1 : 1;
 
     for (const target of targets) {
-      sound.playShot(tower.type);
+      sound.playShot(part.type);
 
       if (stats.pierce) {
         // Fire penetrating line projectile
@@ -993,7 +1019,7 @@ export class GameEngine {
           speed: 600,
           damage: rawDamage,
           damageType: 'phys',
-          towerType: tower.type,
+          towerType: part.type,
           specs,
           isRam: true,
           aoeRadius: stats.aoeRadius,
@@ -1013,10 +1039,10 @@ export class GameEngine {
           targetEnemyId: target.id,
           targetX: target.x,
           targetY: target.y,
-          speed: tower.type === 'ballista' ? 520 : 380,
+          speed: part.type === 'ballista' ? 520 : 380,
           damage: rawDamage,
           damageType: baseDef.damageType,
-          towerType: tower.type,
+          towerType: part.type,
           specs,
           isRam: false,
           aoeRadius: stats.aoeRadius,
@@ -1025,14 +1051,14 @@ export class GameEngine {
       }
     }
 
-    tower.cooldownTimer = cooldown;
+    part.cooldownTimer = cooldown;
   }
 
   // Priest Smite: pulses every 2.5s hitting all enemies in radius with damage * 2.5 (×n)
-  private triggerPriestSmite(tower: Tower) {
+  private triggerPriestSmite(tower: Tower, part: TowerPart) {
     const towerPxX = (tower.x + 0.5) * CONFIG.grid.cellSize;
     const towerPxY = (tower.y + 0.5) * CONFIG.grid.cellSize;
-    const stats = attackStats('priest', tower.level, tower.specs);
+    const stats = attackStats('priest', part.level, part.specs);
     const rangePx = stats.range * CONFIG.grid.cellSize;
 
     sound.playShot('priest');
@@ -1307,6 +1333,7 @@ export class GameEngine {
       frozenTimer: 0,
       smiteTimer: 2.5,
       facing: 1,
+      second: null,
     };
 
     this.towers.push(newTower);
@@ -1331,15 +1358,121 @@ export class GameEngine {
     for (const p of this.currentMap.paths) {
       if (p.some((c) => c.x === cx && c.y === cy)) return false;
     }
-    // Check existing tower
+    // Check existing tower or binder
     if (this.towers.some((t) => t.x === cx && t.y === cy)) return false;
+    if (this.binders.some((b) => b.x === cx && b.y === cy)) return false;
     return true;
   }
 
   public selectTower(id: string | null) {
     this.selectedTowerId = id;
+    this.selectedBinderId = null;
+    this.bindingFromId = null;
     this.placingTowerType = null;
+    this.placingBinder = false;
     this.notifyState();
+  }
+
+  public selectBinder(id: string | null) {
+    this.selectTower(null);
+    this.selectedBinderId = id;
+    this.notifyState();
+  }
+
+  public placeBinder(cellX: number, cellY: number): boolean {
+    if (!this.placingBinder) return false;
+    if (!this.isCellFree(cellX, cellY) || this.gold < CONFIG.binder.cost) {
+      sound.playError();
+      return false;
+    }
+    this.gold -= CONFIG.binder.cost;
+    const binder: Binder = { id: Math.random().toString(36).substring(2, 9), x: cellX, y: cellY };
+    this.binders.push(binder);
+    sound.playBuy();
+    this.spawnRing((cellX + 0.5) * CONFIG.grid.cellSize, (cellY + 0.5) * CONFIG.grid.cellSize, CONFIG.binder.color);
+    this.placingBinder = false;
+    this.selectedBinderId = binder.id;
+    this.notifyState();
+    return true;
+  }
+
+  public sellBinder(id: string): boolean {
+    const idx = this.binders.findIndex((b) => b.id === id);
+    if (idx === -1) return false;
+    const b = this.binders[idx];
+    const refund = Math.floor(CONFIG.binder.cost * CONFIG.upgrade.sellRatio);
+    this.gold += refund;
+    this.binders.splice(idx, 1);
+    this.selectedBinderId = null;
+    sound.playBuy();
+    this.addFloatingText(`+${refund} золота`, (b.x + 0.5) * CONFIG.grid.cellSize, (b.y + 0.5) * CONFIG.grid.cellSize, '#f4c06a');
+    this.notifyState();
+    return true;
+  }
+
+  // Towers the given one can be bound with: another type, neither already bound
+  public getBindPartners(tower: Tower): Tower[] {
+    if (tower.second || this.binders.length === 0) return [];
+    // a level-2 tower still choosing its specialization can't be bound yet
+    if (tower.level === 2 && tower.specs.length === 0) return [];
+    return this.towers.filter(
+      (t) => t !== tower && t.type !== tower.type && !t.second && (t.level !== 2 || t.specs.length > 0)
+    );
+  }
+
+  // Selected tower waits for a tap on its partner (tap again to cancel)
+  public toggleBinding(): boolean {
+    if (this.bindingFromId) {
+      this.bindingFromId = null;
+      this.notifyState();
+      return true;
+    }
+    const tower = this.selectedTowerId ? this.towers.find((t) => t.id === this.selectedTowerId) : null;
+    if (!tower || this.getBindPartners(tower).length === 0) {
+      sound.playError();
+      return false;
+    }
+    this.bindingFromId = tower.id;
+    this.notifyState();
+    return true;
+  }
+
+  // Binds the waiting tower with `partner`; the partner and the nearest binder leave the field
+  public bindWith(partner: Tower): boolean {
+    const tower = this.bindingFromId ? this.towers.find((t) => t.id === this.bindingFromId) : null;
+    this.bindingFromId = null;
+    if (!tower || !this.getBindPartners(tower).includes(partner)) {
+      sound.playError();
+      this.notifyState();
+      return false;
+    }
+    let binderIdx = 0;
+    let best = Infinity;
+    this.binders.forEach((b, i) => {
+      const d = Math.hypot(b.x - tower.x, b.y - tower.y);
+      if (d < best) {
+        best = d;
+        binderIdx = i;
+      }
+    });
+    const [binder] = this.binders.splice(binderIdx, 1);
+    this.towers.splice(this.towers.indexOf(partner), 1);
+    tower.second = {
+      type: partner.type,
+      level: partner.level,
+      specs: partner.specs,
+      cooldownTimer: 0,
+      smiteTimer: 2.5,
+    };
+    const cs = CONFIG.grid.cellSize;
+    this.spawnPuff((partner.x + 0.5) * cs, (partner.y + 0.5) * cs, CONFIG.binder.color);
+    this.spawnPuff((binder.x + 0.5) * cs, (binder.y + 0.5) * cs, CONFIG.binder.color);
+    this.spawnRing((tower.x + 0.5) * cs, (tower.y + 0.5) * cs, CONFIG.binder.color);
+    this.addFloatingText('СВЯЗКА!', (tower.x + 0.5) * cs, (tower.y + 0.5) * cs - 16, CONFIG.binder.color);
+    sound.playMerge();
+    this.selectedTowerId = tower.id;
+    this.notifyState();
+    return true;
   }
 
   public cycleTargetPriority(towerId: string) {
@@ -1355,8 +1488,11 @@ export class GameEngine {
     const idx = this.towers.indexOf(this.towers.find((t) => t.id === towerId)!);
     if (idx === -1) return false;
     const tower = this.towers[idx];
-    const baseCost = CONFIG.towers[tower.type].cost;
-    const refund = calculateSellRefund(baseCost, tower.level);
+    let refund = calculateSellRefund(CONFIG.towers[tower.type].cost, tower.level);
+    if (tower.second) {
+      refund += calculateSellRefund(CONFIG.towers[tower.second.type].cost, tower.second.level);
+      refund += Math.floor(CONFIG.binder.cost * CONFIG.upgrade.sellRatio);
+    }
 
     this.gold += refund;
     this.towers.splice(idx, 1);
@@ -1369,9 +1505,10 @@ export class GameEngine {
 
   // Get eligible towers for merging with the selected tower
   public getEligibleMergeTowers(selected: Tower): Tower[] {
-    if (selected.level >= 3) return [];
+    if (selected.level >= 3 || selected.second) return [];
     return this.towers.filter(
       (t) =>
+        !t.second &&
         t.type === selected.type &&
         t.level === selected.level &&
         // a level-2 tower waiting for its specialization can't merge yet
@@ -1508,6 +1645,7 @@ export class GameEngine {
     if (!this.onStateChange) return;
     const selected = this.selectedTowerId ? this.towers.find((t) => t.id === this.selectedTowerId) || null : null;
     const eligibleCount = selected ? this.getEligibleMergeTowers(selected).length : 0;
+    const bindPartnerCount = selected ? this.getBindPartners(selected).length : 0;
 
     this.onStateChange({
       lives: this.lives,
@@ -1527,6 +1665,10 @@ export class GameEngine {
       speed: this.speedMultiplier,
       selectedTower: selected,
       eligibleMergeCount: eligibleCount,
+      selectedBinder: this.selectedBinderId !== null,
+      binderCount: this.binders.length,
+      bindPartnerCount,
+      isBinding: this.bindingFromId !== null,
     });
   }
 
@@ -1612,28 +1754,56 @@ export class GameEngine {
     const selectedTower = this.selectedTowerId ? this.towers.find((t) => t.id === this.selectedTowerId) : null;
 
     if (selectedTower) {
-      // Highlight eligible merge towers
-      const eligible = this.getEligibleMergeTowers(selectedTower);
-      ctx.strokeStyle = '#f4c06a';
-      ctx.lineWidth = 2.5;
-      for (const el of eligible) {
-        ctx.strokeRect(el.x * cellSize + 2, el.y * cellSize + 2, cellSize - 4, cellSize - 4);
+      // Highlight eligible merge towers, or bind partners while binding
+      if (this.bindingFromId === selectedTower.id) {
+        const pulse = 0.55 + 0.45 * Math.sin(timeSec * 6);
+        ctx.strokeStyle = CONFIG.binder.color;
+        ctx.globalAlpha = pulse;
+        ctx.lineWidth = 3;
+        for (const el of this.getBindPartners(selectedTower)) {
+          ctx.strokeRect(el.x * cellSize + 2, el.y * cellSize + 2, cellSize - 4, cellSize - 4);
+        }
+        ctx.globalAlpha = 1;
+      } else {
+        const eligible = this.getEligibleMergeTowers(selectedTower);
+        ctx.strokeStyle = '#f4c06a';
+        ctx.lineWidth = 2.5;
+        for (const el of eligible) {
+          ctx.strokeRect(el.x * cellSize + 2, el.y * cellSize + 2, cellSize - 4, cellSize - 4);
+        }
       }
 
-      // Draw attack range circle for selected tower
-      const rangeCells = attackStats(selectedTower.type, selectedTower.level, selectedTower.specs).range;
-      const rangePx = rangeCells * cellSize;
-
-      ctx.fillStyle = 'rgba(244, 192, 106, 0.09)';
-      ctx.strokeStyle = 'rgba(244, 192, 106, 0.45)';
-      ctx.lineWidth = 1.5;
-      ctx.beginPath();
-      ctx.arc((selectedTower.x + 0.5) * cellSize, (selectedTower.y + 0.5) * cellSize, rangePx, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.stroke();
+      // Attack range circle of each part of the selected tower
+      const parts: TowerPart[] = selectedTower.second ? [selectedTower, selectedTower.second] : [selectedTower];
+      for (const part of parts) {
+        const rangePx = attackStats(part.type, part.level, part.specs).range * cellSize;
+        ctx.fillStyle = 'rgba(244, 192, 106, 0.09)';
+        ctx.strokeStyle = part === selectedTower ? 'rgba(244, 192, 106, 0.45)' : 'rgba(62, 214, 196, 0.5)';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.arc((selectedTower.x + 0.5) * cellSize, (selectedTower.y + 0.5) * cellSize, rangePx, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+      }
     }
 
-    // 6. Placement preview when placing tower
+    const selectedBinder = this.selectedBinderId ? this.binders.find((b) => b.id === this.selectedBinderId) : null;
+    if (selectedBinder) {
+      ctx.strokeStyle = CONFIG.binder.color;
+      ctx.lineWidth = 2.5;
+      ctx.strokeRect(selectedBinder.x * cellSize + 2, selectedBinder.y * cellSize + 2, cellSize - 4, cellSize - 4);
+    }
+
+    // 6. Placement preview when placing a tower or a binder
+    if (this.placingBinder && this.hoverCell) {
+      const { x: hx, y: hy } = this.hoverCell;
+      const isFree = this.isCellFree(hx, hy);
+      ctx.fillStyle = isFree ? 'rgba(62, 214, 196, 0.22)' : 'rgba(224, 69, 47, 0.28)';
+      ctx.fillRect(hx * cellSize, hy * cellSize, cellSize, cellSize);
+      ctx.strokeStyle = isFree ? CONFIG.binder.color : '#e0452f';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(hx * cellSize + 1, hy * cellSize + 1, cellSize - 2, cellSize - 2);
+    }
     if (this.placingTowerType && this.hoverCell) {
       const hx = this.hoverCell.x;
       const hy = this.hoverCell.y;
@@ -1658,6 +1828,9 @@ export class GameEngine {
 
     // 7. Render Towers
     // Sorted by y so lower figures overlap the ones behind them; flyers on top
+    for (const b of this.binders) {
+      this.renderBinder(ctx, b, cellSize, timeSec);
+    }
     const towersByDepth = [...this.towers].sort((a, b) => a.y - b.y);
     for (const t of towersByDepth) {
       this.renderTower(ctx, t, cellSize);
@@ -1850,6 +2023,48 @@ export class GameEngine {
   // -------------------------------------------------------------
   // Entity Drawing
   // -------------------------------------------------------------
+  // «Связка»: stone plinth with two interlocked rings slowly turning
+  private renderBinder(ctx: CanvasRenderingContext2D, b: Binder, cellSize: number, timeSec: number) {
+    const cx = (b.x + 0.5) * cellSize;
+    const cy = (b.y + 0.5) * cellSize;
+    const color = CONFIG.binder.color;
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
+    ctx.beginPath();
+    ctx.ellipse(cx, cy + 22, 22, 7, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#2b2838';
+    ctx.strokeStyle = '#121118';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(cx - 14, cy + 22);
+    ctx.lineTo(cx - 10, cy + 6);
+    ctx.lineTo(cx + 10, cy + 6);
+    ctx.lineTo(cx + 14, cy + 22);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+    const glow = 0.6 + 0.4 * Math.sin(timeSec * 3 + b.x);
+    ctx.save();
+    ctx.shadowColor = color;
+    ctx.shadowBlur = 10 * glow;
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 3;
+    const turn = timeSec * 0.8;
+    for (const side of [-1, 1]) {
+      ctx.beginPath();
+      ctx.ellipse(cx + side * 6, cy - 8, 10, 13, turn * side * 0.3, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    ctx.restore();
+    ctx.fillStyle = color;
+    ctx.globalAlpha = glow;
+    ctx.beginPath();
+    ctx.arc(cx, cy - 8, 3, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+  }
+
   private renderTower(ctx: CanvasRenderingContext2D, t: Tower, cellSize: number) {
     const spr = sprites.get(`tower_${t.type}`);
     if (spr) {
@@ -1893,17 +2108,34 @@ export class GameEngine {
         ctx.stroke();
       }
     };
+    if (t.second) {
+      // Binding ring under both figures
+      ctx.strokeStyle = CONFIG.binder.color;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.ellipse(cx, ringY + 2, 30, 9, 0, 0, Math.PI * 2);
+      ctx.stroke();
+    }
     rings(Math.PI, Math.PI * 2);
 
-    drawSprite(ctx, spr, cx, cy + 30, t.facing, 62);
+    if (t.second) {
+      // Second figure smaller, at the right; the main one shifted left
+      const spr2 = sprites.get(`tower_${t.second.type}`);
+      drawSprite(ctx, spr, cx - 9, cy + 30, t.facing, 56);
+      if (spr2) drawSprite(ctx, spr2, cx + 15, cy + 30, t.facing, 48);
+    } else {
+      drawSprite(ctx, spr, cx, cy + 30, t.facing, 62);
+    }
 
     // Front half of the rings over the pedestal
     rings(0, Math.PI);
 
-    if (t.specs.length > 0) {
-      const badge = specBadge(t.specs);
+    const allSpecs = t.second ? [...t.specs, ...t.second.specs] : t.specs;
+    if (allSpecs.length > 0) {
+      const badge = specBadge(allSpecs);
+      // A bound tower keeps the badge above the second figure
       const bx = cx + 21 - (badge.length - 1) * 3;
-      const by = cy + 20;
+      const by = t.second ? cy - 24 : cy + 20;
       const halfW = (badge.length - 1) * 3.5;
       ctx.fillStyle = '#121118';
       ctx.beginPath();
@@ -2019,9 +2251,21 @@ export class GameEngine {
       ctx.stroke();
     }
 
+    // Bound tower: small disc of the second type's color
+    if (t.second) {
+      ctx.fillStyle = CONFIG.towers[t.second.type].color;
+      ctx.strokeStyle = CONFIG.binder.color;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(cx + 16, cy + 14, 7, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+    }
+
     // Specialization badge (small icon/letter on tower)
-    if (t.specs.length > 0) {
-      const specLetters = specBadge(t.specs);
+    const allSpecs = t.second ? [...t.specs, ...t.second.specs] : t.specs;
+    if (allSpecs.length > 0) {
+      const specLetters = specBadge(allSpecs);
       const halfW = (specLetters.length - 1) * 3.5;
       ctx.fillStyle = '#121118';
       ctx.beginPath();

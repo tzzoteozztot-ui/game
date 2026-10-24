@@ -285,7 +285,15 @@ export function HowToPlayModal({ onClose }: { onClose: () => void }) {
             </p>
           </section>
 
-          {/* Priorities */}
+          {/* Binder */}
+          <section>
+            <h3 className="font-bold text-sm mb-1" style={{ color: '#3ed6c4' }}>Связка</h3>
+            <p className="text-stone-300">
+              Редкая карта лавки: появляется с 3-го яруса, и чем выше ярус, тем чаще (80 золота). Поставьте связку на поле, выберите башню, нажмите «Связать» и коснитесь башни другого вида. Обе башни станут одной: она стреляет как каждая из них, с их уровнями и специализациями, а связка тратится. Связанную башню больше нельзя сливать; при продаже возвращается доля за обе башни и связку.
+            </p>
+          </section>
+
+                    {/* Priorities */}
           <section>
             <h3 className="font-bold text-amber-200 text-sm mb-1">Приоритет цели</h3>
             <p className="text-stone-300">
@@ -309,7 +317,7 @@ export function HowToPlayModal({ onClose }: { onClose: () => void }) {
           <section>
             <h3 className="font-bold text-amber-200 text-sm mb-1">Горячие клавиши</h3>
             <p className="text-stone-400 text-[11px]">
-              Пробел — начать волну • P — пауза • 1–5 — купить карту • R — обновить лавку • U — поднять ярус • M — слить • S — продать • Tab — цель • Esc — отмена
+              Пробел — начать волну • P — пауза • 1–5 — купить карту • R — обновить лавку • U — поднять ярус • M — слить • B — связать • S — продать • Tab — цель • Esc — отмена
             </p>
           </section>
         </div>
