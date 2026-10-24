@@ -15,7 +15,7 @@ import {
   calculateSellRefund,
 } from './rules';
 import { sound } from './audio';
-import { sprites, drawSprite, PreparedSprite, SpriteVariant } from './sprites';
+import { sprites, drawSprite, PreparedSprite, SpritePose, SpriteVariant } from './sprites';
 import { attackStats, specBadge, specPower, specsOfType, stackedSlow } from './towerStats';
 
 // -------------------------------------------------------------
@@ -29,6 +29,7 @@ export interface TowerPart {
   specs: string[]; // specialization ids; repeats are power, see towerStats.ts
   cooldownTimer: number; // seconds until ready
   smiteTimer: number; // priest smite pulse timer
+  shotAt?: number; // real time of the last shot (s), for the recoil animation
 }
 
 export interface Tower extends TowerPart {
@@ -85,7 +86,32 @@ export interface Enemy {
 
   hitFlashTimer: number;
   facing: number; // 1 = right, -1 = left (direction of movement)
+  animSeed: number; // phase offset so figures do not step in unison
 }
+
+// A killed enemy falling over and fading out (drawn only, no game logic)
+interface Corpse {
+  name: string;
+  tint: string | null;
+  x: number;
+  footY: number;
+  facing: number;
+  h: number;
+  start: number; // real time, s
+  duration: number;
+}
+
+// Walking motion by enemy type: px of path per step, hop height (px), lean (radians)
+const GAIT: Partial<Record<EnemyType, { stride: number; lift: number; tilt: number }>> = {
+  infantry: { stride: 20, lift: 2, tilt: 0.07 },
+  scout: { stride: 16, lift: 2.5, tilt: 0.09 },
+  heavy: { stride: 28, lift: 1.2, tilt: 0.05 },
+  shaman: { stride: 24, lift: 1.5, tilt: 0.05 },
+  swarm: { stride: 8, lift: 1.2, tilt: 0.12 },
+  imp: { stride: 14, lift: 2.5, tilt: 0.1 },
+  boss: { stride: 40, lift: 1.5, tilt: 0.04 },
+};
+const MAX_CORPSES = 30;
 
 export interface Projectile {
   id: string;
@@ -191,6 +217,7 @@ export class GameEngine {
   public projectiles: Projectile[] = [];
   public floatingTexts: FloatingText[] = [];
   private particles: Particle[] = [];
+  private corpses: Corpse[] = [];
   private grassBlades: GrassBlade[] = [];
 
   // Spawn state
@@ -285,6 +312,7 @@ export class GameEngine {
     this.projectiles = [];
     this.floatingTexts = [];
     this.deadEnemiesGraveyard = [];
+    this.corpses = [];
     for (const p of this.particles) p.active = false;
 
     this.isSpawning = false;
@@ -578,6 +606,7 @@ export class GameEngine {
       dashTimer: 0,
       bossAbilityTimer: 0,
       hitFlashTimer: 0,
+      animSeed: Math.random() * Math.PI * 2,
       facing: 1,
     };
 
@@ -648,6 +677,7 @@ export class GameEngine {
           if (part.smiteTimer <= 0) {
             this.triggerPriestSmite(tower, part);
             part.smiteTimer = 2.5;
+            part.shotAt = performance.now() / 1000;
           }
         }
         if (stats.normalAttack && part.cooldownTimer <= 0) {
@@ -1058,6 +1088,7 @@ export class GameEngine {
     }
 
     part.cooldownTimer = cooldown;
+    part.shotAt = performance.now() / 1000;
   }
 
   // Priest Smite: pulses every 2.5s hitting all enemies in radius with damage * 2.5 (×n)
@@ -1232,6 +1263,7 @@ export class GameEngine {
     // Normal final death
     this.enemies.splice(index, 1);
     sound.playDeath();
+    this.addCorpse(e);
     this.spawnPuff(e.x, e.y, CONFIG.palettes[this.level - 1].enemies);
 
     // Save to graveyard for Lich boss
@@ -1878,13 +1910,14 @@ export class GameEngine {
     }
     const towersByDepth = [...this.towers].sort((a, b) => a.y - b.y);
     for (const t of towersByDepth) {
-      this.renderTower(ctx, t, cellSize);
+      this.renderTower(ctx, t, cellSize, timeSec);
     }
 
     // 8. Render Enemies
+    this.renderCorpses(ctx, timeSec);
     const enemiesByDepth = [...this.enemies].sort((a, b) => Number(a.isFlyer) - Number(b.isFlyer) || a.y - b.y);
     for (const e of enemiesByDepth) {
-      this.renderEnemy(ctx, e, palette.enemies);
+      this.renderEnemy(ctx, e, palette.enemies, timeSec);
     }
 
     // 9. Render Projectiles
@@ -2110,16 +2143,24 @@ export class GameEngine {
     ctx.globalAlpha = 1;
   }
 
-  private renderTower(ctx: CanvasRenderingContext2D, t: Tower, cellSize: number) {
+  private renderTower(ctx: CanvasRenderingContext2D, t: Tower, cellSize: number, timeSec: number) {
     const spr = sprites.get(`tower_${t.type}`);
     if (spr) {
-      this.renderTowerSprite(ctx, t, cellSize, spr);
+      this.renderTowerSprite(ctx, t, cellSize, spr, timeSec);
       return;
     }
     this.renderTowerShape(ctx, t, cellSize);
   }
 
-  private renderTowerSprite(ctx: CanvasRenderingContext2D, t: Tower, cellSize: number, spr: PreparedSprite) {
+  // Idle breathing plus a short squash and lean back after each shot
+  private towerPose(t: Tower, part: TowerPart, timeSec: number): SpritePose {
+    const breath = Math.sin(timeSec * 2.2 + t.x * 1.7 + t.y * 2.3) * 0.012;
+    const since = part.shotAt === undefined ? 1 : timeSec - part.shotAt;
+    const k = since < 0.18 ? 1 - since / 0.18 : 0;
+    return { sy: 1 + breath - 0.07 * k, sx: 1 + 0.04 * k, tilt: -t.facing * 0.05 * k };
+  }
+
+  private renderTowerSprite(ctx: CanvasRenderingContext2D, t: Tower, cellSize: number, spr: PreparedSprite, timeSec: number) {
     const cx = (t.x + 0.5) * cellSize;
     const cy = (t.y + 0.5) * cellSize;
     const baseDef = CONFIG.towers[t.type];
@@ -2166,10 +2207,10 @@ export class GameEngine {
     if (t.second) {
       // Second figure smaller, at the right; the main one shifted left
       const spr2 = sprites.get(`tower_${t.second.type}`);
-      drawSprite(ctx, spr, cx - 9, cy + 30, t.facing, 56);
-      if (spr2) drawSprite(ctx, spr2, cx + 15, cy + 30, t.facing, 48);
+      drawSprite(ctx, spr, cx - 9, cy + 30, t.facing, 56, this.towerPose(t, t, timeSec));
+      if (spr2) drawSprite(ctx, spr2, cx + 15, cy + 30, t.facing, 48, this.towerPose(t, t.second, timeSec));
     } else {
-      drawSprite(ctx, spr, cx, cy + 30, t.facing, 62);
+      drawSprite(ctx, spr, cx, cy + 30, t.facing, 62, this.towerPose(t, t, timeSec));
     }
 
     // Front half of the rings over the pedestal
@@ -2334,21 +2375,81 @@ export class GameEngine {
     }
   }
 
-  private renderEnemy(ctx: CanvasRenderingContext2D, e: Enemy, enemyColor: string) {
+  // Faction figure (enemy_<type>_<level>) is drawn in its own colors; otherwise the common one gets the faction tint
+  private enemySprite(e: Enemy): { name: string; tint: string | null } {
     const isBoss = e.type === 'boss';
     const isImp = e.type === 'imp';
-    // Faction figure (enemy_<type>_<level>) is drawn in its own colors; otherwise the common one gets the faction tint
     const factionName = `enemy_${e.type}_${this.level}`;
     const hasFaction = !isBoss && !isImp && sprites.has(factionName);
     const name = isBoss ? `boss_${this.level}` : isImp ? 'enemy_scout' : hasFaction ? factionName : `enemy_${e.type}`;
-    const tint = isBoss || hasFaction ? null : isImp ? '#e0452f' : enemyColor;
+    const tint = isBoss || hasFaction ? null : isImp ? '#e0452f' : CONFIG.palettes[this.level - 1].enemies;
+    return { name, tint };
+  }
+
+  private enemyFoot(e: Enemy, h: number): number {
+    return e.isFlyer ? e.y + 8 : e.y + h * 0.4;
+  }
+
+  // Walking: a hop and a lean per step, driven by the path covered (stops when the enemy stops);
+  // flyers hover and flap
+  private enemyPose(e: Enemy, timeSec: number): SpritePose {
+    if (e.isFlyer) {
+      const ph = timeSec * 7 + e.animSeed;
+      return { lift: 3 + Math.sin(ph) * 3, sy: 1 + Math.sin(ph * 2) * 0.05, tilt: Math.sin(ph * 0.5) * 0.05 };
+    }
+    const g = GAIT[e.type];
+    if (!g) return {};
+    const ph = (e.distanceTraveled / g.stride) * Math.PI + e.animSeed;
+    const step = Math.abs(Math.sin(ph));
+    return { lift: step * g.lift, tilt: Math.sin(ph) * g.tilt, sy: 0.97 + 0.03 * step, sx: 1.03 - 0.03 * step };
+  }
+
+  private addCorpse(e: Enemy) {
+    const { name, tint } = this.enemySprite(e);
+    const spr = sprites.get(name, tint);
+    if (!spr) return;
+    const h = e.type === 'imp' ? 24 : spr.meta.drawH;
+    if (this.corpses.length >= MAX_CORPSES) this.corpses.shift();
+    this.corpses.push({
+      name,
+      tint,
+      x: e.x,
+      footY: this.enemyFoot(e, h),
+      facing: e.facing,
+      h,
+      start: performance.now() / 1000,
+      duration: e.type === 'boss' ? 0.9 : 0.45,
+    });
+  }
+
+  // Killed enemies fall over backwards, sink a little and fade out
+  private renderCorpses(ctx: CanvasRenderingContext2D, timeSec: number) {
+    this.corpses = this.corpses.filter((c) => timeSec - c.start < c.duration);
+    for (const c of this.corpses) {
+      const spr = sprites.get(c.name, c.tint);
+      if (!spr) continue;
+      const p = Math.max(0, (timeSec - c.start) / c.duration);
+      ctx.globalAlpha = 1 - p * p;
+      drawSprite(ctx, spr, c.x, c.footY + p * 3, c.facing, c.h, {
+        tilt: -c.facing * Math.pow(p, 0.6) * 1.3,
+        sy: 1 - 0.15 * p,
+      });
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  private renderEnemy(ctx: CanvasRenderingContext2D, e: Enemy, enemyColor: string, timeSec: number) {
+    const isBoss = e.type === 'boss';
+    const isImp = e.type === 'imp';
+    const { name, tint } = this.enemySprite(e);
     const variant: SpriteVariant = e.hitFlashTimer > 0 ? 'flash' : e.invulnerableTimer > 0 ? 'shield' : 'normal';
     const spr = sprites.get(name, tint, variant);
 
     let topY: number;
     if (spr) {
       const h = isImp ? 24 : spr.meta.drawH;
-      const footY = e.isFlyer ? e.y + 8 : e.y + h * 0.4;
+      const footY = this.enemyFoot(e, h);
+      const pose = e.isReviving ? {} : this.enemyPose(e, timeSec);
       if (e.isFlyer) {
         ctx.fillStyle = 'rgba(0, 0, 0, 0.35)';
         ctx.beginPath();
@@ -2370,10 +2471,10 @@ export class GameEngine {
         ctx.globalAlpha = 1;
       }
       if (e.isReviving) ctx.globalAlpha = 0.35;
-      drawSprite(ctx, spr, e.x, footY, e.facing, h);
+      drawSprite(ctx, spr, e.x, footY, e.facing, h, pose);
       ctx.globalAlpha = 1;
       if (e.isReviving) return;
-      topY = footY - h;
+      topY = footY - h - (pose.lift ?? 0);
     } else {
       if (!this.renderEnemyShape(ctx, e, enemyColor)) return;
       topY = e.y - (isBoss ? 33 : 15);
