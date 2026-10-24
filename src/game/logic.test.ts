@@ -307,3 +307,18 @@ test('endless mode: waves repeat in cycles and keep getting stronger', () => {
   assert.equal(calculateEnemyCount(20, 1, 25, true), 30);
   assert.equal(calculateEnemyCount(20, 1, 13), 20);
 });
+
+import { mergeProgress, normalizeProgress } from '../progress';
+
+test('progress from two devices merges to the best of both', () => {
+  const phone = { unlocked: 3, stars: { 1: 3, 2: 1 }, endlessBest: { 1: 20 } };
+  const mac = { unlocked: 2, stars: { 1: 2, 2: 2, 3: 1 }, endlessBest: { 1: 14, 2: 9 } };
+  assert.deepEqual(mergeProgress(phone, mac), { unlocked: 3, stars: { 1: 3, 2: 2, 3: 1 }, endlessBest: { 1: 20, 2: 9 } });
+  // Junk from an old save or a broken row turns into valid progress
+  assert.deepEqual(normalizeProgress({ unlocked: 9, stars: { 1: 2, 7: 3, x: 1 }, endlessBest: null }), {
+    unlocked: 5,
+    stars: { 1: 2 },
+    endlessBest: {},
+  });
+  assert.deepEqual(normalizeProgress(undefined), { unlocked: 1, stars: {}, endlessBest: {} });
+});

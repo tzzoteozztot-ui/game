@@ -23,6 +23,8 @@ interface MainMenuProps {
   onChangeDifficulty: (diff: Difficulty) => void;
   onChangeEndless: (endless: boolean) => void;
   onOpenHowToPlay: () => void;
+  accountLabel: string | null; // null when accounts are not set up
+  onOpenAccount: () => void;
   onMusicChange: (val: number) => void;
   onSfxChange: (val: number) => void;
   onToggleMute: () => void;
@@ -43,6 +45,8 @@ export function MainMenu({
   onChangeDifficulty,
   onChangeEndless,
   onOpenHowToPlay,
+  accountLabel,
+  onOpenAccount,
   onMusicChange,
   onSfxChange,
   onToggleMute,
@@ -213,7 +217,7 @@ export function MainMenu({
         </button>
 
         {/* Buttons Row */}
-        <div className="w-full grid grid-cols-2 gap-2 short:grid-cols-3 short:gap-1.5">
+        <div className={`w-full grid grid-cols-2 gap-2 short:gap-1.5 ${accountLabel ? '' : 'short:grid-cols-3'}`}>
           <button
             type="button"
             onClick={onOpenHowToPlay}
@@ -229,11 +233,20 @@ export function MainMenu({
             <SoundIcon muted={isMuted} />
             <span>Звук</span>
           </button>
+          {accountLabel && (
+            <button
+              type="button"
+              onClick={onOpenAccount}
+              className={`${standalone ? 'col-span-2' : ''} min-h-[40px] px-3 py-2 rounded bg-[#221f2d] hover:bg-[#2c283a] border border-[#383347] text-xs font-bold text-stone-200 transition-colors cursor-pointer`}
+            >
+              {accountLabel}
+            </button>
+          )}
           {!standalone && (
             <button
               type="button"
               onClick={() => (fullscreen.supported ? fullscreen.toggle() : setShowHomeScreenHint(!showHomeScreenHint))}
-              className="col-span-2 short:col-span-1 min-h-[40px] px-3 short:px-1.5 py-2 rounded bg-[#221f2d] hover:bg-[#2c283a] border border-[#383347] text-xs font-bold text-stone-200 transition-colors cursor-pointer"
+              className={`${accountLabel ? '' : 'col-span-2 short:col-span-1'} min-h-[40px] px-3 short:px-1.5 py-2 rounded bg-[#221f2d] hover:bg-[#2c283a] border border-[#383347] text-xs font-bold text-stone-200 transition-colors cursor-pointer`}
             >
               {fullscreen.active ? 'Обычный экран' : 'Во весь экран'}
             </button>
