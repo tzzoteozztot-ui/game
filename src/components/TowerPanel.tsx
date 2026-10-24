@@ -10,6 +10,7 @@ import { Tower } from '../game/engine';
 import { CONFIG } from '../game/config';
 import { calculateSellRefund } from '../game/rules';
 import { TowerSpriteIcon } from './Icons';
+import { attackStats, specSummary } from '../game/towerStats';
 
 interface TowerPanelProps {
   tower: Tower | null;
@@ -38,30 +39,15 @@ export function TowerPanel({
   const baseDef = CONFIG.towers[tower.type];
   const canMerge = eligibleMergeCount >= 3 && tower.level < 3;
 
-  // Calculate live displayed stats
-  let rawDmg = baseDef.damage;
-  if (tower.level >= 2) rawDmg *= CONFIG.upgrade.lvl2DamageMult;
-  if (tower.level >= 3) rawDmg *= CONFIG.upgrade.lvl3DamageMult;
-  if (tower.spec === 'sniper') rawDmg *= 1.8;
-  if (tower.spec === 'arrow_hail') rawDmg *= 0.8;
-  if (tower.spec === 'frost') rawDmg *= 0.8;
-  if (tower.spec === 'ram') rawDmg *= 0.8;
-  if (tower.spec === 'siege') rawDmg *= 0.9;
-  if (tower.spec === 'smite') rawDmg *= 2.5;
-
-  let period = baseDef.cooldown;
-  if (tower.spec === 'sniper') period *= 1.6;
-  if (tower.spec === 'arrow_hail') period *= 0.6;
-  if (tower.spec === 'siege') period *= 1.15;
-  if (tower.spec === 'smite') period = 2.5;
-
-  let range = baseDef.range;
-  if (tower.level >= 2) range *= CONFIG.upgrade.lvl2RangeMult;
-  if (tower.level >= 3) range *= CONFIG.upgrade.lvl3RangeMult;
-  if (tower.spec === 'sniper') range *= 1.6;
+  // Live stats: a tower whose only specialization is «Кара» shows its pulse
+  const stats = attackStats(tower.type, tower.level, tower.specs);
+  const smiteOnly = !stats.normalAttack;
+  const rawDmg = smiteOnly ? stats.smiteDamage : stats.damage;
+  const period = smiteOnly ? 2.5 : stats.cooldown;
+  const range = stats.range;
 
   const refund = calculateSellRefund(baseDef.cost, tower.level);
-  const specDef = tower.spec ? baseDef.specs.find((s) => s.id === tower.spec) : null;
+  const specText = specSummary(tower.specs);
 
   const priorityLabel =
     tower.priority === 'first'
@@ -85,7 +71,7 @@ export function TowerPanel({
             </span>
           </div>
           <div className="text-[10px] text-amber-300 font-semibold truncate shrink-0">
-            {specDef ? specDef.name : tower.level === 3 ? 'МАКС' : 'Базовая'}
+            {specText || (tower.level === 3 ? 'МАКС' : 'Базовая')}
           </div>
         </div>
       </div>

@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { MAPS, makePath, validateMap, validateAllMaps, MAX_ROAD_CELLS, MIN_FREE_CELLS, MIN_PATH_LENGTH, CASTLE } from './maps';
 import { CONFIG } from './config';
+import { attackStats, specSummary, stackedSlow } from './towerStats';
 
 test('all 5 maps meet the game rules', () => {
   for (const m of MAPS) {
@@ -186,4 +187,51 @@ test('enemy scaling and damage formulas', () => {
   // Ice cultists slow halved
   assert.equal(calculateEffectiveSlow(0.5, 3), 0.25);
   assert.equal(calculateEffectiveSlow(0.5, 1), 0.5);
+});
+
+test('one specialization keeps the single-spec numbers', () => {
+  const base = CONFIG.towers.archer;
+  const lvl2 = CONFIG.upgrade.lvl2DamageMult;
+  const sniper = attackStats('archer', 2, ['sniper']);
+  assert.ok(Math.abs(sniper.damage - base.damage * lvl2 * 1.8) < 1e-9);
+  assert.ok(Math.abs(sniper.cooldown - base.cooldown * 1.6) < 1e-9);
+  assert.ok(Math.abs(sniper.range - base.range * CONFIG.upgrade.lvl2RangeMult * 1.6) < 1e-9);
+  assert.equal(attackStats('archer', 2, ['arrow_hail']).targets, 2);
+  assert.equal(attackStats('mage', 2, ['lightning']).chain, 4);
+  assert.equal(attackStats('ballista', 2, ['siege']).aoeRadius, 1);
+  assert.equal(attackStats('priest', 2, ['smite']).normalAttack, false);
+});
+
+test('triplet specializations add up, the same one three times is ×3', () => {
+  const base = CONFIG.towers.archer;
+  const lvl3 = CONFIG.upgrade.lvl2DamageMult * CONFIG.upgrade.lvl3DamageMult;
+  const tripleSniper = attackStats('archer', 3, ['sniper', 'sniper', 'sniper']);
+  assert.ok(Math.abs(tripleSniper.damage - base.damage * lvl3 * (1 + 0.8 * 3)) < 1e-9);
+  assert.ok(Math.abs(tripleSniper.cooldown - base.cooldown * 1.6) < 1e-9, 'drawbacks are not tripled');
+  assert.equal(attackStats('archer', 3, ['arrow_hail', 'arrow_hail', 'arrow_hail']).targets, 9);
+  assert.equal(attackStats('mage', 3, ['lightning', 'lightning', 'lightning']).chain, 15);
+
+  const mixed = attackStats('archer', 3, ['sniper', 'arrow_hail', 'hunter']);
+  assert.equal(mixed.targets, 3);
+  assert.ok(mixed.range > attackStats('archer', 3, []).range);
+
+  // «Кара» plus another priest specialization keeps the normal shot too
+  const smiteWard = attackStats('priest', 3, ['smite', 'ward', 'ward']);
+  assert.equal(smiteWard.normalAttack, true);
+  assert.ok(smiteWard.smiteDamage > 0);
+
+  assert.ok(Math.abs(stackedSlow(0.5, 1) - 0.5) < 1e-9);
+  assert.ok(Math.abs(stackedSlow(0.5, 3) - 0.875) < 1e-9);
+  assert.equal(specSummary(['fire', 'frost', 'fire']), 'Огонь ×2 · Мороз');
+});
+
+test('hunter and execute power', () => {
+  const hit = (extra: Partial<Parameters<typeof calculateDamage>[0]>) =>
+    calculateDamage({ rawDamage: 10, damageType: 'phys', targetArmor: 0, targetMagicResist: 0, factionId: 1, ...extra });
+  assert.equal(hit({ isHunterSpec: true, isTargetHeavyOrBoss: true }).damage, 20);
+  assert.equal(hit({ isHunterSpec: true, hunterPower: 3, isTargetHeavyOrBoss: true }).damage, 40);
+  assert.equal(hit({ isExecuteSpec: true, isTargetBoss: true }).damage, 15);
+  assert.equal(hit({ isExecuteSpec: true, executePower: 3, isTargetBoss: true }).damage, 25);
+  assert.equal(hit({ isExecuteSpec: true, targetCurrentHp: 50, targetMaxHp: 100 }).isExecuted, false);
+  assert.equal(hit({ isExecuteSpec: true, executePower: 3, targetCurrentHp: 50, targetMaxHp: 100 }).isExecuted, true);
 });

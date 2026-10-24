@@ -15,6 +15,7 @@ import {
 } from './rules';
 import { sound } from './audio';
 import { sprites, drawSprite, PreparedSprite, SpriteVariant } from './sprites';
+import { attackStats, specBadge, specPower, specsOfType, stackedSlow } from './towerStats';
 
 // -------------------------------------------------------------
 // Entity Interfaces
@@ -26,7 +27,7 @@ export interface Tower {
   y: number; // grid cell y
   type: TowerType;
   level: number; // 1, 2, 3
-  spec: string | null;
+  specs: string[]; // specialization ids; repeats are power, see towerStats.ts
   priority: TargetPriority;
   cooldownTimer: number; // seconds until ready
   frozenTimer: number; // frozen by Ice Priest boss
@@ -57,6 +58,7 @@ export interface Enemy {
   burnDps: number;
   burnTimer: number;
   curseTimer: number;
+  curseBonus: number;
   rageTriggered: boolean;
   warcryTimer: number;
   hasRevived: boolean; // undead trait
@@ -85,13 +87,9 @@ export interface Projectile {
   damage: number;
   damageType: 'phys' | 'mag';
   towerType: TowerType;
-  spec: string | null;
+  specs: string[]; // specializations of this tower type
   isRam: boolean;
-  isSiege: boolean;
-  isExecute: boolean;
-  isFire: boolean;
-  isFrost: boolean;
-  isCurse: boolean;
+  aoeRadius: number; // cells, 0 = single target
   piercedEnemyIds: Set<string>;
 }
 
@@ -540,6 +538,7 @@ export class GameEngine {
       burnDps: 0,
       burnTimer: 0,
       curseTimer: 0,
+      curseBonus: 0.25,
       rageTriggered: false,
       warcryTimer: 0,
       hasRevived: false,
@@ -612,13 +611,15 @@ export class GameEngine {
       if (tower.cooldownTimer > 0) {
         tower.cooldownTimer -= dt;
       }
-      if (tower.spec === 'smite') {
+      const stats = attackStats(tower.type, tower.level, tower.specs);
+      if (stats.smiteDamage > 0) {
         tower.smiteTimer -= dt;
         if (tower.smiteTimer <= 0) {
           this.triggerPriestSmite(tower);
           tower.smiteTimer = 2.5;
         }
-      } else if (tower.cooldownTimer <= 0) {
+      }
+      if (stats.normalAttack && tower.cooldownTimer <= 0) {
         this.towerAttack(tower);
       }
     }
@@ -641,7 +642,7 @@ export class GameEngine {
             const dist = Math.hypot(e.x - p.currentX, e.y - p.currentY);
             if (dist < 24) {
               p.piercedEnemyIds.add(e.id);
-              this.applyDamageToEnemy(e, p.damage, p.damageType, p.towerType, p.spec);
+              this.applyDamageToEnemy(e, p.damage, p.damageType, p.towerType, p.specs);
               this.spawnSpark(e.x, e.y, '#c9663a');
             }
           }
@@ -649,6 +650,8 @@ export class GameEngine {
 
         const traveled = Math.hypot(p.currentX - p.startX, p.currentY - p.startY);
         if (traveled > len + 32) {
+          // «Таран» + «Осада»: the bolt bursts where it stops
+          if (p.aoeRadius > 0) this.handleProjectileImpact(p, null, p.currentX, p.currentY);
           this.projectiles.splice(i, 1);
         }
       } else {
@@ -952,29 +955,11 @@ export class GameEngine {
     const baseDef = CONFIG.towers[tower.type];
     const towerPxX = (tower.x + 0.5) * CONFIG.grid.cellSize;
     const towerPxY = (tower.y + 0.5) * CONFIG.grid.cellSize;
-
-    // Range calculation
-    let rangeCells = baseDef.range;
-    if (tower.level >= 2) rangeCells *= CONFIG.upgrade.lvl2RangeMult;
-    if (tower.level >= 3) rangeCells *= CONFIG.upgrade.lvl3RangeMult;
-    if (tower.spec === 'sniper') rangeCells *= 1.6;
-    const rangePx = rangeCells * CONFIG.grid.cellSize;
-
-    // Damage calculation
-    let rawDamage = baseDef.damage;
-    if (tower.level >= 2) rawDamage *= CONFIG.upgrade.lvl2DamageMult;
-    if (tower.level >= 3) rawDamage *= CONFIG.upgrade.lvl3DamageMult;
-    if (tower.spec === 'sniper') rawDamage *= 1.8;
-    if (tower.spec === 'arrow_hail') rawDamage *= 0.8;
-    if (tower.spec === 'frost') rawDamage *= 0.8;
-    if (tower.spec === 'ram') rawDamage *= 0.8;
-    if (tower.spec === 'siege') rawDamage *= 0.9;
-
-    // Cooldown calculation
-    let cooldown = baseDef.cooldown;
-    if (tower.spec === 'sniper') cooldown *= 1.6;
-    if (tower.spec === 'arrow_hail') cooldown *= 0.6;
-    if (tower.spec === 'siege') cooldown *= 1.15;
+    const stats = attackStats(tower.type, tower.level, tower.specs);
+    const specs = specsOfType(tower.type, tower.specs);
+    const rangePx = stats.range * CONFIG.grid.cellSize;
+    const rawDamage = stats.damage;
+    const cooldown = stats.cooldown;
 
     // Find enemies in range
     const inRange = this.enemies.filter((e) => {
@@ -988,19 +973,13 @@ export class GameEngine {
     // Sort according to priority
     this.sortEnemiesByPriority(inRange, tower.priority, towerPxX, towerPxY);
 
-    // Number of targets
-    let targetCount = 1;
-    if (tower.spec === 'arrow_hail') {
-      targetCount = tower.level >= 3 ? 3 : 2;
-    }
-
-    const targets = inRange.slice(0, targetCount);
+    const targets = inRange.slice(0, stats.targets);
     if (Math.abs(targets[0].x - towerPxX) > 2) tower.facing = targets[0].x < towerPxX ? -1 : 1;
 
     for (const target of targets) {
       sound.playShot(tower.type);
 
-      if (tower.spec === 'ram') {
+      if (stats.pierce) {
         // Fire penetrating line projectile
         this.projectiles.push({
           id: Math.random().toString(36).substring(2, 9),
@@ -1015,18 +994,14 @@ export class GameEngine {
           damage: rawDamage,
           damageType: 'phys',
           towerType: tower.type,
-          spec: tower.spec,
+          specs,
           isRam: true,
-          isSiege: false,
-          isExecute: false,
-          isFire: false,
-          isFrost: false,
-          isCurse: false,
+          aoeRadius: stats.aoeRadius,
           piercedEnemyIds: new Set<string>(),
         });
-      } else if (tower.spec === 'lightning') {
-        // Chain lightning: hits target + up to 3 (or 4 at lvl3) additional bounces
-        this.triggerLightningChain(tower, target, rawDamage, towerPxX, towerPxY);
+      } else if (stats.chain > 0) {
+        // Chain lightning: hits the target and bounces on (4 targets, 5 at lvl3, ×n)
+        this.triggerLightningChain(stats.chain, specs, target, rawDamage);
       } else {
         // Normal or AoE projectile
         this.projectiles.push({
@@ -1042,13 +1017,9 @@ export class GameEngine {
           damage: rawDamage,
           damageType: baseDef.damageType,
           towerType: tower.type,
-          spec: tower.spec,
+          specs,
           isRam: false,
-          isSiege: tower.spec === 'siege',
-          isExecute: tower.spec === 'execute',
-          isFire: tower.spec === 'fire',
-          isFrost: tower.spec === 'frost',
-          isCurse: tower.spec === 'curse',
+          aoeRadius: stats.aoeRadius,
           piercedEnemyIds: new Set<string>(),
         });
       }
@@ -1057,36 +1028,27 @@ export class GameEngine {
     tower.cooldownTimer = cooldown;
   }
 
-  // Priest Smite: pulses every 2.5s hitting all enemies in radius with damage * 2.5
+  // Priest Smite: pulses every 2.5s hitting all enemies in radius with damage * 2.5 (×n)
   private triggerPriestSmite(tower: Tower) {
-    const baseDef = CONFIG.towers.priest;
     const towerPxX = (tower.x + 0.5) * CONFIG.grid.cellSize;
     const towerPxY = (tower.y + 0.5) * CONFIG.grid.cellSize;
-
-    let rangeCells = baseDef.range;
-    if (tower.level >= 2) rangeCells *= CONFIG.upgrade.lvl2RangeMult;
-    if (tower.level >= 3) rangeCells *= CONFIG.upgrade.lvl3RangeMult;
-    const rangePx = rangeCells * CONFIG.grid.cellSize;
-
-    let rawDamage = baseDef.damage * 2.5;
-    if (tower.level >= 2) rawDamage *= CONFIG.upgrade.lvl2DamageMult;
-    if (tower.level >= 3) rawDamage *= CONFIG.upgrade.lvl3DamageMult;
+    const stats = attackStats('priest', tower.level, tower.specs);
+    const rangePx = stats.range * CONFIG.grid.cellSize;
 
     sound.playShot('priest');
     this.spawnRing(towerPxX, towerPxY, '#f2f0e0');
 
-    for (const e of this.enemies) {
-      if (e.isReviving) return;
+    for (const e of [...this.enemies]) {
+      if (e.isReviving) continue;
       if (Math.hypot(e.x - towerPxX, e.y - towerPxY) <= rangePx) {
-        this.applyDamageToEnemy(e, rawDamage, 'mag', 'priest', 'smite');
+        this.applyDamageToEnemy(e, stats.smiteDamage, 'mag', 'priest', ['smite']);
         this.spawnSpark(e.x, e.y, '#f2f0e0');
       }
     }
   }
 
-  // Mage Lightning Chain: jumps 4 targets (lvl3: 5), each taking 75% of previous
-  private triggerLightningChain(tower: Tower, firstTarget: Enemy, rawDamage: number, startX: number, startY: number) {
-    const maxBounces = tower.level >= 3 ? 5 : 4;
+  // Mage Lightning Chain: jumps between targets, each taking 75% of the previous hit
+  private triggerLightningChain(maxBounces: number, specs: string[], firstTarget: Enemy, rawDamage: number) {
     const chainTargets: Enemy[] = [firstTarget];
     let curEnemy = firstTarget;
 
@@ -1108,15 +1070,10 @@ export class GameEngine {
     }
 
     let currentDmg = rawDamage;
-    let prevX = startX;
-    let prevY = startY;
-
     for (const target of chainTargets) {
       this.spawnSpark(target.x, target.y, '#8f6bff');
-      this.applyDamageToEnemy(target, currentDmg, 'mag', 'mage', 'lightning');
+      this.applyDamageToEnemy(target, currentDmg, 'mag', 'mage', specs);
       currentDmg *= 0.75;
-      prevX = target.x;
-      prevY = target.y;
     }
   }
 
@@ -1124,24 +1081,20 @@ export class GameEngine {
     sound.playHit();
     this.spawnSpark(impactX, impactY, p.damageType === 'mag' ? '#8f6bff' : '#d9b44a');
 
-    const isAoe = p.towerType === 'mage' || p.isSiege;
-    if (isAoe) {
-      let aoeRadiusCells = 0.9;
-      if (p.isFire) aoeRadiusCells = 0.9 * 1.4;
-      if (p.isFrost) aoeRadiusCells = 0.9 * 1.2;
-      if (p.isSiege) aoeRadiusCells = 1.0;
-      const aoeRadiusPx = aoeRadiusCells * CONFIG.grid.cellSize;
+    if (p.aoeRadius > 0) {
+      const aoeRadiusPx = p.aoeRadius * CONFIG.grid.cellSize;
+      const isFire = p.specs.includes('fire');
+      const isFrost = p.specs.includes('frost');
+      this.spawnRing(impactX, impactY, isFire ? '#ff4a2f' : isFrost ? '#7fc8f0' : '#8f6bff');
 
-      this.spawnRing(impactX, impactY, p.isFire ? '#ff4a2f' : p.isFrost ? '#7fc8f0' : '#8f6bff');
-
-      for (const e of this.enemies) {
+      for (const e of [...this.enemies]) {
         if (e.isReviving) continue;
         if (Math.hypot(e.x - impactX, e.y - impactY) <= aoeRadiusPx) {
-          this.applyDamageToEnemy(e, p.damage, p.damageType, p.towerType, p.spec);
+          this.applyDamageToEnemy(e, p.damage, p.damageType, p.towerType, p.specs);
         }
       }
     } else if (target && !target.isReviving) {
-      this.applyDamageToEnemy(target, p.damage, p.damageType, p.towerType, p.spec);
+      this.applyDamageToEnemy(target, p.damage, p.damageType, p.towerType, p.specs);
     }
   }
 
@@ -1150,9 +1103,10 @@ export class GameEngine {
     rawDmg: number,
     dmgType: 'phys' | 'mag',
     towerType: TowerType,
-    spec: string | null
+    specs: string[]
   ) {
     if (e.invulnerableTimer > 0) return;
+    const n = (id: string) => specPower(specs, id);
 
     const res = calculateDamage({
       rawDamage: rawDmg,
@@ -1160,11 +1114,14 @@ export class GameEngine {
       targetArmor: e.armor,
       targetMagicResist: e.magicResist,
       isCursed: e.curseTimer > 0,
-      isFireSpec: spec === 'fire',
+      curseBonus: e.curseBonus,
+      isFireSpec: n('fire') > 0,
       factionId: this.level,
       isTargetHeavyOrBoss: e.type === 'heavy' || e.type === 'boss',
-      isHunterSpec: spec === 'hunter',
-      isExecuteSpec: spec === 'execute',
+      isHunterSpec: n('hunter') > 0,
+      hunterPower: n('hunter'),
+      isExecuteSpec: n('execute') > 0,
+      executePower: n('execute'),
       isTargetBoss: e.type === 'boss',
       targetCurrentHp: e.hp,
       targetMaxHp: e.maxHp,
@@ -1184,41 +1141,32 @@ export class GameEngine {
 
     e.hitFlashTimer = 0.06;
 
-    // Apply specialization secondary effects:
-    if (spec === 'fire') {
+    // Apply specialization secondary effects (n copies make each stronger):
+    if (n('fire')) {
       // Burn 30% of shot damage per second for 3s (non-stacking)
-      e.burnDps = rawDmg * 0.3;
+      e.burnDps = rawDmg * 0.3 * n('fire');
       e.burnTimer = 3.0;
     }
 
-    if (spec === 'frost') {
+    if (n('frost')) {
       // Slow 35% for 2s
-      const effectiveSlow = calculateEffectiveSlow(0.35, this.level);
-      if (effectiveSlow > e.slowPercent) {
-        e.slowPercent = effectiveSlow;
-        e.slowTimer = 2.0;
-      }
+      this.applySlow(e, stackedSlow(0.35, n('frost')), 2.0);
     }
 
     if (towerType === 'priest') {
-      if (spec === 'ward') {
+      if (n('ward')) {
         // Slow 50% for 2.5s
-        const effectiveSlow = calculateEffectiveSlow(0.5, this.level);
-        if (effectiveSlow > e.slowPercent) {
-          e.slowPercent = effectiveSlow;
-          e.slowTimer = 2.5;
-        }
-      } else if (spec === 'curse') {
+        this.applySlow(e, stackedSlow(0.5, n('ward')), 2.5);
+      }
+      if (n('curse')) {
         // Curse +25% damage from all sources for 4s
         e.curseTimer = 4.0;
+        e.curseBonus = 0.25 * n('curse');
         this.addFloatingText('ПРОКЛЯТИЕ', e.x, e.y - 10, '#f2f0e0');
-      } else if (spec !== 'smite') {
+      }
+      if (!n('ward') && !n('curse') && !n('smite')) {
         // Default priest: slow 25% for 2s
-        const effectiveSlow = calculateEffectiveSlow(0.25, this.level);
-        if (effectiveSlow > e.slowPercent) {
-          e.slowPercent = effectiveSlow;
-          e.slowTimer = 2.0;
-        }
+        this.applySlow(e, 0.25, 2.0);
       }
     }
 
@@ -1227,6 +1175,14 @@ export class GameEngine {
       if (idx !== -1) {
         this.killEnemy(e, idx);
       }
+    }
+  }
+
+  private applySlow(e: Enemy, slow: number, duration: number) {
+    const effectiveSlow = calculateEffectiveSlow(slow, this.level);
+    if (effectiveSlow > e.slowPercent) {
+      e.slowPercent = effectiveSlow;
+      e.slowTimer = duration;
     }
   }
 
@@ -1345,7 +1301,7 @@ export class GameEngine {
       y: cellY,
       type: this.placingTowerType,
       level: this.placingIsTriplet ? 2 : 1,
-      spec: this.placingIsTriplet ? this.pendingTripletSpec : null,
+      specs: this.placingIsTriplet && this.pendingTripletSpec ? [this.pendingTripletSpec] : [],
       priority: 'first',
       cooldownTimer: 0,
       frozenTimer: 0,
@@ -1418,7 +1374,8 @@ export class GameEngine {
       (t) =>
         t.type === selected.type &&
         t.level === selected.level &&
-        (selected.level === 1 || t.spec === selected.spec)
+        // a level-2 tower waiting for its specialization can't merge yet
+        (selected.level === 1 || t.specs.length > 0)
     );
   }
 
@@ -1450,11 +1407,15 @@ export class GameEngine {
     }
 
     selected.level += 1;
+    // Level 3 keeps every specialization of the three towers (repeats add power)
+    if (selected.level === 3) {
+      selected.specs = [...selected.specs, ...mergePair.flatMap((m) => m.specs)];
+    }
     sound.playMerge();
     this.spawnRing((selected.x + 0.5) * CONFIG.grid.cellSize, (selected.y + 0.5) * CONFIG.grid.cellSize, '#f4c06a');
     this.addFloatingText('СЛИЯНИЕ!', (selected.x + 0.5) * CONFIG.grid.cellSize, (selected.y + 0.5) * CONFIG.grid.cellSize - 16, '#f4c06a');
 
-    if (selected.level === 2 && !selected.spec) {
+    if (selected.level === 2 && selected.specs.length === 0) {
       // Immediate mandatory specialization choice modal
       if (this.onNeedSpecChoice) {
         this.onNeedSpecChoice(selected);
@@ -1468,7 +1429,7 @@ export class GameEngine {
   public setTowerSpecialization(towerId: string, specId: string) {
     const tower = this.towers.find((t) => t.id === towerId);
     if (!tower) return;
-    tower.spec = specId;
+    tower.specs = [specId];
     this.notifyState();
   }
 
@@ -1660,11 +1621,7 @@ export class GameEngine {
       }
 
       // Draw attack range circle for selected tower
-      const baseDef = CONFIG.towers[selectedTower.type];
-      let rangeCells = baseDef.range;
-      if (selectedTower.level >= 2) rangeCells *= CONFIG.upgrade.lvl2RangeMult;
-      if (selectedTower.level >= 3) rangeCells *= CONFIG.upgrade.lvl3RangeMult;
-      if (selectedTower.spec === 'sniper') rangeCells *= 1.6;
+      const rangeCells = attackStats(selectedTower.type, selectedTower.level, selectedTower.specs).range;
       const rangePx = rangeCells * cellSize;
 
       ctx.fillStyle = 'rgba(244, 192, 106, 0.09)';
@@ -1943,12 +1900,14 @@ export class GameEngine {
     // Front half of the rings over the pedestal
     rings(0, Math.PI);
 
-    if (t.spec) {
-      const bx = cx + 21;
+    if (t.specs.length > 0) {
+      const badge = specBadge(t.specs);
+      const bx = cx + 21 - (badge.length - 1) * 3;
       const by = cy + 20;
+      const halfW = (badge.length - 1) * 3.5;
       ctx.fillStyle = '#121118';
       ctx.beginPath();
-      ctx.arc(bx, by, 7, 0, Math.PI * 2);
+      ctx.roundRect(bx - 7 - halfW, by - 7, 14 + halfW * 2, 14, 7);
       ctx.fill();
       ctx.strokeStyle = '#f4c06a';
       ctx.lineWidth = 1;
@@ -1957,7 +1916,7 @@ export class GameEngine {
       ctx.font = 'bold 8px sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText(t.spec[0].toUpperCase(), bx, by + 0.5);
+      ctx.fillText(badge, bx, by + 0.5);
       ctx.textBaseline = 'alphabetic';
     }
 
@@ -2061,17 +2020,18 @@ export class GameEngine {
     }
 
     // Specialization badge (small icon/letter on tower)
-    if (t.spec) {
+    if (t.specs.length > 0) {
+      const specLetters = specBadge(t.specs);
+      const halfW = (specLetters.length - 1) * 3.5;
       ctx.fillStyle = '#121118';
       ctx.beginPath();
-      ctx.arc(cx, cy, 6, 0, Math.PI * 2);
+      ctx.roundRect(cx - 6 - halfW, cy - 6, 12 + halfW * 2, 12, 6);
       ctx.fill();
       ctx.fillStyle = '#f4c06a';
       ctx.font = 'bold 8px sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      const specLetter = t.spec[0].toUpperCase();
-      ctx.fillText(specLetter, cx, cy);
+      ctx.fillText(specLetters, cx, cy);
       ctx.textBaseline = 'alphabetic';
     }
 
@@ -2297,7 +2257,7 @@ export class GameEngine {
       ctx.lineTo(p.currentX, p.currentY);
       ctx.stroke();
     } else if (p.towerType === 'mage') {
-      ctx.fillStyle = p.isFire ? '#ff4a2f' : p.isFrost ? '#7fc8f0' : '#8f6bff';
+      ctx.fillStyle = p.specs.includes('fire') ? '#ff4a2f' : p.specs.includes('frost') ? '#7fc8f0' : '#8f6bff';
       ctx.beginPath();
       ctx.arc(p.currentX, p.currentY, 4, 0, Math.PI * 2);
       ctx.fill();
