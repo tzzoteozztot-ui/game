@@ -6,6 +6,7 @@ import React, { useState } from 'react';
 import { StarIcon } from './Icons';
 import { sound } from '../game/audio';
 import { CONFIG } from '../game/config';
+import { useFullscreen, isStandalone, HOME_SCREEN_HINT } from '../fullscreen';
 
 // -------------------------------------------------------------
 // Pause Modal
@@ -33,9 +34,11 @@ export function PauseModal({
   onSfxChange,
   onToggleMute,
 }: PauseModalProps) {
+  const fullscreen = useFullscreen();
+  const [showHint, setShowHint] = useState(false);
   return (
-    <div className="fixed inset-0 bg-black/85 flex items-center justify-center p-4 z-50">
-      <div className="bg-[#171520] border border-[#3b354a] rounded-xl p-5 max-w-sm w-full shadow-2xl text-[#f4f2e6]">
+    <div className="fixed inset-0 bg-black/85 flex flex-col items-center overflow-y-auto p-4 z-50">
+      <div className="my-auto bg-[#171520] border border-[#3b354a] rounded-xl p-5 max-w-sm w-full shadow-2xl text-[#f4f2e6]">
         <h2 className="text-xl font-black text-center text-amber-300 tracking-wider mb-4">
           ПАУЗА
         </h2>
@@ -89,6 +92,16 @@ export function PauseModal({
           >
             Продолжить (P / Esc)
           </button>
+          {!isStandalone() && (
+            <button
+              type="button"
+              onClick={() => (fullscreen.supported ? fullscreen.toggle() : setShowHint(!showHint))}
+              className="w-full min-h-[40px] py-2 px-4 rounded bg-[#221f2d] hover:bg-[#2c283a] text-stone-200 border border-[#383347] font-semibold text-xs transition-colors cursor-pointer"
+            >
+              {fullscreen.active ? 'Выйти из полноэкранного режима (F)' : 'Во весь экран (F)'}
+            </button>
+          )}
+          {showHint && <p className="text-xs text-stone-300 leading-relaxed">{HOME_SCREEN_HINT}</p>}
           <button
             type="button"
             onClick={onRestart}

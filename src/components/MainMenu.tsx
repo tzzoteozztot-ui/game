@@ -6,7 +6,7 @@
 import React, { useState } from 'react';
 import { CONFIG, Difficulty } from '../game/config';
 import { StarIcon, LockIcon } from './Icons';
-import { useFullscreen, isStandalone } from '../fullscreen';
+import { useFullscreen, isStandalone, HOME_SCREEN_HINT } from '../fullscreen';
 
 interface MainMenuProps {
   unlockedLevel: number; // 1..5
@@ -216,9 +216,7 @@ export function MainMenu({
 
         {showHomeScreenHint && (
           <div className="w-full bg-[#171520] p-3 rounded-lg border border-[#2d2938] text-xs text-stone-300 leading-relaxed animate-fade-in">
-            На iPhone браузер не даёт открыть страницу во весь экран. Нажмите «Поделиться» (квадрат
-            со стрелкой) → «На экран «Домой»», и игра будет открываться с рабочего стола телефона
-            без адресной строки.
+            {HOME_SCREEN_HINT}
           </div>
         )}
 
