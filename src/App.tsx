@@ -39,6 +39,7 @@ const SIDE_VARS = {
 export default function App() {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const dragTowerRef = useRef<string | null>(null); // tower pressed between waves, for drag-to-move
   const engineRef = useRef<GameEngine | null>(null);
 
   // App screen state
@@ -82,6 +83,7 @@ export default function App() {
     binderCount: 0,
     bindPartnerCount: 0,
     isBinding: false,
+    canMoveTowers: false,
   });
 
   // Shop state (5 card slots)
@@ -504,6 +506,10 @@ export default function App() {
     } else if (clickedTower) {
       engine.selectTower(clickedTower.id);
       sound.playBuy();
+      // Between waves a press on a tower can drag it to another cell
+      if (engine.canMoveTowers()) dragTowerRef.current = clickedTower.id;
+    } else if (engine.selectedTowerId && engine.moveSelectedTower(cellX, cellY)) {
+      // Between waves: a tap on a free cell moves the selected tower there
     } else {
       // Tapped empty cell: deselect
       engine.selectTower(null);
@@ -530,6 +536,20 @@ export default function App() {
     } else {
       engine.hoverCell = null;
     }
+  };
+
+  // Drag a tower between waves: release over a free cell moves it
+  const handleCanvasPointerUp = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    const engine = engineRef.current;
+    const canvas = canvasRef.current;
+    const dragId = dragTowerRef.current;
+    dragTowerRef.current = null;
+    if (!engine || !canvas || !dragId || engine.selectedTowerId !== dragId) return;
+    const rect = canvas.getBoundingClientRect();
+    const cellX = Math.floor(((e.clientX - rect.left) * CONFIG.grid.totalWidth) / rect.width / CONFIG.grid.cellSize);
+    const cellY = Math.floor(((e.clientY - rect.top) * CONFIG.grid.totalHeight) / rect.height / CONFIG.grid.cellSize);
+    const tower = engine.towers.find((t) => t.id === dragId);
+    if (tower && (tower.x !== cellX || tower.y !== cellY)) engine.moveSelectedTower(cellX, cellY);
   };
 
   const handleCanvasPointerLeave = () => {
@@ -697,6 +717,7 @@ export default function App() {
                   ref={canvasRef}
                   onPointerDown={handleCanvasPointerDown}
                   onPointerMove={handleCanvasPointerMove}
+                  onPointerUp={handleCanvasPointerUp}
                   onPointerLeave={handleCanvasPointerLeave}
                   className="w-full h-full block cursor-crosshair touch-none"
                   style={{ imageRendering: 'pixelated' }}
@@ -730,6 +751,7 @@ export default function App() {
                 placingBinder={engineRef.current?.placingBinder || false}
                 placingIndex={placingCardIndex}
                 isBinding={gameState.isBinding}
+                isMoving={gameState.canMoveTowers && gameState.selectedTower !== null && !gameState.isBinding}
                 placingIsTriplet={engineRef.current?.placingIsTriplet || false}
                 isSpawning={gameState.isSpawning}
                 isWaveActive={gameState.isWaveActive}
