@@ -136,6 +136,7 @@ export interface GameStateSnapshot {
   isGameOver: boolean;
   isVictory: boolean;
   isPaused: boolean;
+  allWavesLaunched: boolean;
   selectedTower: Tower | null;
   eligibleMergeCount: number;
 }
@@ -167,6 +168,7 @@ export class GameEngine {
   // Spawn state
   public isSpawning: boolean = false;
   public waveInProgress: boolean = false;
+  public wavesLaunched: number = 0; // how many of the 12 waves have been started
   public spawnQueue: { type: EnemyType; entrance: number }[] = [];
   private spawnTimer: number = 0;
   private currentEntranceIndex: number = 0;
@@ -252,6 +254,7 @@ export class GameEngine {
 
     this.isSpawning = false;
     this.waveInProgress = false;
+    this.wavesLaunched = 0;
     this.spawnQueue = [];
     this.spawnTimer = 0;
     this.currentEntranceIndex = 0;
@@ -366,7 +369,7 @@ export class GameEngine {
   // -------------------------------------------------------------
   public startNextWave(): boolean {
     if (this.isSpawning || this.isGameOver || this.isVictory) return false;
-    if (this.wave > 12) return false;
+    if (this.wavesLaunched >= CONFIG.waves.length) return false;
 
     // Check if enemies from previous wave are still alive -> give +10 early bonus
     if (this.enemies.length > 0) {
@@ -375,6 +378,9 @@ export class GameEngine {
       sound.playBuy();
     }
 
+    // An early start launches the next wave, not the current one again
+    this.wave = this.wavesLaunched + 1;
+    this.wavesLaunched++;
     const waveDef = CONFIG.waves[this.wave - 1];
     this.spawnQueue = [];
 
@@ -1495,6 +1501,7 @@ export class GameEngine {
       isGameOver: this.isGameOver,
       isVictory: this.isVictory,
       isPaused: this.isPaused,
+      allWavesLaunched: this.wavesLaunched >= CONFIG.waves.length,
       selectedTower: selected,
       eligibleMergeCount: eligibleCount,
     });

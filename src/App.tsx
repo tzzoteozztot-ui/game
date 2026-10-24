@@ -57,6 +57,7 @@ export default function App() {
     isGameOver: false,
     isVictory: false,
     isPaused: false,
+    allWavesLaunched: false,
     selectedTower: null,
     eligibleMergeCount: 0,
   });
@@ -647,6 +648,7 @@ export default function App() {
                 placingIsTriplet={engineRef.current?.placingIsTriplet || false}
                 isSpawning={gameState.isSpawning}
                 isWaveActive={gameState.isWaveActive}
+                allWavesLaunched={gameState.allWavesLaunched}
                 onSelectCard={handleSelectShopCard}
                 onReroll={handleRerollShop}
                 onUpgradeTier={handleUpgradeTier}
