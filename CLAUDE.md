@@ -2,7 +2,7 @@
 
 Браузерная tower defence в стиле тёмного фэнтези. React 19 + Vite 8 + TypeScript + Tailwind 4,
 игровой движок свой (Canvas 2D, без игровых библиотек), звук синтезируется через Web Audio —
-внешних ассетов нет. Проект начат в Google AI Studio, дальше развивается здесь.
+внешних ассетов нет. Проект начат в Google AI Studio, его остатки убраны.
 
 Владелец — Артур, играет сам, на телефоне и компьютере (macOS). Общение — по-русски.
 
@@ -23,15 +23,15 @@
 ## Команды
 
 ```bash
-npm install          # пока не убраны остатки AI Studio: npm install --legacy-peer-deps
+npm install          # установка зависимостей
 npm run dev          # дев-сервер на http://localhost:3000 (слушает 0.0.0.0 — можно открыть с телефона в той же сети)
 npm run lint         # проверка типов: tsc --noEmit
-npx tsx --test src/game/logic.test.ts   # тест логики (node:test)
+npm test             # тест логики src/game/logic.test.ts (node:test через tsx)
 npm run build        # сборка в dist/
 npm run preview      # локальный просмотр сборки
 ```
 
-Проверка после каждой правки: `npm run lint && npx tsx --test src/game/logic.test.ts && npm run build`.
+Проверка после каждой правки: `npm run lint && npm test && npm run build`.
 
 ## Архитектура
 
