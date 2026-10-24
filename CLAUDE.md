@@ -86,14 +86,16 @@ React хранит снимок в состоянии и рисует по не�
 ## Спрайты
 
 ```
-art/concepts/            исходные листы концептов 1536×1024 (towers, enemies, bosses)
+art/concepts/            исходные листы концептов 1536×1024 (towers, enemies, bosses,
+                         enemies/factions — враги пяти фракций, enemies/ice-legion — ледяной легион)
 scripts/slice_sprites.py нарезка листов: прозрачный фон без ореола, рамки и размеры фигур
-public/sprites/          15 PNG (tower_*, enemy_*, boss_1..5) и sprites.json
+public/sprites/          PNG (tower_*, enemy_*, enemy_<тип>_<уровень>, boss_1..5) и sprites.json
 ```
 
 `sprites.json` для каждой фигуры хранит размер файла, `drawH` (высота на поле в px; файл втрое
 крупнее), точку привязки по низу (`anchorX`, `anchorY`) и `facing` (куда смотрит на листе).
-Перенарезка: `python3 scripts/slice_sprites.py` (нужны numpy и Pillow). Враги получают оттенок
+Перенарезка: `python3 scripts/slice_sprites.py` (нужны numpy и Pillow). Враг рисуется спрайтом своей
+фракции `enemy_<тип>_<уровень>` в его цветах, если такой есть; иначе общий `enemy_<тип>` получает оттенок
 цвета фракции кодом, кольца уровня и значок специализации башни рисуются кодом. Если спрайт не
 загрузился, движок рисует прежние геометрические фигуры.
 

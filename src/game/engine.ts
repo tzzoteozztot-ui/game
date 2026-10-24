@@ -2331,8 +2331,11 @@ export class GameEngine {
   private renderEnemy(ctx: CanvasRenderingContext2D, e: Enemy, enemyColor: string) {
     const isBoss = e.type === 'boss';
     const isImp = e.type === 'imp';
-    const name = isBoss ? `boss_${this.level}` : isImp ? 'enemy_scout' : `enemy_${e.type}`;
-    const tint = isBoss ? null : isImp ? '#e0452f' : enemyColor;
+    // Faction figure (enemy_<type>_<level>) is drawn in its own colors; otherwise the common one gets the faction tint
+    const factionName = `enemy_${e.type}_${this.level}`;
+    const hasFaction = !isBoss && !isImp && sprites.has(factionName);
+    const name = isBoss ? `boss_${this.level}` : isImp ? 'enemy_scout' : hasFaction ? factionName : `enemy_${e.type}`;
+    const tint = isBoss || hasFaction ? null : isImp ? '#e0452f' : enemyColor;
     const variant: SpriteVariant = e.hitFlashTimer > 0 ? 'flash' : e.invulnerableTimer > 0 ? 'shield' : 'normal';
     const spr = sprites.get(name, tint, variant);
 

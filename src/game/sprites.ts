@@ -60,6 +60,10 @@ class SpriteStore {
     return this.loading;
   }
 
+  has(name: string): boolean {
+    return this.images.has(name);
+  }
+
   get(name: string, tint: string | null = null, variant: SpriteVariant = 'normal'): PreparedSprite | null {
     const key = `${name}|${tint ?? ''}|${variant}`;
     const cached = this.cache.get(key);
