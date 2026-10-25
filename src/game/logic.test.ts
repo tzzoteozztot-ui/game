@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { MAPS, makePath, validateMap, validateAllMaps, MAX_ROAD_CELLS, MIN_FREE_CELLS, MIN_PATH_LENGTH, CASTLE, isHudCell } from './maps';
+import { MAPS, makePath, validateMap, validateAllMaps, MAX_ROAD_CELLS, MIN_FREE_CELLS, MIN_PATH_LENGTH, CASTLE, isHudCell, GRID_COLS, GRID_ROWS } from './maps';
 import { CONFIG } from './config';
 import { attackStats, specSummary, stackedSlow } from './towerStats';
 
@@ -34,7 +34,9 @@ test('road stretches must not touch by a side except at merges', () => {
 
 test('cells under the field buttons stay free of road', () => {
   assert.equal(isHudCell(0, 0), true);
-  assert.equal(isHudCell(16, 0), true);
+  assert.equal(isHudCell(15, 0), true);
+  assert.equal(isHudCell(12, 0), true);
+  assert.equal(isHudCell(11, 0), false);
   assert.equal(isHudCell(8, 0), false);
   assert.equal(isHudCell(0, 1), false);
   for (const m of MAPS) {
@@ -45,6 +47,13 @@ test('cells under the field buttons stay free of road', () => {
 });
 
 test('map constraints by level', () => {
+  // Field 16×10, the same in maps and in the engine config
+  assert.equal(GRID_COLS, 16);
+  assert.equal(GRID_ROWS, 10);
+  assert.equal(CONFIG.grid.cols, GRID_COLS);
+  assert.equal(CONFIG.grid.rows, GRID_ROWS);
+  assert.equal(CONFIG.grid.totalWidth, GRID_COLS * CONFIG.grid.cellSize);
+  assert.equal(CONFIG.grid.totalHeight, GRID_ROWS * CONFIG.grid.cellSize);
   for (const m of MAPS) {
     const { stats } = validateMap(m);
     assert.equal(stats.entrancesCount, m.level + 1);

@@ -13,3 +13,6 @@ body,
   box-sizing: border-box;
   padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
 }
+
+/* Low landscape screen (a phone on its side): menus switch to two columns so nothing has to scroll */
+@custom-variant short (@media (orientation: landscape) and (max-height: 560px));
