@@ -188,6 +188,8 @@ export default function App() {
     engine.onWaveStarted = () => {
       setShopCards(generateShopCards(engine.tier));
       setPlacingCardIndex(null);
+      // A triplet's specialization was being picked for a card that is gone now
+      setSpecModalTower((m) => (m?.isPrePlacement ? null : m));
       engine.placingTowerType = null;
       engine.placingBinder = false;
     };
@@ -564,6 +566,7 @@ export default function App() {
     sound.playBuy();
     setShopCards(generateShopCards(engine.tier));
     setPlacingCardIndex(null);
+    setSpecModalTower((m) => (m?.isPrePlacement ? null : m));
     engine.placingTowerType = null;
     engine.placingBinder = false;
     engine.notifyState();
