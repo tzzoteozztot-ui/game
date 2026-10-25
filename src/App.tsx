@@ -21,6 +21,10 @@ import { LevelBriefing } from './components/LevelBriefing';
 import { PauseModal, VictoryModal, DefeatModal, HowToPlayModal } from './components/StatusModals';
 import { OrientationWarning } from './components/OrientationWarning';
 import { fullscreenSupported, toggleFullscreen } from './fullscreen';
+import { AccountModal, SyncState } from './components/AccountModal';
+import { Progress, readLocalProgress, writeLocalProgress, mergeProgress } from './progress';
+import { cloudEnabled, onUserChange, loadCloudProgress, saveCloudProgress } from './cloud';
+import type { User } from '@supabase/supabase-js';
 
 type ScreenState = 'menu' | 'briefing' | 'playing';
 
@@ -53,9 +57,12 @@ export default function App() {
   const [isPortrait, setIsPortrait] = useState<boolean>(false);
 
   // Persistent progression
-  const [unlockedLevel, setUnlockedLevel] = useState<number>(1);
-  const [levelStars, setLevelStars] = useState<Record<number, number>>({});
-  const [endlessBest, setEndlessBest] = useState<Record<number, number>>({}); // level -> best wave reached
+  // Progress: localStorage, plus the account when signed in (see progress.ts, cloud.ts)
+  const [progress, setProgress] = useState<Progress>(readLocalProgress);
+  const { unlocked: unlockedLevel, stars: levelStars, endlessBest } = progress;
+  const [user, setUser] = useState<User | null>(null);
+  const [syncState, setSyncState] = useState<SyncState>('idle');
+  const [showAccount, setShowAccount] = useState<boolean>(false);
 
   // Audio settings
   const [audioSettings, setAudioSettings] = useState<AudioSettings>({
@@ -140,17 +147,6 @@ export default function App() {
     // Sprites load in the background; until then the engine draws fallback shapes
     sprites.load();
 
-    // Load saved progression
-    try {
-      const savedLvl = localStorage.getItem('dark_frontier_unlocked');
-      if (savedLvl) setUnlockedLevel(parseInt(savedLvl, 10) || 1);
-      const savedStars = localStorage.getItem('dark_frontier_stars');
-      if (savedStars) setLevelStars(JSON.parse(savedStars));
-      const savedBest = localStorage.getItem('dark_frontier_endless_best');
-      if (savedBest) setEndlessBest(JSON.parse(savedBest));
-    } catch {
-      // ignore localStorage error
-    }
 
     // Initialize audio settings
     setAudioSettings(sound.getSettings());
@@ -225,36 +221,20 @@ export default function App() {
     if (gameState.isVictory) {
       const starsEarned = calculateStars(gameState.lives);
       const nextLvl = Math.min(5, gameState.level + 1);
-      setUnlockedLevel((prev) => {
-        const updated = Math.max(prev, nextLvl);
-        try {
-          localStorage.setItem('dark_frontier_unlocked', updated.toString());
-        } catch {}
-        return updated;
-      });
-
-      setLevelStars((prev) => {
-        const curBest = prev[gameState.level] || 0;
-        const updated = { ...prev, [gameState.level]: Math.max(curBest, starsEarned) };
-        try {
-          localStorage.setItem('dark_frontier_stars', JSON.stringify(updated));
-        } catch {}
-        return updated;
-      });
+      setProgress((prev) =>
+        mergeProgress(prev, { unlocked: nextLvl, stars: { [gameState.level]: starsEarned }, endlessBest: {} })
+      );
     }
   }, [gameState.isVictory, gameState.lives, gameState.level]);
 
   // Endless mode ends only in defeat: keep the best wave reached on this level
   useEffect(() => {
     if (gameState.isGameOver && gameState.endless) {
-      setEndlessBest((prev) => {
-        if ((prev[gameState.level] || 0) >= gameState.wave) return prev;
-        const updated = { ...prev, [gameState.level]: gameState.wave };
-        try {
-          localStorage.setItem('dark_frontier_endless_best', JSON.stringify(updated));
-        } catch {}
-        return updated;
-      });
+      setProgress((prev) =>
+        (prev.endlessBest[gameState.level] || 0) >= gameState.wave
+          ? prev
+          : mergeProgress(prev, { unlocked: 1, stars: {}, endlessBest: { [gameState.level]: gameState.wave } })
+      );
     }
   }, [gameState.isGameOver, gameState.endless, gameState.wave, gameState.level]);
 
@@ -264,6 +244,46 @@ export default function App() {
     setSelectedLevel((lvl) => Math.min(lvl, unlockedLevel));
     setScreen('briefing');
   };
+
+  // Account: follow sign-in; on sign-in merge the account's progress with this device's
+  const cloudLoadedFor = useRef<string | null>(null); // the account whose progress is already merged in
+  const [cloudTick, setCloudTick] = useState(0); // forces a save right after the merge
+  useEffect(() => onUserChange(setUser), []);
+  useEffect(() => {
+    if (!user) {
+      cloudLoadedFor.current = null;
+      setSyncState('idle');
+      return;
+    }
+    let cancelled = false;
+    setSyncState('syncing');
+    loadCloudProgress(user.id)
+      .then((cloud) => {
+        if (cancelled) return;
+        if (cloud) setProgress((prev) => mergeProgress(prev, cloud));
+        cloudLoadedFor.current = user.id;
+        // Saving below runs with the merged progress and writes it back to the account
+        setSyncState('ok');
+        setCloudTick((n) => n + 1);
+      })
+      .catch(() => !cancelled && setSyncState('error'));
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
+
+  // Save on every change: this device always, the account (after its progress was read) with a short delay
+  useEffect(() => {
+    writeLocalProgress(progress);
+    if (!user || cloudLoadedFor.current !== user.id) return;
+    const t = setTimeout(() => {
+      setSyncState('syncing');
+      saveCloudProgress(user.id, progress)
+        .then(() => setSyncState('ok'))
+        .catch(() => setSyncState('error'));
+    }, 600);
+    return () => clearTimeout(t);
+  }, [progress, user, cloudTick]);
 
   // Handle Level Start from briefing
   const handleStartBattle = () => {
@@ -750,6 +770,8 @@ export default function App() {
             setEndless(v);
           }}
           onOpenHowToPlay={() => setShowHowToPlay(true)}
+          accountLabel={cloudEnabled ? (user ? 'Аккаунт ✓' : 'Войти') : null}
+          onOpenAccount={() => setShowAccount(true)}
           onMusicChange={handleMusicChange}
           onSfxChange={handleSfxChange}
           onToggleMute={handleToggleMute}
@@ -914,6 +936,10 @@ export default function App() {
       )}
 
       {/* 9. How To Play Modal */}
+      {showAccount && (
+        <AccountModal user={user} syncState={syncState} onClose={() => setShowAccount(false)} />
+      )}
+
       {showHowToPlay && (
         <HowToPlayModal onClose={() => setShowHowToPlay(false)} />
       )}
