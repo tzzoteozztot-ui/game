@@ -495,7 +495,7 @@ export class GameEngine {
 
     // Helper to calculate count
     const getCount = (count?: number) =>
-      count ? calculateEnemyCount(count, this.level, this.wave, this.endless) : 0;
+      count ? calculateEnemyCount(count, this.level, this.wave, this.endless, this.difficulty) : 0;
 
     const list: EnemyType[] = [];
     if (waveDef.infantry) {

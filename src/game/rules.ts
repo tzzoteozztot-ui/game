@@ -30,9 +30,17 @@ export function calculateEnemyHp(
   return Math.round(baseHp * sc.hpMult * waveMult * levelMult * diffMult);
 }
 
-export function calculateEnemyCount(tableCount: number, level: number, wave = 1, endless = false): number {
+export function calculateEnemyCount(
+  tableCount: number,
+  level: number,
+  wave = 1,
+  endless = false,
+  difficulty: Difficulty = 'normal'
+): number {
   const cycleMult = endless ? 1 + CONFIG.endless.countPerCycle * endlessCycle(wave) : 1;
-  return Math.ceil(tableCount * (1 + 0.2 * (level - 1)) * cycleMult);
+  const early = CONFIG.hardEarlyWaves;
+  const earlyMult = difficulty === 'hard' && wave <= early.upTo ? early.countMult : 1;
+  return Math.ceil(tableCount * (1 + 0.2 * (level - 1)) * cycleMult * earlyMult);
 }
 
 /** Endless mode: finished cycles of 12 waves before this wave (waves 1–12 → 0, 13–24 → 1…) */

@@ -86,6 +86,8 @@ export const CONFIG = {
     normal: { hpMult: 1.0, goldMult: 1.0, label: 'Обычная' },
     hard: { hpMult: 1.3, goldMult: 0.8, label: 'Тяжёлая' },
   },
+  // Hard difficulty: fewer enemies in the first waves (Артур, тест баланса: стена на волнах 1–3)
+  hardEarlyWaves: { upTo: 3, countMult: 0.8 },
 
   towers: {
     archer: {

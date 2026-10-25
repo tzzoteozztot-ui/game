@@ -116,6 +116,11 @@ test('enemy scaling and damage formulas', () => {
   // Enemy count scaling: ceil(table * (1 + 0.2*(lvl-1)))
   assert.equal(calculateEnemyCount(6, 1), 6);
   assert.equal(calculateEnemyCount(6, 2), 8); // 6 * 1.2 = 7.2 -> 8
+  // Hard difficulty: waves 1–3 have 20% fewer enemies, later waves are unchanged
+  assert.equal(calculateEnemyCount(6, 1, 1, false, 'hard'), 5); // 6 * 0.8 = 4.8 -> 5
+  assert.equal(calculateEnemyCount(8, 1, 3, false, 'hard'), 7); // 6.4 -> 7
+  assert.equal(calculateEnemyCount(10, 1, 4, false, 'hard'), 10);
+  assert.equal(calculateEnemyCount(6, 1, 1, false, 'normal'), 6);
 
   // Kill gold: round(base * (1 + 0.15*(lvl-1)))
   assert.equal(calculateKillGold(5, 1), 5);
