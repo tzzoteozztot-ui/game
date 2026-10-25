@@ -102,7 +102,7 @@ export const CONFIG = {
       color: '#d9b44a',
       specs: [
         { id: 'sniper', name: 'Снайпер', desc: 'Радиус ×1,6, урон ×1,8, период ×1,6' },
-        { id: 'arrow_hail', name: 'Град стрел', desc: 'Период ×0,6, урон ×0,8, бьёт 2 цели (Ур.3: 3)' },
+        { id: 'arrow_hail', name: 'Град стрел', desc: 'Период ×0,6, урон ×0,8, бьёт 2 цели (Ур.3: 3); каждая цель сверх двух −5% урона' },
         { id: 'hunter', name: 'Охотник', desc: 'Урон по тяжёлым и боссам ×2' },
       ],
     } as TowerBaseDef,
@@ -155,6 +155,9 @@ export const CONFIG = {
       ],
     } as TowerBaseDef,
   },
+
+  // «Град стрел»: damage of each arrow drops with the number of targets (Артур, тест баланса)
+  arrowHail: { perExtraTarget: 0.05 },
 
   upgrade: {
     lvl2DamageMult: 3.3,

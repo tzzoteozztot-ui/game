@@ -233,6 +233,11 @@ test('triplet specializations add up, the same one three times is ×3', () => {
   assert.ok(Math.abs(tripleSniper.damage - base.damage * lvl3 * (1 + 0.8 * 3)) < 1e-9);
   assert.ok(Math.abs(tripleSniper.cooldown - base.cooldown * 1.6) < 1e-9, 'drawbacks are not tripled');
   assert.equal(attackStats('archer', 3, ['arrow_hail', 'arrow_hail', 'arrow_hail']).targets, 9);
+  // «Град стрел»: 2 targets keep ×0,8, each target beyond two −5% per arrow (9 targets: ×0,8 × 0,65)
+  const hail = (lvl: number, specs: string[]) => attackStats('archer', lvl, specs).damage;
+  assert.ok(Math.abs(hail(2, ['arrow_hail']) - base.damage * CONFIG.upgrade.lvl2DamageMult * 0.8) < 1e-9);
+  assert.ok(Math.abs(hail(3, ['arrow_hail', 'arrow_hail', 'arrow_hail']) - base.damage * lvl3 * 0.8 * 0.65) < 1e-9);
+  assert.ok(Math.abs(hail(3, ['arrow_hail', 'sniper', 'hunter']) - base.damage * lvl3 * 1.8 * 0.8 * 0.95) < 1e-9);
   assert.equal(attackStats('mage', 3, ['lightning', 'lightning', 'lightning']).chain, 15);
 
   const mixed = attackStats('archer', 3, ['sniper', 'arrow_hail', 'hunter']);
