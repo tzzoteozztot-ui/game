@@ -341,6 +341,7 @@ export const CONFIG = {
   shop: {
     slotsCount: 5,
     rerollCost: 10,
+    rerollStep: 5, // each reroll within a wave costs 5 more (10, 15, 20…), back to 10 when a wave starts
     tierUpgradeCosts: [30, 60, 100, 150], // for 1->2, 2->3, 3->4, 4->5
     tripletChances: [0, 0.03, 0.06, 0.10, 0.15], // for tier 1..5
     binderChances: [0, 0, 0.06, 0.12, 0.18], // «Связка» card per slot, for tier 1..5

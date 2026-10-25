@@ -344,10 +344,11 @@ async function runInPage(job) {
       }
       // Keeps enough for the dearest tower it buys, so rerolls never starve a purchase
       const reserve = Math.max(...types.filter(allowed).map((t) => CONFIG.towers[t].cost));
-      if (!casual && engine.gold >= CONFIG.shop.rerollCost + reserve) {
+      const rerollCost = engine.rerollCost();
+      if (!casual && engine.gold >= rerollCost + reserve) {
         // reroll as App.tsx does
-        engine.gold -= CONFIG.shop.rerollCost;
-        stats.spend.reroll += CONFIG.shop.rerollCost;
+        engine.payReroll();
+        stats.spend.reroll += rerollCost;
         stats.rerolls++;
         genCards();
         continue;

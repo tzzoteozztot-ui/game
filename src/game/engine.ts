@@ -10,6 +10,7 @@ import {
   calculateEnemyHp,
   waveDefinition,
   calculateEnemyCount,
+  calculateRerollCost,
   calculateKillGold,
   calculateWaveClearReward,
   calculateSellRefund,
@@ -199,6 +200,7 @@ export interface GameStateSnapshot {
   bindPartnerCount: number; // towers the selected one can be bound with
   isBinding: boolean; // waiting for a tap on the second tower
   canMoveTowers: boolean; // between waves towers can be moved to a free cell
+  rerollCost: number; // price of the next shop reroll
 }
 
 export class GameEngine {
@@ -212,6 +214,7 @@ export class GameEngine {
   public gold: number = 200;
   public wave: number = 1;
   public tier: number = 1;
+  public rerollsThisWave = 0; // shop rerolls since the current wave started
   public isPaused: boolean = false;
   public speedMultiplier: number = 1; // one of CONFIG.speeds
   // Real-time countdown to the next wave (not scaled by game speed); null while a wave runs
@@ -313,6 +316,7 @@ export class GameEngine {
     this.gold = Math.floor((200 + 25 * (this.level - 1)) * CONFIG.difficulty[diff].goldMult);
     this.wave = 1;
     this.tier = 1;
+    this.rerollsThisWave = 0;
     this.isPaused = false;
     this.speedMultiplier = 1;
     this.waveCountdown = endless ? CONFIG.endless.between : CONFIG.waveTimer.first;
@@ -496,6 +500,7 @@ export class GameEngine {
     // An early start launches the next wave, not the current one again
     this.wave = this.wavesLaunched + 1;
     this.wavesLaunched++;
+    this.rerollsThisWave = 0;
     const waveDef = waveDefinition(this.wave);
     this.spawnQueue = [];
 
@@ -1357,6 +1362,19 @@ export class GameEngine {
   // -------------------------------------------------------------
   // Shop & Tower Placement & Merging
   // -------------------------------------------------------------
+  public rerollCost(): number {
+    return calculateRerollCost(this.rerollsThisWave);
+  }
+
+  /** Takes the price of a shop reroll; false (and nothing taken) without enough gold */
+  public payReroll(): boolean {
+    const cost = this.rerollCost();
+    if (this.gold < cost) return false;
+    this.gold -= cost;
+    this.rerollsThisWave++;
+    return true;
+  }
+
   public upgradeTier(): boolean {
     if (this.tier >= 5) return false;
     const cost = CONFIG.shop.tierUpgradeCosts[this.tier - 1];
@@ -1854,6 +1872,7 @@ export class GameEngine {
       bindPartnerCount,
       isBinding: this.bindingFromId !== null,
       canMoveTowers: this.canMoveTowers(),
+      rerollCost: this.rerollCost(),
     });
   }
 

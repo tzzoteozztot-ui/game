@@ -18,6 +18,7 @@ interface ShopPanelProps {
   cards: (ShopCard | null)[];
   tier: number;
   gold: number;
+  rerollCost: number; // grows with each reroll during a wave
   placingTowerType: TowerType | null;
   placingBinder: boolean;
   placingIndex: number | null; // card being placed
@@ -33,6 +34,7 @@ export function ShopPanel({
   cards,
   tier,
   gold,
+  rerollCost,
   placingTowerType,
   placingBinder,
   placingIndex,
@@ -43,7 +45,6 @@ export function ShopPanel({
   onReroll,
   onUpgradeTier,
 }: ShopPanelProps) {
-  const rerollCost = CONFIG.shop.rerollCost;
   const tierCost = tier < 5 ? CONFIG.shop.tierUpgradeCosts[tier - 1] : null;
   const inHandDef = placingTowerType ? CONFIG.towers[placingTowerType] : null;
 

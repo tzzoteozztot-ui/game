@@ -63,6 +63,7 @@ import {
   calculateStartingGold,
   calculateEnemyHp,
   calculateEnemyCount,
+  calculateRerollCost,
   calculateKillGold,
   calculateWaveClearReward,
   calculateSellRefund,
@@ -74,6 +75,10 @@ import {
 } from './rules';
 
 test('economy and reward calculations', () => {
+  // Shop reroll: 10, 15, 20… within a wave
+  assert.equal(calculateRerollCost(0), 10);
+  assert.equal(calculateRerollCost(1), 15);
+  assert.equal(calculateRerollCost(4), 30);
   // Level 1 normal: (200 + 0) * 1.0 = 200
   assert.equal(calculateStartingGold(1, 'normal'), 200);
   // Level 1 easy: 200 * 1.25 = 250

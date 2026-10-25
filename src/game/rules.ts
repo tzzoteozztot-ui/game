@@ -60,6 +60,11 @@ export function calculateKillGold(baseGold: number, level: number): number {
   return Math.round(baseGold * (1 + 0.15 * (level - 1)));
 }
 
+/** Shop reroll price: grows with every reroll since the current wave started (Артур, тест баланса) */
+export function calculateRerollCost(rerollsThisWave: number): number {
+  return CONFIG.shop.rerollCost + CONFIG.shop.rerollStep * rerollsThisWave;
+}
+
 export function calculateWaveClearReward(wave: number): number {
   return 20 + 3 * wave;
 }
