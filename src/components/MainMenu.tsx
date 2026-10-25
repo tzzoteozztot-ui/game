@@ -5,7 +5,7 @@
 
 import React, { useState } from 'react';
 import { CONFIG, Difficulty } from '../game/config';
-import { StarIcon, LockIcon } from './Icons';
+import { StarIcon, LockIcon, SoundIcon } from './Icons';
 import { useFullscreen, isStandalone, HOME_SCREEN_HINT } from '../fullscreen';
 
 interface MainMenuProps {
@@ -218,7 +218,7 @@ export function MainMenu({
             onClick={() => setShowSoundSettings(!showSoundSettings)}
             className="min-h-[40px] px-3 py-2 rounded bg-[#221f2d] hover:bg-[#2c283a] border border-[#383347] text-xs font-bold text-stone-200 transition-colors cursor-pointer flex items-center justify-center gap-1"
           >
-            <span>{isMuted ? '🔇' : '🔊'}</span>
+            <SoundIcon muted={isMuted} />
             <span>Звук</span>
           </button>
           {!standalone && (

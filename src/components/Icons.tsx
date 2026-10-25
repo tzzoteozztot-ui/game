@@ -116,3 +116,46 @@ export function LockIcon({ size = 18 }: { size?: number | string }) {
     </svg>
   );
 }
+
+// Field buttons: drawn as SVG, not as text symbols, because some phone browsers (Samsung) lack the glyphs
+
+export function SoundIcon({ muted, size = '1em' }: { muted: boolean; size?: number | string }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M4 9h4l5-4v14l-5-4H4z" fill="currentColor" />
+      {muted ? (
+        <path d="M16.5 9.5l5 5M21.5 9.5l-5 5" />
+      ) : (
+        <>
+          <path d="M16 9a4 4 0 0 1 0 6" />
+          <path d="M18.5 6.5a7.5 7.5 0 0 1 0 11" />
+        </>
+      )}
+    </svg>
+  );
+}
+
+export function FullscreenIcon({ active, size = '1em' }: { active: boolean; size?: number | string }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+      {active ? (
+        <path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5" />
+      ) : (
+        <path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" />
+      )}
+    </svg>
+  );
+}
+
+export function PauseIcon({ paused, size = '1em' }: { paused: boolean; size?: number | string }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor">
+      {paused ? <path d="M7 4.5v15l13-7.5z" /> : (
+        <>
+          <rect x="6" y="4.5" width="4" height="15" rx="1" />
+          <rect x="14" y="4.5" width="4" height="15" rx="1" />
+        </>
+      )}
+    </svg>
+  );
+}

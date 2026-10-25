@@ -9,6 +9,7 @@ import React from 'react';
 import { CONFIG } from '../game/config';
 import { HUD_LEFT_COLS, HUD_RIGHT_COLS } from '../game/maps';
 import { useFullscreen } from '../fullscreen';
+import { SoundIcon, FullscreenIcon, PauseIcon } from './Icons';
 
 interface FieldHudProps {
   speed: number;
@@ -139,7 +140,7 @@ export function FieldHud({
               title={isMuted ? 'Включить звук' : 'Выключить звук'}
               className={`${iconBtn} ${iconSize} ${plain}`}
             >
-              {isMuted ? '🔇' : '🔊'}
+              <SoundIcon muted={isMuted} />
             </button>
           </div>
           {fullscreen.supported && (
@@ -150,7 +151,7 @@ export function FieldHud({
                 title={fullscreen.active ? 'Выйти из полноэкранного режима (F)' : 'Во весь экран (F)'}
                 className={`${iconBtn} ${iconSize} ${plain}`}
               >
-                {fullscreen.active ? '🗗' : '⛶'}
+                <FullscreenIcon active={fullscreen.active} />
               </button>
             </div>
           )}
@@ -161,7 +162,7 @@ export function FieldHud({
               title="Пауза (P)"
               className={`${iconBtn} ${iconSize} ${isPaused ? 'bg-red-900/60 border-red-400/50 text-white' : plain}`}
             >
-              {isPaused ? '▶' : '❚❚'}
+              <PauseIcon paused={isPaused} />
             </button>
           </div>
         </div>
