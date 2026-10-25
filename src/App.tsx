@@ -93,6 +93,7 @@ export default function App() {
     bindPartnerCount: 0,
     isBinding: false,
     canMoveTowers: false,
+    rerollCost: CONFIG.shop.rerollCost,
   });
 
   // Shop state (5 card slots)
@@ -436,11 +437,10 @@ export default function App() {
     sound.init();
     const engine = engineRef.current;
     if (!engine) return;
-    if (engine.gold < CONFIG.shop.rerollCost) {
+    if (!engine.payReroll()) {
       sound.playError();
       return;
     }
-    engine.gold -= CONFIG.shop.rerollCost;
     sound.playBuy();
     setShopCards(generateShopCards(engine.tier));
     setPlacingCardIndex(null);
@@ -833,6 +833,7 @@ export default function App() {
                 cards={shopCards}
                 tier={gameState.tier}
                 gold={gameState.gold}
+                rerollCost={gameState.rerollCost}
                 placingTowerType={engineRef.current?.placingTowerType || null}
                 placingBinder={engineRef.current?.placingBinder || false}
                 placingIndex={placingCardIndex}

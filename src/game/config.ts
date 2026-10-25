@@ -86,6 +86,8 @@ export const CONFIG = {
     normal: { hpMult: 1.0, goldMult: 1.0, label: 'Обычная' },
     hard: { hpMult: 1.3, goldMult: 0.8, label: 'Тяжёлая' },
   },
+  // Hard difficulty: fewer enemies in the first waves (Артур, тест баланса: стена на волнах 1–3)
+  hardEarlyWaves: { upTo: 3, countMult: 0.8 },
 
   towers: {
     archer: {
@@ -100,7 +102,7 @@ export const CONFIG = {
       color: '#d9b44a',
       specs: [
         { id: 'sniper', name: 'Снайпер', desc: 'Радиус ×1,6, урон ×1,8, период ×1,6' },
-        { id: 'arrow_hail', name: 'Град стрел', desc: 'Период ×0,6, урон ×0,8, бьёт 2 цели (Ур.3: 3)' },
+        { id: 'arrow_hail', name: 'Град стрел', desc: 'Период ×0,6, урон ×0,8, бьёт 2 цели (Ур.3: 3); каждая цель сверх двух −5% урона' },
         { id: 'hunter', name: 'Охотник', desc: 'Урон по тяжёлым и боссам ×2' },
       ],
     } as TowerBaseDef,
@@ -115,8 +117,8 @@ export const CONFIG = {
       shape: 'circle',
       color: '#f2f0e0',
       specs: [
-        { id: 'ward', name: 'Оберег', desc: 'Замедление 50% на 2,5 с' },
-        { id: 'curse', name: 'Проклятие', desc: 'Цель получает +25% урона 4 с (не складывается)' },
+        { id: 'ward', name: 'Оберег', desc: 'Замедление 50% на 3 с цели и врагов в 1 клетке от неё' },
+        { id: 'curse', name: 'Проклятие', desc: '+35% урона 5 с цели и врагам в 1 клетке от неё (не складывается)' },
         { id: 'smite', name: 'Кара', desc: 'Раз в 2,5 с импульс по всем врагам в радиусе, урон ×2,5' },
       ],
     } as TowerBaseDef,
@@ -154,6 +156,13 @@ export const CONFIG = {
     } as TowerBaseDef,
   },
 
+  // Priest support (Артур, тест баланса: жрец — явная поддержка): «Оберег» and «Проклятие» also
+  // reach enemies within `radius` cells of the target
+  priestSupport: { radius: 1, wardSlow: 0.5, wardTime: 3, curseBonus: 0.35, curseTime: 5 },
+
+  // «Град стрел»: damage of each arrow drops with the number of targets (Артур, тест баланса)
+  arrowHail: { perExtraTarget: 0.05 },
+
   upgrade: {
     lvl2DamageMult: 3.3,
     lvl2RangeMult: 1.1,
@@ -170,6 +179,9 @@ export const CONFIG = {
     waveLinear: 0.18,
     waveQuad: 0.012,
     level: 0.3,
+    // Campaign only: waves from `lateFrom` on get extra HP (Артур, тест баланса: обычная слишком лёгкая)
+    lateFrom: 7,
+    lateHpMult: 1.12,
   },
 
   enemies: {
@@ -329,6 +341,7 @@ export const CONFIG = {
   shop: {
     slotsCount: 5,
     rerollCost: 10,
+    rerollStep: 5, // each reroll within a wave costs 5 more (10, 15, 20…), back to 10 when a wave starts
     tierUpgradeCosts: [30, 60, 100, 150], // for 1->2, 2->3, 3->4, 4->5
     tripletChances: [0, 0.03, 0.06, 0.10, 0.15], // for tier 1..5
     binderChances: [0, 0, 0.06, 0.12, 0.18], // «Связка» card per slot, for tier 1..5
@@ -355,6 +368,8 @@ export const CONFIG = {
     between: 45, // real seconds before wave 1 and between waves
     countPerCycle: 0.25, // +25% enemies of every type per finished cycle of 12 waves
     bossHpPerCycle: 0.6, // +60% boss HP per finished cycle
+    // HP of every enemy by level (faction id); Артур, тест баланса: демонам и эльфам −7 %
+    factionHpMult: { 4: 0.93, 5: 0.93 } as Record<number, number>,
   },
 
   spawnInterval: 0.8, // seconds between spawns

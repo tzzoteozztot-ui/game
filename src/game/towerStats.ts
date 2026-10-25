@@ -63,6 +63,8 @@ export function attackStats(type: TowerType, level: number, allSpecs: readonly s
     damage *= 0.8;
     cooldown *= 0.6;
     targets = (level >= 3 ? 3 : 2) * n('arrow_hail');
+    // Every target beyond two takes 5% off the damage of each arrow (9 targets: ×0,65)
+    damage *= 1 - CONFIG.arrowHail.perExtraTarget * (targets - 2);
   }
   if (n('frost')) damage *= 0.8;
   if (n('ram')) damage *= 0.8 * n('ram');

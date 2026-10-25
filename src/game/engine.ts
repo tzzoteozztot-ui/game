@@ -10,6 +10,7 @@ import {
   calculateEnemyHp,
   waveDefinition,
   calculateEnemyCount,
+  calculateRerollCost,
   calculateKillGold,
   calculateWaveClearReward,
   calculateSellRefund,
@@ -115,6 +116,10 @@ const GAIT: Partial<Record<EnemyType, { stride: number; lift: number; tilt: numb
 };
 const MAX_CORPSES = 30;
 
+// Status marks on enemies: slowed (frost, «Оберег», the default priest) and cursed («Проклятие»)
+const SLOW_COLOR = '#8fd4ff';
+const CURSE_COLOR = '#b07cff';
+
 export interface Projectile {
   id: string;
   startX: number;
@@ -146,6 +151,7 @@ export interface Particle {
   life: number;
   maxLife: number;
   type: 'puff' | 'spark' | 'ring' | 'heal' | 'ice';
+  grow: number; // ring: how far the radius grows over its life, px
 }
 
 export interface FloatingText {
@@ -194,6 +200,7 @@ export interface GameStateSnapshot {
   bindPartnerCount: number; // towers the selected one can be bound with
   isBinding: boolean; // waiting for a tap on the second tower
   canMoveTowers: boolean; // between waves towers can be moved to a free cell
+  rerollCost: number; // price of the next shop reroll
 }
 
 export class GameEngine {
@@ -207,6 +214,7 @@ export class GameEngine {
   public gold: number = 200;
   public wave: number = 1;
   public tier: number = 1;
+  public rerollsThisWave = 0; // shop rerolls since the current wave started
   public isPaused: boolean = false;
   public speedMultiplier: number = 1; // one of CONFIG.speeds
   // Real-time countdown to the next wave (not scaled by game speed); null while a wave runs
@@ -276,6 +284,7 @@ export class GameEngine {
         life: 0,
         maxLife: 1,
         type: 'spark',
+        grow: 28,
       });
     }
   }
@@ -307,6 +316,7 @@ export class GameEngine {
     this.gold = Math.floor((200 + 25 * (this.level - 1)) * CONFIG.difficulty[diff].goldMult);
     this.wave = 1;
     this.tier = 1;
+    this.rerollsThisWave = 0;
     this.isPaused = false;
     this.speedMultiplier = 1;
     this.waveCountdown = endless ? CONFIG.endless.between : CONFIG.waveTimer.first;
@@ -490,12 +500,13 @@ export class GameEngine {
     // An early start launches the next wave, not the current one again
     this.wave = this.wavesLaunched + 1;
     this.wavesLaunched++;
+    this.rerollsThisWave = 0;
     const waveDef = waveDefinition(this.wave);
     this.spawnQueue = [];
 
     // Helper to calculate count
     const getCount = (count?: number) =>
-      count ? calculateEnemyCount(count, this.level, this.wave, this.endless) : 0;
+      count ? calculateEnemyCount(count, this.level, this.wave, this.endless, this.difficulty) : 0;
 
     const list: EnemyType[] = [];
     if (waveDef.infantry) {
@@ -1231,15 +1242,24 @@ export class GameEngine {
     }
 
     if (towerType === 'priest') {
-      if (n('ward')) {
-        // Slow 50% for 2.5s
-        this.applySlow(e, stackedSlow(0.5, n('ward')), 2.5);
-      }
-      if (n('curse')) {
-        // Curse +25% damage from all sources for 4s
-        e.curseTimer = 4.0;
-        e.curseBonus = 0.25 * n('curse');
-        this.addFloatingText('ПРОКЛЯТИЕ', e.x, e.y - 10, '#f2f0e0');
+      const ps = CONFIG.priestSupport;
+      if (n('ward') || n('curse')) {
+        // «Оберег» and «Проклятие» reach the target and enemies around it; the ring shows the area
+        const reach = ps.radius * CONFIG.grid.cellSize;
+        const group = this.enemies.filter((o) => o === e || Math.hypot(o.x - e.x, o.y - e.y) <= reach);
+        for (const o of group) {
+          // Slow 50% for 3s
+          if (n('ward')) this.applySlow(o, stackedSlow(ps.wardSlow, n('ward')), ps.wardTime);
+          // Curse +35% damage from all sources for 5s (the strongest one holds)
+          if (n('curse')) {
+            const bonus = ps.curseBonus * n('curse');
+            if (o.curseTimer <= 0 || bonus >= o.curseBonus) {
+              o.curseBonus = bonus;
+              o.curseTimer = ps.curseTime;
+            }
+          }
+        }
+        this.spawnRing(e.x, e.y, n('curse') ? CURSE_COLOR : SLOW_COLOR, reach - 8);
       }
       if (!n('ward') && !n('curse') && !n('smite')) {
         // Default priest: slow 25% for 2s
@@ -1342,6 +1362,19 @@ export class GameEngine {
   // -------------------------------------------------------------
   // Shop & Tower Placement & Merging
   // -------------------------------------------------------------
+  public rerollCost(): number {
+    return calculateRerollCost(this.rerollsThisWave);
+  }
+
+  /** Takes the price of a shop reroll; false (and nothing taken) without enough gold */
+  public payReroll(): boolean {
+    const cost = this.rerollCost();
+    if (this.gold < cost) return false;
+    this.gold -= cost;
+    this.rerollsThisWave++;
+    return true;
+  }
+
   public upgradeTier(): boolean {
     if (this.tier >= 5) return false;
     const cost = CONFIG.shop.tierUpgradeCosts[this.tier - 1];
@@ -1776,7 +1809,7 @@ export class GameEngine {
     }
   }
 
-  public spawnRing(x: number, y: number, color: string) {
+  public spawnRing(x: number, y: number, color: string, grow = 28) {
     const p = this.particles.find((item) => !item.active);
     if (!p) return;
     p.active = true;
@@ -1790,6 +1823,7 @@ export class GameEngine {
     p.life = 0;
     p.maxLife = 0.4;
     p.type = 'ring';
+    p.grow = grow;
   }
 
   public addFloatingText(text: string, x: number, y: number, color: string) {
@@ -1838,6 +1872,7 @@ export class GameEngine {
       bindPartnerCount,
       isBinding: this.bindingFromId !== null,
       canMoveTowers: this.canMoveTowers(),
+      rerollCost: this.rerollCost(),
     });
   }
 
@@ -2051,7 +2086,7 @@ export class GameEngine {
     for (const p of this.particles) {
       if (!p.active) continue;
       if (p.type === 'ring') {
-        const rad = p.size + (p.life / p.maxLife) * 28;
+        const rad = p.size + (p.life / p.maxLife) * p.grow;
         ctx.strokeStyle = p.color;
         ctx.globalAlpha = p.alpha;
         ctx.lineWidth = 2;
@@ -2604,13 +2639,35 @@ export class GameEngine {
         ctx.globalAlpha = 1;
       }
       if (e.isReviving) ctx.globalAlpha = 0.35;
+      if (!e.isReviving) this.renderStatusUnder(ctx, e, footY, h * 0.32, timeSec);
       drawSprite(ctx, spr, e.x, footY, e.facing, h, pose);
       ctx.globalAlpha = 1;
       if (e.isReviving) return;
       topY = footY - h - (pose.lift ?? 0);
     } else {
+      if (!e.isReviving) this.renderStatusUnder(ctx, e, e.y + (isBoss ? 22 : 10), isBoss ? 26 : 13, timeSec);
       if (!this.renderEnemyShape(ctx, e, enemyColor)) return;
       topY = e.y - (isBoss ? 33 : 15);
+    }
+
+    // Cursed: a violet rune over the head that pulses while the curse lasts
+    if (e.curseTimer > 0) {
+      const pulse = 0.75 + 0.25 * Math.sin(timeSec * 8 + e.animSeed);
+      const cy = topY - (isBoss || e.hp < e.maxHp ? 16 : 8);
+      ctx.save();
+      ctx.globalAlpha = Math.min(1, e.curseTimer / 0.5) * pulse;
+      ctx.strokeStyle = CURSE_COLOR;
+      ctx.lineWidth = 1.8;
+      ctx.beginPath();
+      ctx.moveTo(e.x, cy - 5);
+      ctx.lineTo(e.x + 4, cy);
+      ctx.lineTo(e.x, cy + 5);
+      ctx.lineTo(e.x - 4, cy);
+      ctx.closePath();
+      ctx.moveTo(e.x - 6, cy);
+      ctx.lineTo(e.x + 6, cy);
+      ctx.stroke();
+      ctx.restore();
     }
 
     // Health Bar:
@@ -2628,6 +2685,32 @@ export class GameEngine {
       ctx.fillStyle = isBoss ? '#e0452f' : '#8fa34a';
       ctx.fillRect(barX, barY, barW * pct, barH);
     }
+  }
+
+  // Under the feet: an icy ring while slowed, a violet one while cursed
+  private renderStatusUnder(ctx: CanvasRenderingContext2D, e: Enemy, footY: number, rx: number, timeSec: number) {
+    if (e.slowPercent <= 0 && e.curseTimer <= 0) return;
+    ctx.save();
+    ctx.lineWidth = 2;
+    if (e.slowPercent > 0) {
+      ctx.globalAlpha = 0.35 + 0.5 * Math.min(1, e.slowPercent / 0.5);
+      ctx.strokeStyle = SLOW_COLOR;
+      ctx.fillStyle = 'rgba(143, 212, 255, 0.18)';
+      ctx.beginPath();
+      ctx.ellipse(e.x, footY - 1, rx, rx * 0.34, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+    }
+    if (e.curseTimer > 0) {
+      ctx.globalAlpha = 0.7;
+      ctx.strokeStyle = CURSE_COLOR;
+      ctx.setLineDash([4, 3]);
+      ctx.lineDashOffset = -timeSec * 12;
+      ctx.beginPath();
+      ctx.ellipse(e.x, footY - 1, rx * 1.18, rx * 0.4, 0, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    ctx.restore();
   }
 
   // Fallback figure when the sprite is not loaded; false while the enemy is reviving

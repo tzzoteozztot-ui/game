@@ -20,19 +20,30 @@ export function calculateEnemyHp(
   const sc = CONFIG.enemyScaling;
   const diffMult = CONFIG.difficulty[difficulty].hpMult;
   const levelMult = 1 + sc.level * (level - 1);
+  // Second half of the campaign is tougher (endless mode keeps its own growth)
+  const lateMult = !endless && wave >= sc.lateFrom ? sc.lateHpMult : 1;
+  const factionMult = endless ? CONFIG.endless.factionHpMult[level] ?? 1 : 1;
   if (type === 'boss') {
     // Boss does not scale with wave; in endless mode it grows with every finished cycle
     const cycleMult = endless ? 1 + CONFIG.endless.bossHpPerCycle * endlessCycle(wave) : 1;
-    return Math.round(baseHp * sc.hpMult * levelMult * diffMult * cycleMult);
+    return Math.round(baseHp * sc.hpMult * levelMult * diffMult * cycleMult * lateMult * factionMult);
   }
   const w = wave - 1;
   const waveMult = 1 + sc.waveLinear * w + sc.waveQuad * w * w;
-  return Math.round(baseHp * sc.hpMult * waveMult * levelMult * diffMult);
+  return Math.round(baseHp * sc.hpMult * waveMult * levelMult * diffMult * lateMult * factionMult);
 }
 
-export function calculateEnemyCount(tableCount: number, level: number, wave = 1, endless = false): number {
+export function calculateEnemyCount(
+  tableCount: number,
+  level: number,
+  wave = 1,
+  endless = false,
+  difficulty: Difficulty = 'normal'
+): number {
   const cycleMult = endless ? 1 + CONFIG.endless.countPerCycle * endlessCycle(wave) : 1;
-  return Math.ceil(tableCount * (1 + 0.2 * (level - 1)) * cycleMult);
+  const early = CONFIG.hardEarlyWaves;
+  const earlyMult = difficulty === 'hard' && wave <= early.upTo ? early.countMult : 1;
+  return Math.ceil(tableCount * (1 + 0.2 * (level - 1)) * cycleMult * earlyMult);
 }
 
 /** Endless mode: finished cycles of 12 waves before this wave (waves 1–12 → 0, 13–24 → 1…) */
@@ -47,6 +58,11 @@ export function waveDefinition(wave: number): WaveDef {
 
 export function calculateKillGold(baseGold: number, level: number): number {
   return Math.round(baseGold * (1 + 0.15 * (level - 1)));
+}
+
+/** Shop reroll price: grows with every reroll since the current wave started (Артур, тест баланса) */
+export function calculateRerollCost(rerollsThisWave: number): number {
+  return CONFIG.shop.rerollCost + CONFIG.shop.rerollStep * rerollsThisWave;
 }
 
 export function calculateWaveClearReward(wave: number): number {

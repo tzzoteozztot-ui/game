@@ -63,6 +63,7 @@ import {
   calculateStartingGold,
   calculateEnemyHp,
   calculateEnemyCount,
+  calculateRerollCost,
   calculateKillGold,
   calculateWaveClearReward,
   calculateSellRefund,
@@ -74,6 +75,10 @@ import {
 } from './rules';
 
 test('economy and reward calculations', () => {
+  // Shop reroll: 10, 15, 20… within a wave
+  assert.equal(calculateRerollCost(0), 10);
+  assert.equal(calculateRerollCost(1), 15);
+  assert.equal(calculateRerollCost(4), 30);
   // Level 1 normal: (200 + 0) * 1.0 = 200
   assert.equal(calculateStartingGold(1, 'normal'), 200);
   // Level 1 easy: 200 * 1.25 = 250
@@ -106,16 +111,24 @@ test('enemy scaling and damage formulas', () => {
   assert.equal(calculateEnemyHp(30, 'infantry', 1, 1, 'normal'), 39); // 30 * 1.3
   // wave 5, level 2, normal: 30 * 1.3 * (1 + 0.18*4 + 0.012*16) * (1 + 0.3*1) = 30 * 1.3 * 1.912 * 1.3 = 96.9 -> 97
   assert.equal(calculateEnemyHp(30, 'infantry', 5, 2, 'normal'), 97);
-  // wave 12, level 1: 30 * 1.3 * (1 + 0.18*11 + 0.012*121) = 30 * 1.3 * 4.432 = 172.8 -> 173
-  assert.equal(calculateEnemyHp(30, 'infantry', 12, 1, 'normal'), 173);
+  // wave 12, level 1: 30 * 1.3 * (1 + 0.18*11 + 0.012*121) * 1.12 = 30 * 1.3 * 4.432 * 1.12 = 193.6 -> 194
+  assert.equal(calculateEnemyHp(30, 'infantry', 12, 1, 'normal'), 194);
+  // Campaign waves 7–12 get ×1.12: wave 6 = 30 * 1.3 * 2.2 = 85.8, wave 7 = 30 * 1.3 * 2.512 * 1.12 = 109.7
+  assert.equal(calculateEnemyHp(30, 'infantry', 6, 1, 'normal'), 86);
+  assert.equal(calculateEnemyHp(30, 'infantry', 7, 1, 'normal'), 110);
 
-  // Boss does NOT have wave multiplier
-  assert.equal(calculateEnemyHp(1200, 'boss', 12, 1, 'normal'), 1560);
-  assert.equal(calculateEnemyHp(1200, 'boss', 12, 2, 'normal'), 2028);
+  // Boss does NOT have wave multiplier (only the ×1.12 of waves 7–12)
+  assert.equal(calculateEnemyHp(1200, 'boss', 12, 1, 'normal'), 1747);
+  assert.equal(calculateEnemyHp(1200, 'boss', 12, 2, 'normal'), 2271);
 
   // Enemy count scaling: ceil(table * (1 + 0.2*(lvl-1)))
   assert.equal(calculateEnemyCount(6, 1), 6);
   assert.equal(calculateEnemyCount(6, 2), 8); // 6 * 1.2 = 7.2 -> 8
+  // Hard difficulty: waves 1–3 have 20% fewer enemies, later waves are unchanged
+  assert.equal(calculateEnemyCount(6, 1, 1, false, 'hard'), 5); // 6 * 0.8 = 4.8 -> 5
+  assert.equal(calculateEnemyCount(8, 1, 3, false, 'hard'), 7); // 6.4 -> 7
+  assert.equal(calculateEnemyCount(10, 1, 4, false, 'hard'), 10);
+  assert.equal(calculateEnemyCount(6, 1, 1, false, 'normal'), 6);
 
   // Kill gold: round(base * (1 + 0.15*(lvl-1)))
   assert.equal(calculateKillGold(5, 1), 5);
@@ -225,6 +238,11 @@ test('triplet specializations add up, the same one three times is ×3', () => {
   assert.ok(Math.abs(tripleSniper.damage - base.damage * lvl3 * (1 + 0.8 * 3)) < 1e-9);
   assert.ok(Math.abs(tripleSniper.cooldown - base.cooldown * 1.6) < 1e-9, 'drawbacks are not tripled');
   assert.equal(attackStats('archer', 3, ['arrow_hail', 'arrow_hail', 'arrow_hail']).targets, 9);
+  // «Град стрел»: 2 targets keep ×0,8, each target beyond two −5% per arrow (9 targets: ×0,8 × 0,65)
+  const hail = (lvl: number, specs: string[]) => attackStats('archer', lvl, specs).damage;
+  assert.ok(Math.abs(hail(2, ['arrow_hail']) - base.damage * CONFIG.upgrade.lvl2DamageMult * 0.8) < 1e-9);
+  assert.ok(Math.abs(hail(3, ['arrow_hail', 'arrow_hail', 'arrow_hail']) - base.damage * lvl3 * 0.8 * 0.65) < 1e-9);
+  assert.ok(Math.abs(hail(3, ['arrow_hail', 'sniper', 'hunter']) - base.damage * lvl3 * 1.8 * 0.8 * 0.95) < 1e-9);
   assert.equal(attackStats('mage', 3, ['lightning', 'lightning', 'lightning']).chain, 15);
 
   const mixed = attackStats('archer', 3, ['sniper', 'arrow_hail', 'hunter']);
@@ -268,7 +286,12 @@ test('endless mode: waves repeat in cycles and keep getting stronger', () => {
   // Boss: +60% per finished cycle, campaign boss unchanged
   assert.equal(calculateEnemyHp(1200, 'boss', 12, 1, 'normal', true), 1560);
   assert.equal(calculateEnemyHp(1200, 'boss', 24, 1, 'normal', true), 2496);
-  assert.equal(calculateEnemyHp(1200, 'boss', 24, 1, 'normal'), 1560);
+  assert.equal(calculateEnemyHp(1200, 'boss', 24, 1, 'normal'), 1747);
+  // Demons (4) and dark elves (5): −7% HP in endless mode only
+  const hp4 = calculateEnemyHp(30, 'infantry', 30, 4, 'normal');
+  assert.equal(calculateEnemyHp(30, 'infantry', 30, 4, 'normal', true), Math.round(hp4 / 1.12 * 0.93));
+  assert.equal(calculateEnemyHp(1200, 'boss', 24, 5, 'normal', true), Math.round(1200 * 1.3 * 2.2 * 1.6 * 0.93));
+  assert.equal(calculateEnemyHp(1200, 'boss', 24, 3, 'normal', true), Math.round(1200 * 1.3 * 1.6 * 1.6));
   // Counts: +25% per finished cycle
   assert.equal(calculateEnemyCount(20, 1, 12, true), 20);
   assert.equal(calculateEnemyCount(20, 1, 13, true), 25);
