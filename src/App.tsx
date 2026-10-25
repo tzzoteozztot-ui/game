@@ -42,7 +42,7 @@ const SIDE_VARS = {
   '--h-line': 'max(16px, 3.6cqh)',
   '--fs-btn4': 'clamp(10px, min(2.6cqh, 4.8cqw), 15px)', // four buttons in a row
   '--h-btn': 'max(40px, 11cqh - 8px)',
-  '--h-card': 'clamp(56px, min(19cqh, 34cqw), 160px)',
+  '--h-card': 'clamp(56px, min(19cqh - 6px, 34cqw), 160px)',
   '--h-head': 'max(28px, 6.5cqh)',
 } as React.CSSProperties;
 
@@ -952,7 +952,7 @@ export default function App() {
             {/* Right Column: HUD, shop, tower panel. Sizes follow the column's height (cqh) so the
                 buttons grow on tall screens and the tower panel takes the rest: no empty space */}
             <div
-              className="flex-1 min-w-[232px] h-full flex flex-col bg-[#171520] border-l border-[#2d2938] text-[#f4f2e6] overflow-hidden select-none z-10 [container-type:size]"
+              className="flex-1 min-w-[208px] h-full flex flex-col bg-[#171520] border-l border-[#2d2938] text-[#f4f2e6] overflow-hidden select-none z-10 [container-type:size]"
               style={gameState.duel ? SIDE_VARS_DUEL : SIDE_VARS}
             >
               <TopBar

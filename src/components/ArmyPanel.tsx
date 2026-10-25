@@ -84,7 +84,7 @@ export function ArmyPanel({ gold, prices, outgoing, outgoingCost, income, onBuy,
         onClick={onClear}
         disabled={count === 0}
         title="Забрать купленных врагов и их золото"
-        className={`h-[clamp(36px,9cqh,56px)] w-full px-1 rounded border text-[length:var(--fs-md)] font-semibold flex items-center justify-center gap-1 transition-colors shrink-0 ${
+        className={`h-[clamp(30px,9cqh_-_6px,56px)] w-full px-1 rounded border text-[length:var(--fs-md)] font-semibold flex items-center justify-center gap-1 transition-colors shrink-0 ${
           count > 0
             ? 'bg-[#221f2d] hover:bg-[#2c283a] text-stone-200 border-[#383347] cursor-pointer'
             : 'bg-[#181622] text-stone-500 border-[#262330] cursor-default'
