@@ -729,101 +729,103 @@ export default function App() {
     if (engineRef.current) engineRef.current.hoverCell = null;
   };
 
-  // Keyboard controls
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      const engine = engineRef.current;
-      if (!engine) return;
+  // Keyboard controls: the handler is rebuilt every render, so it always sees the current
+  // mode, level and difficulty; the listener is added once and calls the latest one
+  const keyHandlerRef = useRef<(e: KeyboardEvent) => void>(() => {});
+  keyHandlerRef.current = (e: KeyboardEvent) => {
+    const engine = engineRef.current;
+    if (!engine) return;
 
-      if (e.key === ' ' || e.code === 'Space') {
-        if (screen === 'briefing') {
-          e.preventDefault();
-          handleStartBattle();
-        } else if (screen === 'playing' && !engine.isPaused) {
-          e.preventDefault();
-          handleStartWave();
-        }
-      } else if (e.key === 'Enter') {
-        if (screen === 'menu' && !showHowToPlay) {
-          e.preventDefault();
-          handleOpenBriefing();
-        } else if (screen === 'briefing') {
-          e.preventDefault();
-          handleStartBattle();
-        }
-      } else if (e.key === 'p' || e.key === 'P' || e.key === 'з' || e.key === 'З') {
-        if (screen === 'playing') {
-          e.preventDefault();
-          engine.togglePause();
-        }
-      } else if (e.key === 'f' || e.key === 'F' || e.key === 'а' || e.key === 'А') {
-        if (fullscreenSupported()) {
-          e.preventDefault();
-          toggleFullscreen();
-        }
-      } else if (e.key === 'Escape') {
-        if (specModalTower) {
-          // Specialization choice is mandatory, don't close with Esc
-          return;
-        }
-        if (engine.placingTowerType || engine.placingBinder) {
-          setPlacingCardIndex(null);
-          engine.placingTowerType = null;
-          engine.placingBinder = false;
-          engine.notifyState();
-        } else if (engine.bindingFromId) {
-          engine.toggleBinding();
-        } else if (engine.upgradingFromBinderId) {
-          engine.toggleUpgrading();
-        } else if (engine.selectedTowerId || engine.selectedBinderId) {
-          engine.selectTower(null);
-        } else if (screen === 'playing') {
-          engine.togglePause();
-        }
-      } else if (['1', '2', '3', '4', '5', '6'].includes(e.key)) {
-        if (screen === 'playing' && engine.duelStart !== null && sideTab === 'army') {
-          engine.buySend(SEND_TYPES[parseInt(e.key, 10) - 1]);
-        } else if (screen === 'playing' && !engine.isPaused && e.key !== '6') {
-          const idx = parseInt(e.key, 10) - 1;
-          handleSelectShopCard(idx);
-        }
-      } else if (e.key === 'r' || e.key === 'R' || e.key === 'к' || e.key === 'К') {
-        if (screen === 'playing' && !engine.isPaused) {
-          handleRerollShop();
-        }
-      } else if (e.key === 'u' || e.key === 'U' || e.key === 'г' || e.key === 'Г') {
-        if (screen === 'playing' && !engine.isPaused) {
-          handleUpgradeTier();
-        }
-      } else if (e.key === 'm' || e.key === 'M' || e.key === 'ь' || e.key === 'Ь') {
-        if (screen === 'playing' && engine.selectedTowerId) {
-          handleMerge();
-        } else if (screen === 'playing' && engine.selectedBinderId) {
-          handleMergeBinders();
-        }
-      } else if (e.key === '+' || e.key === '=' || e.key === '-' || e.key === '_') {
-        if (screen === 'playing') engine.stepSpeed(e.key === '+' || e.key === '=' ? 1 : -1);
-      } else if (e.key === 's' || e.key === 'S' || e.key === 'ы' || e.key === 'Ы') {
-        if (screen === 'playing' && (engine.selectedTowerId || engine.selectedBinderId)) {
-          handleSell();
-        }
-      } else if (e.key === 'b' || e.key === 'B' || e.key === 'и' || e.key === 'И') {
-        if (screen === 'playing' && engine.selectedTowerId) {
-          handleBind();
-        } else if (screen === 'playing' && engine.selectedBinderId) {
-          handleUpgradeWithBinder();
-        }
-      } else if (e.key === 'Tab') {
-        if (screen === 'playing' && engine.selectedTowerId) {
-          e.preventDefault();
-          handleCyclePriority();
-        }
+    if (e.key === ' ' || e.code === 'Space') {
+      if (screen === 'briefing') {
+        e.preventDefault();
+        handleStartBattle();
+      } else if (screen === 'playing' && !engine.isPaused) {
+        e.preventDefault();
+        handleStartWave();
       }
-    };
-
+    } else if (e.key === 'Enter') {
+      if (screen === 'menu' && !showHowToPlay) {
+        e.preventDefault();
+        handleOpenBriefing();
+      } else if (screen === 'briefing') {
+        e.preventDefault();
+        handleStartBattle();
+      }
+    } else if (e.key === 'p' || e.key === 'P' || e.key === 'з' || e.key === 'З') {
+      if (screen === 'playing') {
+        e.preventDefault();
+        engine.togglePause();
+      }
+    } else if (e.key === 'f' || e.key === 'F' || e.key === 'а' || e.key === 'А') {
+      if (fullscreenSupported()) {
+        e.preventDefault();
+        toggleFullscreen();
+      }
+    } else if (e.key === 'Escape') {
+      if (specModalTower) {
+        // Specialization choice is mandatory, don't close with Esc
+        return;
+      }
+      if (engine.placingTowerType || engine.placingBinder) {
+        setPlacingCardIndex(null);
+        engine.placingTowerType = null;
+        engine.placingBinder = false;
+        engine.notifyState();
+      } else if (engine.bindingFromId) {
+        engine.toggleBinding();
+      } else if (engine.upgradingFromBinderId) {
+        engine.toggleUpgrading();
+      } else if (engine.selectedTowerId || engine.selectedBinderId) {
+        engine.selectTower(null);
+      } else if (screen === 'playing') {
+        engine.togglePause();
+      }
+    } else if (['1', '2', '3', '4', '5', '6'].includes(e.key)) {
+      if (screen === 'playing' && engine.duelStart !== null && sideTab === 'army') {
+        engine.buySend(SEND_TYPES[parseInt(e.key, 10) - 1]);
+      } else if (screen === 'playing' && !engine.isPaused && e.key !== '6') {
+        const idx = parseInt(e.key, 10) - 1;
+        handleSelectShopCard(idx);
+      }
+    } else if (e.key === 'r' || e.key === 'R' || e.key === 'к' || e.key === 'К') {
+      if (screen === 'playing' && !engine.isPaused) {
+        handleRerollShop();
+      }
+    } else if (e.key === 'u' || e.key === 'U' || e.key === 'г' || e.key === 'Г') {
+      if (screen === 'playing' && !engine.isPaused) {
+        handleUpgradeTier();
+      }
+    } else if (e.key === 'm' || e.key === 'M' || e.key === 'ь' || e.key === 'Ь') {
+      if (screen === 'playing' && engine.selectedTowerId) {
+        handleMerge();
+      } else if (screen === 'playing' && engine.selectedBinderId) {
+        handleMergeBinders();
+      }
+    } else if (e.key === '+' || e.key === '=' || e.key === '-' || e.key === '_') {
+      if (screen === 'playing') engine.stepSpeed(e.key === '+' || e.key === '=' ? 1 : -1);
+    } else if (e.key === 's' || e.key === 'S' || e.key === 'ы' || e.key === 'Ы') {
+      if (screen === 'playing' && (engine.selectedTowerId || engine.selectedBinderId)) {
+        handleSell();
+      }
+    } else if (e.key === 'b' || e.key === 'B' || e.key === 'и' || e.key === 'И') {
+      if (screen === 'playing' && engine.selectedTowerId) {
+        handleBind();
+      } else if (screen === 'playing' && engine.selectedBinderId) {
+        handleUpgradeWithBinder();
+      }
+    } else if (e.key === 'Tab') {
+      if (screen === 'playing' && engine.selectedTowerId) {
+        e.preventDefault();
+        handleCyclePriority();
+      }
+    }
+  };
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => keyHandlerRef.current(e);
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [screen, specModalTower, placingCardIndex, shopCards, unlockedLevel, showHowToPlay, sideTab]);
+  }, []);
 
   // Audio Handlers
   const handleMusicChange = (val: number) => {
