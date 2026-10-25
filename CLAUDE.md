@@ -101,7 +101,8 @@ React хранит снимок в состоянии и рисует по не�
 Ключи `localStorage`: `dark_frontier_unlocked`, `dark_frontier_stars`, `dark_frontier_sound`,
 `dark_frontier_endless_best` (рекорд волны бесконечного режима по уровням), `dark_frontier_auth`
 (сессия Supabase). В аккаунте прогресс лежит в таблице `progress` (`user_id`, `data` jsonb); при
-входе копия устройства и аккаунта сливаются по максимуму (`mergeProgress`).
+входе копия устройства и аккаунта сливаются по максимуму (`mergeProgress`). Таблица и правила RLS —
+`supabase/progress.sql`; в шаблоне письма Magic Link стоит код `{{ .Token }}`, а не ссылка.
 
 ## Спрайты
 

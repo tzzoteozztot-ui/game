@@ -9,8 +9,8 @@
 import type { SupabaseClient, User } from '@supabase/supabase-js';
 import { Progress, normalizeProgress } from './progress';
 
-const SUPABASE_URL = '';
-const SUPABASE_ANON_KEY = '';
+const SUPABASE_URL: string = 'https://opxkyqszjirxncjdvwff.supabase.co';
+const SUPABASE_ANON_KEY: string = '';
 
 export const cloudEnabled = SUPABASE_URL !== '' && SUPABASE_ANON_KEY !== '';
 
