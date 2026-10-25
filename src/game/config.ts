@@ -372,6 +372,20 @@ export const CONFIG = {
     factionHpMult: { 4: 0.93, 5: 0.93 } as Record<number, number>,
   },
 
+  // Duel (Артур, 2026-10-25): two players, each on their own field, rounds on a shared clock.
+  // Waves grow without end as in endless mode; the next wave comes out over the unfinished one.
+  duel: {
+    roundLength: 60, // real seconds per round; wave N starts N rounds after the duel starts
+    waveCountMult: 0.5, // half of the usual wave (the opponent's sends come on top)
+    stateInterval: 2, // real seconds between state messages to the opponent
+    peerTimeout: 30, // real seconds without a message from the opponent: the duel is won
+    // Sending enemies to the opponent for gold (Артур: 3А 4А 5А 6Б)
+    sendPriceMult: 2, // price = 2 × kill gold, × the wave's HP multiplier
+    sendIncomeShare: 0.2, // each send adds 1/5 of its price to the gold of every later round
+    sentKillGoldShare: 0.5, // the defender gets half the kill gold for a sent enemy
+    sendMaxPerType: 200, // a send message with more is cut down (a broken or forged message)
+  },
+
   spawnInterval: 0.8, // seconds between spawns
   swarmInterval: 0.25, // seconds between swarm individuals
   swarmGroupCount: 8, // individuals per swarm group

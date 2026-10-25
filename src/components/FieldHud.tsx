@@ -18,6 +18,7 @@ interface FieldHudProps {
   isSpawning: boolean;
   isWaveActive: boolean;
   allWavesLaunched: boolean;
+  duel: boolean; // waves follow the shared clock, the speed is fixed
   waveCountdown: number | null;
   earlyStartBonus: number;
   onTogglePause: () => void;
@@ -41,6 +42,7 @@ export function FieldHud({
   isSpawning,
   isWaveActive,
   allWavesLaunched,
+  duel,
   waveCountdown,
   earlyStartBonus,
   onTogglePause,
@@ -50,7 +52,7 @@ export function FieldHud({
 }: FieldHudProps) {
   const fullscreen = useFullscreen();
   const [speedOpen, setSpeedOpen] = React.useState(false);
-  const waveOff = isSpawning || allWavesLaunched;
+  const waveOff = isSpawning || allWavesLaunched || duel;
   const iconBtn = `${glass} w-[calc(var(--cell)-var(--gap))] h-[calc(var(--cell)-var(--gap))] font-bold`;
   const iconSize = 'text-[max(11px,calc(var(--cell)*0.42))]';
 
@@ -66,7 +68,7 @@ export function FieldHud({
             type="button"
             onClick={onStartWave}
             disabled={waveOff}
-            title="Начать волну (Пробел)"
+            title={duel ? 'В дуэли волны выходят у обоих разом' : 'Начать волну (Пробел)'}
             className={`${glass} w-[calc(100%-var(--gap))] h-[calc(100%-var(--gap))] px-[calc(var(--cell)*0.12)] flex-col gap-[calc(var(--cell)*0.06)] text-[max(9px,calc(var(--cell)*0.3))] font-bold ${
               waveOff
                 ? 'bg-black/30 border-white/10 text-white/45 cursor-not-allowed'
@@ -75,6 +77,11 @@ export function FieldHud({
           >
             {allWavesLaunched ? (
               <span>Последняя волна</span>
+            ) : duel && waveCountdown !== null ? (
+              <>
+                {isSpawning && <span className="whitespace-nowrap">Враги выходят…</span>}
+                <span className="whitespace-nowrap tabular-nums">Волна через {waveCountdown} с</span>
+              </>
             ) : isSpawning ? (
               <span>Враги выходят…</span>
             ) : waveCountdown !== null ? (
@@ -98,6 +105,7 @@ export function FieldHud({
         {/* Speed, sound, full screen, pause: 4 cells at the top right */}
         <div className="h-full flex items-center justify-end" style={{ width: `calc(var(--cell) * ${HUD_RIGHT_COLS})` }}>
           <div className="relative w-[var(--cell)] h-full flex items-center justify-center">
+            {!duel && (
             <button
               type="button"
               onClick={() => setSpeedOpen((o) => !o)}
@@ -109,7 +117,8 @@ export function FieldHud({
             >
               ×{fmtSpeed(speed)}
             </button>
-            {speedOpen && (
+            )}
+            {speedOpen && !duel && (
               <>
                 {/* A tap anywhere else closes the list */}
                 <div className="fixed inset-0 pointer-events-auto" onPointerDown={() => setSpeedOpen(false)} />

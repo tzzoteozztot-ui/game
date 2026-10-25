@@ -5,6 +5,15 @@
 
 import React, { useState } from 'react';
 import { CONFIG, Difficulty } from '../game/config';
+
+export type GameMode = 'campaign' | 'endless' | 'duel';
+
+const MODE_LABELS: Record<GameMode, string> = { campaign: 'Кампания', endless: 'Бесконечный', duel: 'Дуэль' };
+const MODE_TITLES: Record<GameMode, string> = {
+  campaign: '12 волн, в последней босс',
+  endless: 'Волны без конца, босс каждую 12-ю волну, враги всё сильнее',
+  duel: 'Двое игроков, у каждого своё поле, волны выходят разом',
+};
 import { StarIcon, LockIcon, SoundIcon } from './Icons';
 import { useFullscreen, isStandalone, HOME_SCREEN_HINT } from '../fullscreen';
 
@@ -12,7 +21,8 @@ interface MainMenuProps {
   unlockedLevel: number; // 1..5
   levelStars: Record<number, number>; // level -> stars
   selectedDifficulty: Difficulty;
-  endless: boolean;
+  mode: GameMode;
+  duelAvailable: boolean; // duel needs the server (or ?duel=local)
   endlessBest: Record<number, number>; // level -> best wave reached in endless mode
   musicVol: number;
   sfxVol: number;
@@ -21,7 +31,7 @@ interface MainMenuProps {
   onSelectLevel: (lvl: number) => void; // highlights the card; the game starts with onPlay
   onPlay: () => void;
   onChangeDifficulty: (diff: Difficulty) => void;
-  onChangeEndless: (endless: boolean) => void;
+  onChangeMode: (mode: GameMode) => void;
   onOpenHowToPlay: () => void;
   accountLabel: string | null; // null when accounts are not set up
   onOpenAccount: () => void;
@@ -34,7 +44,8 @@ export function MainMenu({
   unlockedLevel,
   levelStars,
   selectedDifficulty,
-  endless,
+  mode,
+  duelAvailable,
   endlessBest,
   musicVol,
   sfxVol,
@@ -43,7 +54,7 @@ export function MainMenu({
   onSelectLevel,
   onPlay,
   onChangeDifficulty,
-  onChangeEndless,
+  onChangeMode,
   onOpenHowToPlay,
   accountLabel,
   onOpenAccount,
@@ -55,6 +66,8 @@ export function MainMenu({
   const [showHomeScreenHint, setShowHomeScreenHint] = useState(false);
   const fullscreen = useFullscreen();
   const standalone = isStandalone();
+  const endless = mode === 'endless';
+  const modes: GameMode[] = duelAvailable ? ['campaign', 'endless', 'duel'] : ['campaign', 'endless'];
 
   return (
     <div className="fixed inset-0 z-30 bg-[#121118] text-[#f4f2e6] flex flex-col items-center p-2 sm:p-3 overflow-y-auto select-none gap-1 sm:gap-2">
@@ -164,29 +177,30 @@ export function MainMenu({
 
       {/* Difficulty & Quick Actions */}
       <div className="w-full max-w-md flex flex-col items-center gap-2 short:w-[296px] short:max-w-none short:shrink-0 short:gap-1.5">
-        {/* Mode Selector: campaign of 12 waves or endless waves */}
+        {/* Mode Selector: campaign of 12 waves, endless waves, or a duel of two players */}
         <div className="w-full flex items-center justify-between p-1 bg-[#171520] rounded-lg border border-[#2d2938]">
           <span className="text-xs font-semibold text-stone-400 pl-3 short:pl-2">Режим:</span>
           <div className="flex items-center gap-1">
-            {[false, true].map((v) => (
+            {modes.map((m) => (
               <button
-                key={String(v)}
+                key={m}
                 type="button"
-                onClick={() => onChangeEndless(v)}
-                title={v ? 'Волны без конца, босс каждую 12-ю волну, враги всё сильнее' : '12 волн, в последней босс'}
-                className={`px-3 short:px-2 py-1.5 min-h-[36px] short:min-h-[34px] rounded text-xs font-bold transition-colors cursor-pointer ${
-                  endless === v
+                onClick={() => onChangeMode(m)}
+                title={MODE_TITLES[m]}
+                className={`${modes.length > 2 ? 'px-2' : 'px-3'} short:px-1.5 py-1.5 min-h-[36px] short:min-h-[34px] rounded text-xs font-bold transition-colors cursor-pointer ${
+                  mode === m
                     ? 'bg-amber-600 text-stone-950 font-black'
                     : 'text-stone-400 hover:text-stone-200 hover:bg-[#221f2d]'
                 }`}
               >
-                {v ? 'Бесконечный' : 'Кампания'}
+                {MODE_LABELS[m]}
               </button>
             ))}
           </div>
         </div>
 
-        {/* Difficulty Selector */}
+        {/* Difficulty Selector (a duel is always on the normal difficulty) */}
+        {mode !== 'duel' && (
         <div className="w-full flex items-center justify-between p-1 bg-[#171520] rounded-lg border border-[#2d2938]">
           <span className="text-xs font-semibold text-stone-400 pl-3 short:pl-2">Сложность:</span>
           <div className="flex items-center gap-1">
@@ -206,6 +220,7 @@ export function MainMenu({
             ))}
           </div>
         </div>
+        )}
 
         {/* Play: starts the selected level in the selected mode */}
         <button
@@ -213,7 +228,8 @@ export function MainMenu({
           onClick={onPlay}
           className="w-full min-h-[46px] short:min-h-[42px] py-2 px-4 short:px-2 short:text-xs rounded bg-amber-500 hover:bg-amber-400 text-stone-950 font-black text-sm tracking-wider uppercase transition-all shadow-lg shadow-amber-950/50 cursor-pointer active:translate-y-0.5"
         >
-          Играть: {CONFIG.factions[selectedLevel - 1].location} · {endless ? 'бесконечный' : 'кампания'}
+          {mode === 'duel' ? 'Дуэль' : 'Играть'}: {CONFIG.factions[selectedLevel - 1].location}
+          {mode !== 'duel' && ` · ${endless ? 'бесконечный' : 'кампания'}`}
         </button>
 
         {/* Buttons Row */}

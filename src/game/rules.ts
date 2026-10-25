@@ -15,22 +15,45 @@ export function calculateEnemyHp(
   wave: number,
   level: number,
   difficulty: Difficulty,
-  endless = false
+  endless = false,
+  faction = level // the enemies' faction: the level's own, in a duel the opponent's army
 ): number {
   const sc = CONFIG.enemyScaling;
   const diffMult = CONFIG.difficulty[difficulty].hpMult;
   const levelMult = 1 + sc.level * (level - 1);
   // Second half of the campaign is tougher (endless mode keeps its own growth)
   const lateMult = !endless && wave >= sc.lateFrom ? sc.lateHpMult : 1;
-  const factionMult = endless ? CONFIG.endless.factionHpMult[level] ?? 1 : 1;
+  const factionMult = endless ? CONFIG.endless.factionHpMult[faction] ?? 1 : 1;
   if (type === 'boss') {
     // Boss does not scale with wave; in endless mode it grows with every finished cycle
     const cycleMult = endless ? 1 + CONFIG.endless.bossHpPerCycle * endlessCycle(wave) : 1;
     return Math.round(baseHp * sc.hpMult * levelMult * diffMult * cycleMult * lateMult * factionMult);
   }
-  const w = wave - 1;
-  const waveMult = 1 + sc.waveLinear * w + sc.waveQuad * w * w;
+  const waveMult = enemyWaveMult(wave);
   return Math.round(baseHp * sc.hpMult * waveMult * levelMult * diffMult * lateMult * factionMult);
+}
+
+/** How much enemy HP grows with the wave number: 1 on wave 1 */
+export function enemyWaveMult(wave: number): number {
+  const sc = CONFIG.enemyScaling;
+  const w = wave - 1;
+  return 1 + sc.waveLinear * w + sc.waveQuad * w * w;
+}
+
+/** Enemies a duel player can send to the opponent; a swarm is sent as a whole group */
+export type SendType = 'infantry' | 'scout' | 'heavy' | 'flyer' | 'shaman' | 'swarm';
+export const SEND_TYPES: SendType[] = ['infantry', 'scout', 'heavy', 'flyer', 'shaman', 'swarm'];
+
+/** Duel: price of one sent enemy (a swarm group) on this wave: 2 × kill gold, growing like its HP */
+export function calculateSendPrice(type: SendType, wave: number, level: number): number {
+  const group = type === 'swarm' ? CONFIG.swarmGroupCount : 1;
+  const killGold = calculateKillGold(CONFIG.enemies[type].gold, level) * group;
+  return Math.round(CONFIG.duel.sendPriceMult * killGold * enemyWaveMult(wave));
+}
+
+/** Duel: gold added to every later round by a send that cost `cost` */
+export function calculateSendIncome(cost: number): number {
+  return Math.floor(cost * CONFIG.duel.sendIncomeShare);
 }
 
 export function calculateEnemyCount(
@@ -38,12 +61,15 @@ export function calculateEnemyCount(
   level: number,
   wave = 1,
   endless = false,
-  difficulty: Difficulty = 'normal'
+  difficulty: Difficulty = 'normal',
+  duel = false
 ): number {
   const cycleMult = endless ? 1 + CONFIG.endless.countPerCycle * endlessCycle(wave) : 1;
   const early = CONFIG.hardEarlyWaves;
   const earlyMult = difficulty === 'hard' && wave <= early.upTo ? early.countMult : 1;
-  return Math.ceil(tableCount * (1 + 0.2 * (level - 1)) * cycleMult * earlyMult);
+  // Duel: half of the usual wave, the opponent's sends come on top (Артур)
+  const duelMult = duel ? CONFIG.duel.waveCountMult : 1;
+  return Math.ceil(tableCount * (1 + 0.2 * (level - 1)) * cycleMult * earlyMult * duelMult);
 }
 
 /** Endless mode: finished cycles of 12 waves before this wave (waves 1–12 → 0, 13–24 → 1…) */

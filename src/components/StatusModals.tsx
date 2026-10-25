@@ -12,6 +12,7 @@ import { useFullscreen, isStandalone, HOME_SCREEN_HINT } from '../fullscreen';
 // Pause Modal
 // -------------------------------------------------------------
 interface PauseModalProps {
+  duel?: boolean; // a duel goes on behind this menu and cannot be restarted
   onResume: () => void;
   onRestart: () => void;
   onToMenu: () => void;
@@ -24,6 +25,7 @@ interface PauseModalProps {
 }
 
 export function PauseModal({
+  duel = false,
   onResume,
   onRestart,
   onToMenu,
@@ -40,8 +42,13 @@ export function PauseModal({
     <div className="fixed inset-0 bg-black/85 flex flex-col items-center overflow-y-auto p-4 z-50">
       <div className="my-auto bg-[#171520] border border-[#3b354a] rounded-xl p-5 max-w-sm w-full shadow-2xl text-[#f4f2e6]">
         <h2 className="text-xl font-black text-center text-amber-300 tracking-wider mb-4">
-          ПАУЗА
+          {duel ? 'МЕНЮ' : 'ПАУЗА'}
         </h2>
+        {duel && (
+          <p className="text-xs text-stone-300 text-center -mt-2 mb-4">
+            Дуэль не останавливается: волны идут у обоих по общим часам.
+          </p>
+        )}
 
         {/* Sound Controls */}
         <div className="bg-[#121118] p-3 rounded-lg border border-[#2d2938] mb-4 space-y-3">
@@ -102,6 +109,7 @@ export function PauseModal({
             </button>
           )}
           {showHint && <p className="text-xs text-stone-300 leading-relaxed">{HOME_SCREEN_HINT}</p>}
+          {!duel && (
           <button
             type="button"
             onClick={onRestart}
@@ -109,14 +117,53 @@ export function PauseModal({
           >
             Повторить уровень
           </button>
+          )}
           <button
             type="button"
             onClick={onToMenu}
             className="w-full min-h-[40px] py-2 px-4 rounded bg-[#181622] hover:bg-[#221f2d] text-stone-400 hover:text-stone-200 border border-[#2a2636] font-semibold text-xs transition-colors cursor-pointer"
           >
-            В главное меню
+            {duel ? 'Сдаться и выйти в меню' : 'В главное меню'}
           </button>
         </div>
+      </div>
+    </div>
+  );
+}
+
+// -------------------------------------------------------------
+// Duel Result Modal
+// -------------------------------------------------------------
+export type DuelOutcome = 'won' | 'lost' | 'left' | 'gone';
+
+const DUEL_OUTCOME_TEXT: Record<DuelOutcome, string> = {
+  won: 'Замок соперника пал.',
+  left: 'Соперник сдался и вышел из дуэли.',
+  gone: 'Соперник пропал из сети.',
+  lost: 'Враги прорвали оборону и захватили ваш замок.',
+};
+
+export function DuelResultModal({ outcome, wave, onToMenu }: { outcome: DuelOutcome; wave: number; onToMenu: () => void }) {
+  const won = outcome !== 'lost';
+  return (
+    <div className="fixed inset-0 bg-black/85 flex items-center justify-center p-4 z-50">
+      <div
+        className={`bg-[#171520] border-2 ${won ? 'border-amber-500/70' : 'border-red-800/70'} rounded-xl p-6 max-w-sm w-full shadow-2xl text-center text-[#f4f2e6]`}
+      >
+        <h2 className={`text-2xl font-black tracking-wider mb-2 ${won ? 'text-amber-300' : 'text-red-400'}`}>
+          {won ? 'ПОБЕДА В ДУЭЛИ' : 'ПОРАЖЕНИЕ'}
+        </h2>
+        <p className="text-xs text-stone-300 mb-2">{DUEL_OUTCOME_TEXT[outcome]}</p>
+        <p className="text-sm font-bold text-amber-300 mb-5 bg-[#121118] py-2 px-3 rounded border border-[#2d2938]">
+          Волна {wave}
+        </p>
+        <button
+          type="button"
+          onClick={onToMenu}
+          className="w-full min-h-[44px] py-2 px-4 rounded bg-amber-600 hover:bg-amber-500 text-stone-950 font-bold text-sm tracking-wide cursor-pointer"
+        >
+          В меню
+        </button>
       </div>
     </div>
   );

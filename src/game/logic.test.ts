@@ -74,6 +74,8 @@ import {
   calculateEnemyCount,
   calculateRerollCost,
   calculateKillGold,
+  calculateSendPrice,
+  calculateSendIncome,
   calculateWaveClearReward,
   calculateSellRefund,
   calculateStars,
@@ -138,6 +140,19 @@ test('enemy scaling and damage formulas', () => {
   assert.equal(calculateEnemyCount(8, 1, 3, false, 'hard'), 7); // 6.4 -> 7
   assert.equal(calculateEnemyCount(10, 1, 4, false, 'hard'), 10);
   assert.equal(calculateEnemyCount(6, 1, 1, false, 'normal'), 6);
+  // Duel: half of the usual wave, rounded up; endless growth per cycle still applies
+  assert.equal(calculateEnemyCount(6, 1, 1, true, 'normal', true), 3);
+  assert.equal(calculateEnemyCount(7, 1, 1, true, 'normal', true), 4); // 3.5 -> 4
+  assert.equal(calculateEnemyCount(8, 1, 13, true, 'normal', true), 5); // 8 * 1.25 * 0.5 = 5
+
+  // Duel send price: 2 × kill gold (a swarm group of 8), × the wave's HP growth
+  assert.equal(calculateSendPrice('infantry', 1, 1), 10);
+  assert.equal(calculateSendPrice('swarm', 1, 1), 16);
+  assert.equal(calculateSendPrice('heavy', 3, 1), 34); // 24 × 1.408 = 33.8 -> 34
+  assert.equal(calculateSendPrice('infantry', 1, 2), 12); // kill gold 6 on level 2
+  // Each send adds 1/5 of its price to every later round
+  assert.equal(calculateSendIncome(60), 12);
+  assert.equal(calculateSendIncome(34), 6);
 
   // Kill gold: round(base * (1 + 0.15*(lvl-1)))
   assert.equal(calculateKillGold(5, 1), 5);

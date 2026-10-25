@@ -12,6 +12,8 @@ interface TopBarProps {
   wave: number;
   maxWaves: number;
   endless: boolean;
+  opponent?: { lives: number; wave: number; income: number } | null; // duel: the opponent's last known state
+  opponentArmy?: string; // duel: the faction the opponent sends
 }
 
 export function TopBar({
@@ -20,6 +22,8 @@ export function TopBar({
   wave,
   maxWaves,
   endless,
+  opponent,
+  opponentArmy,
 }: TopBarProps) {
   return (
     <header className="w-full px-1.5 pt-1.5 select-none shrink-0">
@@ -37,6 +41,27 @@ export function TopBar({
           Волна <span className="text-amber-200">{endless ? wave : `${Math.min(wave, maxWaves)}/${maxWaves}`}</span>
         </span>
       </div>
+      {opponent !== undefined && (
+        <div className="h-[var(--h-line)] flex items-center justify-between gap-1 text-[length:var(--fs-sm)] tabular-nums text-stone-400" title="Соперник">
+          <span className="truncate min-w-0">Соперник{opponentArmy && ` · ${opponentArmy}`}</span>
+          {opponent ? (
+            <span className="flex items-center gap-1.5 shrink-0">
+              <span className="flex items-center gap-0.5 font-bold text-red-300" title="Жизни соперника">
+                <HeartCastleIcon size="1em" />
+                {opponent.lives}
+              </span>
+              <span title="Волна соперника">
+                в. <span className="text-amber-200">{opponent.wave}</span>
+              </span>
+              <span className="text-amber-300" title="Доход соперника за раунд">
+                +{opponent.income}
+              </span>
+            </span>
+          ) : (
+            <span>ждём связи…</span>
+          )}
+        </div>
+      )}
     </header>
   );
 }
