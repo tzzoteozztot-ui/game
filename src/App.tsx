@@ -320,7 +320,7 @@ export default function App() {
       const link = duelLinkRef.current;
       const engine = engineRef.current;
       if (!link || !engine || duelOutcomeRef.current) return;
-      link.send({ t: 'state', lives: engine.lives, wave: engine.wave, income: engine.duelIncome });
+      link.send({ t: 'state', lives: engine.lives, wave: engine.shownWave(), income: engine.duelIncome });
       if (performance.now() - duelSeenRef.current > CONFIG.duel.peerTimeout * 1000) finishDuel('gone');
     }, CONFIG.duel.stateInterval * 1000);
     return () => window.clearInterval(t);

@@ -537,6 +537,15 @@ export class GameEngine {
   }
 
   // Duel, start of a round: the income comes in, the bought enemies leave and raise it from the next round
+  /**
+   * The wave number shown to the player. In a duel it is the round of the shared clock (the last wave
+   * out, 1 before the first), the same for both players and the bot, whether or not the field is
+   * clear; elsewhere the current wave, or the next one once it is cleared.
+   */
+  public shownWave(): number {
+    return this.duelStart !== null ? Math.max(1, this.wavesLaunched) : this.wave;
+  }
+
   private duelRoundStart() {
     if (this.duelIncome > 0) {
       this.gold += this.duelIncome;
@@ -1994,7 +2003,7 @@ export class GameEngine {
       lives: this.lives,
       gold: this.gold,
       level: this.level,
-      wave: this.wave,
+      wave: this.shownWave(),
       maxWaves: 12,
       tier: this.tier,
       isWaveActive: this.waveInProgress || this.isSpawning || this.enemies.length > 0,

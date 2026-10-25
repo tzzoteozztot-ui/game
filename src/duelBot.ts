@@ -115,7 +115,7 @@ export function createBotLink(level: number, difficulty: BotLevel): DuelLink {
     while (!over && elapsed >= (round + 1) * CONFIG.duel.roundLength) nextRound();
     if (!over && elapsed - lastState >= CONFIG.duel.stateInterval) {
       lastState = elapsed;
-      emit({ t: 'state', lives, wave: round, income });
+      emit({ t: 'state', lives, wave: Math.max(1, round), income });
     }
   };
 
@@ -135,7 +135,7 @@ export function createBotLink(level: number, difficulty: BotLevel): DuelLink {
       handler = cb;
       if (timer === null && !over) {
         timer = window.setInterval(tick, 500);
-        emit({ t: 'state', lives, wave: round, income });
+        emit({ t: 'state', lives, wave: Math.max(1, round), income });
       }
     },
     pair() {},
