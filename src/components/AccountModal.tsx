@@ -4,7 +4,7 @@
 
 import React, { useState } from 'react';
 import type { User } from '@supabase/supabase-js';
-import { sendCode, verifyCode, signOut } from '../cloud';
+import { sendCode, verifyCode, signOut, signInWithGoogle } from '../cloud';
 
 export type SyncState = 'idle' | 'syncing' | 'ok' | 'error';
 
@@ -101,8 +101,8 @@ export function AccountModal({ user, syncState, onClose }: AccountModalProps) {
         ) : step === 'email' ? (
           <form className="flex flex-col gap-3" onSubmit={submitEmail}>
             <p className="text-xs text-stone-300 text-center">
-              Войдите, чтобы прогресс был общим на телефоне и компьютере. Пароль не нужен: на почту
-              придёт код. Без входа игра работает как раньше.
+              Войдите, чтобы прогресс был общим на телефоне и компьютере. Пароль не нужен: войдите через Google
+              или получите код на почту. Без входа игра работает как раньше.
             </p>
             <input
               className={input}
@@ -114,6 +114,15 @@ export function AccountModal({ user, syncState, onClose }: AccountModalProps) {
               onChange={(e) => setEmail(e.target.value)}
               autoFocus
             />
+            <button
+              type="button"
+              className="w-full min-h-[44px] py-2 px-4 rounded bg-white hover:bg-stone-200 disabled:opacity-50 text-stone-900 font-bold text-sm cursor-pointer"
+              disabled={busy}
+              onClick={() => run(signInWithGoogle, () => {})}
+            >
+              Войти через Google
+            </button>
+            <div className="text-[11px] text-stone-500 text-center">или по коду из письма</div>
             {error && <p className="text-xs text-red-300">{error}</p>}
             <button type="submit" className={primary} disabled={busy}>
               {busy ? 'Отправляем…' : 'Получить код'}

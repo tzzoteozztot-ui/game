@@ -77,6 +77,19 @@ export async function verifyCode(email: string, code: string): Promise<string | 
   }
 }
 
+/** Redirects to Google; the session comes back in the page address, the client picks it up on load */
+export async function signInWithGoogle(): Promise<string | null> {
+  try {
+    const { error } = await (await client()).auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo: window.location.origin + window.location.pathname },
+    });
+    return error ? message(error) : null;
+  } catch (e) {
+    return message(e);
+  }
+}
+
 export async function signOut() {
   try {
     await (await client()).auth.signOut();
