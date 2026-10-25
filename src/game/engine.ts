@@ -260,7 +260,15 @@ export class GameEngine {
   private currentEntranceIndex: number = 0;
 
   // Undead graveyard for Lich boss resurrection
-  private deadEnemiesGraveyard: { x: number; y: number; time: number; type: EnemyType }[] = [];
+  private deadEnemiesGraveyard: {
+    x: number;
+    y: number;
+    time: number;
+    type: EnemyType;
+    entranceIndex: number; // the revived enemy goes on along its own path from where it fell
+    pathIndex: number;
+    distanceTraveled: number;
+  }[] = [];
 
   // Selection & Placement
   public selectedTowerId: string | null = null;
@@ -1104,10 +1112,12 @@ export class GameEngine {
         this.addFloatingText('ВОСКРЕШЕНИЕ ЛИЧА!', boss.x, boss.y - 18, '#c9d6b0');
         const toRevive = eligible.slice(0, 3);
         for (const g of toRevive) {
-          this.spawnEnemy(g.type, boss.entranceIndex);
+          this.spawnEnemy(g.type, g.entranceIndex);
           const newSpawn = this.enemies[this.enemies.length - 1];
           newSpawn.x = g.x;
           newSpawn.y = g.y;
+          newSpawn.pathIndex = g.pathIndex;
+          newSpawn.distanceTraveled = g.distanceTraveled;
           newSpawn.hp = Math.round(newSpawn.maxHp * 0.3);
           this.spawnRing(g.x, g.y, '#c9d6b0');
         }
@@ -1440,6 +1450,9 @@ export class GameEngine {
         y: e.y,
         time: performance.now() / 1000,
         type: e.type,
+        entranceIndex: e.entranceIndex,
+        pathIndex: e.pathIndex,
+        distanceTraveled: e.distanceTraveled,
       });
     }
 
