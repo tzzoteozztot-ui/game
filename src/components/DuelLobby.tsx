@@ -6,6 +6,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { CONFIG } from '../game/config';
 import { DuelLink, newRoomCode, openDuel } from '../duel';
+import { BOT_LEVELS, BotLevel, createBotLink } from '../duelBot';
 
 interface DuelLobbyProps {
   level: number; // the map, when this player creates the room
@@ -17,6 +18,7 @@ type LobbyState =
   | { kind: 'choose' }
   | { kind: 'hosting'; code: string }
   | { kind: 'joining' }
+  | { kind: 'bot' }
   | { kind: 'connecting'; code: string };
 
 const JOIN_TIMEOUT_MS = 10000;
@@ -77,6 +79,14 @@ export function DuelLobby({ level, onStart, onBack }: DuelLobbyProps) {
     }
   };
 
+  // Playing alone: the bot answers like a player at the other end of the link
+  const handleBot = (difficulty: BotLevel) => {
+    const botArmy = 1 + Math.floor(Math.random() * 5);
+    const link = createBotLink(level, difficulty);
+    linkRef.current = link;
+    start(link, level, botArmy);
+  };
+
   const handleJoin = async () => {
     const code = codeInput.trim();
     if (!/^\d{4}$/.test(code)) {
@@ -124,7 +134,7 @@ export function DuelLobby({ level, onStart, onBack }: DuelLobbyProps) {
         </div>
 
         {/* The army: the faction of the enemies that attack the opponent (its trait and boss) */}
-        {(state.kind === 'choose' || state.kind === 'joining') && (
+        {(state.kind === 'choose' || state.kind === 'joining' || state.kind === 'bot') && (
           <div className="mb-3">
             <div className="text-xs text-stone-400 mb-1">Ваша армия против соперника:</div>
             <div className="grid grid-cols-5 gap-1">
@@ -170,6 +180,40 @@ export function DuelLobby({ level, onStart, onBack }: DuelLobbyProps) {
               className={`${btn} bg-[#221f2d] hover:bg-[#2c283a] text-stone-200 border border-[#383347]`}
             >
               Войти по коду
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setError(null);
+                setState({ kind: 'bot' });
+              }}
+              className={`${btn} bg-[#221f2d] hover:bg-[#2c283a] text-stone-200 border border-[#383347]`}
+            >
+              Играть с ботом
+            </button>
+          </div>
+        )}
+
+        {state.kind === 'bot' && (
+          <div className="flex flex-col gap-2">
+            <p className="text-xs text-stone-300">Бот играет за соперника: шлёт вам врагов и теряет замок, если волны его одолеют. Выберите силу бота:</p>
+            {(Object.keys(BOT_LEVELS) as BotLevel[]).map((d) => (
+              <button
+                key={d}
+                type="button"
+                onClick={() => handleBot(d)}
+                className={`${btn} bg-[#221f2d] hover:bg-[#2c283a] text-stone-200 border border-[#383347] text-left`}
+              >
+                <span className="text-amber-300">{BOT_LEVELS[d].label}</span>
+                <span className="block text-[11px] font-normal text-stone-400 leading-snug">{BOT_LEVELS[d].hint}</span>
+              </button>
+            ))}
+            <button
+              type="button"
+              onClick={() => reset(null)}
+              className={`${btn} bg-[#181622] hover:bg-[#221f2d] text-stone-400 border border-[#2a2636] text-xs`}
+            >
+              Назад
             </button>
           </div>
         )}
