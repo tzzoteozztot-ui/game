@@ -2,7 +2,7 @@
  * Semi-transparent buttons over the field for «Тёмный рубеж»
  * Wave button over the 4 top-left cells; speed (opens a list to pick from), sound, full screen and
  * pause over the 4 top-right cells. Those cells are kept free of road and towers (isHudCell in maps.ts), so nothing is covered.
- * The overlay is an inline-size container: one cell is 100cqw / 17.
+ * The overlay is an inline-size container: one cell is 100cqw / CONFIG.grid.cols.
  */
 
 import React from 'react';
