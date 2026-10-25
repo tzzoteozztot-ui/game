@@ -9,7 +9,7 @@ import { DuelLink, newRoomCode, openDuel } from '../duel';
 
 interface DuelLobbyProps {
   level: number; // the map, when this player creates the room
-  onStart: (link: DuelLink, level: number, startAt: number) => void;
+  onStart: (link: DuelLink, level: number, startAt: number, opponentArmy: number, myArmy: number) => void;
   onBack: () => void;
 }
 
@@ -25,6 +25,7 @@ export function DuelLobby({ level, onStart, onBack }: DuelLobbyProps) {
   const [state, setState] = useState<LobbyState>({ kind: 'choose' });
   const [codeInput, setCodeInput] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [army, setArmy] = useState<number>(level); // faction id of the enemies this player sends
   const linkRef = useRef<DuelLink | null>(null);
   const startedRef = useRef(false);
   const timersRef = useRef<number[]>([]);
@@ -51,11 +52,12 @@ export function DuelLobby({ level, onStart, onBack }: DuelLobbyProps) {
     setState({ kind: 'choose' });
   };
 
-  const start = (link: DuelLink, lvl: number) => {
+  const start = (link: DuelLink, lvl: number, opponentArmy: number) => {
     clearTimers();
     startedRef.current = true;
-    onStart(link, lvl, performance.now());
+    onStart(link, lvl, performance.now(), opponentArmy, army);
   };
+  const clampArmy = (a: unknown) => Math.max(1, Math.min(5, Math.floor(Number(a)) || 1));
 
   const handleCreate = async () => {
     setError(null);
@@ -67,8 +69,8 @@ export function DuelLobby({ level, onStart, onBack }: DuelLobbyProps) {
       // The first guest gets the map and the duel starts for both
       link.onMessage((msg) => {
         if (msg.t !== 'hello' || startedRef.current) return;
-        link.send({ t: 'start', level, inMs: 0 });
-        start(link, level);
+        link.send({ t: 'start', level, army, inMs: 0 });
+        start(link, level, clampArmy(msg.army));
       });
     } catch (e) {
       reset(e instanceof Error ? e.message : 'Не получилось создать комнату.');
@@ -88,16 +90,16 @@ export function DuelLobby({ level, onStart, onBack }: DuelLobbyProps) {
       linkRef.current = link;
       link.onMessage((msg) => {
         if (msg.t !== 'start' || startedRef.current) return;
-        start(link, Math.max(1, Math.min(5, msg.level)));
+        start(link, Math.max(1, Math.min(5, msg.level)), clampArmy(msg.army));
       });
       // Knock until the host answers; no answer: no such room
-      link.send({ t: 'hello' });
+      link.send({ t: 'hello', army });
       const startedAt = Date.now();
       timersRef.current.push(
         window.setInterval(() => {
           if (startedRef.current) return;
           if (Date.now() - startedAt > JOIN_TIMEOUT_MS) reset('Комната не найдена. Проверьте код.');
-          else link.send({ t: 'hello' });
+          else link.send({ t: 'hello', army });
         }, 1000)
       );
     } catch (e) {
@@ -120,6 +122,35 @@ export function DuelLobby({ level, onStart, onBack }: DuelLobbyProps) {
             первым потеряет замок, тот проиграл.
           </p>
         </div>
+
+        {/* The army: the faction of the enemies that attack the opponent (its trait and boss) */}
+        {(state.kind === 'choose' || state.kind === 'joining') && (
+          <div className="mb-3">
+            <div className="text-xs text-stone-400 mb-1">Ваша армия против соперника:</div>
+            <div className="grid grid-cols-5 gap-1">
+              {CONFIG.factions.map((f) => (
+                <button
+                  key={f.id}
+                  type="button"
+                  onClick={() => setArmy(f.id)}
+                  aria-pressed={army === f.id}
+                  title={`${f.traitName}: ${f.traitDesc} Босс — ${f.bossName}.`}
+                  className={`min-h-[36px] px-0.5 rounded border text-[11px] font-bold leading-tight cursor-pointer transition-colors ${
+                    army === f.id
+                      ? 'border-amber-400 bg-[#2a2236] text-amber-200'
+                      : 'border-[#383347] bg-[#221f2d] hover:bg-[#2c283a] text-stone-300'
+                  }`}
+                >
+                  <span className="inline-block w-2 h-2 rounded-full mr-0.5 align-middle" style={{ backgroundColor: CONFIG.palettes[f.id - 1].enemies }} />
+                  {f.name}
+                </button>
+              ))}
+            </div>
+            <p className="text-[11px] text-stone-400 mt-1 leading-snug">
+              {CONFIG.factions[army - 1].traitName}: {CONFIG.factions[army - 1].traitDesc}
+            </p>
+          </div>
+        )}
 
         {state.kind === 'choose' && (
           <div className="flex flex-col gap-2.5">

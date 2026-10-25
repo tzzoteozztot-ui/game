@@ -218,6 +218,8 @@ export class GameEngine {
 
   // State
   public level: number = 1;
+  // Faction of the enemies (trait, boss, look): the level's own; in a duel the opponent's army
+  public faction: number = 1;
   public difficulty: Difficulty = 'normal';
   public lives: number = CONFIG.lives.start;
   public gold: number = 200;
@@ -324,6 +326,7 @@ export class GameEngine {
 
   public startLevel(level: number, diff: Difficulty, endless = false) {
     this.level = Math.max(1, Math.min(5, level));
+    this.faction = this.level;
     this.difficulty = diff;
     this.endless = endless;
     this.duelStart = null;
@@ -457,8 +460,9 @@ export class GameEngine {
   }
 
   /** Duel: an endless game on this map whose waves follow the shared clock from startAt (performance.now()) */
-  public startDuel(level: number, startAt: number) {
+  public startDuel(level: number, startAt: number, opponentArmy: number) {
     this.startLevel(level, 'normal', true);
+    this.faction = Math.max(1, Math.min(5, Math.floor(opponentArmy) || level));
     this.duelStart = startAt;
     this.waveCountdown = this.duelNextWaveAt() / 1000 - performance.now() / 1000;
     this.notifyState();
@@ -717,7 +721,7 @@ export class GameEngine {
       totalLen = path.length * CONFIG.grid.cellSize;
     }
 
-    const hp = calculateEnemyHp(baseDef.hp, type, this.wave, this.level, this.difficulty, this.endless);
+    const hp = calculateEnemyHp(baseDef.hp, type, this.wave, this.level, this.difficulty, this.endless, this.faction);
     const killGold = calculateKillGold(baseDef.gold, this.level);
     const gold = sent ? Math.round(killGold * CONFIG.duel.sentKillGoldShare) : killGold;
 
@@ -921,7 +925,7 @@ export class GameEngine {
         e.burnTimer -= dt;
         let burnDmg = e.burnDps * dt;
         // Demon trait
-        if (this.level === 4) burnDmg *= 0.5;
+        if (this.faction === 4) burnDmg *= 0.5;
         e.hp -= burnDmg;
         if (Math.random() < 0.2) this.spawnSpark(e.x, e.y, '#ff4a2f');
         if (e.hp <= 0) {
@@ -955,7 +959,7 @@ export class GameEngine {
       let speed = e.baseSpeed;
 
       // Orc trait: Rage (HP < 50% -> speed x1.3)
-      if (this.level === 1 && e.hp < e.maxHp * 0.5) {
+      if (this.faction === 1 && e.hp < e.maxHp * 0.5) {
         speed *= 1.3;
         if (!e.rageTriggered) {
           e.rageTriggered = true;
@@ -1069,7 +1073,7 @@ export class GameEngine {
     if (boss.isReviving) return;
 
     // Level 1: Вождь (Warchief) - every 10s battle cry (+40% speed for 3s to allies in 2.5 cells)
-    if (this.level === 1 && boss.bossAbilityTimer >= 10) {
+    if (this.faction === 1 && boss.bossAbilityTimer >= 10) {
       boss.bossAbilityTimer = 0;
       sound.playBossSpawn();
       this.addFloatingText('БОЕВОЙ КЛИЧ!', boss.x, boss.y - 18, '#f4c06a');
@@ -1083,7 +1087,7 @@ export class GameEngine {
     }
 
     // Level 2: Лич (Lich) - every 12s resurrects up to 3 dead in radius 3 cells from last 10s with 30% HP
-    if (this.level === 2 && boss.bossAbilityTimer >= 12) {
+    if (this.faction === 2 && boss.bossAbilityTimer >= 12) {
       boss.bossAbilityTimer = 0;
       const reviveRadius = 3.0 * CONFIG.grid.cellSize;
       const eligible = this.deadEnemiesGraveyard.filter(
@@ -1105,7 +1109,7 @@ export class GameEngine {
     }
 
     // Level 3: Ледяной жрец (Ice Priest) - every 12s freezes closest tower for 4s
-    if (this.level === 3 && boss.bossAbilityTimer >= 12) {
+    if (this.faction === 3 && boss.bossAbilityTimer >= 12) {
       boss.bossAbilityTimer = 0;
       let closestTower: Tower | null = null;
       let minDist = Infinity;
@@ -1126,7 +1130,7 @@ export class GameEngine {
     }
 
     // Level 4: Владыка бездны (Abyss Lord) - every 10s summons 3 imps
-    if (this.level === 4 && boss.bossAbilityTimer >= 10) {
+    if (this.faction === 4 && boss.bossAbilityTimer >= 10) {
       boss.bossAbilityTimer = 0;
       sound.playBossSpawn();
       this.addFloatingText('ПРИЗЫВ БЕСОВ!', boss.x, boss.y - 18, '#e0452f');
@@ -1141,7 +1145,7 @@ export class GameEngine {
     }
 
     // Level 5: Королева теней (Shadow Queen) - every 15s invulnerable for 3s & dashes 3 cells along path
-    if (this.level === 5 && boss.bossAbilityTimer >= 15) {
+    if (this.faction === 5 && boss.bossAbilityTimer >= 15) {
       boss.bossAbilityTimer = 0;
       boss.invulnerableTimer = 3.0;
       sound.playBossSpawn();
@@ -1327,7 +1331,7 @@ export class GameEngine {
       isCursed: e.curseTimer > 0,
       curseBonus: e.curseBonus,
       isFireSpec: n('fire') > 0,
-      factionId: this.level,
+      factionId: this.faction,
       isTargetHeavyOrBoss: e.type === 'heavy' || e.type === 'boss',
       isHunterSpec: n('hunter') > 0,
       hunterPower: n('hunter'),
@@ -1399,7 +1403,7 @@ export class GameEngine {
   }
 
   private applySlow(e: Enemy, slow: number, duration: number) {
-    const effectiveSlow = calculateEffectiveSlow(slow, this.level);
+    const effectiveSlow = calculateEffectiveSlow(slow, this.faction);
     if (effectiveSlow > e.slowPercent) {
       e.slowPercent = effectiveSlow;
       e.slowTimer = duration;
@@ -1408,7 +1412,7 @@ export class GameEngine {
 
   private killEnemy(e: Enemy, index: number) {
     // Undead trait: infantry and scout revive once after 1s with 30% HP
-    if (this.level === 2 && !e.hasRevived && (e.type === 'infantry' || e.type === 'scout')) {
+    if (this.faction === 2 && !e.hasRevived && (e.type === 'infantry' || e.type === 'scout')) {
       e.hasRevived = true;
       e.isReviving = true;
       e.reviveTimer = 1.0;
@@ -1421,10 +1425,10 @@ export class GameEngine {
     this.enemies.splice(index, 1);
     sound.playDeath();
     this.addCorpse(e);
-    this.spawnPuff(e.x, e.y, CONFIG.palettes[this.level - 1].enemies);
+    this.spawnPuff(e.x, e.y, CONFIG.palettes[this.faction - 1].enemies);
 
     // Save to graveyard for Lich boss
-    if (this.level === 2 && e.type !== 'boss') {
+    if (this.faction === 2 && e.type !== 'boss') {
       this.deadEnemiesGraveyard.push({
         x: e.x,
         y: e.y,
@@ -2202,7 +2206,7 @@ export class GameEngine {
     this.renderCorpses(ctx, timeSec);
     const enemiesByDepth = [...this.enemies].sort((a, b) => Number(a.isFlyer) - Number(b.isFlyer) || a.y - b.y);
     for (const e of enemiesByDepth) {
-      this.renderEnemy(ctx, e, palette.enemies, timeSec);
+      this.renderEnemy(ctx, e, CONFIG.palettes[this.faction - 1].enemies, timeSec);
     }
 
     // 9. Render Projectiles
@@ -2675,10 +2679,10 @@ export class GameEngine {
   private enemySprite(e: Enemy): { name: string; tint: string | null } {
     const isBoss = e.type === 'boss';
     const isImp = e.type === 'imp';
-    const factionName = `enemy_${e.type}_${this.level}`;
+    const factionName = `enemy_${e.type}_${this.faction}`;
     const hasFaction = !isBoss && !isImp && sprites.has(factionName);
-    const name = isBoss ? `boss_${this.level}` : isImp ? 'enemy_scout' : hasFaction ? factionName : `enemy_${e.type}`;
-    const tint = isBoss || hasFaction ? null : isImp ? '#e0452f' : CONFIG.palettes[this.level - 1].enemies;
+    const name = isBoss ? `boss_${this.faction}` : isImp ? 'enemy_scout' : hasFaction ? factionName : `enemy_${e.type}`;
+    const tint = isBoss || hasFaction ? null : isImp ? '#e0452f' : CONFIG.palettes[this.faction - 1].enemies;
     return { name, tint };
   }
 

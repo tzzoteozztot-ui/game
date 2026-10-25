@@ -15,14 +15,15 @@ export function calculateEnemyHp(
   wave: number,
   level: number,
   difficulty: Difficulty,
-  endless = false
+  endless = false,
+  faction = level // the enemies' faction: the level's own, in a duel the opponent's army
 ): number {
   const sc = CONFIG.enemyScaling;
   const diffMult = CONFIG.difficulty[difficulty].hpMult;
   const levelMult = 1 + sc.level * (level - 1);
   // Second half of the campaign is tougher (endless mode keeps its own growth)
   const lateMult = !endless && wave >= sc.lateFrom ? sc.lateHpMult : 1;
-  const factionMult = endless ? CONFIG.endless.factionHpMult[level] ?? 1 : 1;
+  const factionMult = endless ? CONFIG.endless.factionHpMult[faction] ?? 1 : 1;
   if (type === 'boss') {
     // Boss does not scale with wave; in endless mode it grows with every finished cycle
     const cycleMult = endless ? 1 + CONFIG.endless.bossHpPerCycle * endlessCycle(wave) : 1;

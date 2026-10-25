@@ -274,17 +274,19 @@ export default function App() {
     setTimeout(() => link.close(), 500);
   }, []);
 
-  const handleDuelStart = (link: DuelLink, level: number, startAt: number) => {
+  const [opponentArmy, setOpponentArmy] = useState(1);
+  const handleDuelStart = (link: DuelLink, level: number, startAt: number, army: number, myArmy: number) => {
     duelLinkRef.current = link;
     duelSeenRef.current = performance.now();
     duelOutcomeRef.current = null;
     setDuelOutcome(null);
     setOpponent(null);
     setSideTab('towers');
+    setOpponentArmy(army);
     setSelectedLevel(level);
     link.onMessage((msg) => {
       duelSeenRef.current = performance.now();
-      if (msg.t === 'hello' && link.role === 'host') link.send({ t: 'start', level, inMs: 0 }); // the first answer was lost
+      if (msg.t === 'hello' && link.role === 'host') link.send({ t: 'start', level, army: myArmy, inMs: 0 }); // the first answer was lost
       else if (msg.t === 'state') setOpponent({ lives: msg.lives, wave: msg.wave, income: msg.income ?? 0 });
       else if (msg.t === 'send') engineRef.current?.receiveSend(msg.enemies ?? {});
       else if (msg.t === 'lost') finishDuel('won');
@@ -294,7 +296,7 @@ export default function App() {
     setTimeout(() => {
       if (canvasRef.current && engineRef.current) {
         engineRef.current.setCanvas(canvasRef.current);
-        engineRef.current.startDuel(level, startAt);
+        engineRef.current.startDuel(level, startAt, army);
         engineRef.current.onDuelSend = (enemies) => link.send({ t: 'send', enemies });
         setShopCards(generateShopCards(1));
         setPlacingCardIndex(null);
@@ -951,6 +953,7 @@ export default function App() {
                 maxWaves={gameState.maxWaves}
                 endless={gameState.endless}
                 opponent={gameState.duel ? opponent : undefined}
+                opponentArmy={gameState.duel ? CONFIG.factions[opponentArmy - 1]?.name : undefined}
               />
               {gameState.duel && (
                 <div className="px-1.5 pt-1 grid grid-cols-2 gap-1 shrink-0" role="tablist">

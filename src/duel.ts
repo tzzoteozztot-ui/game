@@ -13,8 +13,8 @@ import { client, cloudEnabled } from './cloud';
 export type DuelRole = 'host' | 'guest';
 
 export type DuelMessage =
-  | { t: 'hello' } // guest → host: I am in the room
-  | { t: 'start'; level: number; inMs: number } // host → guest: the map, and the duel starts in inMs
+  | { t: 'hello'; army: number } // guest → host: I am in the room, with this army (faction id)
+  | { t: 'start'; level: number; army: number; inMs: number } // host → guest: the map, the host's army, start in inMs
   | { t: 'state'; lives: number; wave: number; income: number } // both, every few seconds; also a sign of life
   | { t: 'send'; enemies: Partial<Record<SendType, number>> } // enemies bought for the opponent, at a round start
   | { t: 'lost'; wave: number } // my castle fell
