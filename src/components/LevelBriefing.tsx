@@ -25,11 +25,12 @@ export function LevelBriefing({
   const palette = CONFIG.palettes[level - 1];
 
   return (
-    <div className="fixed inset-0 z-40 bg-[#121118] text-[#f4f2e6] flex flex-col items-center overflow-y-auto p-4 sm:p-6 select-none animate-fade-in">
+    <div className="fixed inset-0 z-40 bg-[#121118] text-[#f4f2e6] flex flex-col items-center overflow-y-auto p-4 sm:p-6 short:p-2 select-none animate-fade-in">
       {/* my-auto centres the card and lets a low phone screen scroll to its top */}
-      <div className="my-auto max-w-md w-full bg-[#171520] border-2 border-[#3b354a] rounded-xl p-5 sm:p-6 shadow-2xl relative">
+      {/* On a phone on its side (short) the card has two columns: title and buttons left, faction and boss right */}
+      <div className="my-auto max-w-md w-full bg-[#171520] border-2 border-[#3b354a] rounded-xl p-5 sm:p-6 shadow-2xl relative short:max-w-3xl short:p-4 short:grid short:grid-cols-[1fr_1.25fr] short:gap-x-4 short:items-center">
         {/* Level & Region Header */}
-        <div className="text-center mb-5 pb-4 border-b border-[#2d2938]">
+        <div className="text-center mb-5 pb-4 border-b border-[#2d2938] short:col-start-1 short:row-start-1 short:mb-3 short:pb-3">
           <div className="text-xs uppercase tracking-widest font-bold text-amber-500 mb-1">
             Рубеж {level} из 5{endless && ' · бесконечный режим'}
           </div>
@@ -41,8 +42,9 @@ export function LevelBriefing({
           </div>
         </div>
 
+        <div className="short:col-start-2 short:row-start-1 short:row-span-2">
         {/* Faction Trait */}
-        <div className="bg-[#121118] p-3.5 rounded-lg border border-[#2d2938] mb-3">
+        <div className="bg-[#121118] p-3.5 rounded-lg border border-[#2d2938] mb-3 short:p-3 short:mb-2">
           <div className="text-xs font-bold text-amber-200 flex items-center gap-1.5 mb-1">
             <span className="w-2 h-2 rounded-full" style={{ backgroundColor: palette.enemies }} />
             <span>Особенность фракции: {faction.traitName}</span>
@@ -51,7 +53,7 @@ export function LevelBriefing({
         </div>
 
         {/* Boss info */}
-        <div className="bg-[#121118] p-3.5 rounded-lg border border-[#2d2938] mb-5">
+        <div className="bg-[#121118] p-3.5 rounded-lg border border-[#2d2938] mb-5 short:p-3 short:mb-0">
           <div className="text-xs font-bold text-red-400 flex items-center gap-1.5 mb-1">
             <span className="w-2 h-2 rounded-full bg-red-500" />
             <span>
@@ -67,9 +69,10 @@ export function LevelBriefing({
             </p>
           )}
         </div>
+        </div>
 
         {/* Actions */}
-        <div className="flex flex-col gap-2.5">
+        <div className="flex flex-col gap-2.5 short:col-start-1 short:row-start-2 short:gap-2">
           <button
             type="button"
             data-start="true"

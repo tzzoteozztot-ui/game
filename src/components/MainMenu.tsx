@@ -53,11 +53,15 @@ export function MainMenu({
   const standalone = isStandalone();
 
   return (
-    <div className="fixed inset-0 z-30 bg-[#121118] text-[#f4f2e6] flex flex-col items-center justify-center p-2 sm:p-3 overflow-y-auto select-none gap-1 sm:gap-2">
+    <div className="fixed inset-0 z-30 bg-[#121118] text-[#f4f2e6] flex flex-col items-center p-2 sm:p-3 overflow-y-auto select-none gap-1 sm:gap-2">
+      {/* my-auto centres the menu and lets a screen that is still too low scroll to its top.
+          On a phone on its side (short) levels go left and the controls right, all on one screen. */}
+      <div className="my-auto w-full max-w-2xl flex flex-col items-center gap-1 sm:gap-2 short:max-w-4xl short:flex-row short:items-center short:gap-3">
+      <div className="w-full short:flex-1 short:min-w-0 flex flex-col items-center">
       {/* Title Header with inline SVG Lockup */}
-      <div className="text-center">
+      <div className="text-center short:flex short:items-center short:gap-2 short:text-left">
         {/* Crest lockup */}
-        <div className="w-10 h-7 sm:w-14 sm:h-10 mx-auto mb-0.5 flex items-center justify-center">
+        <div className="w-10 h-7 sm:w-14 sm:h-10 mx-auto mb-1.5 sm:mb-2.5 flex items-center justify-center short:mx-0 short:mb-0 short:w-10 short:h-8 shrink-0">
           <svg viewBox="0 0 64 48" className="w-full h-full" fill="none">
             <path
               d="M32 4L48 18V36L32 46L16 36V18L32 4Z"
@@ -70,16 +74,18 @@ export function MainMenu({
           </svg>
         </div>
 
-        <h1 className="text-xl sm:text-3xl font-black text-amber-300 tracking-widest uppercase drop-shadow leading-none">
+        <div>
+        <h1 className="text-xl sm:text-3xl short:text-xl font-black text-amber-300 tracking-widest uppercase drop-shadow leading-none">
           Тёмный рубеж
         </h1>
         <p className="text-[10px] sm:text-xs text-stone-400 tracking-wider font-semibold mt-0.5">
           Tower Defense в стиле тёмного фэнтези
         </p>
+        </div>
       </div>
 
       {/* Level Selection Cards */}
-      <div className="w-full max-w-2xl my-1.5 sm:my-3">
+      <div className="w-full max-w-2xl my-1.5 sm:my-3 short:mb-0 short:mt-2">
         <div className="flex items-center justify-between mb-1 px-1">
           <span className="text-[10px] sm:text-xs uppercase font-bold text-stone-400 tracking-wider">
             Выберите рубеж обороны
@@ -105,7 +111,7 @@ export function MainMenu({
                 onClick={() => onSelectLevel(lvl)}
                 onDoubleClick={() => isUnlocked && onPlay()}
                 aria-pressed={isSelected}
-                className={`p-2 sm:p-2.5 rounded-lg border text-left flex flex-col justify-between transition-all min-h-[75px] sm:min-h-[96px] cursor-pointer ${
+                className={`p-2 sm:p-2.5 rounded-lg border text-left flex flex-col justify-between transition-all min-h-[75px] sm:min-h-[96px] short:min-h-[96px] short:p-1.5 cursor-pointer ${
                   isSelected
                     ? 'border-amber-400 bg-[#2a2236] ring-2 ring-amber-500/60 shadow-md'
                     : isUnlocked
@@ -120,7 +126,7 @@ export function MainMenu({
                     </span>
                     {!isUnlocked && <LockIcon size={12} />}
                   </div>
-                  <div className="font-bold text-stone-200 text-xs sm:text-[13px] leading-tight">
+                  <div className="font-bold text-stone-200 text-xs sm:text-[13px] short:text-xs leading-tight hyphens-auto [overflow-wrap:anywhere]">
                     {f.location}
                   </div>
                   <div className="text-[9px] sm:text-[10px] text-stone-400 mt-0.5">{f.name}</div>
@@ -150,11 +156,13 @@ export function MainMenu({
         </div>
       </div>
 
+      </div>
+
       {/* Difficulty & Quick Actions */}
-      <div className="w-full max-w-md flex flex-col items-center gap-2">
+      <div className="w-full max-w-md flex flex-col items-center gap-2 short:w-[296px] short:max-w-none short:shrink-0 short:gap-1.5">
         {/* Mode Selector: campaign of 12 waves or endless waves */}
         <div className="w-full flex items-center justify-between p-1 bg-[#171520] rounded-lg border border-[#2d2938]">
-          <span className="text-xs font-semibold text-stone-400 pl-3">Режим:</span>
+          <span className="text-xs font-semibold text-stone-400 pl-3 short:pl-2">Режим:</span>
           <div className="flex items-center gap-1">
             {[false, true].map((v) => (
               <button
@@ -162,7 +170,7 @@ export function MainMenu({
                 type="button"
                 onClick={() => onChangeEndless(v)}
                 title={v ? 'Волны без конца, босс каждую 12-ю волну, враги всё сильнее' : '12 волн, в последней босс'}
-                className={`px-3 py-1.5 min-h-[36px] rounded text-xs font-bold transition-colors cursor-pointer ${
+                className={`px-3 short:px-2 py-1.5 min-h-[36px] short:min-h-[34px] rounded text-xs font-bold transition-colors cursor-pointer ${
                   endless === v
                     ? 'bg-amber-600 text-stone-950 font-black'
                     : 'text-stone-400 hover:text-stone-200 hover:bg-[#221f2d]'
@@ -176,14 +184,14 @@ export function MainMenu({
 
         {/* Difficulty Selector */}
         <div className="w-full flex items-center justify-between p-1 bg-[#171520] rounded-lg border border-[#2d2938]">
-          <span className="text-xs font-semibold text-stone-400 pl-3">Сложность:</span>
+          <span className="text-xs font-semibold text-stone-400 pl-3 short:pl-2">Сложность:</span>
           <div className="flex items-center gap-1">
             {(['easy', 'normal', 'hard'] as Difficulty[]).map((d) => (
               <button
                 key={d}
                 type="button"
                 onClick={() => onChangeDifficulty(d)}
-                className={`px-3 py-1.5 min-h-[36px] rounded text-xs font-bold transition-colors cursor-pointer ${
+                className={`px-3 short:px-2 py-1.5 min-h-[36px] short:min-h-[34px] rounded text-xs font-bold transition-colors cursor-pointer ${
                   selectedDifficulty === d
                     ? 'bg-amber-600 text-stone-950 font-black'
                     : 'text-stone-400 hover:text-stone-200 hover:bg-[#221f2d]'
@@ -199,13 +207,13 @@ export function MainMenu({
         <button
           type="button"
           onClick={onPlay}
-          className="w-full min-h-[46px] py-2 px-4 rounded bg-amber-500 hover:bg-amber-400 text-stone-950 font-black text-sm tracking-wider uppercase transition-all shadow-lg shadow-amber-950/50 cursor-pointer active:translate-y-0.5"
+          className="w-full min-h-[46px] short:min-h-[42px] py-2 px-4 short:px-2 short:text-xs rounded bg-amber-500 hover:bg-amber-400 text-stone-950 font-black text-sm tracking-wider uppercase transition-all shadow-lg shadow-amber-950/50 cursor-pointer active:translate-y-0.5"
         >
           Играть: {CONFIG.factions[selectedLevel - 1].location} · {endless ? 'бесконечный' : 'кампания'}
         </button>
 
         {/* Buttons Row */}
-        <div className="w-full grid grid-cols-2 gap-2">
+        <div className="w-full grid grid-cols-2 gap-2 short:grid-cols-3 short:gap-1.5">
           <button
             type="button"
             onClick={onOpenHowToPlay}
@@ -225,9 +233,9 @@ export function MainMenu({
             <button
               type="button"
               onClick={() => (fullscreen.supported ? fullscreen.toggle() : setShowHomeScreenHint(!showHomeScreenHint))}
-              className="col-span-2 min-h-[40px] px-3 py-2 rounded bg-[#221f2d] hover:bg-[#2c283a] border border-[#383347] text-xs font-bold text-stone-200 transition-colors cursor-pointer"
+              className="col-span-2 short:col-span-1 min-h-[40px] px-3 short:px-1.5 py-2 rounded bg-[#221f2d] hover:bg-[#2c283a] border border-[#383347] text-xs font-bold text-stone-200 transition-colors cursor-pointer"
             >
-              {fullscreen.active ? 'Выйти из полноэкранного режима' : 'Во весь экран'}
+              {fullscreen.active ? 'Обычный экран' : 'Во весь экран'}
             </button>
           )}
         </div>
@@ -278,9 +286,10 @@ export function MainMenu({
           </div>
         )}
       </div>
+      </div>
 
-      {/* Flat bottom control hint */}
-      <div className="text-stone-500 text-[11px] font-medium pt-2 text-center">
+      {/* Flat bottom control hint (keyboard; a phone on its side has no room and no keys) */}
+      <div className="text-stone-500 text-[11px] font-medium pt-2 text-center short:hidden">
         Мышь или касание для управления • 1–5 лавка • Пробел волна • P пауза
       </div>
     </div>
