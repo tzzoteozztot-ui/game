@@ -360,6 +360,8 @@ export const CONFIG = {
     between: 45, // real seconds before wave 1 and between waves
     countPerCycle: 0.25, // +25% enemies of every type per finished cycle of 12 waves
     bossHpPerCycle: 0.6, // +60% boss HP per finished cycle
+    // HP of every enemy by level (faction id); Артур, тест баланса: демонам и эльфам −7 %
+    factionHpMult: { 4: 0.93, 5: 0.93 } as Record<number, number>,
   },
 
   spawnInterval: 0.8, // seconds between spawns

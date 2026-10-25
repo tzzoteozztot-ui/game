@@ -277,6 +277,11 @@ test('endless mode: waves repeat in cycles and keep getting stronger', () => {
   assert.equal(calculateEnemyHp(1200, 'boss', 12, 1, 'normal', true), 1560);
   assert.equal(calculateEnemyHp(1200, 'boss', 24, 1, 'normal', true), 2496);
   assert.equal(calculateEnemyHp(1200, 'boss', 24, 1, 'normal'), 1747);
+  // Demons (4) and dark elves (5): −7% HP in endless mode only
+  const hp4 = calculateEnemyHp(30, 'infantry', 30, 4, 'normal');
+  assert.equal(calculateEnemyHp(30, 'infantry', 30, 4, 'normal', true), Math.round(hp4 / 1.12 * 0.93));
+  assert.equal(calculateEnemyHp(1200, 'boss', 24, 5, 'normal', true), Math.round(1200 * 1.3 * 2.2 * 1.6 * 0.93));
+  assert.equal(calculateEnemyHp(1200, 'boss', 24, 3, 'normal', true), Math.round(1200 * 1.3 * 1.6 * 1.6));
   // Counts: +25% per finished cycle
   assert.equal(calculateEnemyCount(20, 1, 12, true), 20);
   assert.equal(calculateEnemyCount(20, 1, 13, true), 25);
