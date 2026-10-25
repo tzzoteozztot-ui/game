@@ -10,7 +10,7 @@ import type { SupabaseClient, User } from '@supabase/supabase-js';
 import { Progress, normalizeProgress } from './progress';
 
 const SUPABASE_URL: string = 'https://opxkyqszjirxncjdvwff.supabase.co';
-const SUPABASE_ANON_KEY: string = '';
+const SUPABASE_ANON_KEY: string = 'sb_publishable_R3N3W1z9e9J7VqlCVhBlEQ_v9qykl4j';
 
 export const cloudEnabled = SUPABASE_URL !== '' && SUPABASE_ANON_KEY !== '';
 
