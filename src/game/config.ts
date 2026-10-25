@@ -117,8 +117,8 @@ export const CONFIG = {
       shape: 'circle',
       color: '#f2f0e0',
       specs: [
-        { id: 'ward', name: 'Оберег', desc: 'Замедление 50% на 2,5 с' },
-        { id: 'curse', name: 'Проклятие', desc: 'Цель получает +25% урона 4 с (не складывается)' },
+        { id: 'ward', name: 'Оберег', desc: 'Замедление 50% на 3 с цели и врагов в 1 клетке от неё' },
+        { id: 'curse', name: 'Проклятие', desc: '+35% урона 5 с цели и врагам в 1 клетке от неё (не складывается)' },
         { id: 'smite', name: 'Кара', desc: 'Раз в 2,5 с импульс по всем врагам в радиусе, урон ×2,5' },
       ],
     } as TowerBaseDef,
@@ -155,6 +155,10 @@ export const CONFIG = {
       ],
     } as TowerBaseDef,
   },
+
+  // Priest support (Артур, тест баланса: жрец — явная поддержка): «Оберег» and «Проклятие» also
+  // reach enemies within `radius` cells of the target
+  priestSupport: { radius: 1, wardSlow: 0.5, wardTime: 3, curseBonus: 0.35, curseTime: 5 },
 
   // «Град стрел»: damage of each arrow drops with the number of targets (Артур, тест баланса)
   arrowHail: { perExtraTarget: 0.05 },
