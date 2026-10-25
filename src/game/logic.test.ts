@@ -106,12 +106,15 @@ test('enemy scaling and damage formulas', () => {
   assert.equal(calculateEnemyHp(30, 'infantry', 1, 1, 'normal'), 39); // 30 * 1.3
   // wave 5, level 2, normal: 30 * 1.3 * (1 + 0.18*4 + 0.012*16) * (1 + 0.3*1) = 30 * 1.3 * 1.912 * 1.3 = 96.9 -> 97
   assert.equal(calculateEnemyHp(30, 'infantry', 5, 2, 'normal'), 97);
-  // wave 12, level 1: 30 * 1.3 * (1 + 0.18*11 + 0.012*121) = 30 * 1.3 * 4.432 = 172.8 -> 173
-  assert.equal(calculateEnemyHp(30, 'infantry', 12, 1, 'normal'), 173);
+  // wave 12, level 1: 30 * 1.3 * (1 + 0.18*11 + 0.012*121) * 1.12 = 30 * 1.3 * 4.432 * 1.12 = 193.6 -> 194
+  assert.equal(calculateEnemyHp(30, 'infantry', 12, 1, 'normal'), 194);
+  // Campaign waves 7–12 get ×1.12: wave 6 = 30 * 1.3 * 2.2 = 85.8, wave 7 = 30 * 1.3 * 2.512 * 1.12 = 109.7
+  assert.equal(calculateEnemyHp(30, 'infantry', 6, 1, 'normal'), 86);
+  assert.equal(calculateEnemyHp(30, 'infantry', 7, 1, 'normal'), 110);
 
-  // Boss does NOT have wave multiplier
-  assert.equal(calculateEnemyHp(1200, 'boss', 12, 1, 'normal'), 1560);
-  assert.equal(calculateEnemyHp(1200, 'boss', 12, 2, 'normal'), 2028);
+  // Boss does NOT have wave multiplier (only the ×1.12 of waves 7–12)
+  assert.equal(calculateEnemyHp(1200, 'boss', 12, 1, 'normal'), 1747);
+  assert.equal(calculateEnemyHp(1200, 'boss', 12, 2, 'normal'), 2271);
 
   // Enemy count scaling: ceil(table * (1 + 0.2*(lvl-1)))
   assert.equal(calculateEnemyCount(6, 1), 6);
@@ -273,7 +276,7 @@ test('endless mode: waves repeat in cycles and keep getting stronger', () => {
   // Boss: +60% per finished cycle, campaign boss unchanged
   assert.equal(calculateEnemyHp(1200, 'boss', 12, 1, 'normal', true), 1560);
   assert.equal(calculateEnemyHp(1200, 'boss', 24, 1, 'normal', true), 2496);
-  assert.equal(calculateEnemyHp(1200, 'boss', 24, 1, 'normal'), 1560);
+  assert.equal(calculateEnemyHp(1200, 'boss', 24, 1, 'normal'), 1747);
   // Counts: +25% per finished cycle
   assert.equal(calculateEnemyCount(20, 1, 12, true), 20);
   assert.equal(calculateEnemyCount(20, 1, 13, true), 25);

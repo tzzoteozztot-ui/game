@@ -172,6 +172,9 @@ export const CONFIG = {
     waveLinear: 0.18,
     waveQuad: 0.012,
     level: 0.3,
+    // Campaign only: waves from `lateFrom` on get extra HP (Артур, тест баланса: обычная слишком лёгкая)
+    lateFrom: 7,
+    lateHpMult: 1.12,
   },
 
   enemies: {
