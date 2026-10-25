@@ -379,6 +379,11 @@ export const CONFIG = {
     waveCountMult: 0.5, // half of the usual wave (the opponent's sends come on top)
     stateInterval: 2, // real seconds between state messages to the opponent
     peerTimeout: 30, // real seconds without a message from the opponent: the duel is won
+    // Sending enemies to the opponent for gold (Артур: 3А 4А 5А 6Б)
+    sendPriceMult: 2, // price = 2 × kill gold, × the wave's HP multiplier
+    sendIncomeShare: 0.2, // each send adds 1/5 of its price to the gold of every later round
+    sentKillGoldShare: 0.5, // the defender gets half the kill gold for a sent enemy
+    sendMaxPerType: 200, // a send message with more is cut down (a broken or forged message)
   },
 
   spawnInterval: 0.8, // seconds between spawns

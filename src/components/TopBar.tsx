@@ -12,7 +12,7 @@ interface TopBarProps {
   wave: number;
   maxWaves: number;
   endless: boolean;
-  opponent?: { lives: number; wave: number } | null; // duel: the opponent's last known state
+  opponent?: { lives: number; wave: number; income: number } | null; // duel: the opponent's last known state
 }
 
 export function TopBar({
@@ -50,6 +50,9 @@ export function TopBar({
               </span>
               <span>
                 волна <span className="text-amber-200">{opponent.wave}</span>
+              </span>
+              <span title="Доход соперника за раунд">
+                доход <span className="text-amber-300">+{opponent.income}</span>
               </span>
             </span>
           ) : (

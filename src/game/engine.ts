@@ -14,6 +14,10 @@ import {
   calculateKillGold,
   calculateWaveClearReward,
   calculateSellRefund,
+  calculateSendPrice,
+  calculateSendIncome,
+  SendType,
+  SEND_TYPES,
 } from './rules';
 import { sound } from './audio';
 import { sprites, drawSprite, PreparedSprite, SpritePose, SpriteVariant } from './sprites';
@@ -187,6 +191,10 @@ export interface GameStateSnapshot {
   allWavesLaunched: boolean;
   endless: boolean;
   duel: boolean;
+  duelSendPrices: Record<SendType, number> | null; // duel: price of one more enemy of each type
+  duelOutgoing: Partial<Record<SendType, number>>; // duel: bought, leaves with the next wave
+  duelOutgoingCost: number;
+  duelIncome: number; // duel: gold at the start of every round
   waveCountdown: number | null; // whole seconds left, null while a wave runs
   earlyStartBonus: number;
   speed: number;
@@ -226,6 +234,10 @@ export class GameEngine {
   public endless: boolean = false;
   // Duel: performance.now() of the duel start; wave N starts N rounds later (shared clock), null outside a duel
   public duelStart: number | null = null;
+  public duelOutgoing: Partial<Record<SendType, number>> = {}; // bought, leaves for the opponent with the next wave
+  public duelOutgoingCost = 0;
+  public duelIncome = 0; // gold added at the start of every round, grows with every send
+  public onDuelSend?: (enemies: Partial<Record<SendType, number>>) => void;
 
   // Entities
   public towers: Tower[] = [];
@@ -241,7 +253,7 @@ export class GameEngine {
   public isSpawning: boolean = false;
   public waveInProgress: boolean = false;
   public wavesLaunched: number = 0; // how many of the 12 waves have been started
-  public spawnQueue: { type: EnemyType; entrance: number }[] = [];
+  public spawnQueue: { type: EnemyType; entrance: number; sent?: boolean }[] = []; // sent: by the duel opponent
   private spawnTimer: number = 0;
   private currentEntranceIndex: number = 0;
 
@@ -315,6 +327,9 @@ export class GameEngine {
     this.difficulty = diff;
     this.endless = endless;
     this.duelStart = null;
+    this.duelOutgoing = {};
+    this.duelOutgoingCost = 0;
+    this.duelIncome = 0;
     this.currentMap = MAPS[this.level - 1];
     this.lives = CONFIG.lives.start;
     this.gold = Math.floor((200 + 25 * (this.level - 1)) * CONFIG.difficulty[diff].goldMult);
@@ -457,6 +472,72 @@ export class GameEngine {
     this.notifyState();
   }
 
+  /** Duel: price of one more enemy of this type for the opponent, on the wave it will join */
+  public sendPrice(type: SendType): number {
+    return calculateSendPrice(type, this.wavesLaunched + 1, this.level);
+  }
+
+  /** Duel: buy an enemy for the opponent; it leaves with the next wave */
+  public buySend(type: SendType): boolean {
+    if (this.duelStart === null || this.isGameOver || this.isVictory) return false;
+    const price = this.sendPrice(type);
+    if (this.gold < price) {
+      sound.playError();
+      this.addFloatingText('Не хватает золота!', CONFIG.grid.totalWidth - 120, 100, '#e0452f');
+      return false;
+    }
+    this.gold -= price;
+    this.duelOutgoing[type] = (this.duelOutgoing[type] ?? 0) + 1;
+    this.duelOutgoingCost += price;
+    sound.playBuy();
+    this.notifyState();
+    return true;
+  }
+
+  /** Duel: take back the enemies not sent yet, with their gold */
+  public clearSends() {
+    if (this.duelOutgoingCost === 0) return;
+    this.gold += this.duelOutgoingCost;
+    this.duelOutgoing = {};
+    this.duelOutgoingCost = 0;
+    this.notifyState();
+  }
+
+  /** Duel: enemies the opponent sent come out after the ones already waiting */
+  public receiveSend(enemies: Partial<Record<SendType, number>>) {
+    if (this.duelStart === null || this.isGameOver || this.isVictory) return;
+    const entrances = this.currentMap.entrances.length;
+    let added = 0;
+    for (const type of SEND_TYPES) {
+      const n = Math.min(Math.max(0, Math.floor(Number(enemies[type]) || 0)), CONFIG.duel.sendMaxPerType);
+      for (let i = 0; i < n; i++) {
+        const entrance = this.currentEntranceIndex++ % entrances;
+        const group = type === 'swarm' ? CONFIG.swarmGroupCount : 1;
+        for (let g = 0; g < group; g++) this.spawnQueue.push({ type, entrance, sent: true });
+        added++;
+      }
+    }
+    if (added === 0) return;
+    this.addFloatingText(`Соперник прислал врагов: ${added}`, CONFIG.grid.totalWidth / 2, 120, '#e0452f');
+    if (!this.isSpawning) this.spawnTimer = 0;
+    this.isSpawning = true; // the wave they join is already in progress: no second clear reward
+    this.notifyState();
+  }
+
+  // Duel, start of a round: the income comes in, the bought enemies leave and raise it from the next round
+  private duelRoundStart() {
+    if (this.duelIncome > 0) {
+      this.gold += this.duelIncome;
+      this.addFloatingText(`+${this.duelIncome} золота дохода`, CONFIG.grid.totalWidth / 2, 40, '#f4c06a');
+    }
+    if (this.duelOutgoingCost > 0) {
+      this.duelIncome += calculateSendIncome(this.duelOutgoingCost);
+      this.onDuelSend?.(this.duelOutgoing);
+      this.duelOutgoing = {};
+      this.duelOutgoingCost = 0;
+    }
+  }
+
   private duelNextWaveAt(): number {
     return (this.duelStart ?? 0) + (this.wavesLaunched + 1) * CONFIG.duel.roundLength * 1000;
   }
@@ -533,6 +614,7 @@ export class GameEngine {
       sound.playBuy();
     }
     if (!duel) this.waveCountdown = null;
+    else this.duelRoundStart();
 
     // An early start launches the next wave, not the current one again
     this.wave = this.wavesLaunched + 1;
@@ -617,7 +699,7 @@ export class GameEngine {
     return true;
   }
 
-  private spawnEnemy(type: EnemyType, entranceIdx: number) {
+  private spawnEnemy(type: EnemyType, entranceIdx: number, sent = false) {
     const baseDef = CONFIG.enemies[type];
     const entrance = this.currentMap.entrances[entranceIdx];
     const path = this.currentMap.paths[entranceIdx];
@@ -636,7 +718,8 @@ export class GameEngine {
     }
 
     const hp = calculateEnemyHp(baseDef.hp, type, this.wave, this.level, this.difficulty, this.endless);
-    const gold = calculateKillGold(baseDef.gold, this.level);
+    const killGold = calculateKillGold(baseDef.gold, this.level);
+    const gold = sent ? Math.round(killGold * CONFIG.duel.sentKillGoldShare) : killGold;
 
     const enemy: Enemy = {
       id: Math.random().toString(36).substring(2, 9),
@@ -692,7 +775,7 @@ export class GameEngine {
       if (this.spawnTimer <= 0) {
         if (this.spawnQueue.length > 0) {
           const next = this.spawnQueue.shift()!;
-          this.spawnEnemy(next.type, next.entrance);
+          this.spawnEnemy(next.type, next.entrance, next.sent);
           const interval = next.type === 'swarm' ? CONFIG.swarmInterval : CONFIG.spawnInterval;
           this.spawnTimer = interval;
         } else {
@@ -1899,6 +1982,10 @@ export class GameEngine {
       allWavesLaunched: !this.endless && this.wavesLaunched >= CONFIG.waves.length,
       endless: this.endless,
       duel: this.duelStart !== null,
+      duelSendPrices: this.duelStart === null ? null : Object.fromEntries(SEND_TYPES.map((t) => [t, this.sendPrice(t)])) as Record<SendType, number>,
+      duelOutgoing: { ...this.duelOutgoing },
+      duelOutgoingCost: this.duelOutgoingCost,
+      duelIncome: this.duelIncome,
       waveCountdown: this.waveCountdown === null ? null : Math.ceil(this.waveCountdown),
       earlyStartBonus: this.earlyStartBonus(),
       speed: this.speedMultiplier,

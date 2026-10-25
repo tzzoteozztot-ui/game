@@ -28,9 +28,31 @@ export function calculateEnemyHp(
     const cycleMult = endless ? 1 + CONFIG.endless.bossHpPerCycle * endlessCycle(wave) : 1;
     return Math.round(baseHp * sc.hpMult * levelMult * diffMult * cycleMult * lateMult * factionMult);
   }
-  const w = wave - 1;
-  const waveMult = 1 + sc.waveLinear * w + sc.waveQuad * w * w;
+  const waveMult = enemyWaveMult(wave);
   return Math.round(baseHp * sc.hpMult * waveMult * levelMult * diffMult * lateMult * factionMult);
+}
+
+/** How much enemy HP grows with the wave number: 1 on wave 1 */
+export function enemyWaveMult(wave: number): number {
+  const sc = CONFIG.enemyScaling;
+  const w = wave - 1;
+  return 1 + sc.waveLinear * w + sc.waveQuad * w * w;
+}
+
+/** Enemies a duel player can send to the opponent; a swarm is sent as a whole group */
+export type SendType = 'infantry' | 'scout' | 'heavy' | 'flyer' | 'shaman' | 'swarm';
+export const SEND_TYPES: SendType[] = ['infantry', 'scout', 'heavy', 'flyer', 'shaman', 'swarm'];
+
+/** Duel: price of one sent enemy (a swarm group) on this wave: 2 × kill gold, growing like its HP */
+export function calculateSendPrice(type: SendType, wave: number, level: number): number {
+  const group = type === 'swarm' ? CONFIG.swarmGroupCount : 1;
+  const killGold = calculateKillGold(CONFIG.enemies[type].gold, level) * group;
+  return Math.round(CONFIG.duel.sendPriceMult * killGold * enemyWaveMult(wave));
+}
+
+/** Duel: gold added to every later round by a send that cost `cost` */
+export function calculateSendIncome(cost: number): number {
+  return Math.floor(cost * CONFIG.duel.sendIncomeShare);
 }
 
 export function calculateEnemyCount(

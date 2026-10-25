@@ -18,6 +18,8 @@ import { TowerPanel } from './components/TowerPanel';
 import { SpecModal } from './components/SpecModal';
 import { MainMenu, GameMode } from './components/MainMenu';
 import { DuelLobby } from './components/DuelLobby';
+import { ArmyPanel } from './components/ArmyPanel';
+import { SEND_TYPES } from './game/rules';
 import { DuelLink, duelAvailable } from './duel';
 import { LevelBriefing } from './components/LevelBriefing';
 import { PauseModal, VictoryModal, DefeatModal, HowToPlayModal, DuelResultModal, DuelOutcome } from './components/StatusModals';
@@ -90,6 +92,10 @@ export default function App() {
     allWavesLaunched: false,
     endless: false,
     duel: false,
+    duelSendPrices: null,
+    duelOutgoing: {},
+    duelOutgoingCost: 0,
+    duelIncome: 0,
     waveCountdown: null,
     earlyStartBonus: 0,
     speed: 1,
@@ -245,7 +251,8 @@ export default function App() {
   // Duel: the room's link, the opponent's last state, how the duel ended
   const duelLinkRef = useRef<DuelLink | null>(null);
   const duelSeenRef = useRef(0); // performance.now() of the opponent's last message
-  const [opponent, setOpponent] = useState<{ lives: number; wave: number } | null>(null);
+  const [opponent, setOpponent] = useState<{ lives: number; wave: number; income: number } | null>(null);
+  const [sideTab, setSideTab] = useState<'towers' | 'army'>('towers'); // duel: tower shop or enemies for the opponent
   const [duelOutcome, setDuelOutcome] = useState<DuelOutcome | null>(null);
   const duelOutcomeRef = useRef<DuelOutcome | null>(null);
 
@@ -262,6 +269,7 @@ export default function App() {
     if (!link) return;
     if (!duelOutcomeRef.current) link.send({ t: 'leave' });
     duelLinkRef.current = null;
+    if (engineRef.current) engineRef.current.onDuelSend = undefined;
     // Let the last message go out before the channel closes
     setTimeout(() => link.close(), 500);
   }, []);
@@ -272,11 +280,13 @@ export default function App() {
     duelOutcomeRef.current = null;
     setDuelOutcome(null);
     setOpponent(null);
+    setSideTab('towers');
     setSelectedLevel(level);
     link.onMessage((msg) => {
       duelSeenRef.current = performance.now();
       if (msg.t === 'hello' && link.role === 'host') link.send({ t: 'start', level, inMs: 0 }); // the first answer was lost
-      else if (msg.t === 'state') setOpponent({ lives: msg.lives, wave: msg.wave });
+      else if (msg.t === 'state') setOpponent({ lives: msg.lives, wave: msg.wave, income: msg.income ?? 0 });
+      else if (msg.t === 'send') engineRef.current?.receiveSend(msg.enemies ?? {});
       else if (msg.t === 'lost') finishDuel('won');
       else if (msg.t === 'leave') finishDuel('left');
     });
@@ -285,6 +295,7 @@ export default function App() {
       if (canvasRef.current && engineRef.current) {
         engineRef.current.setCanvas(canvasRef.current);
         engineRef.current.startDuel(level, startAt);
+        engineRef.current.onDuelSend = (enemies) => link.send({ t: 'send', enemies });
         setShopCards(generateShopCards(1));
         setPlacingCardIndex(null);
       }
@@ -298,7 +309,7 @@ export default function App() {
       const link = duelLinkRef.current;
       const engine = engineRef.current;
       if (!link || !engine || duelOutcomeRef.current) return;
-      link.send({ t: 'state', lives: engine.lives, wave: engine.wave });
+      link.send({ t: 'state', lives: engine.lives, wave: engine.wave, income: engine.duelIncome });
       if (performance.now() - duelSeenRef.current > CONFIG.duel.peerTimeout * 1000) finishDuel('gone');
     }, CONFIG.duel.stateInterval * 1000);
     return () => window.clearInterval(t);
@@ -760,8 +771,10 @@ export default function App() {
         } else if (screen === 'playing') {
           engine.togglePause();
         }
-      } else if (['1', '2', '3', '4', '5'].includes(e.key)) {
-        if (screen === 'playing' && !engine.isPaused) {
+      } else if (['1', '2', '3', '4', '5', '6'].includes(e.key)) {
+        if (screen === 'playing' && engine.duelStart !== null && sideTab === 'army') {
+          engine.buySend(SEND_TYPES[parseInt(e.key, 10) - 1]);
+        } else if (screen === 'playing' && !engine.isPaused && e.key !== '6') {
           const idx = parseInt(e.key, 10) - 1;
           handleSelectShopCard(idx);
         }
@@ -801,7 +814,7 @@ export default function App() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [screen, specModalTower, placingCardIndex, shopCards, unlockedLevel, showHowToPlay]);
+  }, [screen, specModalTower, placingCardIndex, shopCards, unlockedLevel, showHowToPlay, sideTab]);
 
   // Audio Handlers
   const handleMusicChange = (val: number) => {
@@ -939,6 +952,40 @@ export default function App() {
                 endless={gameState.endless}
                 opponent={gameState.duel ? opponent : undefined}
               />
+              {gameState.duel && (
+                <div className="px-1.5 pt-1 grid grid-cols-2 gap-1 shrink-0" role="tablist">
+                  {(['towers', 'army'] as const).map((tab) => (
+                    <button
+                      key={tab}
+                      type="button"
+                      role="tab"
+                      aria-selected={sideTab === tab}
+                      onClick={() => setSideTab(tab)}
+                      className={`h-[var(--h-line)] min-h-[24px] rounded text-[length:var(--fs-sm)] font-bold transition-colors cursor-pointer ${
+                        sideTab === tab
+                          ? 'bg-amber-600 text-stone-950'
+                          : 'bg-[#221f2d] hover:bg-[#2c283a] text-stone-300 border border-[#383347]'
+                      }`}
+                    >
+                      {tab === 'towers' ? 'Башни' : `Армия${gameState.duelOutgoingCost > 0 ? ' •' : ''}`}
+                    </button>
+                  ))}
+                </div>
+              )}
+              {gameState.duel && sideTab === 'army' && gameState.duelSendPrices ? (
+                <ArmyPanel
+                  gold={gameState.gold}
+                  prices={gameState.duelSendPrices}
+                  outgoing={gameState.duelOutgoing}
+                  outgoingCost={gameState.duelOutgoingCost}
+                  income={gameState.duelIncome}
+                  onBuy={(t) => {
+                    sound.init();
+                    engineRef.current?.buySend(t);
+                  }}
+                  onClear={() => engineRef.current?.clearSends()}
+                />
+              ) : (
               <ShopPanel
                 cards={shopCards}
                 tier={gameState.tier}
@@ -954,6 +1001,7 @@ export default function App() {
                 onReroll={handleRerollShop}
                 onUpgradeTier={handleUpgradeTier}
               />
+              )}
               <TowerPanel
                 tower={gameState.selectedTower}
                 eligibleMergeCount={gameState.eligibleMergeCount}
