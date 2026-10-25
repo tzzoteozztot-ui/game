@@ -597,7 +597,7 @@ export class GameEngine {
     if (this.waveCountdown !== null) {
       return Math.floor(this.waveCountdown) * CONFIG.waveTimer.goldPerSecond;
     }
-    return this.enemies.length > 0 ? 10 : 0;
+    return this.enemies.length > 0 ? CONFIG.waveTimer.between * CONFIG.waveTimer.goldPerSecond : 0;
   }
 
   // -------------------------------------------------------------
@@ -610,7 +610,13 @@ export class GameEngine {
     if ((this.isSpawning && !duel) || this.isGameOver || this.isVictory) return false;
     if (!this.endless && this.wavesLaunched >= CONFIG.waves.length) return false;
 
-    // Early start: gold for the seconds left on the timer, or +10 while enemies are still alive
+    // Early start: gold for the seconds left on the timer; while enemies are still alive the waves
+    // merge, so the cleared-wave reward of the unfinished one is paid now (Артур: награда сразу и +20)
+    if (!duel && this.waveInProgress && this.enemies.length > 0 && (this.endless || this.wave <= 12)) {
+      const reward = calculateWaveClearReward(this.wave);
+      this.gold += reward;
+      this.addFloatingText(`Волна ${this.wave}: +${reward} золота`, CONFIG.grid.totalWidth / 2, 80, '#f4c06a');
+    }
     const bonus = this.earlyStartBonus();
     if (bonus > 0) {
       this.gold += bonus;

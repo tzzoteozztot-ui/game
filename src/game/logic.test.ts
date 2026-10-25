@@ -337,3 +337,19 @@ test('progress from two devices merges to the best of both', () => {
   });
   assert.deepEqual(normalizeProgress(undefined), { unlocked: 1, stars: {}, endlessBest: {} });
 });
+
+import { BOT_LEVELS, BotLevel, botStrength, waveWeight } from '../duelBot';
+
+test('duel bot: the defence outgrows early waves and falls behind later ones, stronger levels hold longer', () => {
+  const firstOverload = (d: BotLevel) => {
+    for (let r = 1; r <= 60; r++) if (waveWeight(r, 1) > botStrength(d, r)) return r;
+    return 61;
+  };
+  const easy = firstOverload('easy');
+  const normal = firstOverload('normal');
+  const hard = firstOverload('hard');
+  assert.ok(easy >= 5 && easy < normal && normal < hard && hard <= 40, `${easy} ${normal} ${hard}`);
+  // Sends scale with the wave's weight, a harder bot buys more
+  assert.ok(BOT_LEVELS.easy.sendShare < BOT_LEVELS.normal.sendShare && BOT_LEVELS.normal.sendShare < BOT_LEVELS.hard.sendShare);
+  assert.ok(waveWeight(12, 1) > waveWeight(11, 1));
+});
