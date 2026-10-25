@@ -52,8 +52,11 @@ export function ArmyPanel({ gold, prices, outgoing, outgoingCost, income, onBuy,
                     : 'border-[#262330] bg-[#181622] opacity-50'
               }`}
             >
+              <span className="absolute top-0.5 left-1 max-w-[calc(100%-8px)] truncate text-stone-300 text-[length:var(--fs-xs)] font-semibold leading-none [text-shadow:0_1px_2px_#000]">
+                {def.name}
+              </span>
               {n > 0 && (
-                <span className="absolute top-0.5 right-1 text-red-300 text-[length:var(--fs-md)] font-black leading-none tabular-nums">
+                <span className="absolute bottom-1 right-1 text-red-300 text-[length:var(--fs-md)] font-black leading-none tabular-nums">
                   ×{n}
                 </span>
               )}
