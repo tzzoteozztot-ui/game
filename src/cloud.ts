@@ -16,8 +16,8 @@ export const cloudEnabled = SUPABASE_URL !== '' && SUPABASE_ANON_KEY !== '';
 
 let clientPromise: Promise<SupabaseClient> | null = null;
 
-// Loaded on demand: the game starts (and works offline) without the library
-function client(): Promise<SupabaseClient> {
+// Loaded on demand: the game starts (and works offline) without the library. Also used by duel.ts (Realtime)
+export function client(): Promise<SupabaseClient> {
   if (!clientPromise) {
     clientPromise = import('@supabase/supabase-js').then(({ createClient }) =>
       createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {

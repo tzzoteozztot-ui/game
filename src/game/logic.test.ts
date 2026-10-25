@@ -138,6 +138,10 @@ test('enemy scaling and damage formulas', () => {
   assert.equal(calculateEnemyCount(8, 1, 3, false, 'hard'), 7); // 6.4 -> 7
   assert.equal(calculateEnemyCount(10, 1, 4, false, 'hard'), 10);
   assert.equal(calculateEnemyCount(6, 1, 1, false, 'normal'), 6);
+  // Duel: half of the usual wave, rounded up; endless growth per cycle still applies
+  assert.equal(calculateEnemyCount(6, 1, 1, true, 'normal', true), 3);
+  assert.equal(calculateEnemyCount(7, 1, 1, true, 'normal', true), 4); // 3.5 -> 4
+  assert.equal(calculateEnemyCount(8, 1, 13, true, 'normal', true), 5); // 8 * 1.25 * 0.5 = 5
 
   // Kill gold: round(base * (1 + 0.15*(lvl-1)))
   assert.equal(calculateKillGold(5, 1), 5);

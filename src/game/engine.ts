@@ -186,6 +186,7 @@ export interface GameStateSnapshot {
   isPaused: boolean;
   allWavesLaunched: boolean;
   endless: boolean;
+  duel: boolean;
   waveCountdown: number | null; // whole seconds left, null while a wave runs
   earlyStartBonus: number;
   speed: number;
@@ -223,6 +224,8 @@ export class GameEngine {
   public isVictory: boolean = false;
   // Endless mode: the 12 waves repeat, a boss every 12th wave, no victory
   public endless: boolean = false;
+  // Duel: performance.now() of the duel start; wave N starts N rounds later (shared clock), null outside a duel
+  public duelStart: number | null = null;
 
   // Entities
   public towers: Tower[] = [];
@@ -311,6 +314,7 @@ export class GameEngine {
     this.level = Math.max(1, Math.min(5, level));
     this.difficulty = diff;
     this.endless = endless;
+    this.duelStart = null;
     this.currentMap = MAPS[this.level - 1];
     this.lives = CONFIG.lives.start;
     this.gold = Math.floor((200 + 25 * (this.level - 1)) * CONFIG.difficulty[diff].goldMult);
@@ -420,7 +424,8 @@ export class GameEngine {
       this.lastTime = time;
       const dt = Math.min(rawDt, 0.05);
 
-      if (!this.isPaused && !this.isGameOver && !this.isVictory) {
+      // A duel goes on behind the pause menu: the opponent's clock does not stop
+      if ((!this.isPaused || this.duelStart !== null) && !this.isGameOver && !this.isVictory) {
         // Game time runs at the chosen speed in steps of at most 0.05 s
         const gameDt = dt * this.speedMultiplier;
         const steps = Math.max(1, Math.ceil(gameDt / 0.05 - 1e-9));
@@ -436,6 +441,26 @@ export class GameEngine {
     this.animFrameId = requestAnimationFrame(frame);
   }
 
+  /** Duel: an endless game on this map whose waves follow the shared clock from startAt (performance.now()) */
+  public startDuel(level: number, startAt: number) {
+    this.startLevel(level, 'normal', true);
+    this.duelStart = startAt;
+    this.waveCountdown = this.duelNextWaveAt() / 1000 - performance.now() / 1000;
+    this.notifyState();
+  }
+
+  /** Duel: the opponent's castle fell or the opponent left */
+  public winDuel() {
+    if (this.duelStart === null || this.isGameOver || this.isVictory) return;
+    this.isVictory = true;
+    sound.playVictory();
+    this.notifyState();
+  }
+
+  private duelNextWaveAt(): number {
+    return (this.duelStart ?? 0) + (this.wavesLaunched + 1) * CONFIG.duel.roundLength * 1000;
+  }
+
   public stopLoop() {
     if (this.animFrameId !== null) {
       cancelAnimationFrame(this.animFrameId);
@@ -449,7 +474,7 @@ export class GameEngine {
   }
 
   public setSpeed(speed: number) {
-    if (!CONFIG.speeds.includes(speed)) return;
+    if (!CONFIG.speeds.includes(speed) || this.duelStart !== null) return; // a duel runs at ×1
     this.speedMultiplier = speed;
     this.notifyState();
   }
@@ -463,6 +488,14 @@ export class GameEngine {
 
   // Counts down in real seconds, whatever the game speed; starts the wave at zero
   private tickWaveCountdown(realDt: number) {
+    if (this.duelStart !== null) {
+      // Duel: the next wave starts on the shared clock, whether or not this one is cleared
+      const before = Math.ceil(this.waveCountdown ?? 0);
+      this.waveCountdown = Math.max(0, (this.duelNextWaveAt() - performance.now()) / 1000);
+      if (this.waveCountdown <= 0) this.startNextWave(true);
+      else if (Math.ceil(this.waveCountdown) !== before) this.notifyState();
+      return;
+    }
     if (this.waveCountdown === null) return;
     const before = Math.ceil(this.waveCountdown);
     this.waveCountdown = Math.max(0, this.waveCountdown - realDt);
@@ -475,6 +508,7 @@ export class GameEngine {
 
   /** Gold for starting the next wave now instead of waiting. */
   public earlyStartBonus(): number {
+    if (this.duelStart !== null) return 0; // a duel has no early start
     if (this.waveCountdown !== null) {
       return Math.floor(this.waveCountdown) * CONFIG.waveTimer.goldPerSecond;
     }
@@ -484,8 +518,11 @@ export class GameEngine {
   // -------------------------------------------------------------
   // Wave Spawning
   // -------------------------------------------------------------
-  public startNextWave(): boolean {
-    if (this.isSpawning || this.isGameOver || this.isVictory) return false;
+  // fromClock: a duel wave started by the shared clock; in a duel it comes out over the unfinished one
+  public startNextWave(fromClock = false): boolean {
+    const duel = this.duelStart !== null;
+    if (duel !== fromClock) return false; // a duel wave waits for the clock
+    if ((this.isSpawning && !duel) || this.isGameOver || this.isVictory) return false;
     if (!this.endless && this.wavesLaunched >= CONFIG.waves.length) return false;
 
     // Early start: gold for the seconds left on the timer, or +10 while enemies are still alive
@@ -495,18 +532,20 @@ export class GameEngine {
       this.addFloatingText(`+${bonus} за ранний старт`, CONFIG.grid.totalWidth / 2, 40, '#f4c06a');
       sound.playBuy();
     }
-    this.waveCountdown = null;
+    if (!duel) this.waveCountdown = null;
 
     // An early start launches the next wave, not the current one again
     this.wave = this.wavesLaunched + 1;
     this.wavesLaunched++;
     this.rerollsThisWave = 0;
+    if (duel) this.waveCountdown = Math.max(0, (this.duelNextWaveAt() - performance.now()) / 1000);
     const waveDef = waveDefinition(this.wave);
-    this.spawnQueue = [];
+    // A duel wave joins the enemies still waiting to come out
+    if (!duel) this.spawnQueue = [];
 
     // Helper to calculate count
     const getCount = (count?: number) =>
-      count ? calculateEnemyCount(count, this.level, this.wave, this.endless, this.difficulty) : 0;
+      count ? calculateEnemyCount(count, this.level, this.wave, this.endless, this.difficulty, duel) : 0;
 
     const list: EnemyType[] = [];
     if (waveDef.infantry) {
@@ -680,7 +719,8 @@ export class GameEngine {
           return;
         } else {
           this.wave++;
-          this.waveCountdown = this.endless ? CONFIG.endless.between : CONFIG.waveTimer.between;
+          // In a duel the clock already counts down to the next wave
+          if (this.duelStart === null) this.waveCountdown = this.endless ? CONFIG.endless.between : CONFIG.waveTimer.between;
           this.notifyState();
         }
       }
@@ -1858,6 +1898,7 @@ export class GameEngine {
       isPaused: this.isPaused,
       allWavesLaunched: !this.endless && this.wavesLaunched >= CONFIG.waves.length,
       endless: this.endless,
+      duel: this.duelStart !== null,
       waveCountdown: this.waveCountdown === null ? null : Math.ceil(this.waveCountdown),
       earlyStartBonus: this.earlyStartBonus(),
       speed: this.speedMultiplier,

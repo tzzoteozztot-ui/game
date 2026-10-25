@@ -12,6 +12,7 @@ interface TopBarProps {
   wave: number;
   maxWaves: number;
   endless: boolean;
+  opponent?: { lives: number; wave: number } | null; // duel: the opponent's last known state
 }
 
 export function TopBar({
@@ -20,6 +21,7 @@ export function TopBar({
   wave,
   maxWaves,
   endless,
+  opponent,
 }: TopBarProps) {
   return (
     <header className="w-full px-1.5 pt-1.5 select-none shrink-0">
@@ -37,6 +39,24 @@ export function TopBar({
           Волна <span className="text-amber-200">{endless ? wave : `${Math.min(wave, maxWaves)}/${maxWaves}`}</span>
         </span>
       </div>
+      {opponent !== undefined && (
+        <div className="h-[var(--h-line)] flex items-center justify-between text-[length:var(--fs-sm)] tabular-nums text-stone-400" title="Соперник">
+          <span>Соперник</span>
+          {opponent ? (
+            <span className="flex items-center gap-2">
+              <span className="flex items-center gap-0.5 font-bold text-red-300">
+                <HeartCastleIcon size="1em" />
+                {opponent.lives}
+              </span>
+              <span>
+                волна <span className="text-amber-200">{opponent.wave}</span>
+              </span>
+            </span>
+          ) : (
+            <span>ждём связи…</span>
+          )}
+        </div>
+      )}
     </header>
   );
 }
