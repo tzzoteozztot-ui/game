@@ -260,7 +260,15 @@ export class GameEngine {
   private currentEntranceIndex: number = 0;
 
   // Undead graveyard for Lich boss resurrection
-  private deadEnemiesGraveyard: { x: number; y: number; time: number; type: EnemyType }[] = [];
+  private deadEnemiesGraveyard: {
+    x: number;
+    y: number;
+    time: number;
+    type: EnemyType;
+    entranceIndex: number; // the revived enemy goes on along its own path from where it fell
+    pathIndex: number;
+    distanceTraveled: number;
+  }[] = [];
 
   // Selection & Placement
   public selectedTowerId: string | null = null;
@@ -529,6 +537,15 @@ export class GameEngine {
   }
 
   // Duel, start of a round: the income comes in, the bought enemies leave and raise it from the next round
+  /**
+   * The wave number shown to the player. In a duel it is the round of the shared clock (the last wave
+   * out, 1 before the first), the same for both players and the bot, whether or not the field is
+   * clear; elsewhere the current wave, or the next one once it is cleared.
+   */
+  public shownWave(): number {
+    return this.duelStart !== null ? Math.max(1, this.wavesLaunched) : this.wave;
+  }
+
   private duelRoundStart() {
     if (this.duelIncome > 0) {
       this.gold += this.duelIncome;
@@ -1104,10 +1121,12 @@ export class GameEngine {
         this.addFloatingText('ВОСКРЕШЕНИЕ ЛИЧА!', boss.x, boss.y - 18, '#c9d6b0');
         const toRevive = eligible.slice(0, 3);
         for (const g of toRevive) {
-          this.spawnEnemy(g.type, boss.entranceIndex);
+          this.spawnEnemy(g.type, g.entranceIndex);
           const newSpawn = this.enemies[this.enemies.length - 1];
           newSpawn.x = g.x;
           newSpawn.y = g.y;
+          newSpawn.pathIndex = g.pathIndex;
+          newSpawn.distanceTraveled = g.distanceTraveled;
           newSpawn.hp = Math.round(newSpawn.maxHp * 0.3);
           this.spawnRing(g.x, g.y, '#c9d6b0');
         }
@@ -1440,6 +1459,9 @@ export class GameEngine {
         y: e.y,
         time: performance.now() / 1000,
         type: e.type,
+        entranceIndex: e.entranceIndex,
+        pathIndex: e.pathIndex,
+        distanceTraveled: e.distanceTraveled,
       });
     }
 
@@ -1981,7 +2003,7 @@ export class GameEngine {
       lives: this.lives,
       gold: this.gold,
       level: this.level,
-      wave: this.wave,
+      wave: this.shownWave(),
       maxWaves: 12,
       tier: this.tier,
       isWaveActive: this.waveInProgress || this.isSpawning || this.enemies.length > 0,

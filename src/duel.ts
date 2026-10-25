@@ -18,15 +18,22 @@ export type DuelMessage =
   | { t: 'state'; lives: number; wave: number; income: number } // both, every few seconds; also a sign of life
   | { t: 'send'; enemies: Partial<Record<SendType, number>> } // enemies bought for the opponent, at a round start
   | { t: 'lost'; wave: number } // my castle fell
-  | { t: 'leave' }; // I left the duel
+  | { t: 'leave' } // I left the duel
+  | { t: 'full' }; // host → a third player: the room already has a duel
 
 export interface DuelLink {
   role: DuelRole;
   code: string;
   send(msg: DuelMessage): void;
-  onMessage(cb: (msg: DuelMessage) => void): void;
+  /** from: the sender's id in the room */
+  onMessage(cb: (msg: DuelMessage, from: string) => void): void;
+  /** From now on only this sender is heard and messages go to it alone; a third player gets «full» */
+  pair(peer: string): void;
   close(): void;
 }
+
+/** On the wire every message carries its sender and, once paired, its addressee */
+type Envelope = DuelMessage & { from?: string; to?: string };
 
 const EVENT = 'm';
 
@@ -46,11 +53,45 @@ export async function openDuel(code: string, role: DuelRole): Promise<DuelLink> 
   return isLocalDuel() ? openLocal(code, role) : openRealtime(code, role);
 }
 
+/**
+ * The room is open to anyone with its code, so the two players pair by random ids: after the start
+ * each hears only the other, and the host turns away whoever else knocks.
+ */
+function pairedLink(
+  role: DuelRole,
+  code: string,
+  post: (env: Envelope) => void,
+  listen: (cb: (env: Envelope) => void) => void,
+  close: () => void
+): DuelLink {
+  const me = Math.random().toString(36).slice(2, 10);
+  let peer: string | null = null;
+  let handler: (msg: DuelMessage, from: string) => void = () => {};
+  listen((env) => {
+    if (!env || typeof env !== 'object' || typeof env.from !== 'string' || env.from === me) return;
+    if (env.to && env.to !== me) return;
+    if (peer !== null && env.from !== peer) {
+      if (env.t === 'hello' && role === 'host') post({ t: 'full', from: me, to: env.from });
+      return;
+    }
+    const { from, to: _to, ...msg } = env;
+    handler(msg as DuelMessage, from);
+  });
+  return {
+    role,
+    code,
+    send: (msg) => post({ ...msg, from: me, ...(peer !== null ? { to: peer } : {}) }),
+    onMessage: (cb) => (handler = cb),
+    pair: (id) => (peer = id),
+    close,
+  };
+}
+
 async function openRealtime(code: string, role: DuelRole): Promise<DuelLink> {
   const supabase = await client();
-  let handler: (msg: DuelMessage) => void = () => {};
+  let handler: (env: Envelope) => void = () => {};
   const channel: RealtimeChannel = supabase.channel(`duel-${code}`, { config: { broadcast: { self: false } } });
-  channel.on('broadcast', { event: EVENT }, ({ payload }) => handler(payload as DuelMessage));
+  channel.on('broadcast', { event: EVENT }, ({ payload }) => handler(payload as Envelope));
   await new Promise<void>((resolve, reject) => {
     const timer = setTimeout(() => reject(new Error('Нет связи с сервером. Проверьте интернет.')), 10000);
     channel.subscribe((status) => {
@@ -63,22 +104,22 @@ async function openRealtime(code: string, role: DuelRole): Promise<DuelLink> {
       }
     });
   });
-  return {
+  return pairedLink(
     role,
     code,
-    send: (msg) => void channel.send({ type: 'broadcast', event: EVENT, payload: msg }),
-    onMessage: (cb) => (handler = cb),
-    close: () => void supabase.removeChannel(channel),
-  };
+    (env) => void channel.send({ type: 'broadcast', event: EVENT, payload: env }),
+    (cb) => (handler = cb),
+    () => void supabase.removeChannel(channel)
+  );
 }
 
 function openLocal(code: string, role: DuelRole): DuelLink {
   const bc = new BroadcastChannel(`dark_frontier_duel_${code}`);
-  return {
+  return pairedLink(
     role,
     code,
-    send: (msg) => bc.postMessage(msg),
-    onMessage: (cb) => (bc.onmessage = (e) => cb(e.data as DuelMessage)),
-    close: () => bc.close(),
-  };
+    (env) => bc.postMessage(env),
+    (cb) => (bc.onmessage = (e) => cb(e.data as Envelope)),
+    () => bc.close()
+  );
 }

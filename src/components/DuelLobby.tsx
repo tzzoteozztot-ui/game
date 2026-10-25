@@ -69,8 +69,9 @@ export function DuelLobby({ level, onStart, onBack }: DuelLobbyProps) {
       const link = await openDuel(code, 'host');
       linkRef.current = link;
       // The first guest gets the map and the duel starts for both
-      link.onMessage((msg) => {
+      link.onMessage((msg, from) => {
         if (msg.t !== 'hello' || startedRef.current) return;
+        link.pair(from);
         link.send({ t: 'start', level, army, inMs: 0 });
         start(link, level, clampArmy(msg.army));
       });
@@ -98,8 +99,14 @@ export function DuelLobby({ level, onStart, onBack }: DuelLobbyProps) {
     try {
       const link = await openDuel(code, 'guest');
       linkRef.current = link;
-      link.onMessage((msg) => {
-        if (msg.t !== 'start' || startedRef.current) return;
+      link.onMessage((msg, from) => {
+        if (startedRef.current) return;
+        if (msg.t === 'full') {
+          reset('В этой комнате уже идёт дуэль.');
+          return;
+        }
+        if (msg.t !== 'start') return;
+        link.pair(from);
         start(link, Math.max(1, Math.min(5, msg.level)), clampArmy(msg.army));
       });
       // Knock until the host answers; no answer: no such room

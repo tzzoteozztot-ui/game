@@ -55,7 +55,7 @@ export function botStrength(difficulty: BotLevel, round: number): number {
 export function createBotLink(level: number, difficulty: BotLevel): DuelLink {
   const cfg = BOT_LEVELS[difficulty];
   const startedAt = performance.now();
-  let handler: (msg: DuelMessage) => void = () => {};
+  let handler: (msg: DuelMessage, from: string) => void = () => {};
   let timer: number | null = null;
   let lives = CONFIG.lives.start;
   let income = 0;
@@ -65,7 +65,7 @@ export function createBotLink(level: number, difficulty: BotLevel): DuelLink {
   let over = false;
 
   const emit = (msg: DuelMessage) => {
-    if (!over) setTimeout(() => handler(msg), 0);
+    if (!over) setTimeout(() => handler(msg, 'бот'), 0);
   };
   const stop = () => {
     over = true;
@@ -115,7 +115,7 @@ export function createBotLink(level: number, difficulty: BotLevel): DuelLink {
     while (!over && elapsed >= (round + 1) * CONFIG.duel.roundLength) nextRound();
     if (!over && elapsed - lastState >= CONFIG.duel.stateInterval) {
       lastState = elapsed;
-      emit({ t: 'state', lives, wave: round, income });
+      emit({ t: 'state', lives, wave: Math.max(1, round), income });
     }
   };
 
@@ -135,9 +135,10 @@ export function createBotLink(level: number, difficulty: BotLevel): DuelLink {
       handler = cb;
       if (timer === null && !over) {
         timer = window.setInterval(tick, 500);
-        emit({ t: 'state', lives, wave: round, income });
+        emit({ t: 'state', lives, wave: Math.max(1, round), income });
       }
     },
+    pair() {},
     close: stop,
   };
 }

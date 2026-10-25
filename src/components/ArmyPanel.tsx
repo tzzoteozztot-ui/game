@@ -52,8 +52,11 @@ export function ArmyPanel({ gold, prices, outgoing, outgoingCost, income, onBuy,
                     : 'border-[#262330] bg-[#181622] opacity-50'
               }`}
             >
+              <span className="absolute top-0.5 left-1 max-w-[calc(100%-8px)] truncate text-stone-300 text-[length:var(--fs-xs)] font-semibold leading-none [text-shadow:0_1px_2px_#000]">
+                {def.name}
+              </span>
               {n > 0 && (
-                <span className="absolute top-0.5 right-1 text-red-300 text-[length:var(--fs-md)] font-black leading-none tabular-nums">
+                <span className="absolute bottom-1 right-1 text-red-300 text-[length:var(--fs-md)] font-black leading-none tabular-nums">
                   ×{n}
                 </span>
               )}
@@ -84,7 +87,7 @@ export function ArmyPanel({ gold, prices, outgoing, outgoingCost, income, onBuy,
         onClick={onClear}
         disabled={count === 0}
         title="Забрать купленных врагов и их золото"
-        className={`h-[clamp(36px,9cqh,56px)] w-full px-1 rounded border text-[length:var(--fs-md)] font-semibold flex items-center justify-center gap-1 transition-colors shrink-0 ${
+        className={`h-[clamp(30px,9cqh_-_6px,56px)] w-full px-1 rounded border text-[length:var(--fs-md)] font-semibold flex items-center justify-center gap-1 transition-colors shrink-0 ${
           count > 0
             ? 'bg-[#221f2d] hover:bg-[#2c283a] text-stone-200 border-[#383347] cursor-pointer'
             : 'bg-[#181622] text-stone-500 border-[#262330] cursor-default'

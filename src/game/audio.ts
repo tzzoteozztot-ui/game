@@ -223,8 +223,21 @@ class SoundEngine {
   // -------------------------------------------------------------
   // Sound Effects
   // -------------------------------------------------------------
+  /**
+   * Frequent sounds (shots, hits, deaths) play at most once per `gap` seconds each: a full field at
+   * ×5 fires hundreds of shots a second, and as many voices at once crackle and load the phone.
+   */
+  private lastPlayed: Record<string, number> = {};
+  private tooSoon(key: string, gap: number): boolean {
+    const now = this.ctx?.currentTime ?? 0;
+    if (now - (this.lastPlayed[key] ?? -Infinity) < gap) return true;
+    this.lastPlayed[key] = now;
+    return false;
+  }
+
   public playShot(type: 'archer' | 'mage' | 'ballista' | 'priest') {
     if (!this.ctx || !this.sfxGain || this.settings.muted) return;
+    if (this.tooSoon(`shot_${type}`, 0.06)) return;
     this.resume();
     const now = this.ctx.currentTime;
 
@@ -290,6 +303,7 @@ class SoundEngine {
 
   public playHit() {
     if (!this.ctx || !this.sfxGain || this.settings.muted) return;
+    if (this.tooSoon('hit', 0.05)) return;
     const now = this.ctx.currentTime;
     const osc = this.ctx.createOscillator();
     const gain = this.ctx.createGain();
@@ -306,6 +320,7 @@ class SoundEngine {
 
   public playDeath() {
     if (!this.ctx || !this.sfxGain || this.settings.muted) return;
+    if (this.tooSoon('death', 0.05)) return;
     const now = this.ctx.currentTime;
     const osc = this.ctx.createOscillator();
     const gain = this.ctx.createGain();

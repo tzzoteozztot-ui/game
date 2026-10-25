@@ -42,7 +42,7 @@ const SIDE_VARS = {
   '--h-line': 'max(16px, 3.6cqh)',
   '--fs-btn4': 'clamp(10px, min(2.6cqh, 4.8cqw), 15px)', // four buttons in a row
   '--h-btn': 'max(40px, 11cqh - 8px)',
-  '--h-card': 'clamp(56px, min(19cqh, 34cqw), 160px)',
+  '--h-card': 'clamp(56px, min(19cqh - 6px, 34cqw), 160px)',
   '--h-head': 'max(28px, 6.5cqh)',
 } as React.CSSProperties;
 
@@ -188,6 +188,8 @@ export default function App() {
     engine.onWaveStarted = () => {
       setShopCards(generateShopCards(engine.tier));
       setPlacingCardIndex(null);
+      // A triplet's specialization was being picked for a card that is gone now
+      setSpecModalTower((m) => (m?.isPrePlacement ? null : m));
       engine.placingTowerType = null;
       engine.placingBinder = false;
     };
@@ -318,7 +320,7 @@ export default function App() {
       const link = duelLinkRef.current;
       const engine = engineRef.current;
       if (!link || !engine || duelOutcomeRef.current) return;
-      link.send({ t: 'state', lives: engine.lives, wave: engine.wave, income: engine.duelIncome });
+      link.send({ t: 'state', lives: engine.lives, wave: engine.shownWave(), income: engine.duelIncome });
       if (performance.now() - duelSeenRef.current > CONFIG.duel.peerTimeout * 1000) finishDuel('gone');
     }, CONFIG.duel.stateInterval * 1000);
     return () => window.clearInterval(t);
@@ -564,6 +566,7 @@ export default function App() {
     sound.playBuy();
     setShopCards(generateShopCards(engine.tier));
     setPlacingCardIndex(null);
+    setSpecModalTower((m) => (m?.isPrePlacement ? null : m));
     engine.placingTowerType = null;
     engine.placingBinder = false;
     engine.notifyState();
@@ -729,101 +732,103 @@ export default function App() {
     if (engineRef.current) engineRef.current.hoverCell = null;
   };
 
-  // Keyboard controls
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      const engine = engineRef.current;
-      if (!engine) return;
+  // Keyboard controls: the handler is rebuilt every render, so it always sees the current
+  // mode, level and difficulty; the listener is added once and calls the latest one
+  const keyHandlerRef = useRef<(e: KeyboardEvent) => void>(() => {});
+  keyHandlerRef.current = (e: KeyboardEvent) => {
+    const engine = engineRef.current;
+    if (!engine) return;
 
-      if (e.key === ' ' || e.code === 'Space') {
-        if (screen === 'briefing') {
-          e.preventDefault();
-          handleStartBattle();
-        } else if (screen === 'playing' && !engine.isPaused) {
-          e.preventDefault();
-          handleStartWave();
-        }
-      } else if (e.key === 'Enter') {
-        if (screen === 'menu' && !showHowToPlay) {
-          e.preventDefault();
-          handleOpenBriefing();
-        } else if (screen === 'briefing') {
-          e.preventDefault();
-          handleStartBattle();
-        }
-      } else if (e.key === 'p' || e.key === 'P' || e.key === 'з' || e.key === 'З') {
-        if (screen === 'playing') {
-          e.preventDefault();
-          engine.togglePause();
-        }
-      } else if (e.key === 'f' || e.key === 'F' || e.key === 'а' || e.key === 'А') {
-        if (fullscreenSupported()) {
-          e.preventDefault();
-          toggleFullscreen();
-        }
-      } else if (e.key === 'Escape') {
-        if (specModalTower) {
-          // Specialization choice is mandatory, don't close with Esc
-          return;
-        }
-        if (engine.placingTowerType || engine.placingBinder) {
-          setPlacingCardIndex(null);
-          engine.placingTowerType = null;
-          engine.placingBinder = false;
-          engine.notifyState();
-        } else if (engine.bindingFromId) {
-          engine.toggleBinding();
-        } else if (engine.upgradingFromBinderId) {
-          engine.toggleUpgrading();
-        } else if (engine.selectedTowerId || engine.selectedBinderId) {
-          engine.selectTower(null);
-        } else if (screen === 'playing') {
-          engine.togglePause();
-        }
-      } else if (['1', '2', '3', '4', '5', '6'].includes(e.key)) {
-        if (screen === 'playing' && engine.duelStart !== null && sideTab === 'army') {
-          engine.buySend(SEND_TYPES[parseInt(e.key, 10) - 1]);
-        } else if (screen === 'playing' && !engine.isPaused && e.key !== '6') {
-          const idx = parseInt(e.key, 10) - 1;
-          handleSelectShopCard(idx);
-        }
-      } else if (e.key === 'r' || e.key === 'R' || e.key === 'к' || e.key === 'К') {
-        if (screen === 'playing' && !engine.isPaused) {
-          handleRerollShop();
-        }
-      } else if (e.key === 'u' || e.key === 'U' || e.key === 'г' || e.key === 'Г') {
-        if (screen === 'playing' && !engine.isPaused) {
-          handleUpgradeTier();
-        }
-      } else if (e.key === 'm' || e.key === 'M' || e.key === 'ь' || e.key === 'Ь') {
-        if (screen === 'playing' && engine.selectedTowerId) {
-          handleMerge();
-        } else if (screen === 'playing' && engine.selectedBinderId) {
-          handleMergeBinders();
-        }
-      } else if (e.key === '+' || e.key === '=' || e.key === '-' || e.key === '_') {
-        if (screen === 'playing') engine.stepSpeed(e.key === '+' || e.key === '=' ? 1 : -1);
-      } else if (e.key === 's' || e.key === 'S' || e.key === 'ы' || e.key === 'Ы') {
-        if (screen === 'playing' && (engine.selectedTowerId || engine.selectedBinderId)) {
-          handleSell();
-        }
-      } else if (e.key === 'b' || e.key === 'B' || e.key === 'и' || e.key === 'И') {
-        if (screen === 'playing' && engine.selectedTowerId) {
-          handleBind();
-        } else if (screen === 'playing' && engine.selectedBinderId) {
-          handleUpgradeWithBinder();
-        }
-      } else if (e.key === 'Tab') {
-        if (screen === 'playing' && engine.selectedTowerId) {
-          e.preventDefault();
-          handleCyclePriority();
-        }
+    if (e.key === ' ' || e.code === 'Space') {
+      if (screen === 'briefing') {
+        e.preventDefault();
+        handleStartBattle();
+      } else if (screen === 'playing' && !engine.isPaused) {
+        e.preventDefault();
+        handleStartWave();
       }
-    };
-
+    } else if (e.key === 'Enter') {
+      if (screen === 'menu' && !showHowToPlay) {
+        e.preventDefault();
+        handleOpenBriefing();
+      } else if (screen === 'briefing') {
+        e.preventDefault();
+        handleStartBattle();
+      }
+    } else if (e.key === 'p' || e.key === 'P' || e.key === 'з' || e.key === 'З') {
+      if (screen === 'playing') {
+        e.preventDefault();
+        engine.togglePause();
+      }
+    } else if (e.key === 'f' || e.key === 'F' || e.key === 'а' || e.key === 'А') {
+      if (fullscreenSupported()) {
+        e.preventDefault();
+        toggleFullscreen();
+      }
+    } else if (e.key === 'Escape') {
+      if (specModalTower) {
+        // Specialization choice is mandatory, don't close with Esc
+        return;
+      }
+      if (engine.placingTowerType || engine.placingBinder) {
+        setPlacingCardIndex(null);
+        engine.placingTowerType = null;
+        engine.placingBinder = false;
+        engine.notifyState();
+      } else if (engine.bindingFromId) {
+        engine.toggleBinding();
+      } else if (engine.upgradingFromBinderId) {
+        engine.toggleUpgrading();
+      } else if (engine.selectedTowerId || engine.selectedBinderId) {
+        engine.selectTower(null);
+      } else if (screen === 'playing') {
+        engine.togglePause();
+      }
+    } else if (['1', '2', '3', '4', '5', '6'].includes(e.key)) {
+      if (screen === 'playing' && engine.duelStart !== null && sideTab === 'army') {
+        engine.buySend(SEND_TYPES[parseInt(e.key, 10) - 1]);
+      } else if (screen === 'playing' && !engine.isPaused && e.key !== '6') {
+        const idx = parseInt(e.key, 10) - 1;
+        handleSelectShopCard(idx);
+      }
+    } else if (e.key === 'r' || e.key === 'R' || e.key === 'к' || e.key === 'К') {
+      if (screen === 'playing' && !engine.isPaused) {
+        handleRerollShop();
+      }
+    } else if (e.key === 'u' || e.key === 'U' || e.key === 'г' || e.key === 'Г') {
+      if (screen === 'playing' && !engine.isPaused) {
+        handleUpgradeTier();
+      }
+    } else if (e.key === 'm' || e.key === 'M' || e.key === 'ь' || e.key === 'Ь') {
+      if (screen === 'playing' && engine.selectedTowerId) {
+        handleMerge();
+      } else if (screen === 'playing' && engine.selectedBinderId) {
+        handleMergeBinders();
+      }
+    } else if (e.key === '+' || e.key === '=' || e.key === '-' || e.key === '_') {
+      if (screen === 'playing') engine.stepSpeed(e.key === '+' || e.key === '=' ? 1 : -1);
+    } else if (e.key === 's' || e.key === 'S' || e.key === 'ы' || e.key === 'Ы') {
+      if (screen === 'playing' && (engine.selectedTowerId || engine.selectedBinderId)) {
+        handleSell();
+      }
+    } else if (e.key === 'b' || e.key === 'B' || e.key === 'и' || e.key === 'И') {
+      if (screen === 'playing' && engine.selectedTowerId) {
+        handleBind();
+      } else if (screen === 'playing' && engine.selectedBinderId) {
+        handleUpgradeWithBinder();
+      }
+    } else if (e.key === 'Tab') {
+      if (screen === 'playing' && engine.selectedTowerId) {
+        e.preventDefault();
+        handleCyclePriority();
+      }
+    }
+  };
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => keyHandlerRef.current(e);
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [screen, specModalTower, placingCardIndex, shopCards, unlockedLevel, showHowToPlay, sideTab]);
+  }, []);
 
   // Audio Handlers
   const handleMusicChange = (val: number) => {
@@ -950,7 +955,7 @@ export default function App() {
             {/* Right Column: HUD, shop, tower panel. Sizes follow the column's height (cqh) so the
                 buttons grow on tall screens and the tower panel takes the rest: no empty space */}
             <div
-              className="flex-1 min-w-[232px] h-full flex flex-col bg-[#171520] border-l border-[#2d2938] text-[#f4f2e6] overflow-hidden select-none z-10 [container-type:size]"
+              className="flex-1 min-w-[208px] h-full flex flex-col bg-[#171520] border-l border-[#2d2938] text-[#f4f2e6] overflow-hidden select-none z-10 [container-type:size]"
               style={gameState.duel ? SIDE_VARS_DUEL : SIDE_VARS}
             >
               <TopBar

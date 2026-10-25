@@ -51,7 +51,7 @@ export function ShopPanel({
   return (
     <div className="w-full p-1.5 bg-[#171520] text-[#f4f2e6] text-[length:var(--fs-md)] flex flex-col gap-1 shrink-0 select-none">
       {/* Hand Status / Shop Header Line */}
-      <div className="h-[var(--h-line)] flex items-center justify-between text-[length:var(--fs-md)] px-0.5 leading-none shrink-0">
+      <div className="h-[var(--h-line)] flex items-center justify-between gap-1 text-[length:var(--fs-md)] px-0.5 leading-none shrink-0">
         {isBinding ? (
           <>
             <span className="font-bold truncate" style={{ color: CONFIG.binder.color }}>Связка</span>
@@ -67,8 +67,8 @@ export function ShopPanel({
           </>
         ) : isMoving && !inHandDef && !placingBinder ? (
           <>
-            <span className="text-amber-300 font-bold truncate">Перестановка</span>
-            <span className="text-[length:var(--fs-sm)] text-stone-400 shrink-0">тапните свободную клетку</span>
+            <span className="text-amber-300 font-bold shrink-0">Перестановка</span>
+            <span className="text-[length:var(--fs-sm)] text-stone-400 truncate">тапните свободную клетку</span>
           </>
         ) : inHandDef ? (
           <>
