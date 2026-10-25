@@ -46,6 +46,13 @@ const SIDE_VARS = {
   '--h-head': 'max(28px, 6.5cqh)',
 } as React.CSSProperties;
 
+// A duel adds the opponent's line and the tabs to the column: the cards give them the room
+const SIDE_VARS_DUEL = {
+  ...SIDE_VARS,
+  '--h-card': 'clamp(40px, min(13cqh, 30cqw), 150px)',
+  '--h-tier': 'clamp(28px, 7cqh, 56px)',
+} as React.CSSProperties;
+
 export default function App() {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -944,7 +951,7 @@ export default function App() {
                 buttons grow on tall screens and the tower panel takes the rest: no empty space */}
             <div
               className="flex-1 min-w-[232px] h-full flex flex-col bg-[#171520] border-l border-[#2d2938] text-[#f4f2e6] overflow-hidden select-none z-10 [container-type:size]"
-              style={SIDE_VARS}
+              style={gameState.duel ? SIDE_VARS_DUEL : SIDE_VARS}
             >
               <TopBar
                 gold={gameState.gold}
