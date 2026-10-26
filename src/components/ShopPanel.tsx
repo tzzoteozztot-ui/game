@@ -205,7 +205,7 @@ export function ShopPanel({
         type="button"
         onClick={onUpgradeTier}
         disabled={tier >= 5 || (tierCost !== null && gold < tierCost)}
-        className={`h-[var(--h-tier,clamp(36px,9cqh,56px))] w-full px-1 rounded border text-[length:var(--fs-md)] font-semibold flex items-center justify-center gap-1 transition-colors cursor-pointer shrink-0 ${
+        className={`h-[var(--h-tier,clamp(24px,6.2cqh,52px))] w-full px-1 rounded border text-[length:var(--fs-md)] font-semibold flex items-center justify-center gap-1 transition-colors cursor-pointer shrink-0 ${
           tier < 5 && tierCost !== null && gold >= tierCost
             ? 'bg-[#221f2d] hover:bg-[#2c283a] text-stone-200 border-[#383347]'
             : 'bg-[#181622] text-stone-600 border-[#262330] cursor-not-allowed'

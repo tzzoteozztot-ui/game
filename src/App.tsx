@@ -39,12 +39,12 @@ const SIDE_VARS = {
   '--fs-sm': 'clamp(11px, min(2.9cqh, 5.7cqw), 17px)',
   '--fs-md': 'clamp(12px, min(3.2cqh, 6.3cqw), 19px)',
   '--fs-lg': 'clamp(13px, min(3.7cqh, 7cqw), 22px)',
-  '--h-stat': 'max(24px, 5cqh)',
-  '--h-line': 'max(16px, 3.6cqh)',
+  '--h-stat': 'max(22px, 4.6cqh)',
+  '--h-line': 'max(14px, 3.3cqh)',
   '--fs-btn4': 'clamp(10px, min(2.6cqh, 4.8cqw), 15px)', // four buttons in a row
-  '--h-btn': 'max(40px, 11cqh - 8px)',
-  '--h-card': 'clamp(56px, min(19cqh - 6px, 34cqw), 160px)',
-  '--h-head': 'max(28px, 6.5cqh)',
+  '--h-btn': 'max(32px, 9.5cqh - 4px)',
+  '--h-card': 'clamp(40px, min(13.5cqh - 3px, 34cqw), 160px)',
+  '--h-head': 'max(26px, 6cqh)',
 } as React.CSSProperties;
 
 // A duel adds the opponent's line and the tabs to the column: the cards give them the room
