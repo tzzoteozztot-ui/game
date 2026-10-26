@@ -1028,6 +1028,7 @@ export default function App() {
                 isBinding={gameState.isBinding}
                 selectedBinderTriple={gameState.selectedBinderTriple}
                 canMergeBinders={gameState.canMergeBinders}
+                shopTier={gameState.tier}
                 upgradeTargetCount={gameState.upgradeTargetCount}
                 isUpgrading={gameState.isUpgrading}
                 onMergeBinders={handleMergeBinders}

@@ -362,3 +362,7 @@ test('priest without a specialization marks enemies; a tower bound to a priest s
   assert.ok(CONFIG.priestBase.markBonus < CONFIG.priestSupport.curseBonus && CONFIG.priestBase.time < CONFIG.priestSupport.curseTime);
   assert.ok(CONFIG.priestBase.slow < CONFIG.priestSupport.wardSlow);
 });
+
+test('three binders merge into a triple one only from shop tier 5', () => {
+  assert.equal(CONFIG.binder.tripleFromTier, 5);
+});
