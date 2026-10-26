@@ -13,6 +13,7 @@ import { sprites } from './game/sprites';
 
 import { TopBar } from './components/TopBar';
 import { FieldHud } from './components/FieldHud';
+import { WaveInfo } from './components/WaveInfo';
 import { Backpack } from './components/Backpack';
 import { ShopPanel, ShopCard } from './components/ShopPanel';
 import { TowerPanel } from './components/TowerPanel';
@@ -123,6 +124,9 @@ export default function App() {
     supplyActive: false,
     backpack: [],
     backpackSlots: CONFIG.backpack.slots,
+    faction: 1,
+    waveSummary: null,
+    nextWave: null,
     placingSlot: null,
     supplyNext: CONFIG.supply.free,
     isUpgrading: false,
@@ -926,6 +930,12 @@ export default function App() {
                   onStartWave={handleStartWave}
                   autoStart={gameState.autoStart}
                   onToggleAutoStart={() => engineRef.current?.setAutoStart(!engineRef.current.autoStart)}
+                />
+                <WaveInfo
+                  nextWave={gameState.nextWave}
+                  summary={gameState.waveSummary}
+                  faction={gameState.faction}
+                  isWaveActive={gameState.isWaveActive}
                 />
               </div>
             </div>

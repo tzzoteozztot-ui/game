@@ -91,6 +91,7 @@ export interface Enemy {
   slowPercent: number;
   slowTimer: number;
   burnDps: number;
+  burnSource?: string | null; // tower whose fire burns it, for the wave summary
   burnTimer: number;
   curseTimer: number;
   curseBonus: number;
@@ -153,6 +154,7 @@ export interface Projectile {
   towerType: TowerType;
   specs: string[]; // specializations of this tower type
   isRam: boolean;
+  towerId: string; // who shot, for the wave summary
   aoeRadius: number; // cells, 0 = single target
   piercedEnemyIds: Set<string>;
 }
@@ -188,6 +190,17 @@ export interface GrassBlade {
   height: number;
   bendOffset: number;
   phase: number;
+}
+
+export interface WaveSummary {
+  id: number;
+  wave: number; // the wave that was cleared
+  killed: number;
+  leaked: number;
+  gold: number; // earned since the last summary: kills, clear reward, early start
+  lives: number; // lives lost
+  towers: { type: TowerType; second: TowerType | null; level: number; x: number; y: number; damage: number }[];
+  other: number; // damage of towers sold during the wave and of unattributed sources
 }
 
 export interface BackpackItem {
@@ -236,6 +249,9 @@ export interface GameStateSnapshot {
   sellRatio: number;
   backpack: { kind: 'tower' | 'binder'; type: TowerType | null; triplet: boolean; sell: number }[];
   backpackSlots: number;
+  faction: number; // whose enemies come (boss picture)
+  waveSummary: WaveSummary | null; // totals of the last cleared wave
+  nextWave: { type: EnemyType; count: number }[] | null; // what the coming wave brings while the timer runs
   placingSlot: number | null; // backpack slot being placed
   supplyNext: number; // power at which the multiplier grows next
   canUpgradeSelected: boolean; // the selected tower can be raised by a triple binder standing on the field
@@ -312,6 +328,11 @@ export class GameEngine {
   public pendingTripletSpec: string | null = null;
   public placingBinder: boolean = false;
   public backpack: BackpackItem[] = [];
+  // Totals since the last summary (one wave; waves that merged give one summary)
+  private waveStats = { killed: 0, leaked: 0, gold: 0, lives: 0, dmg: new Map<string, number>(), other: 0 };
+  private dmgSource: string | null = null; // tower whose hit is being applied
+  private summarySeq = 0;
+  public lastSummary: WaveSummary | null = null;
   public placingSlot: number | null = null;
   public selectedBinderId: string | null = null;
   public bindingFromId: string | null = null; // tower waiting for its partner
@@ -413,6 +434,8 @@ export class GameEngine {
     this.placingBinder = false;
     this.backpack = [];
     this.placingSlot = null;
+    this.resetWaveStats();
+    this.lastSummary = null;
     this.selectedBinderId = null;
     this.bindingFromId = null;
     this.upgradingFromBinderId = null;
@@ -681,11 +704,13 @@ export class GameEngine {
     if (!duel && this.waveInProgress && this.enemies.length > 0 && (this.endless || this.wave <= 12)) {
       const reward = calculateWaveClearReward(this.wave);
       this.gold += reward;
+      this.waveStats.gold += reward;
       this.addFloatingText(`Волна ${this.wave}: +${reward} золота`, CONFIG.grid.totalWidth / 2, 80, '#f4c06a');
     }
     const bonus = this.earlyStartBonus();
     if (bonus > 0) {
       this.gold += bonus;
+      this.waveStats.gold += bonus;
       this.addFloatingText(`+${bonus} за ранний старт`, CONFIG.grid.totalWidth / 2, 40, '#f4c06a');
       sound.playBuy();
     }
@@ -773,6 +798,65 @@ export class GameEngine {
     this.onWaveStarted?.();
     this.notifyState();
     return true;
+  }
+
+  // What the coming wave brings (the numbers startNextWave will queue), shown while the timer runs
+  private nextWaveComposition(): { type: EnemyType; count: number }[] | null {
+    if (this.waveCountdown === null || this.isGameOver || this.isVictory) return null;
+    const number = this.wavesLaunched + 1;
+    if (!this.endless && number > CONFIG.waves.length) return null;
+    const def = waveDefinition(number);
+    const duel = this.duelStart !== null;
+    const count = (n?: number) => (n ? calculateEnemyCount(n, this.level, number, this.endless, this.difficulty, duel) : 0);
+    const out: { type: EnemyType; count: number }[] = [];
+    const add = (type: EnemyType, c: number) => {
+      if (c > 0) out.push({ type, count: c });
+    };
+    add('infantry', count(def.infantry));
+    add('scout', count(def.scout));
+    add('heavy', count(def.heavy));
+    add('flyer', count(def.flyer));
+    add('shaman', count(def.shaman));
+    add('swarm', count(def.swarm) * CONFIG.swarmGroupCount);
+    if (def.boss) add('boss', 1);
+    return out;
+  }
+
+  private resetWaveStats() {
+    this.waveStats = { killed: 0, leaked: 0, gold: 0, lives: 0, dmg: new Map(), other: 0 };
+    this.dmgSource = null;
+  }
+
+  // Adds damage that was really dealt (not the overkill) to the tower that hit
+  private recordDamage(amount: number) {
+    if (amount <= 0) return;
+    const id = this.dmgSource;
+    if (id === null) this.waveStats.other += amount;
+    else this.waveStats.dmg.set(id, (this.waveStats.dmg.get(id) || 0) + amount);
+  }
+
+  // Closes the totals of the cleared wave; towers sold since count under «other»
+  private publishWaveSummary() {
+    const st = this.waveStats;
+    let other = st.other;
+    const towers: WaveSummary['towers'] = [];
+    for (const [id, damage] of st.dmg) {
+      const t = this.towers.find((x) => x.id === id);
+      if (t) towers.push({ type: t.type, second: t.second ? t.second.type : null, level: t.level, x: t.x, y: t.y, damage: Math.round(damage) });
+      else other += damage;
+    }
+    towers.sort((a, b) => b.damage - a.damage);
+    this.lastSummary = {
+      id: ++this.summarySeq,
+      wave: this.wave,
+      killed: st.killed,
+      leaked: st.leaked,
+      gold: st.gold,
+      lives: st.lives,
+      towers,
+      other: Math.round(other),
+    };
+    this.resetWaveStats();
   }
 
   private spawnEnemy(type: EnemyType, entranceIdx: number, sent = false) {
@@ -868,6 +952,8 @@ export class GameEngine {
         // Wave cleared!
         const reward = calculateWaveClearReward(this.wave);
         this.gold += reward;
+        this.waveStats.gold += reward;
+        this.publishWaveSummary();
         this.addFloatingText(`Волна ${this.wave} зачищена! +${reward} золота`, CONFIG.grid.totalWidth / 2, 80, '#f4c06a');
         sound.playBuy();
 
@@ -930,6 +1016,7 @@ export class GameEngine {
             const dist = Math.hypot(e.x - p.currentX, e.y - p.currentY);
             if (dist < 24) {
               p.piercedEnemyIds.add(e.id);
+              this.dmgSource = p.towerId;
               this.applyDamageToEnemy(e, p.damage, p.damageType, p.towerType, p.specs);
               this.spawnSpark(e.x, e.y, '#c9663a');
             }
@@ -1000,6 +1087,8 @@ export class GameEngine {
         let burnDmg = e.burnDps * dt;
         // Demon trait
         if (this.faction === 4) burnDmg *= 0.5;
+        this.dmgSource = e.burnSource ?? null;
+        this.recordDamage(Math.min(e.hp, burnDmg));
         e.hp -= burnDmg;
         if (Math.random() < 0.2) this.spawnSpark(e.x, e.y, '#ff4a2f');
         if (e.hp <= 0) {
@@ -1242,6 +1331,7 @@ export class GameEngine {
   // Tower Attacks & Targeting
   // -------------------------------------------------------------
   private towerAttack(tower: Tower, part: TowerPart) {
+    this.dmgSource = tower.id;
     const baseDef = CONFIG.towers[part.type];
     const towerPxX = (tower.x + 0.5) * CONFIG.grid.cellSize;
     const towerPxY = (tower.y + 0.5) * CONFIG.grid.cellSize;
@@ -1287,6 +1377,7 @@ export class GameEngine {
           damageType: 'phys',
           towerType: part.type,
           specs,
+          towerId: tower.id,
           isRam: true,
           aoeRadius: stats.aoeRadius,
           piercedEnemyIds: new Set<string>(),
@@ -1310,6 +1401,7 @@ export class GameEngine {
           damageType: baseDef.damageType,
           towerType: part.type,
           specs,
+          towerId: tower.id,
           isRam: false,
           aoeRadius: stats.aoeRadius,
           piercedEnemyIds: new Set<string>(),
@@ -1323,6 +1415,7 @@ export class GameEngine {
 
   // Priest Smite: pulses every 2.5s hitting all enemies in radius with damage * 2.5 (×n)
   private triggerPriestSmite(tower: Tower, part: TowerPart) {
+    this.dmgSource = tower.id;
     const towerPxX = (tower.x + 0.5) * CONFIG.grid.cellSize;
     const towerPxY = (tower.y + 0.5) * CONFIG.grid.cellSize;
     const stats = attackStats('priest', part.level, part.specs);
@@ -1371,6 +1464,7 @@ export class GameEngine {
   }
 
   private handleProjectileImpact(p: Projectile, target: Enemy | null, impactX: number, impactY: number) {
+    this.dmgSource = p.towerId;
     sound.playHit();
     this.spawnSpark(impactX, impactY, p.damageType === 'mag' ? '#8f6bff' : '#d9b44a');
 
@@ -1425,12 +1519,14 @@ export class GameEngine {
       return;
     }
 
+    const hpBefore = e.hp;
     if (res.isExecuted) {
       this.addFloatingText('КАЗНЬ!', e.x, e.y - 12, '#e0452f');
       e.hp = 0;
     } else {
       e.hp -= res.damage;
     }
+    this.recordDamage(Math.max(0, Math.min(hpBefore, hpBefore - e.hp)));
 
     e.hitFlashTimer = 0.06;
 
@@ -1438,6 +1534,7 @@ export class GameEngine {
     if (n('fire')) {
       // Burn 30% of shot damage per second for 3s (non-stacking)
       e.burnDps = rawDmg * 0.3 * n('fire');
+      e.burnSource = this.dmgSource;
       e.burnTimer = 3.0;
     }
 
@@ -1528,9 +1625,11 @@ export class GameEngine {
       });
     }
 
+    this.waveStats.killed++;
     // Reward gold
     if (e.gold > 0) {
       this.gold += e.gold;
+      this.waveStats.gold += e.gold;
       this.addFloatingText(`+${e.gold}`, e.x, e.y - 10, '#f4c06a');
     }
 
@@ -1540,6 +1639,8 @@ export class GameEngine {
   private damageCastle(e: Enemy, index: number) {
     this.enemies.splice(index, 1);
     const cost = e.type === 'boss' ? CONFIG.lives.bossCost : CONFIG.lives.regularCost;
+    this.waveStats.leaked++;
+    this.waveStats.lives += Math.min(this.lives, cost);
     this.lives = Math.max(0, this.lives - cost);
     sound.playError();
     this.addFloatingText(
@@ -2269,6 +2370,9 @@ export class GameEngine {
       sellRatio: this.sellRatio(),
       backpack: this.backpack.map((i) => ({ kind: i.kind, type: i.type, triplet: i.triplet, sell: i.paid })),
       backpackSlots: CONFIG.backpack.slots,
+      faction: this.faction,
+      waveSummary: this.lastSummary,
+      nextWave: this.nextWaveComposition(),
       placingSlot: this.placingSlot,
       supplyNext: this.supplyNext(),
       isUpgrading: this.upgradingFromBinderId !== null,
