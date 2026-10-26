@@ -412,15 +412,22 @@ test('field badge shows a short code per specialization with its power', () => {
 
 import { calculateSupplyMult, calculateSupplyPower, calculateSellRefund as sellRefund } from './rules';
 
-test('supply: towers add up by level, prices grow ×1,1 per 20 power above 40, selling stays', () => {
+test('supply: towers add up by level, prices grow ×1,12 per 20 power above 30, selling pays 60 %', () => {
   // Ур.1 = 1, Ур.2 = 3, Ур.3 = 9; a binder 1, a triple one 3
   assert.equal(calculateSupplyPower([1, 2, 3], 2, 1), 1 + 3 + 9 + 2 + 3);
   assert.equal(calculateSupplyMult(0), 1);
-  assert.equal(calculateSupplyMult(40), 1);
-  assert.equal(calculateSupplyMult(59), 1);
-  assert.ok(Math.abs(calculateSupplyMult(60) - 1.1) < 1e-9);
-  assert.ok(Math.abs(calculateSupplyMult(100) - Math.pow(1.1, 3)) < 1e-9);
-  assert.ok(calculateSupplyMult(600) > 14 && calculateSupplyMult(600) < 15);
-  // The refund is paid from the base price: it does not depend on the supply
+  assert.equal(calculateSupplyMult(30), 1);
+  assert.equal(calculateSupplyMult(49), 1);
+  assert.ok(Math.abs(calculateSupplyMult(50) - 1.12) < 1e-9);
+  assert.ok(Math.abs(calculateSupplyMult(110) - Math.pow(1.12, 4)) < 1e-9);
+  // The refund is paid from the base price: it does not depend on the supply, only on the ratio
   assert.equal(sellRefund(50, 1), 35);
+  assert.equal(sellRefund(50, 1, CONFIG.supply.sellRatio), 30);
+});
+
+test('kill gold: after wave 12 it falls ×0,985 per wave to a floor, only where the supply works', () => {
+  assert.equal(calculateKillGold(100, 1, 24, false), 100);
+  assert.equal(calculateKillGold(100, 1, 12, true), 100);
+  assert.equal(calculateKillGold(100, 1, 24, true), Math.round(100 * Math.pow(0.985, 12)));
+  assert.equal(calculateKillGold(100, 1, 500, true), 30);
 });

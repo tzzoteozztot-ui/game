@@ -119,6 +119,7 @@ export default function App() {
     canUpgradeSelected: false,
     supplyPower: 0,
     supplyMult: 1,
+    sellRatio: CONFIG.upgrade.sellRatio,
     supplyActive: false,
     backpack: [],
     backpackSlots: CONFIG.backpack.slots,
@@ -1025,6 +1026,7 @@ export default function App() {
                 upgradeTargetCount={gameState.upgradeTargetCount}
                 isUpgrading={gameState.isUpgrading}
                 canUpgrade={gameState.canUpgradeSelected}
+                sellRatio={gameState.sellRatio}
                 onUpgradeTower={handleUpgradeTower}
                 onMergeBinders={handleMergeBinders}
                 onUpgradeWithBinder={handleUpgradeWithBinder}
