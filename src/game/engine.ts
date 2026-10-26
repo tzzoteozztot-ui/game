@@ -1757,13 +1757,16 @@ export class GameEngine {
   // Three plain binders merge into a triple one: the selected stays, the two nearest leave
   public canMergeBinders(): boolean {
     const sel = this.binders.find((b) => b.id === this.selectedBinderId);
-    return !!sel && !sel.triple && this.plainBinders().length >= 3;
+    return !!sel && !sel.triple && this.plainBinders().length >= 3 && this.tier >= CONFIG.binder.tripleFromTier;
   }
 
   public mergeBinders(): boolean {
     const sel = this.binders.find((b) => b.id === this.selectedBinderId);
     if (!sel || !this.canMergeBinders()) {
       sound.playError();
+      if (sel && !sel.triple && this.plainBinders().length >= 3 && this.tier < CONFIG.binder.tripleFromTier) {
+        this.addFloatingText(`Тройная связка — с ${CONFIG.binder.tripleFromTier}-го яруса лавки`, (sel.x + 0.5) * CONFIG.grid.cellSize, (sel.y + 0.5) * CONFIG.grid.cellSize - 16, '#e0452f');
+      }
       return false;
     }
     const cs = CONFIG.grid.cellSize;

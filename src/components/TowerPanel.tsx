@@ -23,6 +23,7 @@ interface TowerPanelProps {
   isBinding: boolean;
   selectedBinderTriple: boolean;
   canMergeBinders: boolean;
+  shopTier?: number;
   upgradeTargetCount: number;
   isUpgrading: boolean;
   onMergeBinders: () => void;
@@ -54,6 +55,7 @@ export function TowerPanel({
   isBinding,
   selectedBinderTriple,
   canMergeBinders,
+  shopTier = 1,
   upgradeTargetCount,
   isUpgrading,
   onMergeBinders,
@@ -82,7 +84,7 @@ export function TowerPanel({
             ? isUpgrading
               ? 'Коснитесь башни или пары: каждая её башня ниже Ур.3 поднимется на уровень.'
               : 'Поднимает любую башню или пару на уровень, кроме Ур.3.'
-            : 'Выберите башню, нажмите «Связать» и коснитесь башни другого вида. Три связки сливаются в тройную.'}
+            : 'Выберите башню, нажмите «Связать» и коснитесь башни другого вида. Три связки сливаются в тройную с ' + CONFIG.binder.tripleFromTier + '-го яруса лавки.'}
         </div>
         <div className="grid grid-cols-2 gap-1 h-[var(--h-btn)] shrink-0">
           <button
@@ -96,11 +98,11 @@ export function TowerPanel({
                   ? 'bg-teal-950/60 hover:bg-teal-900/60 text-[#3ed6c4] border border-[#3ed6c4]/60 cursor-pointer'
                   : 'bg-[#1b1926] text-stone-600 border border-[#2d2938] cursor-not-allowed'
             }`}
-            title={triple ? 'Поднять уровень башни (B)' : 'Слить три связки в тройную (M)'}
+            title={triple ? 'Поднять уровень башни (B)' : shopTier < CONFIG.binder.tripleFromTier ? `Три связки сливаются в тройную с ${CONFIG.binder.tripleFromTier}-го яруса лавки` : 'Слить три связки в тройную (M)'}
           >
             <span className="text-[length:var(--fs-btn4)]">{triple ? 'Усилить' : 'Слить'}</span>
             <span className="text-[length:var(--fs-xs)] mt-0.5 tabular-nums">
-              {triple ? (isUpgrading ? 'отмена' : 'башню') : `${Math.min(binderCount, 3)}/3`}
+              {triple ? (isUpgrading ? 'отмена' : 'башню') : shopTier < CONFIG.binder.tripleFromTier ? `с яруса ${CONFIG.binder.tripleFromTier}` : `${Math.min(binderCount, 3)}/3`}
             </span>
           </button>
           <button
@@ -125,7 +127,7 @@ export function TowerPanel({
         <ul className="text-[length:var(--fs-xs)] leading-snug text-stone-500 space-y-1 [@container(max-height:520px)]:hidden">
           <li>Три одинаковые башни одного уровня сливаются в одну (M).</li>
           <li>На Ур.2 башня получает свойство, на Ур.3 — все свойства трёх башен.</li>
-          <li>«Связка» объединяет две башни разных видов (B), три связки — в тройную (M).</li>
+          <li>«Связка» объединяет две башни разных видов (B), три связки — в тройную (M, с 5-го яруса лавки).</li>
         </ul>
       </div>
     );
