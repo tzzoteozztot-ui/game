@@ -6,12 +6,12 @@
 export type Difficulty = 'easy' | 'normal' | 'hard';
 export const DIFFICULTIES: Difficulty[] = ['easy', 'normal', 'hard'];
 
-export type StarsByDifficulty = Record<Difficulty, Record<number, number>>;
+export type ByDifficulty = Record<Difficulty, Record<number, number>>;
 
 export interface Progress {
   unlocked: number; // highest opened level, 1..5
-  stars: StarsByDifficulty; // difficulty -> level -> best stars
-  endlessBest: Record<number, number>; // level -> best wave reached in endless mode
+  stars: ByDifficulty; // difficulty -> level -> best stars
+  endlessBest: ByDifficulty; // difficulty -> level -> best wave reached in endless mode
 }
 
 const KEYS = {
@@ -20,9 +20,9 @@ const KEYS = {
   endlessBest: 'dark_frontier_endless_best',
 };
 
-const emptyStars = (): StarsByDifficulty => ({ easy: {}, normal: {}, hard: {} });
+const emptyByDifficulty = (): ByDifficulty => ({ easy: {}, normal: {}, hard: {} });
 
-export const EMPTY_PROGRESS: Progress = { unlocked: 1, stars: emptyStars(), endlessBest: {} };
+export const EMPTY_PROGRESS: Progress = { unlocked: 1, stars: emptyByDifficulty(), endlessBest: emptyByDifficulty() };
 
 function numberMap(v: unknown): Record<number, number> {
   const out: Record<number, number> = {};
@@ -36,11 +36,11 @@ function numberMap(v: unknown): Record<number, number> {
 }
 
 /**
- * Stars per difficulty. Older saves kept one flat level -> stars map without the difficulty
- * it was earned on: it goes to «normal» (the default), so nothing is lost.
+ * Stars and endless records per difficulty. Older saves kept one flat level -> number map without the
+ * difficulty it was earned on: it goes to «normal» (the default), so nothing is lost.
  */
-function starsMap(v: unknown): StarsByDifficulty {
-  const out = emptyStars();
+function byDifficultyMap(v: unknown): ByDifficulty {
+  const out = emptyByDifficulty();
   if (!v || typeof v !== 'object') return out;
   const o = v as Record<string, unknown>;
   const flat = numberMap(Object.fromEntries(Object.entries(o).filter(([k]) => /^\d+$/.test(k))));
@@ -56,7 +56,7 @@ function starsMap(v: unknown): StarsByDifficulty {
 export function normalizeProgress(v: unknown): Progress {
   const o = (v && typeof v === 'object' ? v : {}) as Record<string, unknown>;
   const unlocked = typeof o.unlocked === 'number' ? Math.max(1, Math.min(5, Math.floor(o.unlocked))) : 1;
-  return { unlocked, stars: starsMap(o.stars), endlessBest: numberMap(o.endlessBest) };
+  return { unlocked, stars: byDifficultyMap(o.stars), endlessBest: byDifficultyMap(o.endlessBest) };
 }
 
 /** Best of both: the higher level, stars (per difficulty) and record for every level */
@@ -73,7 +73,11 @@ export function mergeProgress(a: Progress, b: Progress): Progress {
       normal: best(a.stars.normal, b.stars.normal),
       hard: best(a.stars.hard, b.stars.hard),
     },
-    endlessBest: best(a.endlessBest, b.endlessBest),
+    endlessBest: {
+      easy: best(a.endlessBest.easy, b.endlessBest.easy),
+      normal: best(a.endlessBest.normal, b.endlessBest.normal),
+      hard: best(a.endlessBest.hard, b.endlessBest.hard),
+    },
   };
 }
 

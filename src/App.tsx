@@ -252,22 +252,28 @@ export default function App() {
         mergeProgress(prev, {
           unlocked: nextLvl,
           stars: { ...EMPTY_PROGRESS.stars, [diff]: { [gameState.level]: starsEarned } },
-          endlessBest: {},
+          endlessBest: EMPTY_PROGRESS.endlessBest,
         })
       );
     }
   }, [gameState.isVictory, gameState.duel, gameState.lives, gameState.level]);
 
-  // Endless mode ends only in defeat: keep the best wave reached on this level
+  // Endless mode: the best wave reached is kept the moment a wave starts, so leaving to the menu
+  // (or closing the page) in the middle of a run loses nothing; defeat counts the wave that broke through
   useEffect(() => {
-    if (gameState.isGameOver && gameState.endless && !gameState.duel) {
+    if (gameState.endless && !gameState.duel && (gameState.isWaveActive || gameState.isGameOver)) {
+      const diff = engineRef.current?.difficulty ?? 'normal';
       setProgress((prev) =>
-        (prev.endlessBest[gameState.level] || 0) >= gameState.wave
+        (prev.endlessBest[diff][gameState.level] || 0) >= gameState.wave
           ? prev
-          : mergeProgress(prev, { unlocked: 1, stars: EMPTY_PROGRESS.stars, endlessBest: { [gameState.level]: gameState.wave } })
+          : mergeProgress(prev, {
+              unlocked: 1,
+              stars: EMPTY_PROGRESS.stars,
+              endlessBest: { ...EMPTY_PROGRESS.endlessBest, [diff]: { [gameState.level]: gameState.wave } },
+            })
       );
     }
-  }, [gameState.isGameOver, gameState.endless, gameState.duel, gameState.wave, gameState.level]);
+  }, [gameState.isWaveActive, gameState.isGameOver, gameState.endless, gameState.duel, gameState.wave, gameState.level]);
 
   // Duel: the room's link, the opponent's last state, how the duel ended
   const duelLinkRef = useRef<DuelLink | null>(null);
@@ -877,7 +883,7 @@ export default function App() {
           selectedDifficulty={difficulty}
           mode={mode}
           duelAvailable={duelAvailable}
-          endlessBest={endlessBest}
+          endlessBest={endlessBest[difficulty] || {}}
           musicVol={audioSettings.musicVolume}
           sfxVol={audioSettings.sfxVolume}
           isMuted={audioSettings.muted}
@@ -1111,7 +1117,7 @@ export default function App() {
         <DefeatModal
           wave={gameState.wave}
           endless={gameState.endless}
-          best={endlessBest[gameState.level] || 0}
+          best={endlessBest[engineRef.current?.difficulty ?? difficulty]?.[gameState.level] || 0}
           onRestart={handleRestartLevel}
           onToMenu={handleToMenu}
         />
