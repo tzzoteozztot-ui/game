@@ -48,6 +48,9 @@ export interface Tower extends TowerPart {
 }
 
 // «Связка» standing on the field until it is spent on binding two towers
+const ENEMY_DRAW_SCALE = 1.2;
+const BOSS_DRAW_SCALE = 1.45;
+
 export interface Binder {
   id: string;
   x: number;
@@ -2753,11 +2756,17 @@ export class GameEngine {
     return { lift: step * g.lift, tilt: Math.sin(ph) * g.tilt, sy: 0.97 + 0.03 * step, sx: 1.03 - 0.03 * step };
   }
 
+  // Height of an enemy's figure on the field: drawing only, radii and balance do not change
+  // (Артур, 2026-10-26: all figures a little bigger, bosses more)
+  private enemyDrawH(e: Enemy, spriteH: number): number {
+    return (e.type === 'imp' ? 24 : spriteH) * (e.type === 'boss' ? BOSS_DRAW_SCALE : ENEMY_DRAW_SCALE);
+  }
+
   private addCorpse(e: Enemy) {
     const { name, tint } = this.enemySprite(e);
     const spr = sprites.get(name, tint);
     if (!spr) return;
-    const h = e.type === 'imp' ? 24 : spr.meta.drawH;
+    const h = this.enemyDrawH(e, spr.meta.drawH);
     if (this.corpses.length >= MAX_CORPSES) this.corpses.shift();
     this.corpses.push({
       name,
@@ -2789,14 +2798,13 @@ export class GameEngine {
 
   private renderEnemy(ctx: CanvasRenderingContext2D, e: Enemy, enemyColor: string, timeSec: number) {
     const isBoss = e.type === 'boss';
-    const isImp = e.type === 'imp';
     const { name, tint } = this.enemySprite(e);
     const variant: SpriteVariant = e.hitFlashTimer > 0 ? 'flash' : e.invulnerableTimer > 0 ? 'shield' : 'normal';
     const spr = sprites.get(name, tint, variant);
 
     let topY: number;
     if (spr) {
-      const h = isImp ? 24 : spr.meta.drawH;
+      const h = this.enemyDrawH(e, spr.meta.drawH);
       const footY = this.enemyFoot(e, h);
       const pose = e.isReviving ? {} : this.enemyPose(e, timeSec);
       if (e.isFlyer) {
