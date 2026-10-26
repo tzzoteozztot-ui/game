@@ -15,7 +15,8 @@ interface BackpackProps {
 }
 
 export function Backpack({ items, slots, placingSlot, onSelect, onSell }: BackpackProps) {
-  const inHand = placingSlot !== null ? items[placingSlot] : null;
+  const overflow = items.length > slots; // a purchase that found no free slot
+  const inHand = placingSlot !== null && placingSlot < slots ? items[placingSlot] : null;
   return (
     <div className="w-full px-1.5 pb-1.5 bg-[#171520] text-[#f4f2e6] flex gap-1 shrink-0 select-none">
       {inHand && placingSlot !== null ? (
@@ -29,6 +30,10 @@ export function Backpack({ items, slots, placingSlot, onSelect, onSell }: Backpa
           <br />
           <span className="text-amber-300 tabular-nums">+{inHand.sell}</span>
         </button>
+      ) : overflow ? (
+        <div className="w-[22%] h-[var(--h-pack,clamp(34px,8cqh,52px))] flex items-center justify-center text-center text-[length:var(--fs-xs)] font-semibold text-amber-300 leading-tight">
+          Поставьте или замените
+        </div>
       ) : (
         <div className="w-[22%] h-[var(--h-pack,clamp(34px,8cqh,52px))] flex items-center justify-center text-[length:var(--fs-xs)] uppercase font-semibold tracking-wider text-stone-400">
           Рюкзак

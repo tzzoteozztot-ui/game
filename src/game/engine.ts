@@ -1705,6 +1705,7 @@ export class GameEngine {
   }
 
   public selectTower(id: string | null) {
+    if (this.overflowPending()) return; // the bought tower must be placed or swapped first
     this.selectedTowerId = id;
     this.selectedBinderId = null;
     this.bindingFromId = null;
@@ -1722,15 +1723,21 @@ export class GameEngine {
   }
 
   public cancelPlacing() {
+    if (this.overflowPending()) return;
     this.clearPlacing();
     this.notifyState();
   }
 
+  // A purchase made with a full backpack waits as one extra item: it must be placed or swapped with a slot
+  public overflowPending(): boolean {
+    return this.backpack.length > CONFIG.backpack.slots;
+  }
+
   // Pays at once and puts the purchase into the backpack, ready to be placed
   public buyToBackpack(kind: 'tower' | 'binder', type: TowerType | null, triplet: boolean, spec: string | null): boolean {
-    if (this.backpack.length >= CONFIG.backpack.slots) {
+    if (this.overflowPending()) {
       sound.playError();
-      this.addFloatingText('Рюкзак полон!', CONFIG.grid.totalWidth - 120, 100, '#e0452f');
+      this.addFloatingText('Сначала поставьте купленное!', CONFIG.grid.totalWidth - 120, 100, '#e0452f');
       return false;
     }
     const price = kind === 'binder' ? this.binderPrice() : this.towerPrice(type!, triplet);
@@ -1742,7 +1749,7 @@ export class GameEngine {
     this.gold -= price;
     this.backpack.push({ id: Math.random().toString(36).substring(2, 9), kind, type, triplet, spec, paid: price });
     sound.playBuy();
-    this.selectBackpack(this.backpack.length - 1);
+    this.takeInHand(this.backpack.length - 1);
     return true;
   }
 
@@ -1750,10 +1757,26 @@ export class GameEngine {
   public selectBackpack(slot: number) {
     const item = this.backpack[slot];
     if (!item) return;
+    if (this.overflowPending()) {
+      // The bought item has no room: a tap on a slot sells what lies there (all paid back) and takes its place
+      if (slot >= CONFIG.backpack.slots) return;
+      this.gold += item.paid;
+      this.backpack[slot] = this.backpack.pop()!;
+      this.clearPlacing();
+      sound.playBuy();
+      this.notifyState();
+      return;
+    }
     if (this.placingSlot === slot) {
       this.cancelPlacing();
       return;
     }
+    this.takeInHand(slot);
+  }
+
+  private takeInHand(slot: number) {
+    const item = this.backpack[slot];
+    if (!item) return;
     this.selectedTowerId = null;
     this.selectedBinderId = null;
     this.bindingFromId = null;
@@ -1773,7 +1796,7 @@ export class GameEngine {
   // Returns what was paid
   public sellBackpack(slot: number): boolean {
     const item = this.backpack[slot];
-    if (!item) return false;
+    if (!item || this.overflowPending()) return false;
     this.gold += item.paid;
     this.backpack.splice(slot, 1);
     this.clearPlacing();
