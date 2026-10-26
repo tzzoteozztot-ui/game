@@ -26,7 +26,7 @@ import { PauseModal, VictoryModal, DefeatModal, HowToPlayModal, DuelResultModal,
 import { OrientationWarning } from './components/OrientationWarning';
 import { fullscreenSupported, toggleFullscreen } from './fullscreen';
 import { AccountModal, SyncState } from './components/AccountModal';
-import { Progress, readLocalProgress, writeLocalProgress, mergeProgress } from './progress';
+import { Progress, EMPTY_PROGRESS, readLocalProgress, writeLocalProgress, mergeProgress } from './progress';
 import { cloudEnabled, onUserChange, loadCloudProgress, saveCloudProgress } from './cloud';
 import type { User } from '@supabase/supabase-js';
 
@@ -241,8 +241,13 @@ export default function App() {
     if (gameState.isVictory && !gameState.duel) {
       const starsEarned = calculateStars(gameState.lives);
       const nextLvl = Math.min(5, gameState.level + 1);
+      const diff = engineRef.current?.difficulty ?? 'normal';
       setProgress((prev) =>
-        mergeProgress(prev, { unlocked: nextLvl, stars: { [gameState.level]: starsEarned }, endlessBest: {} })
+        mergeProgress(prev, {
+          unlocked: nextLvl,
+          stars: { ...EMPTY_PROGRESS.stars, [diff]: { [gameState.level]: starsEarned } },
+          endlessBest: {},
+        })
       );
     }
   }, [gameState.isVictory, gameState.duel, gameState.lives, gameState.level]);
@@ -253,7 +258,7 @@ export default function App() {
       setProgress((prev) =>
         (prev.endlessBest[gameState.level] || 0) >= gameState.wave
           ? prev
-          : mergeProgress(prev, { unlocked: 1, stars: {}, endlessBest: { [gameState.level]: gameState.wave } })
+          : mergeProgress(prev, { unlocked: 1, stars: EMPTY_PROGRESS.stars, endlessBest: { [gameState.level]: gameState.wave } })
       );
     }
   }, [gameState.isGameOver, gameState.endless, gameState.duel, gameState.wave, gameState.level]);
@@ -856,7 +861,7 @@ export default function App() {
       {screen === 'menu' && (
         <MainMenu
           unlockedLevel={unlockedLevel}
-          levelStars={levelStars}
+          levelStars={levelStars[difficulty] || {}}
           selectedDifficulty={difficulty}
           mode={mode}
           duelAvailable={duelAvailable}
