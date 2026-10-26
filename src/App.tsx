@@ -108,6 +108,7 @@ export default function App() {
     speed: 1,
     selectedTower: null,
     eligibleMergeCount: 0,
+    mergeUsesBinder: false,
     selectedBinder: false,
     binderCount: 0,
     selectedBinderTriple: false,
@@ -1020,6 +1021,7 @@ export default function App() {
               <TowerPanel
                 tower={gameState.selectedTower}
                 eligibleMergeCount={gameState.eligibleMergeCount}
+                mergeUsesBinder={gameState.mergeUsesBinder}
                 selectedBinder={gameState.selectedBinder}
                 binderCount={gameState.binderCount}
                 bindPartnerCount={gameState.bindPartnerCount}
