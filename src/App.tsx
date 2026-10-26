@@ -142,6 +142,7 @@ export default function App() {
     part?: 'main' | 'second'; // which part of a bound pair reached Ур.2
     isPrePlacement?: boolean;
     cardIndex?: number;
+    cardId?: string; // the shop card being bought: the purchase survives a new wave and a reroll
   } | null>(null);
 
   // Generate 5 shop cards based on current tier
@@ -198,8 +199,6 @@ export default function App() {
     // Free shop refresh at the start of every wave, by button or by timer
     engine.onWaveStarted = () => {
       setShopCards(generateShopCards(engine.tier));
-      // A triplet's specialization was being picked for a card that is gone now
-      setSpecModalTower((m) => (m?.isPrePlacement ? null : m));
     };
 
     engine.onNeedSpecChoice = (tower: Tower, part) => {
@@ -508,6 +507,7 @@ export default function App() {
         type: card.type,
         isPrePlacement: true,
         cardIndex: cardIdx,
+        cardId: card.id,
       });
       return;
     }
@@ -523,13 +523,10 @@ export default function App() {
 
     if (specModalTower.isPrePlacement && specModalTower.cardIndex !== undefined) {
       // Triplet card specialization selected -> pay and put it in the backpack
-      const cardIndex = specModalTower.cardIndex;
+      const cardId = specModalTower.cardId;
       if (engine.buyToBackpack('tower', specModalTower.type, true, specId)) {
-        setShopCards((prev) => {
-          const next = [...prev];
-          next[cardIndex] = null;
-          return next;
-        });
+        // The shop may have been refreshed while choosing: take the card away only if it is still there
+        setShopCards((prev) => prev.map((c) => (c && c.id === cardId ? null : c)));
       }
     } else {
       // Tower upgraded to lvl 2 via merge
@@ -553,7 +550,6 @@ export default function App() {
     }
     sound.playBuy();
     setShopCards(generateShopCards(engine.tier));
-    setSpecModalTower((m) => (m?.isPrePlacement ? null : m));
   };
 
   // Upgrade Shop Tier
