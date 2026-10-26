@@ -342,27 +342,33 @@ import { mergeProgress, normalizeProgress } from '../progress';
 
 test('progress from two devices merges to the best of both', () => {
   const none = { easy: {}, normal: {}, hard: {} };
-  const phone = { unlocked: 3, stars: { ...none, normal: { 1: 3, 2: 1 } }, endlessBest: { 1: 20 } };
-  const mac = { unlocked: 2, stars: { ...none, normal: { 1: 2, 2: 2, 3: 1 }, hard: { 1: 1 } }, endlessBest: { 1: 14, 2: 9 } };
+  const phone = { unlocked: 3, stars: { ...none, normal: { 1: 3, 2: 1 } }, endlessBest: { ...none, normal: { 1: 20 } } };
+  const mac = {
+    unlocked: 2,
+    stars: { ...none, normal: { 1: 2, 2: 2, 3: 1 }, hard: { 1: 1 } },
+    endlessBest: { ...none, normal: { 1: 14, 2: 9 }, hard: { 1: 30 } },
+  };
   assert.deepEqual(mergeProgress(phone, mac), {
     unlocked: 3,
     stars: { ...none, normal: { 1: 3, 2: 2, 3: 1 }, hard: { 1: 1 } },
-    endlessBest: { 1: 20, 2: 9 },
+    endlessBest: { ...none, normal: { 1: 20, 2: 9 }, hard: { 1: 30 } },
   });
   // Junk from an old save or a broken row turns into valid progress
   assert.deepEqual(normalizeProgress({ unlocked: 9, stars: { 1: 2, 7: 3, x: 1 }, endlessBest: null }), {
     unlocked: 5,
     stars: { ...none, normal: { 1: 2 } },
-    endlessBest: {},
+    endlessBest: none,
   });
-  assert.deepEqual(normalizeProgress(undefined), { unlocked: 1, stars: none, endlessBest: {} });
+  assert.deepEqual(normalizeProgress(undefined), { unlocked: 1, stars: none, endlessBest: none });
 });
 
-test('old flat stars move to the normal difficulty, per-difficulty stars stay apart', () => {
-  const old = normalizeProgress({ unlocked: 3, stars: { 1: 3, 2: 2 }, endlessBest: {} });
+test('old flat stars and records move to the normal difficulty, per-difficulty ones stay apart', () => {
+  const old = normalizeProgress({ unlocked: 3, stars: { 1: 3, 2: 2 }, endlessBest: { 1: 40 } });
   assert.deepEqual(old.stars, { easy: {}, normal: { 1: 3, 2: 2 }, hard: {} });
-  const mixed = normalizeProgress({ stars: { easy: { 1: 3 }, hard: { 1: 1 }, 1: 2 } });
+  assert.deepEqual(old.endlessBest, { easy: {}, normal: { 1: 40 }, hard: {} });
+  const mixed = normalizeProgress({ stars: { easy: { 1: 3 }, hard: { 1: 1 }, 1: 2 }, endlessBest: { hard: { 2: 55 } } });
   assert.deepEqual(mixed.stars, { easy: { 1: 3 }, normal: { 1: 2 }, hard: { 1: 1 } });
+  assert.deepEqual(mixed.endlessBest, { easy: {}, normal: {}, hard: { 2: 55 } });
 });
 
 import { BOT_LEVELS, BotLevel, botStrength, waveWeight } from '../duelBot';

@@ -1590,9 +1590,9 @@ export class GameEngine {
     return true;
   }
 
-  // Supply («сила стола»): endless mode only, a duel and the campaign keep the base prices
+  // Supply («сила стола»): endless mode and duel (each player counts their own table), the campaign keeps the base prices
   public supplyActive(): boolean {
-    return this.endless && this.duelStart === null;
+    return this.endless || this.duelStart !== null;
   }
 
   public supplyPower(): number {
