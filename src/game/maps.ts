@@ -1,11 +1,11 @@
 /**
  * 5 Fixed Maps for «Тёмный рубеж»
- * Field: 16x10 (x 0..15, y 0..9), castle is a single cell next to the centre (8,5)
+ * Field: 12x9 (x 0..11, y 0..8), castle is a single cell next to the centre (6,4)
  * Rules:
  * - Entrances on the field edge, every path ends next to the castle
  * - Every path >= 26 cells
- * - Total road cells <= 90
- * - Free cells >= 96
+ * - Total road cells <= 56
+ * - Free cells >= 51
  * - Turns only 90 deg
  * - Road cells touch by a side only where a path steps between them
  *   (separate stretches never run side by side; branches only meet at merges)
@@ -16,11 +16,11 @@ export interface Point {
   y: number;
 }
 
-export const GRID_COLS = 16;
-export const GRID_ROWS = 10;
-export const CASTLE: Point = { x: 8, y: 5 };
+export const GRID_COLS = 12;
+export const GRID_ROWS = 9;
+export const CASTLE: Point = { x: 6, y: 4 };
 export const MIN_PATH_LENGTH = 26;
-export const MAX_ROAD_CELLS = 90;
+export const MAX_ROAD_CELLS = 56;
 export const MIN_FREE_CELLS = GRID_COLS * GRID_ROWS - 1 - MAX_ROAD_CELLS;
 // Top-row corners hold the buttons drawn over the field (wave on the left, speed / sound /
 // full screen / pause on the right): no road and no towers there
@@ -69,42 +69,42 @@ export function makePath(points: Point[]): Point[] {
 // -------------------------------------------------------------
 // MAP 1 (Level 1: 2 entrances)
 const map1Paths: Point[][] = [
-  makePath([{ x: 6, y: 9 }, { x: 6, y: 5 }, { x: 4, y: 5 }, { x: 4, y: 1 }, { x: 10, y: 1 }, { x: 10, y: 3 }, { x: 15, y: 3 }, { x: 15, y: 5 }, { x: 9, y: 5 }]),
-  makePath([{ x: 0, y: 7 }, { x: 1, y: 7 }, { x: 1, y: 5 }, { x: 4, y: 5 }, { x: 4, y: 1 }, { x: 10, y: 1 }, { x: 10, y: 3 }, { x: 15, y: 3 }, { x: 15, y: 5 }, { x: 9, y: 5 }]),
+  makePath([{ x: 11, y: 3 }, { x: 11, y: 8 }, { x: 0, y: 8 }, { x: 0, y: 5 }, { x: 6, y: 5 }]),
+  makePath([{ x: 0, y: 2 }, { x: 11, y: 2 }, { x: 11, y: 8 }, { x: 0, y: 8 }, { x: 0, y: 5 }, { x: 6, y: 5 }]),
 ];
 
 // MAP 2 (Level 2: 3 entrances)
 const map2Paths: Point[][] = [
-  makePath([{ x: 9, y: 0 }, { x: 9, y: 1 }, { x: 14, y: 1 }, { x: 14, y: 3 }, { x: 12, y: 3 }, { x: 12, y: 7 }, { x: 15, y: 7 }, { x: 15, y: 9 }, { x: 10, y: 9 }, { x: 10, y: 7 }, { x: 8, y: 7 }, { x: 8, y: 6 }]),
-  makePath([{ x: 7, y: 9 }, { x: 7, y: 8 }, { x: 4, y: 8 }, { x: 4, y: 3 }, { x: 10, y: 3 }, { x: 10, y: 5 }, { x: 12, y: 5 }, { x: 12, y: 7 }, { x: 15, y: 7 }, { x: 15, y: 9 }, { x: 10, y: 9 }, { x: 10, y: 7 }, { x: 8, y: 7 }, { x: 8, y: 6 }]),
-  makePath([{ x: 0, y: 4 }, { x: 4, y: 4 }, { x: 4, y: 3 }, { x: 10, y: 3 }, { x: 10, y: 5 }, { x: 12, y: 5 }, { x: 12, y: 7 }, { x: 15, y: 7 }, { x: 15, y: 9 }, { x: 10, y: 9 }, { x: 10, y: 7 }, { x: 8, y: 7 }, { x: 8, y: 6 }]),
+  makePath([{ x: 0, y: 1 }, { x: 1, y: 1 }, { x: 1, y: 8 }, { x: 11, y: 8 }, { x: 11, y: 6 }, { x: 6, y: 6 }, { x: 6, y: 5 }]),
+  makePath([{ x: 11, y: 1 }, { x: 1, y: 1 }, { x: 1, y: 8 }, { x: 11, y: 8 }, { x: 11, y: 6 }, { x: 6, y: 6 }, { x: 6, y: 5 }]),
+  makePath([{ x: 4, y: 0 }, { x: 4, y: 1 }, { x: 1, y: 1 }, { x: 1, y: 8 }, { x: 11, y: 8 }, { x: 11, y: 6 }, { x: 6, y: 6 }, { x: 6, y: 5 }]),
 ];
 
 // MAP 3 (Level 3: 4 entrances)
 const map3Paths: Point[][] = [
-  makePath([{ x: 5, y: 0 }, { x: 5, y: 4 }, { x: 7, y: 4 }, { x: 7, y: 2 }, { x: 13, y: 2 }, { x: 13, y: 6 }, { x: 14, y: 6 }, { x: 14, y: 9 }, { x: 8, y: 9 }, { x: 8, y: 6 }]),
-  makePath([{ x: 0, y: 9 }, { x: 5, y: 9 }, { x: 5, y: 4 }, { x: 7, y: 4 }, { x: 7, y: 2 }, { x: 13, y: 2 }, { x: 13, y: 6 }, { x: 14, y: 6 }, { x: 14, y: 9 }, { x: 8, y: 9 }, { x: 8, y: 6 }]),
-  makePath([{ x: 0, y: 7 }, { x: 5, y: 7 }, { x: 5, y: 4 }, { x: 7, y: 4 }, { x: 7, y: 2 }, { x: 13, y: 2 }, { x: 13, y: 6 }, { x: 14, y: 6 }, { x: 14, y: 9 }, { x: 8, y: 9 }, { x: 8, y: 6 }]),
-  makePath([{ x: 0, y: 4 }, { x: 3, y: 4 }, { x: 3, y: 7 }, { x: 5, y: 7 }, { x: 5, y: 4 }, { x: 7, y: 4 }, { x: 7, y: 2 }, { x: 13, y: 2 }, { x: 13, y: 6 }, { x: 14, y: 6 }, { x: 14, y: 9 }, { x: 8, y: 9 }, { x: 8, y: 6 }]),
+  makePath([{ x: 0, y: 8 }, { x: 1, y: 8 }, { x: 1, y: 2 }, { x: 7, y: 2 }, { x: 7, y: 1 }, { x: 11, y: 1 }, { x: 11, y: 4 }, { x: 7, y: 4 }]),
+  makePath([{ x: 5, y: 8 }, { x: 1, y: 8 }, { x: 1, y: 2 }, { x: 7, y: 2 }, { x: 7, y: 1 }, { x: 11, y: 1 }, { x: 11, y: 4 }, { x: 7, y: 4 }]),
+  makePath([{ x: 11, y: 8 }, { x: 1, y: 8 }, { x: 1, y: 2 }, { x: 7, y: 2 }, { x: 7, y: 1 }, { x: 11, y: 1 }, { x: 11, y: 4 }, { x: 7, y: 4 }]),
+  makePath([{ x: 11, y: 6 }, { x: 5, y: 6 }, { x: 5, y: 8 }, { x: 1, y: 8 }, { x: 1, y: 2 }, { x: 7, y: 2 }, { x: 7, y: 1 }, { x: 11, y: 1 }, { x: 11, y: 4 }, { x: 7, y: 4 }]),
 ];
 
 // MAP 4 (Level 4: 5 entrances)
 const map4Paths: Point[][] = [
-  makePath([{ x: 0, y: 9 }, { x: 7, y: 9 }, { x: 7, y: 7 }, { x: 3, y: 7 }, { x: 3, y: 5 }, { x: 1, y: 5 }, { x: 1, y: 1 }, { x: 5, y: 1 }, { x: 5, y: 3 }, { x: 8, y: 3 }, { x: 8, y: 4 }]),
-  makePath([{ x: 0, y: 7 }, { x: 1, y: 7 }, { x: 1, y: 9 }, { x: 7, y: 9 }, { x: 7, y: 7 }, { x: 3, y: 7 }, { x: 3, y: 5 }, { x: 1, y: 5 }, { x: 1, y: 1 }, { x: 5, y: 1 }, { x: 5, y: 3 }, { x: 8, y: 3 }, { x: 8, y: 4 }]),
-  makePath([{ x: 7, y: 0 }, { x: 7, y: 1 }, { x: 10, y: 1 }, { x: 10, y: 7 }, { x: 3, y: 7 }, { x: 3, y: 5 }, { x: 1, y: 5 }, { x: 1, y: 1 }, { x: 5, y: 1 }, { x: 5, y: 3 }, { x: 8, y: 3 }, { x: 8, y: 4 }]),
-  makePath([{ x: 15, y: 7 }, { x: 13, y: 7 }, { x: 13, y: 9 }, { x: 7, y: 9 }, { x: 7, y: 7 }, { x: 3, y: 7 }, { x: 3, y: 5 }, { x: 1, y: 5 }, { x: 1, y: 1 }, { x: 5, y: 1 }, { x: 5, y: 3 }, { x: 8, y: 3 }, { x: 8, y: 4 }]),
-  makePath([{ x: 15, y: 1 }, { x: 10, y: 1 }, { x: 10, y: 7 }, { x: 3, y: 7 }, { x: 3, y: 5 }, { x: 1, y: 5 }, { x: 1, y: 1 }, { x: 5, y: 1 }, { x: 5, y: 3 }, { x: 8, y: 3 }, { x: 8, y: 4 }]),
+  makePath([{ x: 1, y: 8 }, { x: 1, y: 1 }, { x: 3, y: 1 }, { x: 3, y: 7 }, { x: 4, y: 7 }, { x: 4, y: 8 }, { x: 11, y: 8 }, { x: 11, y: 6 }, { x: 5, y: 6 }, { x: 5, y: 4 }]),
+  makePath([{ x: 0, y: 2 }, { x: 1, y: 2 }, { x: 1, y: 1 }, { x: 3, y: 1 }, { x: 3, y: 7 }, { x: 4, y: 7 }, { x: 4, y: 8 }, { x: 11, y: 8 }, { x: 11, y: 6 }, { x: 5, y: 6 }, { x: 5, y: 4 }]),
+  makePath([{ x: 11, y: 1 }, { x: 3, y: 1 }, { x: 3, y: 7 }, { x: 4, y: 7 }, { x: 4, y: 8 }, { x: 11, y: 8 }, { x: 11, y: 6 }, { x: 5, y: 6 }, { x: 5, y: 4 }]),
+  makePath([{ x: 6, y: 0 }, { x: 6, y: 1 }, { x: 3, y: 1 }, { x: 3, y: 7 }, { x: 4, y: 7 }, { x: 4, y: 8 }, { x: 11, y: 8 }, { x: 11, y: 6 }, { x: 5, y: 6 }, { x: 5, y: 4 }]),
+  makePath([{ x: 4, y: 0 }, { x: 4, y: 1 }, { x: 3, y: 1 }, { x: 3, y: 7 }, { x: 4, y: 7 }, { x: 4, y: 8 }, { x: 11, y: 8 }, { x: 11, y: 6 }, { x: 5, y: 6 }, { x: 5, y: 4 }]),
 ];
 
 // MAP 5 (Level 5: 6 entrances)
 const map5Paths: Point[][] = [
-  makePath([{ x: 0, y: 5 }, { x: 6, y: 5 }, { x: 6, y: 2 }, { x: 10, y: 2 }, { x: 10, y: 7 }, { x: 12, y: 7 }, { x: 12, y: 9 }, { x: 5, y: 9 }, { x: 5, y: 7 }, { x: 8, y: 7 }, { x: 8, y: 6 }]),
-  makePath([{ x: 4, y: 0 }, { x: 4, y: 3 }, { x: 6, y: 3 }, { x: 6, y: 2 }, { x: 10, y: 2 }, { x: 10, y: 7 }, { x: 12, y: 7 }, { x: 12, y: 9 }, { x: 5, y: 9 }, { x: 5, y: 7 }, { x: 8, y: 7 }, { x: 8, y: 6 }]),
-  makePath([{ x: 8, y: 0 }, { x: 8, y: 2 }, { x: 10, y: 2 }, { x: 10, y: 7 }, { x: 12, y: 7 }, { x: 12, y: 9 }, { x: 5, y: 9 }, { x: 5, y: 7 }, { x: 8, y: 7 }, { x: 8, y: 6 }]),
-  makePath([{ x: 0, y: 2 }, { x: 4, y: 2 }, { x: 4, y: 3 }, { x: 6, y: 3 }, { x: 6, y: 2 }, { x: 10, y: 2 }, { x: 10, y: 7 }, { x: 12, y: 7 }, { x: 12, y: 9 }, { x: 5, y: 9 }, { x: 5, y: 7 }, { x: 8, y: 7 }, { x: 8, y: 6 }]),
-  makePath([{ x: 15, y: 9 }, { x: 15, y: 2 }, { x: 10, y: 2 }, { x: 10, y: 7 }, { x: 12, y: 7 }, { x: 12, y: 9 }, { x: 5, y: 9 }, { x: 5, y: 7 }, { x: 8, y: 7 }, { x: 8, y: 6 }]),
-  makePath([{ x: 0, y: 9 }, { x: 1, y: 9 }, { x: 1, y: 5 }, { x: 6, y: 5 }, { x: 6, y: 2 }, { x: 10, y: 2 }, { x: 10, y: 7 }, { x: 12, y: 7 }, { x: 12, y: 9 }, { x: 5, y: 9 }, { x: 5, y: 7 }, { x: 8, y: 7 }, { x: 8, y: 6 }]),
+  makePath([{ x: 0, y: 4 }, { x: 0, y: 1 }, { x: 2, y: 1 }, { x: 2, y: 6 }, { x: 11, y: 6 }, { x: 11, y: 4 }, { x: 7, y: 4 }]),
+  makePath([{ x: 0, y: 6 }, { x: 0, y: 1 }, { x: 2, y: 1 }, { x: 2, y: 6 }, { x: 11, y: 6 }, { x: 11, y: 4 }, { x: 7, y: 4 }]),
+  makePath([{ x: 0, y: 8 }, { x: 0, y: 1 }, { x: 2, y: 1 }, { x: 2, y: 6 }, { x: 11, y: 6 }, { x: 11, y: 4 }, { x: 7, y: 4 }]),
+  makePath([{ x: 7, y: 0 }, { x: 7, y: 1 }, { x: 2, y: 1 }, { x: 2, y: 6 }, { x: 11, y: 6 }, { x: 11, y: 4 }, { x: 7, y: 4 }]),
+  makePath([{ x: 11, y: 1 }, { x: 2, y: 1 }, { x: 2, y: 6 }, { x: 11, y: 6 }, { x: 11, y: 4 }, { x: 7, y: 4 }]),
+  makePath([{ x: 10, y: 8 }, { x: 2, y: 8 }, { x: 2, y: 6 }, { x: 11, y: 6 }, { x: 11, y: 4 }, { x: 7, y: 4 }]),
 ];
 
 export const MAPS: MapDef[] = [

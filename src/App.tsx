@@ -34,10 +34,10 @@ type ScreenState = 'menu' | 'briefing' | 'duelLobby' | 'playing';
 
 // Side column sizes: phone-size minimums, growing with the column height (cqh) and width (cqw)
 const SIDE_VARS = {
-  '--fs-xs': 'clamp(9px, min(2.3cqh, 4.6cqw), 14px)',
-  '--fs-sm': 'clamp(10px, min(2.6cqh, 5.2cqw), 15px)',
-  '--fs-md': 'clamp(11px, min(2.9cqh, 5.8cqw), 17px)',
-  '--fs-lg': 'clamp(12px, min(3.3cqh, 6.4cqw), 20px)',
+  '--fs-xs': 'clamp(10px, min(2.6cqh, 5cqw), 16px)',
+  '--fs-sm': 'clamp(11px, min(2.9cqh, 5.7cqw), 17px)',
+  '--fs-md': 'clamp(12px, min(3.2cqh, 6.3cqw), 19px)',
+  '--fs-lg': 'clamp(13px, min(3.7cqh, 7cqw), 22px)',
   '--h-stat': 'max(24px, 5cqh)',
   '--h-line': 'max(16px, 3.6cqh)',
   '--fs-btn4': 'clamp(10px, min(2.6cqh, 4.8cqw), 15px)', // four buttons in a row
