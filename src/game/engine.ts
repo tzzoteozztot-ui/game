@@ -48,8 +48,8 @@ export interface Tower extends TowerPart {
 }
 
 // «Связка» standing on the field until it is spent on binding two towers
-const ENEMY_DRAW_SCALE = 1.45;
-const BOSS_DRAW_SCALE = 2.9;
+const ENEMY_DRAW_SCALE = 2.2;
+const BOSS_DRAW_SCALE = 4.35;
 
 export interface Binder {
   id: string;
