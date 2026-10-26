@@ -1201,7 +1201,9 @@ export class GameEngine {
     const stats = attackStats(part.type, part.level, part.specs);
     const specs = specsOfType(part.type, part.specs);
     const rangePx = stats.range * CONFIG.grid.cellSize;
-    const rawDamage = stats.damage;
+    // A tower bound to a priest shoots stronger
+    const partner = tower.second ? (part === tower ? tower.second : tower) : null;
+    const rawDamage = stats.damage * (partner?.type === 'priest' && part.type !== 'priest' ? 1 + CONFIG.priestBase.pairBonus : 1);
     const cooldown = stats.cooldown;
 
     // Find enemies in range
@@ -1418,8 +1420,18 @@ export class GameEngine {
         this.spawnRing(e.x, e.y, n('curse') ? CURSE_COLOR : SLOW_COLOR, reach - 8);
       }
       if (!n('ward') && !n('curse') && !n('smite')) {
-        // Default priest: slow 25% for 2s
-        this.applySlow(e, 0.25, 2.0);
+        // Default priest: marks the target and the enemies around it, slow and +damage from all towers
+        const pb = CONFIG.priestBase;
+        const reach = ps.radius * CONFIG.grid.cellSize;
+        for (const o of this.enemies) {
+          if (o !== e && Math.hypot(o.x - e.x, o.y - e.y) > reach) continue;
+          this.applySlow(o, pb.slow, pb.time);
+          if (o.curseTimer <= 0 || pb.markBonus >= o.curseBonus) {
+            o.curseBonus = pb.markBonus;
+            o.curseTimer = pb.time;
+          }
+        }
+        this.spawnRing(e.x, e.y, CURSE_COLOR, reach - 8);
       }
     }
 

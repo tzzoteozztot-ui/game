@@ -159,6 +159,9 @@ export const CONFIG = {
   // Priest support (Артур, тест баланса: жрец — явная поддержка): «Оберег» and «Проклятие» also
   // reach enemies within `radius` cells of the target
   priestSupport: { radius: 1, wardSlow: 0.5, wardTime: 3, curseBonus: 0.35, curseTime: 5 },
+  // Priest without a specialization (Артур, 2026-10-26, вариант А): marks the target and the enemies
+  // within `radius` cells: slow and extra damage from all towers; a tower bound to a priest shoots stronger
+  priestBase: { slow: 0.3, markBonus: 0.15, time: 3, pairBonus: 0.2 },
 
   // «Град стрел»: damage of each arrow drops with the number of targets (Артур, тест баланса)
   arrowHail: { perExtraTarget: 0.05 },
