@@ -178,9 +178,16 @@ export function TowerPanel({
     if (seen.length === 0) {
       notes.push({
         title: def.name,
-        text: `${def.damageType === 'phys' ? 'физический' : 'магический'} урон. Свойства с Ур.2: ${def.specs.map((x) => x.name).join(', ')}`,
+        text:
+          (part.type === 'priest'
+            ? `метка: замедление ${Math.round(CONFIG.priestBase.slow * 100)}% и +${Math.round(CONFIG.priestBase.markBonus * 100)}% урона от всех башен на ${CONFIG.priestBase.time} с цели и врагам в ${CONFIG.priestSupport.radius} клетке. `
+            : `${def.damageType === 'phys' ? 'физический' : 'магический'} урон. `) +
+          `Свойства с Ур.2: ${def.specs.map((x) => x.name).join(', ')}`,
       });
     }
+  }
+  if (second && (tower.type === 'priest' || second.type === 'priest')) {
+    notes.push({ title: 'Со Жрецом', text: `вторая башня стреляет на +${Math.round(CONFIG.priestBase.pairBonus * 100)}% сильнее` });
   }
 
   const priorityLabel =

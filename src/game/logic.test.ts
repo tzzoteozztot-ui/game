@@ -353,3 +353,12 @@ test('duel bot: the defence outgrows early waves and falls behind later ones, st
   assert.ok(BOT_LEVELS.easy.sendShare < BOT_LEVELS.normal.sendShare && BOT_LEVELS.normal.sendShare < BOT_LEVELS.hard.sendShare);
   assert.ok(waveWeight(12, 1) > waveWeight(11, 1));
 });
+
+test('priest without a specialization marks enemies; a tower bound to a priest shoots stronger', () => {
+  assert.equal(CONFIG.priestBase.slow, 0.3);
+  assert.equal(CONFIG.priestBase.markBonus, 0.15);
+  assert.equal(CONFIG.priestBase.pairBonus, 0.2);
+  // the mark is the same +damage as the curse, only weaker and shorter
+  assert.ok(CONFIG.priestBase.markBonus < CONFIG.priestSupport.curseBonus && CONFIG.priestBase.time < CONFIG.priestSupport.curseTime);
+  assert.ok(CONFIG.priestBase.slow < CONFIG.priestSupport.wardSlow);
+});
