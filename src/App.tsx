@@ -125,6 +125,7 @@ export default function App() {
     backpack: [],
     backpackSlots: CONFIG.backpack.slots,
     faction: 1,
+    runSummary: null,
     waveSummary: null,
     nextWave: null,
     placingSlot: null,
@@ -1072,11 +1073,12 @@ export default function App() {
 
       {/* 7. Victory Modal */}
       {screen === 'playing' && gameState.duel && duelOutcome && (gameState.isVictory || gameState.isGameOver) && (
-        <DuelResultModal outcome={duelOutcome} wave={gameState.wave} onToMenu={handleToMenu} />
+        <DuelResultModal outcome={duelOutcome} wave={gameState.wave} stats={gameState.runSummary} onToMenu={handleToMenu} />
       )}
 
       {screen === 'playing' && gameState.isVictory && !gameState.duel && (
         <VictoryModal
+          stats={gameState.runSummary}
           level={gameState.level}
           stars={calculateStars(gameState.lives)}
           lives={gameState.lives}
@@ -1089,6 +1091,7 @@ export default function App() {
       {/* 8. Defeat Modal */}
       {screen === 'playing' && gameState.isGameOver && !gameState.duel && (
         <DefeatModal
+          stats={gameState.runSummary}
           wave={gameState.wave}
           endless={gameState.endless}
           best={endlessBest[engineRef.current?.difficulty ?? difficulty]?.[gameState.level] || 0}

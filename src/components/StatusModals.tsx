@@ -2,6 +2,8 @@
  * Status Modals: Pause, Victory, Defeat, and How-To-Play Guide
  */
 
+import { RunStats } from './RunStats';
+import type { RunSummary } from '../game/engine';
 import React, { useState } from 'react';
 import { StarIcon } from './Icons';
 import { sound } from '../game/audio';
@@ -143,12 +145,12 @@ const DUEL_OUTCOME_TEXT: Record<DuelOutcome, string> = {
   lost: 'Враги прорвали оборону и захватили ваш замок.',
 };
 
-export function DuelResultModal({ outcome, wave, onToMenu }: { outcome: DuelOutcome; wave: number; onToMenu: () => void }) {
+export function DuelResultModal({ outcome, wave, stats, onToMenu }: { outcome: DuelOutcome; wave: number; stats?: RunSummary | null; onToMenu: () => void }) {
   const won = outcome !== 'lost';
   return (
     <div className="fixed inset-0 bg-black/85 flex items-center justify-center p-4 z-50">
       <div
-        className={`bg-[#171520] border-2 ${won ? 'border-amber-500/70' : 'border-red-800/70'} rounded-xl p-6 max-w-sm w-full shadow-2xl text-center text-[#f4f2e6]`}
+        className={`bg-[#171520] border-2 ${won ? 'border-amber-500/70' : 'border-red-800/70'} rounded-xl p-4 short:p-3 max-w-sm w-full max-h-[94vh] overflow-y-auto shadow-2xl text-center text-[#f4f2e6]`}
       >
         <h2 className={`text-2xl font-black tracking-wider mb-2 ${won ? 'text-amber-300' : 'text-red-400'}`}>
           {won ? 'ПОБЕДА В ДУЭЛИ' : 'ПОРАЖЕНИЕ'}
@@ -157,6 +159,7 @@ export function DuelResultModal({ outcome, wave, onToMenu }: { outcome: DuelOutc
         <p className="text-sm font-bold text-amber-300 mb-5 bg-[#121118] py-2 px-3 rounded border border-[#2d2938]">
           Волна {wave}
         </p>
+        <RunStats stats={stats ?? null} />
         <button
           type="button"
           onClick={onToMenu}
@@ -173,6 +176,7 @@ export function DuelResultModal({ outcome, wave, onToMenu }: { outcome: DuelOutc
 // Victory Modal
 // -------------------------------------------------------------
 interface VictoryModalProps {
+  stats?: RunSummary | null;
   level: number;
   stars: number;
   lives: number;
@@ -182,6 +186,7 @@ interface VictoryModalProps {
 }
 
 export function VictoryModal({
+  stats,
   level,
   stars,
   lives,
@@ -193,7 +198,7 @@ export function VictoryModal({
 
   return (
     <div className="fixed inset-0 bg-black/85 flex items-center justify-center p-4 z-50">
-      <div className="bg-[#171520] border-2 border-amber-500/70 rounded-xl p-6 max-w-sm w-full shadow-2xl text-center text-[#f4f2e6]">
+      <div className="bg-[#171520] border-2 border-amber-500/70 rounded-xl p-4 short:p-3 max-w-sm w-full max-h-[94vh] overflow-y-auto shadow-2xl text-center text-[#f4f2e6]">
         <h2 className="text-2xl font-black text-amber-300 tracking-wider mb-1">
           {isFinal ? 'ВЕЛИКАЯ ПОБЕДА!' : 'РУБЕЖ УДЕРЖАН!'}
         </h2>
@@ -213,6 +218,7 @@ export function VictoryModal({
         <div className="text-xs text-stone-300 mb-5 bg-[#121118] py-2 px-3 rounded border border-[#2d2938]">
           Сохранено жизней замка: <span className="font-bold text-red-400">{lives} / 20</span>
         </div>
+        <RunStats stats={stats ?? null} />
 
         {/* Actions */}
         <div className="flex flex-col gap-2">
@@ -249,6 +255,7 @@ export function VictoryModal({
 // Defeat Modal
 // -------------------------------------------------------------
 interface DefeatModalProps {
+  stats?: RunSummary | null;
   wave: number;
   endless: boolean;
   best: number; // best wave reached in endless mode on this level, this run included
@@ -256,19 +263,19 @@ interface DefeatModalProps {
   onToMenu: () => void;
 }
 
-export function DefeatModal({ wave, endless, best, onRestart, onToMenu }: DefeatModalProps) {
+export function DefeatModal({ stats, wave, endless, best, onRestart, onToMenu }: DefeatModalProps) {
   // The record before this run: App saves the new one right after this modal appears
   const [prevBest] = useState(best);
   return (
     <div className="fixed inset-0 bg-black/85 flex items-center justify-center p-4 z-50">
-      <div className="bg-[#171520] border-2 border-red-800/70 rounded-xl p-6 max-w-sm w-full shadow-2xl text-center text-[#f4f2e6]">
+      <div className="bg-[#171520] border-2 border-red-800/70 rounded-xl p-4 short:p-3 max-w-sm w-full max-h-[94vh] overflow-y-auto shadow-2xl text-center text-[#f4f2e6]">
         <h2 className="text-2xl font-black text-red-400 tracking-wider mb-2">
           РУБЕЖ ПАЛ
         </h2>
         <p className="text-xs text-stone-300 mb-2">
           Враги прорвали оборону и захватили замок.
         </p>
-        <p className="text-sm font-bold text-amber-300 mb-5 bg-[#121118] py-2 px-3 rounded border border-[#2d2938]">
+        <p className="text-sm font-bold text-amber-300 mb-3 bg-[#121118] py-2 px-3 rounded border border-[#2d2938]">
           {endless ? `Вы продержались до волны ${wave}` : `Вы дошли до волны ${Math.min(wave, 12)} из 12`}
           {endless && (
             <span className="block text-xs font-semibold text-stone-400 mt-0.5">
@@ -276,6 +283,7 @@ export function DefeatModal({ wave, endless, best, onRestart, onToMenu }: Defeat
             </span>
           )}
         </p>
+        <RunStats stats={stats ?? null} />
 
         {/* Actions */}
         <div className="flex flex-col gap-2">

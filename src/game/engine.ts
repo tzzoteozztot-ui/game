@@ -203,6 +203,17 @@ export interface WaveSummary {
   other: number; // damage of towers sold during the wave and of unattributed sources
 }
 
+export interface RunSummary {
+  wave: number; // waves launched
+  killed: number;
+  leaked: number;
+  gold: number;
+  lives: number;
+  seconds: number; // game time of the run
+  towers: WaveSummary['towers'];
+  other: number;
+}
+
 export interface BackpackItem {
   id: string;
   kind: 'tower' | 'binder';
@@ -250,6 +261,7 @@ export interface GameStateSnapshot {
   backpack: { kind: 'tower' | 'binder'; type: TowerType | null; triplet: boolean; sell: number }[];
   backpackSlots: number;
   faction: number; // whose enemies come (boss picture)
+  runSummary: RunSummary | null; // totals of the whole run, once it is over
   waveSummary: WaveSummary | null; // totals of the last cleared wave
   nextWave: { type: EnemyType; count: number }[] | null; // what the coming wave brings while the timer runs
   placingSlot: number | null; // backpack slot being placed
@@ -332,6 +344,7 @@ export class GameEngine {
   private waveStats = { killed: 0, leaked: 0, gold: 0, lives: 0, dmg: new Map<string, number>(), other: 0 };
   private dmgSource: string | null = null; // tower whose hit is being applied
   private summarySeq = 0;
+  private runStats = { killed: 0, leaked: 0, gold: 0, lives: 0, time: 0, dmg: new Map<string, number>(), other: 0 };
   public lastSummary: WaveSummary | null = null;
   public placingSlot: number | null = null;
   public selectedBinderId: string | null = null;
@@ -435,6 +448,7 @@ export class GameEngine {
     this.backpack = [];
     this.placingSlot = null;
     this.resetWaveStats();
+    this.runStats = { killed: 0, leaked: 0, gold: 0, lives: 0, time: 0, dmg: new Map(), other: 0 };
     this.lastSummary = null;
     this.selectedBinderId = null;
     this.bindingFromId = null;
@@ -704,13 +718,13 @@ export class GameEngine {
     if (!duel && this.waveInProgress && this.enemies.length > 0 && (this.endless || this.wave <= 12)) {
       const reward = calculateWaveClearReward(this.wave);
       this.gold += reward;
-      this.waveStats.gold += reward;
+      this.statGold(reward);
       this.addFloatingText(`Волна ${this.wave}: +${reward} золота`, CONFIG.grid.totalWidth / 2, 80, '#f4c06a');
     }
     const bonus = this.earlyStartBonus();
     if (bonus > 0) {
       this.gold += bonus;
-      this.waveStats.gold += bonus;
+      this.statGold(bonus);
       this.addFloatingText(`+${bonus} за ранний старт`, CONFIG.grid.totalWidth / 2, 40, '#f4c06a');
       sound.playBuy();
     }
@@ -831,8 +845,53 @@ export class GameEngine {
   private recordDamage(amount: number) {
     if (amount <= 0) return;
     const id = this.dmgSource;
-    if (id === null) this.waveStats.other += amount;
-    else this.waveStats.dmg.set(id, (this.waveStats.dmg.get(id) || 0) + amount);
+    if (id === null) {
+      this.waveStats.other += amount;
+      this.runStats.other += amount;
+    } else {
+      this.waveStats.dmg.set(id, (this.waveStats.dmg.get(id) || 0) + amount);
+      this.runStats.dmg.set(id, (this.runStats.dmg.get(id) || 0) + amount);
+    }
+  }
+
+  private statGold(n: number) {
+    this.waveStats.gold += n;
+    this.runStats.gold += n;
+  }
+
+  private statKill() {
+    this.waveStats.killed++;
+    this.runStats.killed++;
+  }
+
+  private statLeak(lives: number) {
+    this.waveStats.leaked++;
+    this.waveStats.lives += lives;
+    this.runStats.leaked++;
+    this.runStats.lives += lives;
+  }
+
+  // Totals of the whole run for the end screens: the towers still standing keep their names, the rest go under «other»
+  private buildRunSummary(): RunSummary {
+    const st = this.runStats;
+    let other = st.other;
+    const towers: RunSummary['towers'] = [];
+    for (const [id, damage] of st.dmg) {
+      const t = this.towers.find((x) => x.id === id);
+      if (t) towers.push({ type: t.type, second: t.second ? t.second.type : null, level: t.level, x: t.x, y: t.y, damage: Math.round(damage) });
+      else other += damage;
+    }
+    towers.sort((a, b) => b.damage - a.damage);
+    return {
+      wave: this.wavesLaunched,
+      killed: st.killed,
+      leaked: st.leaked,
+      gold: st.gold,
+      lives: st.lives,
+      seconds: Math.round(st.time),
+      towers,
+      other: Math.round(other),
+    };
   }
 
   // Closes the totals of the cleared wave; towers sold since count under «other»
@@ -930,6 +989,7 @@ export class GameEngine {
   // Simulation Update
   // -------------------------------------------------------------
   private update(dt: number) {
+    if (!this.isGameOver && !this.isVictory) this.runStats.time += dt;
     // 1. Spawning
     if (this.isSpawning) {
       this.spawnTimer -= dt;
@@ -952,7 +1012,7 @@ export class GameEngine {
         // Wave cleared!
         const reward = calculateWaveClearReward(this.wave);
         this.gold += reward;
-        this.waveStats.gold += reward;
+        this.statGold(reward);
         this.publishWaveSummary();
         this.addFloatingText(`Волна ${this.wave} зачищена! +${reward} золота`, CONFIG.grid.totalWidth / 2, 80, '#f4c06a');
         sound.playBuy();
@@ -1625,11 +1685,11 @@ export class GameEngine {
       });
     }
 
-    this.waveStats.killed++;
+    this.statKill();
     // Reward gold
     if (e.gold > 0) {
       this.gold += e.gold;
-      this.waveStats.gold += e.gold;
+      this.statGold(e.gold);
       this.addFloatingText(`+${e.gold}`, e.x, e.y - 10, '#f4c06a');
     }
 
@@ -1639,8 +1699,7 @@ export class GameEngine {
   private damageCastle(e: Enemy, index: number) {
     this.enemies.splice(index, 1);
     const cost = e.type === 'boss' ? CONFIG.lives.bossCost : CONFIG.lives.regularCost;
-    this.waveStats.leaked++;
-    this.waveStats.lives += Math.min(this.lives, cost);
+    this.statLeak(Math.min(this.lives, cost));
     this.lives = Math.max(0, this.lives - cost);
     sound.playError();
     this.addFloatingText(
@@ -2371,6 +2430,7 @@ export class GameEngine {
       backpack: this.backpack.map((i) => ({ kind: i.kind, type: i.type, triplet: i.triplet, sell: i.paid })),
       backpackSlots: CONFIG.backpack.slots,
       faction: this.faction,
+      runSummary: this.isGameOver || this.isVictory ? this.buildRunSummary() : null,
       waveSummary: this.lastSummary,
       nextWave: this.nextWaveComposition(),
       placingSlot: this.placingSlot,
