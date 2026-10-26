@@ -209,6 +209,7 @@ export interface GameStateSnapshot {
   selectedBinderTriple: boolean;
   canMergeBinders: boolean; // the selected plain binder and two more can merge
   upgradeTargetCount: number; // towers a triple binder can raise
+  canUpgradeSelected: boolean; // the selected tower can be raised by a triple binder standing on the field
   isUpgrading: boolean; // triple binder waiting for a tap on a tower
   bindPartnerCount: number; // towers the selected one can be bound with
   isBinding: boolean; // waiting for a tap on the second tower
@@ -1791,6 +1792,24 @@ export class GameEngine {
     });
   }
 
+  // The selected tower can be raised by a triple binder that stands on the field
+  public canUpgradeSelectedTower(): boolean {
+    const tower = this.towers.find((t) => t.id === this.selectedTowerId);
+    return !!tower && this.binders.some((b) => b.triple) && this.getUpgradeTargets().includes(tower);
+  }
+
+  // Raise the selected tower with the nearest triple binder, without selecting the binder first
+  public upgradeSelectedTower(): boolean {
+    const tower = this.towers.find((t) => t.id === this.selectedTowerId);
+    const binder = tower && this.nearest(this.binders.filter((b) => b.triple), tower)[0];
+    if (!tower || !binder) {
+      sound.playError();
+      return false;
+    }
+    this.upgradingFromBinderId = binder.id;
+    return this.upgradeWithBinder(tower);
+  }
+
   // Selected triple binder waits for a tap on the tower to raise (tap again to cancel)
   public toggleUpgrading(): boolean {
     if (this.upgradingFromBinderId) {
@@ -2067,6 +2086,7 @@ export class GameEngine {
       selectedBinderTriple: !!this.binders.find((b) => b.id === this.selectedBinderId)?.triple,
       canMergeBinders: this.canMergeBinders(),
       upgradeTargetCount: this.getUpgradeTargets().length,
+      canUpgradeSelected: this.canUpgradeSelectedTower(),
       isUpgrading: this.upgradingFromBinderId !== null,
       bindPartnerCount,
       isBinding: this.bindingFromId !== null,

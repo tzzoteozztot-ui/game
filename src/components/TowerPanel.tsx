@@ -26,6 +26,8 @@ interface TowerPanelProps {
   shopTier?: number;
   upgradeTargetCount: number;
   isUpgrading: boolean;
+  canUpgrade?: boolean;
+  onUpgradeTower?: () => void;
   onMergeBinders: () => void;
   onUpgradeWithBinder: () => void;
   onCyclePriority: () => void;
@@ -58,6 +60,8 @@ export function TowerPanel({
   shopTier = 1,
   upgradeTargetCount,
   isUpgrading,
+  canUpgrade = false,
+  onUpgradeTower,
   onMergeBinders,
   onUpgradeWithBinder,
   onCyclePriority,
@@ -259,7 +263,13 @@ export function TowerPanel({
       </div>
 
       {/* 3. Target priority, merge, bind and sell: one row, a 2×2 grid on tall screens */}
-      <div className="grid grid-cols-4 gap-1 h-[var(--h-btn)] shrink-0 [@container(min-height:560px)]:grid-cols-2 [@container(min-height:560px)]:h-[calc(var(--h-btn)*2+4px)] [@container(min-height:560px)]:[--fs-btn4:var(--fs-md)] [@container(min-height:560px)]:[--fs-xs:var(--fs-sm)]">
+      <div
+        className={`grid gap-1 h-[var(--h-btn)] shrink-0 [@container(min-height:560px)]:grid-cols-2 [@container(min-height:560px)]:[--fs-btn4:var(--fs-md)] [@container(min-height:560px)]:[--fs-xs:var(--fs-sm)] ${
+          canUpgrade
+            ? 'grid-cols-5 [@container(min-height:560px)]:h-[calc(var(--h-btn)*3+8px)]'
+            : 'grid-cols-4 [@container(min-height:560px)]:h-[calc(var(--h-btn)*2+4px)]'
+        }`}
+      >
         <button
           type="button"
           onClick={onCyclePriority}
@@ -286,6 +296,18 @@ export function TowerPanel({
             {second ? '—' : tower.level >= 3 ? 'макс' : mergeUsesBinder ? '2+связка' : `${eligibleMergeCount}/3`}
           </span>
         </button>
+
+        {canUpgrade && (
+          <button
+            type="button"
+            onClick={onUpgradeTower}
+            className="h-[var(--h-btn)] px-0.5 rounded font-bold flex flex-col items-center justify-center leading-none bg-teal-500 hover:bg-teal-400 text-stone-950 border border-teal-200 shadow-md shadow-teal-950/40 animate-pulse cursor-pointer"
+            title="Поднять уровень тройной связкой (U)"
+          >
+            <span className="text-[length:var(--fs-btn4)]">Усилить</span>
+            <span className="text-[length:var(--fs-xs)] mt-0.5 whitespace-nowrap">связкой</span>
+          </button>
+        )}
 
         <button
           type="button"
