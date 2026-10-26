@@ -24,28 +24,29 @@ export function Backpack({ items, slots, placingSlot, onSelect, onSell }: Backpa
           type="button"
           onClick={() => onSell(placingSlot)}
           title="Продать из рюкзака за столько же, сколько заплатили"
-          className="w-[22%] h-[var(--h-pack,clamp(34px,8cqh,52px))] rounded border border-[#383347] bg-[#221f2d] hover:bg-[#2c283a] text-[length:var(--fs-xs)] font-semibold text-stone-200 leading-tight cursor-pointer"
+          className="w-[22%] rounded border border-[#383347] bg-[#221f2d] hover:bg-[#2c283a] text-[length:var(--fs-xs)] font-semibold text-stone-200 leading-tight cursor-pointer"
         >
           Продать
           <br />
           <span className="text-amber-300 tabular-nums">+{inHand.sell}</span>
         </button>
       ) : overflow ? (
-        <div className="w-[22%] h-[var(--h-pack,clamp(34px,8cqh,52px))] flex items-center justify-center text-center text-[length:var(--fs-xs)] font-semibold text-amber-300 leading-tight">
+        <div className="w-[22%] flex items-center justify-center text-center text-[length:var(--fs-xs)] font-semibold text-amber-300 leading-tight">
           Поставьте или замените
         </div>
       ) : (
-        <div className="w-[22%] h-[var(--h-pack,clamp(34px,8cqh,52px))] flex items-center justify-center text-[length:var(--fs-xs)] uppercase font-semibold tracking-wider text-stone-400">
+        <div className="w-[22%] flex items-center justify-center text-[length:var(--fs-xs)] uppercase font-semibold tracking-wider text-stone-400">
           Рюкзак
         </div>
       )}
+      <div className="flex-1 grid grid-cols-3 gap-1">
       {Array.from({ length: slots }, (_, i) => {
         const item = items[i];
         if (!item) {
           return (
             <div
               key={i}
-              className="flex-1 h-[var(--h-pack,clamp(34px,8cqh,52px))] rounded border border-dashed border-[#2d2938] bg-[#121118]/50"
+              className="h-[var(--h-pack,clamp(26px,6cqh,48px))] rounded border border-dashed border-[#2d2938] bg-[#121118]/50"
             />
           );
         }
@@ -57,7 +58,7 @@ export function Backpack({ items, slots, placingSlot, onSelect, onSell }: Backpa
             type="button"
             onClick={() => onSelect(i)}
             title={item.kind === 'binder' ? CONFIG.binder.name : `${CONFIG.towers[item.type!].name}${item.triplet ? ' ★' : ''}`}
-            className={`flex-1 h-[var(--h-pack,clamp(34px,8cqh,52px))] rounded border relative flex items-center justify-center cursor-pointer ${
+            className={`h-[var(--h-pack,clamp(26px,6cqh,48px))] rounded border relative flex items-center justify-center cursor-pointer ${
               picked ? 'border-amber-400 bg-amber-950/40 ring-1 ring-amber-400' : 'border-[#383347] bg-[#221f2d] hover:bg-[#2c283a]'
             }`}
           >
@@ -68,6 +69,7 @@ export function Backpack({ items, slots, placingSlot, onSelect, onSell }: Backpa
           </button>
         );
       })}
+      </div>
     </div>
   );
 }
