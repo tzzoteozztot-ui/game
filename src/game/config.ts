@@ -370,10 +370,16 @@ export const CONFIG = {
   // selling is paid from the base price and does not change.
   // Backpack: bought towers and binders wait here until placed (a wave start does not reset them)
   backpack: { slots: 3 },
+  // Артур, 2026-10-26 («В. Средний путь»): after wave 12 a kill pays ×killDecay per wave (down to killFloor) and
+  // the table is dearer and selling pays less. Endless mode and duel only.
   supply: {
-    free: 40,
+    free: 30,
     step: 20,
-    growth: 1.1,
+    growth: 1.12,
+    sellRatio: 0.6,
+    killDecay: 0.985,
+    killFloor: 0.3,
+    killDecayFrom: 12,
     towerPower: [1, 3, 9], // by tower level
     binderPower: 1,
     tripleBinderPower: 3,

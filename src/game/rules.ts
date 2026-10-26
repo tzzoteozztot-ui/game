@@ -108,8 +108,10 @@ export function waveDefinition(wave: number): WaveDef {
   return CONFIG.waves[(wave - 1) % CONFIG.waves.length];
 }
 
-export function calculateKillGold(baseGold: number, level: number): number {
-  return Math.round(baseGold * (1 + 0.15 * (level - 1)));
+export function calculateKillGold(baseGold: number, level: number, wave = 0, decay = false): number {
+  const s = CONFIG.supply;
+  const mult = decay && wave > s.killDecayFrom ? Math.max(s.killFloor, Math.pow(s.killDecay, wave - s.killDecayFrom)) : 1;
+  return Math.round(baseGold * (1 + 0.15 * (level - 1)) * mult);
 }
 
 /** Shop reroll price: grows with every reroll since the current wave started (Артур, тест баланса) */
@@ -121,13 +123,13 @@ export function calculateWaveClearReward(wave: number): number {
   return 20 + 3 * wave;
 }
 
-export function calculateSellRefund(baseCost: number, level: number): number {
+export function calculateSellRefund(baseCost: number, level: number, ratio = CONFIG.upgrade.sellRatio): number {
   // Lvl 1: 1 tower invested
   // Lvl 2: 3 towers invested (merged or bought as triplet)
   // Lvl 3: 9 towers invested (3 lvl2 towers)
   const count = level === 1 ? 1 : level === 2 ? 3 : 9;
   const totalInvested = baseCost * count;
-  return Math.floor(totalInvested * CONFIG.upgrade.sellRatio);
+  return Math.floor(totalInvested * ratio);
 }
 
 export function calculateStars(remainingLives: number): number {

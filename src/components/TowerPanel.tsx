@@ -14,6 +14,7 @@ import { TowerSpriteIcon, BinderIcon } from './Icons';
 import { attackStats, specSummary } from '../game/towerStats';
 
 interface TowerPanelProps {
+  sellRatio?: number; // share of the price paid back on sale
   tower: Tower | null;
   eligibleMergeCount: number;
   mergeUsesBinder?: boolean;
@@ -61,6 +62,7 @@ export function TowerPanel({
   upgradeTargetCount,
   isUpgrading,
   canUpgrade = false,
+  sellRatio = CONFIG.upgrade.sellRatio,
   onUpgradeTower,
   onMergeBinders,
   onUpgradeWithBinder,
@@ -71,7 +73,7 @@ export function TowerPanel({
 }: TowerPanelProps) {
   if (!tower && selectedBinder) {
     const triple = selectedBinderTriple;
-    const binderRefund = Math.floor(CONFIG.binder.cost * (triple ? 3 : 1) * CONFIG.upgrade.sellRatio);
+    const binderRefund = Math.floor(CONFIG.binder.cost * (triple ? 3 : 1) * sellRatio);
     const canAct = triple ? isUpgrading || upgradeTargetCount > 0 : canMergeBinders;
     return (
       <div className="w-full flex-1 min-h-[112px] flex flex-col justify-between gap-1 p-1.5 bg-[#171520] border-t border-[#2d2938] text-[#f4f2e6] text-[length:var(--fs-md)] shrink-0 select-none">
@@ -146,10 +148,10 @@ export function TowerPanel({
   const other = second ? partStats(second) : null;
   const pair = (a: string | number, b: string | number | undefined) => (b === undefined ? `${a}` : `${a} / ${b}`);
 
-  let refund = calculateSellRefund(baseDef.cost, tower.level);
+  let refund = calculateSellRefund(baseDef.cost, tower.level, sellRatio);
   if (second && secondDef) {
-    refund += calculateSellRefund(secondDef.cost, second.level);
-    refund += Math.floor(CONFIG.binder.cost * CONFIG.upgrade.sellRatio);
+    refund += calculateSellRefund(secondDef.cost, second.level, sellRatio);
+    refund += Math.floor(CONFIG.binder.cost * sellRatio);
   }
   const specText = specSummary(second ? [...tower.specs, ...second.specs] : tower.specs);
 

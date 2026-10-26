@@ -233,6 +233,7 @@ export interface GameStateSnapshot {
   supplyPower: number; // value of the towers on the field (endless mode)
   supplyMult: number; // price multiplier of buying towers and binders, 1 outside endless mode
   supplyActive: boolean;
+  sellRatio: number;
   backpack: { kind: 'tower' | 'binder'; type: TowerType | null; triplet: boolean; sell: number }[];
   backpackSlots: number;
   placingSlot: number | null; // backpack slot being placed
@@ -794,7 +795,7 @@ export class GameEngine {
 
     const hp = calculateEnemyHp(baseDef.hp, type, this.wave, this.level, this.difficulty, this.endless, this.faction);
     const armorBonus = this.endless ? endlessArmorBonus(this.wave) : 0;
-    const killGold = calculateKillGold(baseDef.gold, this.level);
+    const killGold = calculateKillGold(baseDef.gold, this.level, this.wave, this.supplyActive());
     const gold = sent ? Math.round(killGold * CONFIG.duel.sentKillGoldShare) : killGold;
 
     const enemy: Enemy = {
@@ -1611,6 +1612,11 @@ export class GameEngine {
     return this.endless || this.duelStart !== null;
   }
 
+  // Share of the price paid back when selling: lower where the supply works
+  public sellRatio(): number {
+    return this.supplyActive() ? CONFIG.supply.sellRatio : CONFIG.upgrade.sellRatio;
+  }
+
   public supplyPower(): number {
     const levels = this.towers.flatMap((t) => (t.second ? [t.level, t.second.level] : [t.level]));
     const triple = this.binders.filter((b) => b.triple).length;
@@ -1825,7 +1831,7 @@ export class GameEngine {
     const idx = this.binders.findIndex((b) => b.id === id);
     if (idx === -1) return false;
     const b = this.binders[idx];
-    const refund = Math.floor(CONFIG.binder.cost * (b.triple ? 3 : 1) * CONFIG.upgrade.sellRatio);
+    const refund = Math.floor(CONFIG.binder.cost * (b.triple ? 3 : 1) * this.sellRatio());
     this.gold += refund;
     this.binders.splice(idx, 1);
     this.selectedBinderId = null;
@@ -2021,10 +2027,10 @@ export class GameEngine {
     const idx = this.towers.indexOf(this.towers.find((t) => t.id === towerId)!);
     if (idx === -1) return false;
     const tower = this.towers[idx];
-    let refund = calculateSellRefund(CONFIG.towers[tower.type].cost, tower.level);
+    let refund = calculateSellRefund(CONFIG.towers[tower.type].cost, tower.level, this.sellRatio());
     if (tower.second) {
-      refund += calculateSellRefund(CONFIG.towers[tower.second.type].cost, tower.second.level);
-      refund += Math.floor(CONFIG.binder.cost * CONFIG.upgrade.sellRatio);
+      refund += calculateSellRefund(CONFIG.towers[tower.second.type].cost, tower.second.level, this.sellRatio());
+      refund += Math.floor(CONFIG.binder.cost * this.sellRatio());
     }
 
     this.gold += refund;
@@ -2237,6 +2243,7 @@ export class GameEngine {
       supplyPower: this.supplyPower(),
       supplyMult: this.supplyMult(),
       supplyActive: this.supplyActive(),
+      sellRatio: this.sellRatio(),
       backpack: this.backpack.map((i) => ({ kind: i.kind, type: i.type, triplet: i.triplet, sell: i.paid })),
       backpackSlots: CONFIG.backpack.slots,
       placingSlot: this.placingSlot,
