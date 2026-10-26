@@ -4,8 +4,10 @@
  */
 
 import React from 'react';
+import { HOME_SCREEN_HINT, isStandalone, toggleFullscreen, useFullscreen } from '../fullscreen';
 
 export function OrientationWarning() {
+  const { supported, active } = useFullscreen();
   return (
     <div className="fixed inset-0 z-50 bg-[#121118] text-[#f4f2e6] flex flex-col items-center justify-center p-6 text-center select-none">
       <div className="w-16 h-16 mb-4 flex items-center justify-center text-amber-400">
@@ -28,6 +30,18 @@ export function OrientationWarning() {
       <p className="text-sm text-stone-300 max-w-xs leading-relaxed">
         Игра «Тёмный рубеж» оптимизирована для альбомной (горизонтальной) ориентации экрана.
       </p>
+      {/* Full screen also locks the landscape orientation where the browser allows it */}
+      {supported ? (
+        <button
+          type="button"
+          onClick={toggleFullscreen}
+          className="mt-5 min-h-[44px] px-5 rounded bg-amber-500 hover:bg-amber-400 text-stone-950 font-black text-sm cursor-pointer"
+        >
+          {active ? 'Выйти из полного экрана' : 'На весь экран'}
+        </button>
+      ) : (
+        !isStandalone() && <p className="text-xs text-stone-400 max-w-xs leading-relaxed mt-4">{HOME_SCREEN_HINT}</p>
+      )}
     </div>
   );
 }

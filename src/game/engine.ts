@@ -48,6 +48,9 @@ export interface Tower extends TowerPart {
 }
 
 // «Связка» standing on the field until it is spent on binding two towers
+const ENEMY_DRAW_SCALE = 1.2;
+const BOSS_DRAW_SCALE = 1.45;
+
 export interface Binder {
   id: string;
   x: number;
@@ -200,6 +203,7 @@ export interface GameStateSnapshot {
   speed: number;
   selectedTower: Tower | null;
   eligibleMergeCount: number;
+  mergeUsesBinder: boolean; // two towers and a binder stand in for the third: a plain one for Ур.1, a triple one for Ур.2
   selectedBinder: boolean;
   binderCount: number; // plain binders on the field
   selectedBinderTriple: boolean;
@@ -1865,13 +1869,23 @@ export class GameEngine {
     );
   }
 
+  // The binder that can take the place of the third tower: a plain one for two equal Ур.1 towers,
+  // a triple one for two equal Ур.2 towers (the nearest of its kind)
+  public mergeStandIn(selected: Tower): Binder | null {
+    if (selected.second || selected.level >= 3) return null;
+    const candidates = this.binders.filter((b) => (selected.level === 1 ? !b.triple : !!b.triple));
+    return this.nearest(candidates, selected)[0] ?? null;
+  }
+
   public mergeSelectedTower(): boolean {
     if (!this.selectedTowerId) return false;
     const selected = this.towers.find((t) => t.id === this.selectedTowerId);
     if (!selected || selected.level >= 3) return false;
 
     const eligible = this.getEligibleMergeTowers(selected);
-    if (eligible.length < 3) return false;
+    // Two equal towers and a binder: the binder takes the place of the third tower
+    const standIn = eligible.length === 2 ? this.mergeStandIn(selected) : null;
+    if (eligible.length < 3 && !standIn) return false;
 
     // Selected tower stays, pick 2 closest eligible to merge into it
     const others = eligible.filter((t) => t.id !== selected.id);
@@ -1881,10 +1895,16 @@ export class GameEngine {
       return dA - dB;
     });
 
-    const mergePair = others.slice(0, 2);
+    const mergePair = standIn ? others : others.slice(0, 2);
 
-    // Remove the two towers
-    for (const m of mergePair) {
+    if (standIn) {
+      this.binders.splice(this.binders.indexOf(standIn), 1);
+      if (this.selectedBinderId === standIn.id) this.selectedBinderId = null;
+      this.spawnPuff((standIn.x + 0.5) * CONFIG.grid.cellSize, (standIn.y + 0.5) * CONFIG.grid.cellSize, CONFIG.binder.color);
+    }
+
+    // Remove the towers that join (two, or one when a binder stands in)
+    for (const m of standIn ? mergePair.slice(0, 1) : mergePair) {
       const idx = this.towers.indexOf(m);
       if (idx !== -1) {
         this.towers.splice(idx, 1);
@@ -1895,11 +1915,12 @@ export class GameEngine {
     selected.level += 1;
     // Level 3 keeps every specialization of the three towers (repeats add power)
     if (selected.level === 3) {
-      selected.specs = [...selected.specs, ...mergePair.flatMap((m) => m.specs)];
+      // the binder in the place of the third tower repeats the selected tower's specialization, as a triple binder does
+      selected.specs = [...selected.specs, ...mergePair.flatMap((m) => m.specs), ...(standIn ? selected.specs : [])];
     }
     sound.playMerge();
     this.spawnRing((selected.x + 0.5) * CONFIG.grid.cellSize, (selected.y + 0.5) * CONFIG.grid.cellSize, '#f4c06a');
-    this.addFloatingText('СЛИЯНИЕ!', (selected.x + 0.5) * CONFIG.grid.cellSize, (selected.y + 0.5) * CONFIG.grid.cellSize - 16, '#f4c06a');
+    this.addFloatingText(standIn ? 'СЛИЯНИЕ СО СВЯЗКОЙ!' : 'СЛИЯНИЕ!', (selected.x + 0.5) * CONFIG.grid.cellSize, (selected.y + 0.5) * CONFIG.grid.cellSize - 16, '#f4c06a');
 
     if (selected.level === 2 && selected.specs.length === 0) {
       // Immediate mandatory specialization choice modal
@@ -1996,7 +2017,9 @@ export class GameEngine {
   public notifyState() {
     if (!this.onStateChange) return;
     const selected = this.selectedTowerId ? this.towers.find((t) => t.id === this.selectedTowerId) || null : null;
-    const eligibleCount = selected ? this.getEligibleMergeTowers(selected).length : 0;
+    const eligibleTowers = selected ? this.getEligibleMergeTowers(selected) : [];
+    const mergeBinder = selected && eligibleTowers.length === 2 ? this.mergeStandIn(selected) : null;
+    const eligibleCount = eligibleTowers.length + (mergeBinder ? 1 : 0);
     const bindPartnerCount = selected ? this.getBindPartners(selected).length : 0;
 
     this.onStateChange({
@@ -2023,6 +2046,7 @@ export class GameEngine {
       speed: this.speedMultiplier,
       selectedTower: selected,
       eligibleMergeCount: eligibleCount,
+      mergeUsesBinder: !!mergeBinder,
       selectedBinder: this.selectedBinderId !== null,
       binderCount: this.plainBinders().length,
       selectedBinderTriple: !!this.binders.find((b) => b.id === this.selectedBinderId)?.triple,
@@ -2732,11 +2756,17 @@ export class GameEngine {
     return { lift: step * g.lift, tilt: Math.sin(ph) * g.tilt, sy: 0.97 + 0.03 * step, sx: 1.03 - 0.03 * step };
   }
 
+  // Height of an enemy's figure on the field: drawing only, radii and balance do not change
+  // (Артур, 2026-10-26: all figures a little bigger, bosses more)
+  private enemyDrawH(e: Enemy, spriteH: number): number {
+    return (e.type === 'imp' ? 24 : spriteH) * (e.type === 'boss' ? BOSS_DRAW_SCALE : ENEMY_DRAW_SCALE);
+  }
+
   private addCorpse(e: Enemy) {
     const { name, tint } = this.enemySprite(e);
     const spr = sprites.get(name, tint);
     if (!spr) return;
-    const h = e.type === 'imp' ? 24 : spr.meta.drawH;
+    const h = this.enemyDrawH(e, spr.meta.drawH);
     if (this.corpses.length >= MAX_CORPSES) this.corpses.shift();
     this.corpses.push({
       name,
@@ -2768,14 +2798,13 @@ export class GameEngine {
 
   private renderEnemy(ctx: CanvasRenderingContext2D, e: Enemy, enemyColor: string, timeSec: number) {
     const isBoss = e.type === 'boss';
-    const isImp = e.type === 'imp';
     const { name, tint } = this.enemySprite(e);
     const variant: SpriteVariant = e.hitFlashTimer > 0 ? 'flash' : e.invulnerableTimer > 0 ? 'shield' : 'normal';
     const spr = sprites.get(name, tint, variant);
 
     let topY: number;
     if (spr) {
-      const h = isImp ? 24 : spr.meta.drawH;
+      const h = this.enemyDrawH(e, spr.meta.drawH);
       const footY = this.enemyFoot(e, h);
       const pose = e.isReviving ? {} : this.enemyPose(e, timeSec);
       if (e.isFlyer) {

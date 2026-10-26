@@ -16,6 +16,7 @@ import { attackStats, specSummary } from '../game/towerStats';
 interface TowerPanelProps {
   tower: Tower | null;
   eligibleMergeCount: number;
+  mergeUsesBinder?: boolean;
   selectedBinder: boolean;
   binderCount: number;
   bindPartnerCount: number;
@@ -46,6 +47,7 @@ function partStats(part: TowerPart) {
 export function TowerPanel({
   tower,
   eligibleMergeCount,
+  mergeUsesBinder = false,
   selectedBinder,
   binderCount,
   bindPartnerCount,
@@ -268,11 +270,11 @@ export function TowerPanel({
               ? 'bg-amber-500 hover:bg-amber-400 text-stone-950 border border-amber-300 shadow-md shadow-amber-950/40 animate-pulse cursor-pointer'
               : 'bg-[#1b1926] text-stone-600 border border-[#2d2938] cursor-not-allowed'
           }`}
-          title="Слить 3 башни в одну (M)"
+          title="Слить 3 башни в одну (M); связка заменяет третью: обычная для Ур.1, тройная для Ур.2"
         >
           <span className="text-[length:var(--fs-btn4)]">Слить</span>
           <span className="text-[length:var(--fs-xs)] tabular-nums mt-0.5">
-            {second ? '—' : tower.level >= 3 ? 'макс' : `${eligibleMergeCount}/3`}
+            {second ? '—' : tower.level >= 3 ? 'макс' : mergeUsesBinder ? '2+связка' : `${eligibleMergeCount}/3`}
           </span>
         </button>
 
