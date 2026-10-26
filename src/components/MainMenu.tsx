@@ -269,6 +269,15 @@ export function MainMenu({
           )}
         </div>
 
+        <a
+          href="https://t.me/popataras"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="w-full text-center text-[11px] text-stone-500 hover:text-amber-300 transition-colors"
+        >
+          По вопросам сотрудничества: Telegram @popataras
+        </a>
+
         {showHomeScreenHint && (
           <div className="w-full bg-[#171520] p-3 rounded-lg border border-[#2d2938] text-xs text-stone-300 leading-relaxed animate-fade-in">
             {HOME_SCREEN_HINT}

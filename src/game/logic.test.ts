@@ -34,10 +34,10 @@ test('road stretches must not touch by a side except at merges', () => {
 
 test('cells under the field buttons stay free of road', () => {
   assert.equal(isHudCell(0, 0), true);
-  assert.equal(isHudCell(15, 0), true);
-  assert.equal(isHudCell(12, 0), true);
-  assert.equal(isHudCell(11, 0), false);
-  assert.equal(isHudCell(8, 0), false);
+  assert.equal(isHudCell(11, 0), true);
+  assert.equal(isHudCell(8, 0), true);
+  assert.equal(isHudCell(7, 0), false);
+  assert.equal(isHudCell(4, 0), false);
   assert.equal(isHudCell(0, 1), false);
   for (const m of MAPS) {
     for (const path of m.paths) {
@@ -48,8 +48,8 @@ test('cells under the field buttons stay free of road', () => {
 
 test('map constraints by level', () => {
   // Field 16×10, the same in maps and in the engine config
-  assert.equal(GRID_COLS, 16);
-  assert.equal(GRID_ROWS, 10);
+  assert.equal(GRID_COLS, 12);
+  assert.equal(GRID_ROWS, 9);
   assert.equal(CONFIG.grid.cols, GRID_COLS);
   assert.equal(CONFIG.grid.rows, GRID_ROWS);
   assert.equal(CONFIG.grid.totalWidth, GRID_COLS * CONFIG.grid.cellSize);

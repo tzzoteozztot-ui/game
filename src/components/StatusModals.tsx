@@ -422,6 +422,12 @@ export function HowToPlayModal({ onClose }: { onClose: () => void }) {
               Пробел — начать волну • P — пауза • F — во весь экран • 1–5 — купить карту • R — обновить лавку • U — поднять ярус • M — слить • B — связать • S — продать • Tab — цель • Esc — отмена
             </p>
           </section>
+          <p className="text-stone-500 text-[11px]">
+            По вопросам сотрудничества:{' '}
+            <a href="https://t.me/popataras" target="_blank" rel="noopener noreferrer" className="text-amber-300 hover:underline">
+              Telegram @popataras
+            </a>
+          </p>
         </div>
 
         <div className="mt-5 pt-3 border-t border-[#2d2938]">
