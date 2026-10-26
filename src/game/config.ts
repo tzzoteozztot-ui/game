@@ -368,6 +368,8 @@ export const CONFIG = {
   // Supply («сила стола», Артур, 2026-10-26; endless mode only): the value of towers on the field.
   // Above `free` every `step` of power makes buying towers and binders in the shop ×`growth` dearer;
   // selling is paid from the base price and does not change.
+  // Backpack: bought towers and binders wait here until placed (a wave start does not reset them)
+  backpack: { slots: 3 },
   supply: {
     free: 40,
     step: 20,
