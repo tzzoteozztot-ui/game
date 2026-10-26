@@ -497,7 +497,7 @@ export default function App() {
 
     // A triplet first asks for its specialization; nothing is paid until it is chosen
     if (card.isTriplet) {
-      if (engine.gold < engine.towerPrice(card.type, true) || engine.backpack.length >= CONFIG.backpack.slots) {
+      if (engine.gold < engine.towerPrice(card.type, true) || engine.overflowPending()) {
         engine.buyToBackpack('tower', card.type, true, null); // only reports why it cannot
         return;
       }
