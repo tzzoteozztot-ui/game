@@ -27,6 +27,7 @@ const RUNS = Number(opt('runs', 8));
 const ONLY = opt('only', '');
 const URL_ = opt('url', 'http://localhost:3000/');
 const PAGES = Number(opt('pages', 4));
+const DIFF = opt('difficulty', 'normal'); // сложность бесконечных прогонов
 const MAXWAVE = Number(opt('maxwave', 150));
 
 // Задания. style: pro — расчётливый игрок (лучшие клетки, обновления лавки, ярус);
@@ -37,8 +38,8 @@ const add = (n, job) => {
 };
 for (let level = 1; level <= 5; level++) {
   if (!ONLY || ONLY === 'endless') {
-    add(RUNS, { kind: 'endless', level, policy: 'mixed', style: 'pro', difficulty: 'normal' });
-    add(RUNS, { kind: 'endless', level, policy: 'mixed', style: 'casual', difficulty: 'normal' });
+    add(RUNS, { kind: 'endless', level, policy: 'mixed', style: 'pro', difficulty: DIFF });
+    add(RUNS, { kind: 'endless', level, policy: 'mixed', style: 'casual', difficulty: DIFF });
   }
   if (!ONLY || ONLY === 'mono')
     for (const t of ['archer', 'priest', 'mage', 'ballista'])
@@ -285,7 +286,7 @@ async function runInPage(job) {
     const n = group(c.type, 1).length;
     return 1 + (n === 2 ? 3 : n === 1 ? 1 : 0) - (job.policy === 'mixed' ? 0.15 * engine.towers.filter((t) => t.type === c.type).length : 0);
   };
-  const cost = (c) => (c.type === 'binder' ? CONFIG.binder.cost : CONFIG.towers[c.type].cost * (c.isTriplet ? 3 : 1));
+  const cost = (c) => (c.type === 'binder' ? engine.binderPrice() : engine.towerPrice(c.type, c.isTriplet));
 
   const buyCard = (i) => {
     const c = cards[i];

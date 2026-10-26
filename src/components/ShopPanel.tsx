@@ -19,6 +19,7 @@ interface ShopPanelProps {
   tier: number;
   gold: number;
   rerollCost: number; // grows with each reroll during a wave
+  priceMult?: number; // supply: buying towers and binders is this much dearer (endless mode)
   placingTowerType: TowerType | null;
   placingBinder: boolean;
   placingIndex: number | null; // card being placed
@@ -35,6 +36,7 @@ export function ShopPanel({
   tier,
   gold,
   rerollCost,
+  priceMult = 1,
   placingTowerType,
   placingBinder,
   placingIndex,
@@ -102,14 +104,15 @@ export function ShopPanel({
           }
 
           if (card.type === 'binder') {
-            const canAffordBinder = gold >= CONFIG.binder.cost;
+            const binderCost = Math.round(CONFIG.binder.cost * priceMult);
+            const canAffordBinder = gold >= binderCost;
             const isPicked = placingBinder && placingIndex === idx;
             return (
               <button
                 key={card.id}
                 type="button"
                 onClick={() => onSelectCard(idx)}
-                title={`${CONFIG.binder.name}: связывает две башни разных видов в одну — ${CONFIG.binder.cost} золота (${idx + 1})`}
+                title={`${CONFIG.binder.name}: связывает две башни разных видов в одну — ${binderCost} золота (${idx + 1})`}
                 className={`h-[var(--h-card)] rounded border flex flex-col items-center justify-center relative transition-all cursor-pointer select-none shrink-0 ${
                   isPicked
                     ? 'border-[#3ed6c4] bg-teal-950/40 ring-1 ring-[#3ed6c4] shadow-sm'
@@ -127,14 +130,14 @@ export function ShopPanel({
                   }`}
                 >
                   <GoldIcon size="0.95em" />
-                  <span>{CONFIG.binder.cost}</span>
+                  <span>{binderCost}</span>
                 </div>
               </button>
             );
           }
 
           const baseDef = CONFIG.towers[card.type];
-          const cost = card.isTriplet ? baseDef.cost * 3 : baseDef.cost;
+          const cost = Math.round((card.isTriplet ? baseDef.cost * 3 : baseDef.cost) * priceMult);
           const canAfford = gold >= cost;
           const isSelected = placingTowerType === card.type && placingIndex === idx;
 

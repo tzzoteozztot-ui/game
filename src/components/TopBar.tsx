@@ -12,6 +12,7 @@ interface TopBarProps {
   wave: number;
   maxWaves: number;
   endless: boolean;
+  supply?: { power: number; mult: number; next: number } | null; // endless mode: the table's value and the price multiplier
   opponent?: { lives: number; wave: number; income: number } | null; // duel: the opponent's last known state
   opponentArmy?: string; // duel: the faction the opponent sends
 }
@@ -22,6 +23,7 @@ export function TopBar({
   wave,
   maxWaves,
   endless,
+  supply,
   opponent,
   opponentArmy,
 }: TopBarProps) {
@@ -41,6 +43,20 @@ export function TopBar({
           Волна <span className="text-amber-200">{endless ? wave : `${Math.min(wave, maxWaves)}/${maxWaves}`}</span>
         </span>
       </div>
+      {supply && (
+        <div
+          className="h-[var(--h-line)] flex items-center justify-between gap-1 text-[length:var(--fs-sm)] tabular-nums text-stone-400"
+          title="Сила стола: башня Ур.1 весит 1, Ур.2 — 3, Ур.3 — 9, связка 1 (тройная 3). Выше порога покупка башен в лавке дорожает, продажа нет."
+        >
+          <span>
+            Стол <span className="text-amber-200 font-bold">{supply.power}</span>
+            <span className="text-stone-500"> / {supply.next}</span>
+          </span>
+          <span className={supply.mult > 1 ? 'font-bold text-orange-300' : ''}>
+            цены ×{supply.mult.toFixed(2).replace('.', ',')}
+          </span>
+        </div>
+      )}
       {opponent !== undefined && (
         <div className="h-[var(--h-line)] flex items-center justify-between gap-1 text-[length:var(--fs-sm)] tabular-nums text-stone-400" title="Соперник">
           <span className="truncate min-w-0">Соперник{opponentArmy && ` · ${opponentArmy}`}</span>

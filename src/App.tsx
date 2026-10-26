@@ -116,6 +116,10 @@ export default function App() {
     canMergeBinders: false,
     upgradeTargetCount: 0,
     canUpgradeSelected: false,
+    supplyPower: 0,
+    supplyMult: 1,
+    supplyActive: false,
+    supplyNext: CONFIG.supply.free,
     isUpgrading: false,
     bindPartnerCount: 0,
     isBinding: false,
@@ -484,7 +488,7 @@ export default function App() {
         engine.notifyState();
         return;
       }
-      if (engine.gold < CONFIG.binder.cost) {
+      if (engine.gold < engine.binderPrice()) {
         sound.playError();
         engine.addFloatingText('Не хватает золота!', CONFIG.grid.totalWidth - 120, 100, '#e0452f');
         return;
@@ -496,8 +500,7 @@ export default function App() {
       return;
     }
 
-    const baseDef = CONFIG.towers[card.type];
-    const cost = card.isTriplet ? baseDef.cost * 3 : baseDef.cost;
+    const cost = engine.towerPrice(card.type, card.isTriplet);
 
     if (engine.gold < cost) {
       sound.playError();
@@ -981,6 +984,7 @@ export default function App() {
                 wave={gameState.wave}
                 maxWaves={gameState.maxWaves}
                 endless={gameState.endless}
+                supply={gameState.supplyActive ? { power: gameState.supplyPower, mult: gameState.supplyMult, next: gameState.supplyNext } : null}
                 opponent={gameState.duel ? opponent : undefined}
                 opponentArmy={gameState.duel ? CONFIG.factions[opponentArmy - 1]?.name : undefined}
               />
@@ -1023,6 +1027,7 @@ export default function App() {
                 tier={gameState.tier}
                 gold={gameState.gold}
                 rerollCost={gameState.rerollCost}
+                priceMult={gameState.supplyMult}
                 placingTowerType={engineRef.current?.placingTowerType || null}
                 placingBinder={engineRef.current?.placingBinder || false}
                 placingIndex={placingCardIndex}
