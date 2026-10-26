@@ -46,7 +46,7 @@ export function Backpack({ items, slots, placingSlot, onSelect, onSell }: Backpa
           return (
             <div
               key={i}
-              className="h-[var(--h-pack,clamp(26px,6cqh,48px))] rounded border border-dashed border-[#2d2938] bg-[#121118]/50"
+              className="h-[var(--h-pack,clamp(20px,5.2cqh,44px))] rounded border border-dashed border-[#2d2938] bg-[#121118]/50"
             />
           );
         }
@@ -58,7 +58,7 @@ export function Backpack({ items, slots, placingSlot, onSelect, onSell }: Backpa
             type="button"
             onClick={() => onSelect(i)}
             title={item.kind === 'binder' ? CONFIG.binder.name : `${CONFIG.towers[item.type!].name}${item.triplet ? ' ★' : ''}`}
-            className={`h-[var(--h-pack,clamp(26px,6cqh,48px))] rounded border relative flex items-center justify-center cursor-pointer ${
+            className={`h-[var(--h-pack,clamp(20px,5.2cqh,44px))] rounded border relative flex items-center justify-center cursor-pointer ${
               picked ? 'border-amber-400 bg-amber-950/40 ring-1 ring-amber-400' : 'border-[#383347] bg-[#221f2d] hover:bg-[#2c283a]'
             }`}
           >
