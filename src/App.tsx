@@ -104,6 +104,7 @@ export default function App() {
     duelOutgoingCost: 0,
     duelIncome: 0,
     waveCountdown: null,
+    autoStart: false,
     earlyStartBonus: 0,
     speed: 1,
     selectedTower: null,
@@ -114,6 +115,7 @@ export default function App() {
     selectedBinderTriple: false,
     canMergeBinders: false,
     upgradeTargetCount: 0,
+    canUpgradeSelected: false,
     isUpgrading: false,
     bindPartnerCount: 0,
     isBinding: false,
@@ -627,6 +629,11 @@ export default function App() {
     engineRef.current?.toggleUpgrading();
   };
 
+  const handleUpgradeTower = () => {
+    sound.init();
+    engineRef.current?.upgradeSelectedTower();
+  };
+
   // Cycle Priority
   const handleCyclePriority = () => {
     sound.init();
@@ -823,6 +830,8 @@ export default function App() {
       } else if (screen === 'playing' && engine.selectedBinderId) {
         handleUpgradeWithBinder();
       }
+    } else if (e.key === 'u' || e.key === 'U' || e.key === 'г' || e.key === 'Г') {
+      if (screen === 'playing' && engine.canUpgradeSelectedTower()) handleUpgradeTower();
     } else if (e.key === 'Tab') {
       if (screen === 'playing' && engine.selectedTowerId) {
         e.preventDefault();
@@ -954,6 +963,8 @@ export default function App() {
                   onSetSpeed={(v) => engineRef.current?.setSpeed(v)}
                   onToggleMute={handleToggleMute}
                   onStartWave={handleStartWave}
+                  autoStart={gameState.autoStart}
+                  onToggleAutoStart={() => engineRef.current?.setAutoStart(!engineRef.current.autoStart)}
                 />
               </div>
             </div>
@@ -1036,6 +1047,8 @@ export default function App() {
                 shopTier={gameState.tier}
                 upgradeTargetCount={gameState.upgradeTargetCount}
                 isUpgrading={gameState.isUpgrading}
+                canUpgrade={gameState.canUpgradeSelected}
+                onUpgradeTower={handleUpgradeTower}
                 onMergeBinders={handleMergeBinders}
                 onUpgradeWithBinder={handleUpgradeWithBinder}
                 onCyclePriority={handleCyclePriority}

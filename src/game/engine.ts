@@ -48,6 +48,14 @@ export interface Tower extends TowerPart {
 }
 
 // «Связка» standing on the field until it is spent on binding two towers
+function readAutoStart(): boolean {
+  try {
+    return localStorage.getItem('dark_frontier_autostart') === '1';
+  } catch {
+    return false;
+  }
+}
+
 const ENEMY_DRAW_SCALE = 2.2;
 const BOSS_DRAW_SCALE = 3.5;
 
@@ -199,6 +207,7 @@ export interface GameStateSnapshot {
   duelOutgoingCost: number;
   duelIncome: number; // duel: gold at the start of every round
   waveCountdown: number | null; // whole seconds left, null while a wave runs
+  autoStart: boolean; // the next wave starts as soon as the last one is cleared
   earlyStartBonus: number;
   speed: number;
   selectedTower: Tower | null;
@@ -209,6 +218,7 @@ export interface GameStateSnapshot {
   selectedBinderTriple: boolean;
   canMergeBinders: boolean; // the selected plain binder and two more can merge
   upgradeTargetCount: number; // towers a triple binder can raise
+  canUpgradeSelected: boolean; // the selected tower can be raised by a triple binder standing on the field
   isUpgrading: boolean; // triple binder waiting for a tap on a tower
   bindPartnerCount: number; // towers the selected one can be bound with
   isBinding: boolean; // waiting for a tap on the second tower
@@ -234,6 +244,7 @@ export class GameEngine {
   public speedMultiplier: number = 1; // one of CONFIG.speeds
   // Real-time countdown to the next wave (not scaled by game speed); null while a wave runs
   public waveCountdown: number | null = null;
+  public autoStart: boolean = readAutoStart();
   public isGameOver: boolean = false;
   public isVictory: boolean = false;
   // Endless mode: the 12 waves repeat, a boss every 12th wave, no victory
@@ -574,6 +585,16 @@ export class GameEngine {
     }
   }
 
+  public setAutoStart(on: boolean) {
+    this.autoStart = on;
+    try {
+      localStorage.setItem('dark_frontier_autostart', on ? '1' : '0');
+    } catch {
+      // private mode: the switch lives until the page is closed
+    }
+    this.notifyState();
+  }
+
   public togglePause() {
     this.isPaused = !this.isPaused;
     this.notifyState();
@@ -836,6 +857,7 @@ export class GameEngine {
           // In a duel the clock already counts down to the next wave
           if (this.duelStart === null) this.waveCountdown = this.endless ? CONFIG.endless.between : CONFIG.waveTimer.between;
           this.notifyState();
+          if (this.autoStart && this.duelStart === null) this.startNextWave();
         }
       }
     }
@@ -1791,6 +1813,24 @@ export class GameEngine {
     });
   }
 
+  // The selected tower can be raised by a triple binder that stands on the field
+  public canUpgradeSelectedTower(): boolean {
+    const tower = this.towers.find((t) => t.id === this.selectedTowerId);
+    return !!tower && this.binders.some((b) => b.triple) && this.getUpgradeTargets().includes(tower);
+  }
+
+  // Raise the selected tower with the nearest triple binder, without selecting the binder first
+  public upgradeSelectedTower(): boolean {
+    const tower = this.towers.find((t) => t.id === this.selectedTowerId);
+    const binder = tower && this.nearest(this.binders.filter((b) => b.triple), tower)[0];
+    if (!tower || !binder) {
+      sound.playError();
+      return false;
+    }
+    this.upgradingFromBinderId = binder.id;
+    return this.upgradeWithBinder(tower);
+  }
+
   // Selected triple binder waits for a tap on the tower to raise (tap again to cancel)
   public toggleUpgrading(): boolean {
     if (this.upgradingFromBinderId) {
@@ -2057,6 +2097,7 @@ export class GameEngine {
       duelOutgoingCost: this.duelOutgoingCost,
       duelIncome: this.duelIncome,
       waveCountdown: this.waveCountdown === null ? null : Math.ceil(this.waveCountdown),
+      autoStart: this.autoStart,
       earlyStartBonus: this.earlyStartBonus(),
       speed: this.speedMultiplier,
       selectedTower: selected,
@@ -2067,6 +2108,7 @@ export class GameEngine {
       selectedBinderTriple: !!this.binders.find((b) => b.id === this.selectedBinderId)?.triple,
       canMergeBinders: this.canMergeBinders(),
       upgradeTargetCount: this.getUpgradeTargets().length,
+      canUpgradeSelected: this.canUpgradeSelectedTower(),
       isUpgrading: this.upgradingFromBinderId !== null,
       bindPartnerCount,
       isBinding: this.bindingFromId !== null,
@@ -2583,26 +2625,12 @@ export class GameEngine {
     // Front half of the rings over the pedestal
     rings(0, Math.PI);
 
-    const allSpecs = t.second ? [...t.specs, ...t.second.specs] : t.specs;
-    if (allSpecs.length > 0) {
-      const badge = specBadge(allSpecs);
-      // A bound tower keeps the badge above the second figure
-      const bx = cx + 21 - (badge.length - 1) * 3;
-      const by = t.second ? cy - 24 : cy + 20;
-      const halfW = (badge.length - 1) * 3.5;
-      ctx.fillStyle = '#121118';
-      ctx.beginPath();
-      ctx.roundRect(bx - 7 - halfW, by - 7, 14 + halfW * 2, 14, 7);
-      ctx.fill();
-      ctx.strokeStyle = '#f4c06a';
-      ctx.lineWidth = 1;
-      ctx.stroke();
-      ctx.fillStyle = '#f4c06a';
-      ctx.font = 'bold 8px sans-serif';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(badge, bx, by + 0.5);
-      ctx.textBaseline = 'alphabetic';
+    // A bound tower has a badge for each part: the main one under its figure, the second above its own
+    if (t.second) {
+      if (t.specs.length > 0) this.drawSpecBadge(ctx, specBadge(t.specs), cx - 14, cy + 20, cx, cellSize);
+      if (t.second.specs.length > 0) this.drawSpecBadge(ctx, specBadge(t.second.specs), cx + 21, cy - 24, cx, cellSize);
+    } else if (t.specs.length > 0) {
+      this.drawSpecBadge(ctx, specBadge(t.specs), cx + 21, cy + 20, cx, cellSize);
     }
 
     if (t.frozenTimer > 0) {
@@ -2612,6 +2640,26 @@ export class GameEngine {
       ctx.lineWidth = 2;
       ctx.strokeRect(t.x * cellSize + 2, t.y * cellSize + 2, cellSize - 4, cellSize - 4);
     }
+  }
+
+  // Pill with the specialization codes, kept inside the tower's cell (cellMid: the cell's center x)
+  private drawSpecBadge(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, cellMid: number, cellSize: number) {
+    ctx.font = 'bold 9px sans-serif';
+    const w = ctx.measureText(text).width + 8;
+    const half = cellSize / 2 - 1;
+    const bx = Math.max(cellMid - half + w / 2, Math.min(cellMid + half - w / 2, x));
+    ctx.fillStyle = '#121118';
+    ctx.beginPath();
+    ctx.roundRect(bx - w / 2, y - 7, w, 14, 7);
+    ctx.fill();
+    ctx.strokeStyle = '#f4c06a';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    ctx.fillStyle = '#f4c06a';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(text, bx, y + 0.5);
+    ctx.textBaseline = 'alphabetic';
   }
 
   // Fallback figure when the sprite is not loaded
@@ -2715,22 +2763,9 @@ export class GameEngine {
       ctx.stroke();
     }
 
-    // Specialization badge (small icon/letter on tower)
+    // Specialization badge (code of each specialization)
     const allSpecs = t.second ? [...t.specs, ...t.second.specs] : t.specs;
-    if (allSpecs.length > 0) {
-      const specLetters = specBadge(allSpecs);
-      const halfW = (specLetters.length - 1) * 3.5;
-      ctx.fillStyle = '#121118';
-      ctx.beginPath();
-      ctx.roundRect(cx - 6 - halfW, cy - 6, 12 + halfW * 2, 12, 6);
-      ctx.fill();
-      ctx.fillStyle = '#f4c06a';
-      ctx.font = 'bold 8px sans-serif';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(specLetters, cx, cy);
-      ctx.textBaseline = 'alphabetic';
-    }
+    if (allSpecs.length > 0) this.drawSpecBadge(ctx, specBadge(allSpecs), cx, cy, cx, cellSize);
 
     // Frozen visual tint (Ice Priest Boss ability)
     if (t.frozenTimer > 0) {

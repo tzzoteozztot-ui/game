@@ -222,7 +222,7 @@ export const CONFIG = {
       type: 'flyer',
       name: 'Летун',
       hp: 40,
-      speed: 1.1,
+      speed: 0.825, // было 1,1, ×0,75 (Артур, 2026-10-26)
       armor: 0,
       magicResist: 0.25,
       gold: 8,
