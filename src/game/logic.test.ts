@@ -82,6 +82,9 @@ import {
   calculateDamage,
   calculateEffectiveSlow,
   endlessCycle,
+  endlessGrowth,
+  enemyWaveMult,
+  endlessArmorBonus,
   waveDefinition,
 } from './rules';
 
@@ -304,18 +307,30 @@ test('endless mode: waves repeat in cycles and keep getting stronger', () => {
   // The boss comes on every 12th wave and only then
   for (let w = 1; w <= 48; w++) assert.equal(!!waveDefinition(w).boss, w % 12 === 0, `wave ${w}`);
   assert.deepEqual(waveDefinition(13), CONFIG.waves[0]);
-  // HP keeps growing past wave 12
-  assert.equal(calculateEnemyHp(30, 'infantry', 13, 1, 'normal', true), 191);
+  // HP keeps growing past wave 12: the usual wave formula and 3,5 % more for every wave after the 12th
+  assert.equal(calculateEnemyHp(30, 'infantry', 12, 1, 'normal', true), Math.round(30 * 1.3 * enemyWaveMult(12)));
+  assert.equal(
+    calculateEnemyHp(30, 'infantry', 13, 1, 'normal', true),
+    Math.round(30 * 1.3 * enemyWaveMult(13) * 1.035)
+  );
   assert.ok(calculateEnemyHp(30, 'infantry', 40, 1, 'normal', true) > calculateEnemyHp(30, 'infantry', 28, 1, 'normal', true));
-  // Boss: +60% per finished cycle, campaign boss unchanged
+  assert.ok(Math.abs(endlessGrowth(48) - Math.pow(1.035, 36)) < 1e-9);
+  // Boss: the campaign one unchanged on wave 12; later it grows with the wave like the others, ×1,5
   assert.equal(calculateEnemyHp(1200, 'boss', 12, 1, 'normal', true), 1560);
-  assert.equal(calculateEnemyHp(1200, 'boss', 24, 1, 'normal', true), 2496);
+  const bossGrowth = (w: number) => (enemyWaveMult(w) / enemyWaveMult(12)) * Math.pow(1.035, w - 12);
+  assert.equal(calculateEnemyHp(1200, 'boss', 24, 1, 'normal', true), Math.round(1560 * bossGrowth(24) * 1.5));
+  assert.ok(calculateEnemyHp(1200, 'boss', 84, 1, 'hard', true) > 50 * calculateEnemyHp(1200, 'boss', 12, 1, 'hard', true));
   assert.equal(calculateEnemyHp(1200, 'boss', 24, 1, 'normal'), 1747);
   // Demons (4) and dark elves (5): −7% HP in endless mode only
   const hp4 = calculateEnemyHp(30, 'infantry', 30, 4, 'normal');
-  assert.equal(calculateEnemyHp(30, 'infantry', 30, 4, 'normal', true), Math.round(hp4 / 1.12 * 0.93));
-  assert.equal(calculateEnemyHp(1200, 'boss', 24, 5, 'normal', true), Math.round(1200 * 1.3 * 2.2 * 1.6 * 0.93));
-  assert.equal(calculateEnemyHp(1200, 'boss', 24, 3, 'normal', true), Math.round(1200 * 1.3 * 1.6 * 1.6));
+  assert.equal(
+    calculateEnemyHp(30, 'infantry', 30, 4, 'normal', true),
+    Math.round((hp4 / 1.12) * 0.93 * endlessGrowth(30))
+  );
+  // Armor and magic resist of every enemy: +4 % per finished cycle up to 60 %
+  assert.equal(endlessArmorBonus(12), 0);
+  assert.ok(Math.abs(endlessArmorBonus(13) - 0.04) < 1e-9);
+  assert.equal(endlessArmorBonus(500), 0.6);
   // Counts: +25% per finished cycle
   assert.equal(calculateEnemyCount(20, 1, 12, true), 20);
   assert.equal(calculateEnemyCount(20, 1, 13, true), 25);
@@ -387,4 +402,19 @@ test('field badge shows a short code per specialization with its power', () => {
   assert.equal(specBadge(['fire', 'fire', 'fire']), 'Ог×3');
   assert.equal(specBadge(['fire', 'frost', 'fire']), 'Ог×2·Мр');
   assert.equal(specBadge(['sniper', 'hunter', 'arrow_hail']), 'Сн·Ох·Гр');
+});
+
+import { calculateSupplyMult, calculateSupplyPower, calculateSellRefund as sellRefund } from './rules';
+
+test('supply: towers add up by level, prices grow ×1,1 per 20 power above 40, selling stays', () => {
+  // Ур.1 = 1, Ур.2 = 3, Ур.3 = 9; a binder 1, a triple one 3
+  assert.equal(calculateSupplyPower([1, 2, 3], 2, 1), 1 + 3 + 9 + 2 + 3);
+  assert.equal(calculateSupplyMult(0), 1);
+  assert.equal(calculateSupplyMult(40), 1);
+  assert.equal(calculateSupplyMult(59), 1);
+  assert.ok(Math.abs(calculateSupplyMult(60) - 1.1) < 1e-9);
+  assert.ok(Math.abs(calculateSupplyMult(100) - Math.pow(1.1, 3)) < 1e-9);
+  assert.ok(calculateSupplyMult(600) > 14 && calculateSupplyMult(600) < 15);
+  // The refund is paid from the base price: it does not depend on the supply
+  assert.equal(sellRefund(50, 1), 35);
 });

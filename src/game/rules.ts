@@ -25,12 +25,38 @@ export function calculateEnemyHp(
   const lateMult = !endless && wave >= sc.lateFrom ? sc.lateHpMult : 1;
   const factionMult = endless ? CONFIG.endless.factionHpMult[faction] ?? 1 : 1;
   if (type === 'boss') {
-    // Boss does not scale with wave; in endless mode it grows with every finished cycle
-    const cycleMult = endless ? 1 + CONFIG.endless.bossHpPerCycle * endlessCycle(wave) : 1;
-    return Math.round(baseHp * sc.hpMult * levelMult * diffMult * cycleMult * lateMult * factionMult);
+    // The campaign boss does not scale with wave; in endless mode it grows with the wave like the others,
+    // and from the second cycle on is tougher by bossFactor (the first boss, wave 12, is the campaign one)
+    const growth = endless ? (enemyWaveMult(wave) / enemyWaveMult(CONFIG.waves.length)) * endlessGrowth(wave) : 1;
+    const factor = endless && wave > CONFIG.waves.length ? CONFIG.endless.bossFactor : 1;
+    return Math.round(baseHp * sc.hpMult * levelMult * diffMult * growth * factor * lateMult * factionMult);
   }
-  const waveMult = enemyWaveMult(wave);
+  const waveMult = enemyWaveMult(wave) * (endless ? endlessGrowth(wave) : 1);
   return Math.round(baseHp * sc.hpMult * waveMult * levelMult * diffMult * lateMult * factionMult);
+}
+
+/** Endless mode: extra HP growth of every wave past the 12th, 1 up to wave 12 */
+export function endlessGrowth(wave: number): number {
+  return Math.pow(1 + CONFIG.endless.hpGrowthPerWave, Math.max(0, wave - CONFIG.waves.length));
+}
+
+/** Endless mode: armor and magic resist added to every enemy, growing per finished cycle */
+export function endlessArmorBonus(wave: number): number {
+  return Math.min(CONFIG.endless.armorCap, CONFIG.endless.armorPerCycle * endlessCycle(wave));
+}
+
+/** Value of one tower or binder on the table: a bought Ур.1 is 1, merged Ур.2 is 3, Ур.3 is 9 */
+export function calculateSupplyPower(towerLevels: number[], binders: number, tripleBinders: number): number {
+  const s = CONFIG.supply;
+  let power = binders * s.binderPower + tripleBinders * s.tripleBinderPower;
+  for (const level of towerLevels) power += s.towerPower[Math.min(3, Math.max(1, level)) - 1];
+  return power;
+}
+
+/** Price multiplier of buying towers and binders at this supply: ×growth for every full step above `free` */
+export function calculateSupplyMult(power: number): number {
+  const s = CONFIG.supply;
+  return Math.pow(s.growth, Math.floor(Math.max(0, power - s.free) / s.step));
 }
 
 /** How much enemy HP grows with the wave number: 1 on wave 1 */

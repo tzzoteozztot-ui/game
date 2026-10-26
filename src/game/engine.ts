@@ -16,6 +16,9 @@ import {
   calculateSellRefund,
   calculateSendPrice,
   calculateSendIncome,
+  calculateSupplyPower,
+  calculateSupplyMult,
+  endlessArmorBonus,
   SendType,
   SEND_TYPES,
 } from './rules';
@@ -218,6 +221,10 @@ export interface GameStateSnapshot {
   selectedBinderTriple: boolean;
   canMergeBinders: boolean; // the selected plain binder and two more can merge
   upgradeTargetCount: number; // towers a triple binder can raise
+  supplyPower: number; // value of the towers on the field (endless mode)
+  supplyMult: number; // price multiplier of buying towers and binders, 1 outside endless mode
+  supplyActive: boolean;
+  supplyNext: number; // power at which the multiplier grows next
   canUpgradeSelected: boolean; // the selected tower can be raised by a triple binder standing on the field
   isUpgrading: boolean; // triple binder waiting for a tap on a tower
   bindPartnerCount: number; // towers the selected one can be bound with
@@ -770,6 +777,7 @@ export class GameEngine {
     }
 
     const hp = calculateEnemyHp(baseDef.hp, type, this.wave, this.level, this.difficulty, this.endless, this.faction);
+    const armorBonus = this.endless ? endlessArmorBonus(this.wave) : 0;
     const killGold = calculateKillGold(baseDef.gold, this.level);
     const gold = sent ? Math.round(killGold * CONFIG.duel.sentKillGoldShare) : killGold;
 
@@ -781,8 +789,8 @@ export class GameEngine {
       maxHp: hp,
       hp,
       baseSpeed: baseDef.speed * CONFIG.grid.cellSize,
-      armor: baseDef.armor,
-      magicResist: baseDef.magicResist,
+      armor: Math.min(0.9, baseDef.armor + armorBonus),
+      magicResist: Math.min(0.9, baseDef.magicResist + armorBonus),
       gold,
       entranceIndex: entranceIdx,
       pathIndex: 0,
@@ -1582,6 +1590,37 @@ export class GameEngine {
     return true;
   }
 
+  // Supply («сила стола»): endless mode only, a duel and the campaign keep the base prices
+  public supplyActive(): boolean {
+    return this.endless && this.duelStart === null;
+  }
+
+  public supplyPower(): number {
+    const levels = this.towers.flatMap((t) => (t.second ? [t.level, t.second.level] : [t.level]));
+    const triple = this.binders.filter((b) => b.triple).length;
+    return calculateSupplyPower(levels, this.binders.length - triple, triple);
+  }
+
+  public supplyMult(): number {
+    return this.supplyActive() ? calculateSupplyMult(this.supplyPower()) : 1;
+  }
+
+  // Power at which the next price step comes
+  public supplyNext(): number {
+    const { free, step } = CONFIG.supply;
+    const power = this.supplyPower();
+    return power < free ? free : free + (Math.floor((power - free) / step) + 1) * step;
+  }
+
+  // Shop price of a tower (a triplet is three) or a binder at the current supply
+  public towerPrice(type: TowerType, triplet = false): number {
+    return Math.round(CONFIG.towers[type].cost * (triplet ? 3 : 1) * this.supplyMult());
+  }
+
+  public binderPrice(): number {
+    return Math.round(CONFIG.binder.cost * this.supplyMult());
+  }
+
   public placeTower(cellX: number, cellY: number): boolean {
     if (!this.placingTowerType) return false;
 
@@ -1591,8 +1630,7 @@ export class GameEngine {
       return false;
     }
 
-    const baseDef = CONFIG.towers[this.placingTowerType];
-    const cost = this.placingIsTriplet ? baseDef.cost * 3 : baseDef.cost;
+    const cost = this.towerPrice(this.placingTowerType, this.placingIsTriplet);
     if (this.gold < cost) {
       sound.playError();
       return false;
@@ -1681,11 +1719,12 @@ export class GameEngine {
 
   public placeBinder(cellX: number, cellY: number): boolean {
     if (!this.placingBinder) return false;
-    if (!this.isCellFree(cellX, cellY) || this.gold < CONFIG.binder.cost) {
+    const price = this.binderPrice();
+    if (!this.isCellFree(cellX, cellY) || this.gold < price) {
       sound.playError();
       return false;
     }
-    this.gold -= CONFIG.binder.cost;
+    this.gold -= price;
     const binder: Binder = { id: Math.random().toString(36).substring(2, 9), x: cellX, y: cellY };
     this.binders.push(binder);
     sound.playBuy();
@@ -2109,6 +2148,10 @@ export class GameEngine {
       canMergeBinders: this.canMergeBinders(),
       upgradeTargetCount: this.getUpgradeTargets().length,
       canUpgradeSelected: this.canUpgradeSelectedTower(),
+      supplyPower: this.supplyPower(),
+      supplyMult: this.supplyMult(),
+      supplyActive: this.supplyActive(),
+      supplyNext: this.supplyNext(),
       isUpgrading: this.upgradingFromBinderId !== null,
       bindPartnerCount,
       isBinding: this.bindingFromId !== null,

@@ -365,13 +365,30 @@ export const CONFIG = {
   },
   speeds: [0.5, 1, 1.5, 2, 2.5, 3, 5], // game speed steps, picked from the speed button's list
 
+  // Supply («сила стола», Артур, 2026-10-26; endless mode only): the value of towers on the field.
+  // Above `free` every `step` of power makes buying towers and binders in the shop ×`growth` dearer;
+  // selling is paid from the base price and does not change.
+  supply: {
+    free: 40,
+    step: 20,
+    growth: 1.1,
+    towerPower: [1, 3, 9], // by tower level
+    binderPower: 1,
+    tripleBinderPower: 3,
+  },
+
   // Endless mode (Артур: «после каждой 12 босс, волны бесконечно усиливаются, пауза 45 секунд»).
   // The 12 waves repeat in cycles; HP keeps growing with the wave number (enemyScaling),
   // each finished cycle adds enemies and boss HP.
   endless: {
     between: 45, // real seconds before wave 1 and between waves
     countPerCycle: 0.25, // +25% enemies of every type per finished cycle of 12 waves
-    bossHpPerCycle: 0.6, // +60% boss HP per finished cycle
+    // Past wave 12 enemy HP grows on top of enemyScaling by this share per wave (Артур, 2026-10-26)
+    hpGrowthPerWave: 0.035,
+    // The boss grows with the wave like the others, times this factor from the second cycle on
+    bossFactor: 1.5,
+    armorPerCycle: 0.04, // armor and magic resist of every enemy grow per finished cycle…
+    armorCap: 0.6, // …up to this value
     // HP of every enemy by level (faction id); Артур, тест баланса: демонам и эльфам −7 %
     factionHpMult: { 4: 0.93, 5: 0.93 } as Record<number, number>,
   },
