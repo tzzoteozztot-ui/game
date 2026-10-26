@@ -13,6 +13,7 @@ import { sprites } from './game/sprites';
 
 import { TopBar } from './components/TopBar';
 import { FieldHud } from './components/FieldHud';
+import { Backpack } from './components/Backpack';
 import { ShopPanel, ShopCard } from './components/ShopPanel';
 import { TowerPanel } from './components/TowerPanel';
 import { SpecModal } from './components/SpecModal';
@@ -119,6 +120,9 @@ export default function App() {
     supplyPower: 0,
     supplyMult: 1,
     supplyActive: false,
+    backpack: [],
+    backpackSlots: CONFIG.backpack.slots,
+    placingSlot: null,
     supplyNext: CONFIG.supply.free,
     isUpgrading: false,
     bindPartnerCount: 0,
@@ -129,7 +133,6 @@ export default function App() {
 
   // Shop state (5 card slots)
   const [shopCards, setShopCards] = useState<(ShopCard | null)[]>([]);
-  const [placingCardIndex, setPlacingCardIndex] = useState<number | null>(null);
 
   // Specialization modal state
   const [specModalTower, setSpecModalTower] = useState<{
@@ -194,11 +197,8 @@ export default function App() {
     // Free shop refresh at the start of every wave, by button or by timer
     engine.onWaveStarted = () => {
       setShopCards(generateShopCards(engine.tier));
-      setPlacingCardIndex(null);
       // A triplet's specialization was being picked for a card that is gone now
       setSpecModalTower((m) => (m?.isPrePlacement ? null : m));
-      engine.placingTowerType = null;
-      engine.placingBinder = false;
     };
 
     engine.onNeedSpecChoice = (tower: Tower, part) => {
@@ -326,7 +326,6 @@ export default function App() {
         engineRef.current.startDuel(level, startAt, army);
         engineRef.current.onDuelSend = (enemies) => link.send({ t: 'send', enemies });
         setShopCards(generateShopCards(1));
-        setPlacingCardIndex(null);
       }
     }, 50);
   };
@@ -413,7 +412,6 @@ export default function App() {
         engineRef.current.setCanvas(canvasRef.current);
         engineRef.current.startLevel(selectedLevel, difficulty, endless);
         setShopCards(generateShopCards(1));
-        setPlacingCardIndex(null);
       }
     }, 50);
   };
@@ -422,7 +420,6 @@ export default function App() {
   const handleNextLevel = () => {
     sound.init();
     setSpecModalTower(null);
-    setPlacingCardIndex(null);
     if (engineRef.current) {
       engineRef.current.stopLoop();
       engineRef.current.isVictory = false;
@@ -443,7 +440,6 @@ export default function App() {
   const handleRestartLevel = () => {
     sound.init();
     setSpecModalTower(null);
-    setPlacingCardIndex(null);
     setShopCards(generateShopCards(1));
     const engine = engineRef.current;
     if (!engine) return;
@@ -474,11 +470,10 @@ export default function App() {
       engineRef.current.isPaused = false;
       engineRef.current.notifyState();
     }
-    setPlacingCardIndex(null);
     setScreen('menu');
   };
 
-  // User selects a card from the shop
+  // User taps a shop card: it is paid at once and goes to the backpack, ready to be placed
   const handleSelectShopCard = (cardIdx: number) => {
     sound.init();
     const card = shopCards[cardIdx];
@@ -487,63 +482,36 @@ export default function App() {
     const engine = engineRef.current;
     if (!engine) return;
 
+    const takeCard = () => {
+      setShopCards((prev) => {
+        const next = [...prev];
+        next[cardIdx] = null;
+        return next;
+      });
+    };
+
     if (card.type === 'binder') {
-      if (placingCardIndex === cardIdx) {
-        setPlacingCardIndex(null);
-        engine.placingBinder = false;
-        engine.notifyState();
-        return;
-      }
-      if (engine.gold < engine.binderPrice()) {
-        sound.playError();
-        engine.addFloatingText('Не хватает золота!', CONFIG.grid.totalWidth - 120, 100, '#e0452f');
+      if (engine.buyToBackpack('binder', null, false, null)) takeCard();
+      return;
+    }
+
+    // A triplet first asks for its specialization; nothing is paid until it is chosen
+    if (card.isTriplet) {
+      if (engine.gold < engine.towerPrice(card.type, true) || engine.backpack.length >= CONFIG.backpack.slots) {
+        engine.buyToBackpack('tower', card.type, true, null); // only reports why it cannot
         return;
       }
       engine.selectTower(null);
-      engine.placingBinder = true;
-      setPlacingCardIndex(cardIdx);
-      engine.notifyState();
-      return;
-    }
-
-    const cost = engine.towerPrice(card.type, card.isTriplet);
-
-    if (engine.gold < cost) {
-      sound.playError();
-      engine.addFloatingText('Не хватает золота!', CONFIG.grid.totalWidth - 120, 100, '#e0452f');
-      return;
-    }
-
-    // Toggle off if clicking the already selected card
-    if (placingCardIndex === cardIdx) {
-      setPlacingCardIndex(null);
-      engine.placingTowerType = null;
-      engine.placingIsTriplet = false;
-      engine.pendingTripletSpec = null;
-      engine.notifyState();
-      return;
-    }
-
-    // Tapping a shop card deselects any selected placed tower and enters placement mode
-    engine.selectTower(null);
-    setPlacingCardIndex(null);
-
-    // If card is a triplet, first choose specialization
-    if (card.isTriplet) {
       setSpecModalTower({
         id: 'triplet_pre',
         type: card.type,
         isPrePlacement: true,
         cardIndex: cardIdx,
       });
-    } else {
-      // Enter placement mode directly
-      setPlacingCardIndex(cardIdx);
-      engine.placingTowerType = card.type;
-      engine.placingIsTriplet = false;
-      engine.pendingTripletSpec = null;
-      engine.notifyState();
+      return;
     }
+
+    if (engine.buyToBackpack('tower', card.type, false, null)) takeCard();
   };
 
   // Specialization picked in modal
@@ -553,13 +521,15 @@ export default function App() {
     if (!engine || !specModalTower) return;
 
     if (specModalTower.isPrePlacement && specModalTower.cardIndex !== undefined) {
-      // Triplet card specialization selected -> now enter placement mode
-      setPlacingCardIndex(specModalTower.cardIndex);
-      engine.selectTower(null);
-      engine.placingTowerType = specModalTower.type;
-      engine.placingIsTriplet = true;
-      engine.pendingTripletSpec = specId;
-      engine.notifyState();
+      // Triplet card specialization selected -> pay and put it in the backpack
+      const cardIndex = specModalTower.cardIndex;
+      if (engine.buyToBackpack('tower', specModalTower.type, true, specId)) {
+        setShopCards((prev) => {
+          const next = [...prev];
+          next[cardIndex] = null;
+          return next;
+        });
+      }
     } else {
       // Tower upgraded to lvl 2 via merge
       // Closed first: for a pair the engine may ask again right away for the second part
@@ -582,11 +552,7 @@ export default function App() {
     }
     sound.playBuy();
     setShopCards(generateShopCards(engine.tier));
-    setPlacingCardIndex(null);
     setSpecModalTower((m) => (m?.isPrePlacement ? null : m));
-    engine.placingTowerType = null;
-    engine.placingBinder = false;
-    engine.notifyState();
   };
 
   // Upgrade Shop Tier
@@ -669,17 +635,9 @@ export default function App() {
     const cellY = Math.floor(clickY / CONFIG.grid.cellSize);
 
     // If in placement mode:
-    if ((engine.placingTowerType || engine.placingBinder) && placingCardIndex !== null) {
-      const placed = engine.placingBinder ? engine.placeBinder(cellX, cellY) : engine.placeTower(cellX, cellY);
-      if (placed) {
-        // Clear shop card slot
-        setShopCards((prev) => {
-          const next = [...prev];
-          next[placingCardIndex] = null;
-          return next;
-        });
-        setPlacingCardIndex(null);
-      }
+    if (engine.placingSlot !== null) {
+      if (engine.placingBinder) engine.placeBinder(cellX, cellY);
+      else engine.placeTower(cellX, cellY);
       return;
     }
 
@@ -792,11 +750,8 @@ export default function App() {
         // Specialization choice is mandatory, don't close with Esc
         return;
       }
-      if (engine.placingTowerType || engine.placingBinder) {
-        setPlacingCardIndex(null);
-        engine.placingTowerType = null;
-        engine.placingBinder = false;
-        engine.notifyState();
+      if (engine.placingSlot !== null) {
+        engine.cancelPlacing();
       } else if (engine.bindingFromId) {
         engine.toggleBinding();
       } else if (engine.upgradingFromBinderId) {
@@ -1036,7 +991,6 @@ export default function App() {
                 priceMult={gameState.supplyMult}
                 placingTowerType={engineRef.current?.placingTowerType || null}
                 placingBinder={engineRef.current?.placingBinder || false}
-                placingIndex={placingCardIndex}
                 isBinding={gameState.isBinding}
                 isMoving={gameState.canMoveTowers && gameState.selectedTower !== null && !gameState.isBinding}
                 placingIsTriplet={engineRef.current?.placingIsTriplet || false}
@@ -1044,6 +998,18 @@ export default function App() {
                 onReroll={handleRerollShop}
                 onUpgradeTier={handleUpgradeTier}
               />
+              )}
+              {!(gameState.duel && sideTab === 'army') && (
+                <Backpack
+                  items={gameState.backpack}
+                  slots={gameState.backpackSlots}
+                  placingSlot={gameState.placingSlot}
+                  onSelect={(i) => {
+                    sound.init();
+                    engineRef.current?.selectBackpack(i);
+                  }}
+                  onSell={(i) => engineRef.current?.sellBackpack(i)}
+                />
               )}
               <TowerPanel
                 tower={gameState.selectedTower}

@@ -190,6 +190,15 @@ export interface GrassBlade {
   phase: number;
 }
 
+export interface BackpackItem {
+  id: string;
+  kind: 'tower' | 'binder';
+  type: TowerType | null;
+  triplet: boolean;
+  spec: string | null;
+  paid: number;
+}
+
 export interface GameStateSnapshot {
   lives: number;
   gold: number;
@@ -224,6 +233,9 @@ export interface GameStateSnapshot {
   supplyPower: number; // value of the towers on the field (endless mode)
   supplyMult: number; // price multiplier of buying towers and binders, 1 outside endless mode
   supplyActive: boolean;
+  backpack: { kind: 'tower' | 'binder'; type: TowerType | null; triplet: boolean; sell: number }[];
+  backpackSlots: number;
+  placingSlot: number | null; // backpack slot being placed
   supplyNext: number; // power at which the multiplier grows next
   canUpgradeSelected: boolean; // the selected tower can be raised by a triple binder standing on the field
   isUpgrading: boolean; // triple binder waiting for a tap on a tower
@@ -298,6 +310,8 @@ export class GameEngine {
   public placingIsTriplet: boolean = false;
   public pendingTripletSpec: string | null = null;
   public placingBinder: boolean = false;
+  public backpack: BackpackItem[] = [];
+  public placingSlot: number | null = null;
   public selectedBinderId: string | null = null;
   public bindingFromId: string | null = null; // tower waiting for its partner
   public upgradingFromBinderId: string | null = null; // triple binder waiting for the tower to raise
@@ -396,6 +410,8 @@ export class GameEngine {
     this.placingIsTriplet = false;
     this.pendingTripletSpec = null;
     this.placingBinder = false;
+    this.backpack = [];
+    this.placingSlot = null;
     this.selectedBinderId = null;
     this.bindingFromId = null;
     this.upgradingFromBinderId = null;
@@ -1630,7 +1646,9 @@ export class GameEngine {
       return false;
     }
 
-    const cost = this.towerPrice(this.placingTowerType, this.placingIsTriplet);
+    // A tower from the backpack is already paid for
+    const fromBackpack = this.placingSlot !== null;
+    const cost = fromBackpack ? 0 : this.towerPrice(this.placingTowerType, this.placingIsTriplet);
     if (this.gold < cost) {
       sound.playError();
       return false;
@@ -1657,9 +1675,8 @@ export class GameEngine {
     this.spawnRing((cellX + 0.5) * CONFIG.grid.cellSize, (cellY + 0.5) * CONFIG.grid.cellSize, '#d9b44a');
 
     // Reset placement
-    this.placingTowerType = null;
-    this.placingIsTriplet = false;
-    this.pendingTripletSpec = null;
+    if (this.placingSlot !== null) this.backpack.splice(this.placingSlot, 1);
+    this.clearPlacing();
     this.selectedTowerId = newTower.id;
 
     this.notifyState();
@@ -1686,9 +1703,77 @@ export class GameEngine {
     this.selectedBinderId = null;
     this.bindingFromId = null;
     this.upgradingFromBinderId = null;
-    this.placingTowerType = null;
-    this.placingBinder = false;
+    this.clearPlacing();
     this.notifyState();
+  }
+
+  private clearPlacing() {
+    this.placingSlot = null;
+    this.placingTowerType = null;
+    this.placingIsTriplet = false;
+    this.pendingTripletSpec = null;
+    this.placingBinder = false;
+  }
+
+  public cancelPlacing() {
+    this.clearPlacing();
+    this.notifyState();
+  }
+
+  // Pays at once and puts the purchase into the backpack, ready to be placed
+  public buyToBackpack(kind: 'tower' | 'binder', type: TowerType | null, triplet: boolean, spec: string | null): boolean {
+    if (this.backpack.length >= CONFIG.backpack.slots) {
+      sound.playError();
+      this.addFloatingText('Рюкзак полон!', CONFIG.grid.totalWidth - 120, 100, '#e0452f');
+      return false;
+    }
+    const price = kind === 'binder' ? this.binderPrice() : this.towerPrice(type!, triplet);
+    if (this.gold < price) {
+      sound.playError();
+      this.addFloatingText('Не хватает золота!', CONFIG.grid.totalWidth - 120, 100, '#e0452f');
+      return false;
+    }
+    this.gold -= price;
+    this.backpack.push({ id: Math.random().toString(36).substring(2, 9), kind, type, triplet, spec, paid: price });
+    sound.playBuy();
+    this.selectBackpack(this.backpack.length - 1);
+    return true;
+  }
+
+  // Takes the item in hand for placing; the same slot again puts it back
+  public selectBackpack(slot: number) {
+    const item = this.backpack[slot];
+    if (!item) return;
+    if (this.placingSlot === slot) {
+      this.cancelPlacing();
+      return;
+    }
+    this.selectedTowerId = null;
+    this.selectedBinderId = null;
+    this.bindingFromId = null;
+    this.upgradingFromBinderId = null;
+    this.clearPlacing();
+    this.placingSlot = slot;
+    if (item.kind === 'binder') {
+      this.placingBinder = true;
+    } else {
+      this.placingTowerType = item.type;
+      this.placingIsTriplet = item.triplet;
+      this.pendingTripletSpec = item.spec;
+    }
+    this.notifyState();
+  }
+
+  // Returns what was paid
+  public sellBackpack(slot: number): boolean {
+    const item = this.backpack[slot];
+    if (!item) return false;
+    this.gold += item.paid;
+    this.backpack.splice(slot, 1);
+    this.clearPlacing();
+    sound.playBuy();
+    this.notifyState();
+    return true;
   }
 
   // Towers can be moved only in the pause between waves: the timer runs and no enemy is on the field
@@ -1719,7 +1804,7 @@ export class GameEngine {
 
   public placeBinder(cellX: number, cellY: number): boolean {
     if (!this.placingBinder) return false;
-    const price = this.binderPrice();
+    const price = this.placingSlot !== null ? 0 : this.binderPrice();
     if (!this.isCellFree(cellX, cellY) || this.gold < price) {
       sound.playError();
       return false;
@@ -1729,7 +1814,8 @@ export class GameEngine {
     this.binders.push(binder);
     sound.playBuy();
     this.spawnRing((cellX + 0.5) * CONFIG.grid.cellSize, (cellY + 0.5) * CONFIG.grid.cellSize, CONFIG.binder.color);
-    this.placingBinder = false;
+    if (this.placingSlot !== null) this.backpack.splice(this.placingSlot, 1);
+    this.clearPlacing();
     this.selectedBinderId = binder.id;
     this.notifyState();
     return true;
@@ -2151,6 +2237,9 @@ export class GameEngine {
       supplyPower: this.supplyPower(),
       supplyMult: this.supplyMult(),
       supplyActive: this.supplyActive(),
+      backpack: this.backpack.map((i) => ({ kind: i.kind, type: i.type, triplet: i.triplet, sell: i.paid })),
+      backpackSlots: CONFIG.backpack.slots,
+      placingSlot: this.placingSlot,
       supplyNext: this.supplyNext(),
       isUpgrading: this.upgradingFromBinderId !== null,
       bindPartnerCount,

@@ -22,7 +22,6 @@ interface ShopPanelProps {
   priceMult?: number; // supply: buying towers and binders is this much dearer (endless mode)
   placingTowerType: TowerType | null;
   placingBinder: boolean;
-  placingIndex: number | null; // card being placed
   isBinding: boolean;
   isMoving: boolean; // a tower is selected in the pause between waves
   placingIsTriplet: boolean;
@@ -39,7 +38,6 @@ export function ShopPanel({
   priceMult = 1,
   placingTowerType,
   placingBinder,
-  placingIndex,
   isBinding,
   isMoving,
   placingIsTriplet,
@@ -106,7 +104,7 @@ export function ShopPanel({
           if (card.type === 'binder') {
             const binderCost = Math.round(CONFIG.binder.cost * priceMult);
             const canAffordBinder = gold >= binderCost;
-            const isPicked = placingBinder && placingIndex === idx;
+            const isPicked = false;
             return (
               <button
                 key={card.id}
@@ -139,7 +137,7 @@ export function ShopPanel({
           const baseDef = CONFIG.towers[card.type];
           const cost = Math.round((card.isTriplet ? baseDef.cost * 3 : baseDef.cost) * priceMult);
           const canAfford = gold >= cost;
-          const isSelected = placingTowerType === card.type && placingIndex === idx;
+          const isSelected = false;
 
           return (
             <button
