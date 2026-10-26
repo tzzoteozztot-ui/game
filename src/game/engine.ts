@@ -48,6 +48,14 @@ export interface Tower extends TowerPart {
 }
 
 // «Связка» standing on the field until it is spent on binding two towers
+function readAutoStart(): boolean {
+  try {
+    return localStorage.getItem('dark_frontier_autostart') === '1';
+  } catch {
+    return false;
+  }
+}
+
 const ENEMY_DRAW_SCALE = 2.2;
 const BOSS_DRAW_SCALE = 3.5;
 
@@ -199,6 +207,7 @@ export interface GameStateSnapshot {
   duelOutgoingCost: number;
   duelIncome: number; // duel: gold at the start of every round
   waveCountdown: number | null; // whole seconds left, null while a wave runs
+  autoStart: boolean; // the next wave starts as soon as the last one is cleared
   earlyStartBonus: number;
   speed: number;
   selectedTower: Tower | null;
@@ -235,6 +244,7 @@ export class GameEngine {
   public speedMultiplier: number = 1; // one of CONFIG.speeds
   // Real-time countdown to the next wave (not scaled by game speed); null while a wave runs
   public waveCountdown: number | null = null;
+  public autoStart: boolean = readAutoStart();
   public isGameOver: boolean = false;
   public isVictory: boolean = false;
   // Endless mode: the 12 waves repeat, a boss every 12th wave, no victory
@@ -575,6 +585,16 @@ export class GameEngine {
     }
   }
 
+  public setAutoStart(on: boolean) {
+    this.autoStart = on;
+    try {
+      localStorage.setItem('dark_frontier_autostart', on ? '1' : '0');
+    } catch {
+      // private mode: the switch lives until the page is closed
+    }
+    this.notifyState();
+  }
+
   public togglePause() {
     this.isPaused = !this.isPaused;
     this.notifyState();
@@ -837,6 +857,7 @@ export class GameEngine {
           // In a duel the clock already counts down to the next wave
           if (this.duelStart === null) this.waveCountdown = this.endless ? CONFIG.endless.between : CONFIG.waveTimer.between;
           this.notifyState();
+          if (this.autoStart && this.duelStart === null) this.startNextWave();
         }
       }
     }
@@ -2076,6 +2097,7 @@ export class GameEngine {
       duelOutgoingCost: this.duelOutgoingCost,
       duelIncome: this.duelIncome,
       waveCountdown: this.waveCountdown === null ? null : Math.ceil(this.waveCountdown),
+      autoStart: this.autoStart,
       earlyStartBonus: this.earlyStartBonus(),
       speed: this.speedMultiplier,
       selectedTower: selected,

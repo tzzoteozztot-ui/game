@@ -104,6 +104,7 @@ export default function App() {
     duelOutgoingCost: 0,
     duelIncome: 0,
     waveCountdown: null,
+    autoStart: false,
     earlyStartBonus: 0,
     speed: 1,
     selectedTower: null,
@@ -962,6 +963,8 @@ export default function App() {
                   onSetSpeed={(v) => engineRef.current?.setSpeed(v)}
                   onToggleMute={handleToggleMute}
                   onStartWave={handleStartWave}
+                  autoStart={gameState.autoStart}
+                  onToggleAutoStart={() => engineRef.current?.setAutoStart(!engineRef.current.autoStart)}
                 />
               </div>
             </div>

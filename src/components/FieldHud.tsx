@@ -25,6 +25,8 @@ interface FieldHudProps {
   onSetSpeed: (speed: number) => void;
   onToggleMute: () => void;
   onStartWave: () => void;
+  autoStart: boolean;
+  onToggleAutoStart: () => void;
 }
 
 const CELL = `calc(100cqw / ${CONFIG.grid.cols})`;
@@ -49,6 +51,8 @@ export function FieldHud({
   onSetSpeed,
   onToggleMute,
   onStartWave,
+  autoStart,
+  onToggleAutoStart,
 }: FieldHudProps) {
   const fullscreen = useFullscreen();
   const [speedOpen, setSpeedOpen] = React.useState(false);
@@ -62,8 +66,8 @@ export function FieldHud({
         className="absolute inset-x-0 top-0 flex justify-between"
         style={{ '--cell': CELL, '--gap': `calc(${CELL} * 0.12)`, height: CELL } as React.CSSProperties}
       >
-        {/* Wave: 4 cells at the top left */}
-        <div className="h-full flex items-center justify-center" style={{ width: `calc(var(--cell) * ${HUD_LEFT_COLS})` }}>
+        {/* Wave: 3 cells and the auto-start switch (1 cell) at the top left */}
+        <div className="h-full flex items-center justify-center" style={{ width: `calc(var(--cell) * ${HUD_LEFT_COLS - (duel ? 0 : 1)})` }}>
           <button
             type="button"
             onClick={onStartWave}
@@ -101,6 +105,22 @@ export function FieldHud({
             )}
           </button>
         </div>
+        {!duel && (
+          <div className="h-full flex items-center justify-center mr-auto" style={{ width: 'var(--cell)' }}>
+            <button
+              type="button"
+              onClick={onToggleAutoStart}
+              title="Автостарт: следующая волна начинается сразу после зачистки"
+              aria-pressed={autoStart}
+              className={`${iconBtn} flex-col gap-[calc(var(--cell)*0.04)] text-[max(8px,calc(var(--cell)*0.26))] ${
+                autoStart ? 'bg-amber-600/55 hover:bg-amber-500/70 border-amber-300/50 text-white' : plain
+              }`}
+            >
+              <span>Авто</span>
+              <span className="text-[0.85em] opacity-80">{autoStart ? 'вкл' : 'выкл'}</span>
+            </button>
+          </div>
+        )}
 
         {/* Speed, sound, full screen, pause: 4 cells at the top right */}
         <div className="h-full flex items-center justify-end" style={{ width: `calc(var(--cell) * ${HUD_RIGHT_COLS})` }}>
