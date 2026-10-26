@@ -2625,26 +2625,12 @@ export class GameEngine {
     // Front half of the rings over the pedestal
     rings(0, Math.PI);
 
-    const allSpecs = t.second ? [...t.specs, ...t.second.specs] : t.specs;
-    if (allSpecs.length > 0) {
-      const badge = specBadge(allSpecs);
-      // A bound tower keeps the badge above the second figure
-      const bx = cx + 21 - (badge.length - 1) * 3;
-      const by = t.second ? cy - 24 : cy + 20;
-      const halfW = (badge.length - 1) * 3.5;
-      ctx.fillStyle = '#121118';
-      ctx.beginPath();
-      ctx.roundRect(bx - 7 - halfW, by - 7, 14 + halfW * 2, 14, 7);
-      ctx.fill();
-      ctx.strokeStyle = '#f4c06a';
-      ctx.lineWidth = 1;
-      ctx.stroke();
-      ctx.fillStyle = '#f4c06a';
-      ctx.font = 'bold 8px sans-serif';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(badge, bx, by + 0.5);
-      ctx.textBaseline = 'alphabetic';
+    // A bound tower has a badge for each part: the main one under its figure, the second above its own
+    if (t.second) {
+      if (t.specs.length > 0) this.drawSpecBadge(ctx, specBadge(t.specs), cx - 14, cy + 20, cx, cellSize);
+      if (t.second.specs.length > 0) this.drawSpecBadge(ctx, specBadge(t.second.specs), cx + 21, cy - 24, cx, cellSize);
+    } else if (t.specs.length > 0) {
+      this.drawSpecBadge(ctx, specBadge(t.specs), cx + 21, cy + 20, cx, cellSize);
     }
 
     if (t.frozenTimer > 0) {
@@ -2654,6 +2640,26 @@ export class GameEngine {
       ctx.lineWidth = 2;
       ctx.strokeRect(t.x * cellSize + 2, t.y * cellSize + 2, cellSize - 4, cellSize - 4);
     }
+  }
+
+  // Pill with the specialization codes, kept inside the tower's cell (cellMid: the cell's center x)
+  private drawSpecBadge(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, cellMid: number, cellSize: number) {
+    ctx.font = 'bold 9px sans-serif';
+    const w = ctx.measureText(text).width + 8;
+    const half = cellSize / 2 - 1;
+    const bx = Math.max(cellMid - half + w / 2, Math.min(cellMid + half - w / 2, x));
+    ctx.fillStyle = '#121118';
+    ctx.beginPath();
+    ctx.roundRect(bx - w / 2, y - 7, w, 14, 7);
+    ctx.fill();
+    ctx.strokeStyle = '#f4c06a';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    ctx.fillStyle = '#f4c06a';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(text, bx, y + 0.5);
+    ctx.textBaseline = 'alphabetic';
   }
 
   // Fallback figure when the sprite is not loaded
@@ -2757,22 +2763,9 @@ export class GameEngine {
       ctx.stroke();
     }
 
-    // Specialization badge (small icon/letter on tower)
+    // Specialization badge (code of each specialization)
     const allSpecs = t.second ? [...t.specs, ...t.second.specs] : t.specs;
-    if (allSpecs.length > 0) {
-      const specLetters = specBadge(allSpecs);
-      const halfW = (specLetters.length - 1) * 3.5;
-      ctx.fillStyle = '#121118';
-      ctx.beginPath();
-      ctx.roundRect(cx - 6 - halfW, cy - 6, 12 + halfW * 2, 12, 6);
-      ctx.fill();
-      ctx.fillStyle = '#f4c06a';
-      ctx.font = 'bold 8px sans-serif';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(specLetters, cx, cy);
-      ctx.textBaseline = 'alphabetic';
-    }
+    if (allSpecs.length > 0) this.drawSpecBadge(ctx, specBadge(allSpecs), cx, cy, cx, cellSize);
 
     // Frozen visual tint (Ice Priest Boss ability)
     if (t.frozenTimer > 0) {

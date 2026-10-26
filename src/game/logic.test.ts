@@ -378,3 +378,13 @@ test('priest without a specialization marks enemies; a tower bound to a priest s
 test('three binders merge into a triple one only from shop tier 5', () => {
   assert.equal(CONFIG.binder.tripleFromTier, 5);
 });
+
+import { specBadge } from './towerStats';
+
+test('field badge shows a short code per specialization with its power', () => {
+  assert.equal(specBadge([]), '');
+  assert.equal(specBadge(['fire']), 'Ог');
+  assert.equal(specBadge(['fire', 'fire', 'fire']), 'Ог×3');
+  assert.equal(specBadge(['fire', 'frost', 'fire']), 'Ог×2·Мр');
+  assert.equal(specBadge(['sniper', 'hunter', 'arrow_hail']), 'Сн·Ох·Гр');
+});

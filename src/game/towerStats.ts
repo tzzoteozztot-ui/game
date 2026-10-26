@@ -124,8 +124,31 @@ export function specSummary(specs: readonly string[]): string {
     .join(' · ');
 }
 
-/** Badge text on the field: first letter of each specialization, «О», «ОМ», «ООМ». */
+/** Short field codes of the specializations: two letters, none repeats */
+const SPEC_CODE: Record<string, string> = {
+  sniper: 'Сн',
+  arrow_hail: 'Гр',
+  hunter: 'Ох',
+  ward: 'Об',
+  curse: 'Пр',
+  smite: 'Кр',
+  fire: 'Ог',
+  lightning: 'Мл',
+  frost: 'Мр',
+  ram: 'Тр',
+  siege: 'Ос',
+  execute: 'Кз',
+};
+
+/** Badge text on the field: code of each specialization with its power, «Ог», «Ог×3», «Ог×2·Мр». */
 export function specBadge(specs: readonly string[]): string {
-  const grouped = [...specs].sort((a, b) => specs.indexOf(a) - specs.indexOf(b));
-  return grouped.map((id) => specName(id)[0]).join('');
+  const seen: string[] = [];
+  for (const s of specs) if (!seen.includes(s)) seen.push(s);
+  return seen
+    .map((id) => {
+      const code = SPEC_CODE[id] ?? specName(id).slice(0, 2);
+      const n = specPower(specs, id);
+      return n > 1 ? `${code}×${n}` : code;
+    })
+    .join('·');
 }
