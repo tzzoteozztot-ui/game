@@ -1435,7 +1435,7 @@ export class GameEngine {
 
     // Find enemies in range
     const inRange = this.enemies.filter((e) => {
-      if (e.isReviving) return false;
+      if (e.isReviving || e.invulnerableTimer > 0) return false; // no shots at the invulnerable Shadow Queen
       const d = Math.hypot(e.x - towerPxX, e.y - towerPxY);
       return d <= rangePx;
     });
@@ -1532,7 +1532,7 @@ export class GameEngine {
       let nextClosest: Enemy | null = null;
       let minD = 3.5 * CONFIG.grid.cellSize; // max jump distance
       for (const candidate of this.enemies) {
-        if (!candidate.isReviving && !chainTargets.includes(candidate)) {
+        if (!candidate.isReviving && candidate.invulnerableTimer <= 0 && !chainTargets.includes(candidate)) {
           const d = Math.hypot(candidate.x - curEnemy.x, candidate.y - curEnemy.y);
           if (d < minD) {
             minD = d;
