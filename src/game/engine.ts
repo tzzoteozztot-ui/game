@@ -1147,6 +1147,8 @@ export class GameEngine {
         let burnDmg = e.burnDps * dt;
         // Demon trait
         if (this.faction === 4) burnDmg *= 0.5;
+        // The Shadow Queen's invulnerability covers burning too
+        if (e.invulnerableTimer > 0) burnDmg = 0;
         this.dmgSource = e.burnSource ?? null;
         this.recordDamage(Math.min(e.hp, burnDmg));
         e.hp -= burnDmg;
@@ -1285,8 +1287,8 @@ export class GameEngine {
     }
 
     // Clean old graveyard entries (> 10s old)
-    const nowSec = performance.now() / 1000;
-    this.deadEnemiesGraveyard = this.deadEnemiesGraveyard.filter((g) => nowSec - g.time <= 10);
+    const gameNow = this.runStats.time;
+    this.deadEnemiesGraveyard = this.deadEnemiesGraveyard.filter((g) => gameNow - g.time <= 10);
   }
 
   // -------------------------------------------------------------
@@ -1320,6 +1322,8 @@ export class GameEngine {
         sound.playBossSpawn();
         this.addFloatingText('ВОСКРЕШЕНИЕ ЛИЧА!', boss.x, boss.y - 18, '#c9d6b0');
         const toRevive = eligible.slice(0, 3);
+        // a body rises once: the risen leave the graveyard
+        this.deadEnemiesGraveyard = this.deadEnemiesGraveyard.filter((g) => !toRevive.includes(g));
         for (const g of toRevive) {
           this.spawnEnemy(g.type, g.entranceIndex);
           const newSpawn = this.enemies[this.enemies.length - 1];
@@ -1365,6 +1369,7 @@ export class GameEngine {
         imp.x = boss.x + (Math.random() - 0.5) * 32;
         imp.y = boss.y + (Math.random() - 0.5) * 32;
         imp.pathIndex = boss.pathIndex;
+        imp.distanceTraveled = boss.distanceTraveled;
         this.spawnSpark(imp.x, imp.y, '#e0452f');
       }
     }
@@ -1377,13 +1382,38 @@ export class GameEngine {
       this.addFloatingText('ТЕНЕВОЙ РЫВОК!', boss.x, boss.y - 18, '#3ed6c4');
       this.spawnRing(boss.x, boss.y, '#3ed6c4');
 
-      // Advance 3 cells along path
+      // Advance exactly 3 cells along the road from where she stands (stops short of the castle)
       const path = this.currentMap.paths[boss.entranceIndex];
-      boss.pathIndex = Math.min(path.length - 1, boss.pathIndex + 3);
-      const targetCell = path[boss.pathIndex];
-      boss.x = (targetCell.x + 0.5) * CONFIG.grid.cellSize;
-      boss.y = (targetCell.y + 0.5) * CONFIG.grid.cellSize;
-      boss.distanceTraveled += 3 * CONFIG.grid.cellSize;
+      let left = 3 * CONFIG.grid.cellSize;
+      while (left > 0) {
+        const next = path[boss.pathIndex + 1];
+        const tx = next ? (next.x + 0.5) * CONFIG.grid.cellSize : CONFIG.grid.castleTarget.x * CONFIG.grid.cellSize;
+        const ty = next ? (next.y + 0.5) * CONFIG.grid.cellSize : CONFIG.grid.castleTarget.y * CONFIG.grid.cellSize;
+        const dx = tx - boss.x;
+        const dy = ty - boss.y;
+        const dist = Math.hypot(dx, dy);
+        if (!next) {
+          const step = Math.min(left, Math.max(0, dist - 15));
+          if (dist > 0) {
+            boss.x += (dx / dist) * step;
+            boss.y += (dy / dist) * step;
+          }
+          boss.distanceTraveled += step;
+          break;
+        }
+        if (dist <= left) {
+          boss.x = tx;
+          boss.y = ty;
+          boss.pathIndex++;
+          boss.distanceTraveled += dist;
+          left -= dist;
+        } else {
+          boss.x += (dx / dist) * left;
+          boss.y += (dy / dist) * left;
+          boss.distanceTraveled += left;
+          break;
+        }
+      }
     }
   }
 
@@ -1677,7 +1707,7 @@ export class GameEngine {
       this.deadEnemiesGraveyard.push({
         x: e.x,
         y: e.y,
-        time: performance.now() / 1000,
+        time: this.runStats.time, // game time: pause and speed move it together with the Lich's timer
         type: e.type,
         entranceIndex: e.entranceIndex,
         pathIndex: e.pathIndex,
