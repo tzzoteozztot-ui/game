@@ -61,7 +61,10 @@ export function onUserChange(cb: (user: User | null) => void): () => void {
 /** Sends the sign-in code; returns an error text or null */
 export async function sendCode(email: string): Promise<string | null> {
   try {
-    const { error } = await (await client()).auth.signInWithOtp({ email, options: { shouldCreateUser: true } });
+    const { error } = await (await client()).auth.signInWithOtp({
+      email,
+      options: { shouldCreateUser: true, emailRedirectTo: window.location.origin + window.location.pathname },
+    });
     return error ? message(error) : null;
   } catch (e) {
     return message(e);
