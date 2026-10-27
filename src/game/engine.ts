@@ -1369,6 +1369,7 @@ export class GameEngine {
         imp.x = boss.x + (Math.random() - 0.5) * 32;
         imp.y = boss.y + (Math.random() - 0.5) * 32;
         imp.pathIndex = boss.pathIndex;
+        imp.distanceTraveled = boss.distanceTraveled;
         this.spawnSpark(imp.x, imp.y, '#e0452f');
       }
     }
