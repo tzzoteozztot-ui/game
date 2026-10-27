@@ -1147,6 +1147,8 @@ export class GameEngine {
         let burnDmg = e.burnDps * dt;
         // Demon trait
         if (this.faction === 4) burnDmg *= 0.5;
+        // The Shadow Queen's invulnerability covers burning too
+        if (e.invulnerableTimer > 0) burnDmg = 0;
         this.dmgSource = e.burnSource ?? null;
         this.recordDamage(Math.min(e.hp, burnDmg));
         e.hp -= burnDmg;
