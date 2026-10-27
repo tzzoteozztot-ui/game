@@ -125,6 +125,8 @@ test('enemy scaling and damage formulas', () => {
   assert.equal(calculateEnemyHp(30, 'infantry', 1, 1, 'normal'), 39); // 30 * 1.3
   // wave 5, level 2, normal: 30 * 1.3 * (1 + 0.18*4 + 0.012*16) * (1 + 0.3*1) = 30 * 1.3 * 1.912 * 1.3 = 96.9 -> 97
   assert.equal(calculateEnemyHp(30, 'infantry', 5, 2, 'normal'), 97);
+  // An imp is a third of an infantryman of the same wave (wave 5, level 2: 97 / 3 = 32.3)
+  assert.equal(calculateEnemyHp(20, 'imp', 5, 2, 'normal'), 32);
   // wave 12, level 1: 30 * 1.3 * (1 + 0.18*11 + 0.012*121) * 1.12 = 30 * 1.3 * 4.432 * 1.12 = 193.6 -> 194
   assert.equal(calculateEnemyHp(30, 'infantry', 12, 1, 'normal'), 194);
   // Campaign waves 7–12 get ×1.12: wave 6 = 30 * 1.3 * 2.2 = 85.8, wave 7 = 30 * 1.3 * 2.512 * 1.12 = 109.7

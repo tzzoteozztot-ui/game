@@ -98,6 +98,7 @@ export interface Enemy {
   rageTriggered: boolean;
   warcryTimer: number;
   hasRevived: boolean; // undead trait
+  risen?: boolean; // raised by the Lich: no gold, does not rise again
   isReviving: boolean; // 1s revive delay
   reviveTimer: number;
   invulnerableTimer: number; // dark elf boss
@@ -1315,9 +1316,9 @@ export class GameEngine {
     if (this.faction === 2 && boss.bossAbilityTimer >= 12) {
       boss.bossAbilityTimer = 0;
       const reviveRadius = 3.0 * CONFIG.grid.cellSize;
-      const eligible = this.deadEnemiesGraveyard.filter(
-        (g) => Math.hypot(g.x - boss.x, g.y - boss.y) <= reviveRadius
-      );
+      const eligible = this.deadEnemiesGraveyard
+        .filter((g) => Math.hypot(g.x - boss.x, g.y - boss.y) <= reviveRadius)
+        .sort((a, b) => Math.hypot(a.x - boss.x, a.y - boss.y) - Math.hypot(b.x - boss.x, b.y - boss.y)); // nearest to the Lich first
       if (eligible.length > 0) {
         sound.playBossSpawn();
         this.addFloatingText('ВОСКРЕШЕНИЕ ЛИЧА!', boss.x, boss.y - 18, '#c9d6b0');
@@ -1332,6 +1333,9 @@ export class GameEngine {
           newSpawn.pathIndex = g.pathIndex;
           newSpawn.distanceTraveled = g.distanceTraveled;
           newSpawn.hp = Math.round(newSpawn.maxHp * 0.3);
+          newSpawn.risen = true;
+          newSpawn.hasRevived = true;
+          newSpawn.gold = 0;
           this.spawnRing(g.x, g.y, '#c9d6b0');
         }
       }
@@ -1435,7 +1439,7 @@ export class GameEngine {
 
     // Find enemies in range
     const inRange = this.enemies.filter((e) => {
-      if (e.isReviving) return false;
+      if (e.isReviving || e.invulnerableTimer > 0) return false; // no shots at the invulnerable Shadow Queen
       const d = Math.hypot(e.x - towerPxX, e.y - towerPxY);
       return d <= rangePx;
     });
@@ -1532,7 +1536,7 @@ export class GameEngine {
       let nextClosest: Enemy | null = null;
       let minD = 3.5 * CONFIG.grid.cellSize; // max jump distance
       for (const candidate of this.enemies) {
-        if (!candidate.isReviving && !chainTargets.includes(candidate)) {
+        if (!candidate.isReviving && candidate.invulnerableTimer <= 0 && !chainTargets.includes(candidate)) {
           const d = Math.hypot(candidate.x - curEnemy.x, candidate.y - curEnemy.y);
           if (d < minD) {
             minD = d;
@@ -1703,7 +1707,7 @@ export class GameEngine {
     this.spawnPuff(e.x, e.y, CONFIG.palettes[this.faction - 1].enemies);
 
     // Save to graveyard for Lich boss
-    if (this.faction === 2 && e.type !== 'boss') {
+    if (this.faction === 2 && e.type !== 'boss' && !e.risen) {
       this.deadEnemiesGraveyard.push({
         x: e.x,
         y: e.y,

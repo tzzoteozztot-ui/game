@@ -177,6 +177,9 @@ export const CONFIG = {
   // Enemy HP: base × hpMult × (1 + waveLinear·(w−1) + waveQuad·(w−1)²) × (1 + level·(L−1)) × difficulty
   // (the boss skips the wave factor)
   // Raised at Артур's request («враги очень быстро умирают»): was hpMult 1, waveLinear 0.15, waveQuad 0
+  // Abyss Lord's imps: share of an infantryman's HP in the same wave
+  impHpShare: 1 / 3,
+
   enemyScaling: {
     hpMult: 1.3,
     waveLinear: 0.18,
@@ -313,7 +316,7 @@ export const CONFIG = {
       traitName: 'Пепельная кожа',
       traitDesc: 'Урон специализации «Огонь» (удар и поджог) снижен на 50%.',
       bossName: 'Владыка бездны',
-      bossDesc: 'Раз в 10 с призывает 3 бесов: скорость 1,6, здоровье растёт с волной и сложностью, как у остальных врагов.',
+      bossDesc: 'Раз в 10 с призывает 3 бесов: скорость 1,6, здоровье — треть пехотинца той же волны.',
     },
     {
       id: 5,
