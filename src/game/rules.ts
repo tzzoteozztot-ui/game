@@ -18,6 +18,11 @@ export function calculateEnemyHp(
   endless = false,
   faction = level // the enemies' faction: the level's own, in a duel the opponent's army
 ): number {
+  // The Abyss Lord's imp is a third of an infantryman of the same wave (Артур, 2026-10-27)
+  if (type === 'imp') {
+    const infantry = calculateEnemyHp(CONFIG.enemies.infantry.hp, 'infantry', wave, level, difficulty, endless, faction);
+    return Math.round(infantry * CONFIG.impHpShare);
+  }
   const sc = CONFIG.enemyScaling;
   const diffMult = CONFIG.difficulty[difficulty].hpMult;
   const levelMult = 1 + sc.level * (level - 1);
