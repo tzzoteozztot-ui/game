@@ -1381,13 +1381,38 @@ export class GameEngine {
       this.addFloatingText('ТЕНЕВОЙ РЫВОК!', boss.x, boss.y - 18, '#3ed6c4');
       this.spawnRing(boss.x, boss.y, '#3ed6c4');
 
-      // Advance 3 cells along path
+      // Advance exactly 3 cells along the road from where she stands (stops short of the castle)
       const path = this.currentMap.paths[boss.entranceIndex];
-      boss.pathIndex = Math.min(path.length - 1, boss.pathIndex + 3);
-      const targetCell = path[boss.pathIndex];
-      boss.x = (targetCell.x + 0.5) * CONFIG.grid.cellSize;
-      boss.y = (targetCell.y + 0.5) * CONFIG.grid.cellSize;
-      boss.distanceTraveled += 3 * CONFIG.grid.cellSize;
+      let left = 3 * CONFIG.grid.cellSize;
+      while (left > 0) {
+        const next = path[boss.pathIndex + 1];
+        const tx = next ? (next.x + 0.5) * CONFIG.grid.cellSize : CONFIG.grid.castleTarget.x * CONFIG.grid.cellSize;
+        const ty = next ? (next.y + 0.5) * CONFIG.grid.cellSize : CONFIG.grid.castleTarget.y * CONFIG.grid.cellSize;
+        const dx = tx - boss.x;
+        const dy = ty - boss.y;
+        const dist = Math.hypot(dx, dy);
+        if (!next) {
+          const step = Math.min(left, Math.max(0, dist - 15));
+          if (dist > 0) {
+            boss.x += (dx / dist) * step;
+            boss.y += (dy / dist) * step;
+          }
+          boss.distanceTraveled += step;
+          break;
+        }
+        if (dist <= left) {
+          boss.x = tx;
+          boss.y = ty;
+          boss.pathIndex++;
+          boss.distanceTraveled += dist;
+          left -= dist;
+        } else {
+          boss.x += (dx / dist) * left;
+          boss.y += (dy / dist) * left;
+          boss.distanceTraveled += left;
+          break;
+        }
+      }
     }
   }
 
