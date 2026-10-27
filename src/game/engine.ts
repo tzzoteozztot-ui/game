@@ -1285,8 +1285,8 @@ export class GameEngine {
     }
 
     // Clean old graveyard entries (> 10s old)
-    const nowSec = performance.now() / 1000;
-    this.deadEnemiesGraveyard = this.deadEnemiesGraveyard.filter((g) => nowSec - g.time <= 10);
+    const gameNow = this.runStats.time;
+    this.deadEnemiesGraveyard = this.deadEnemiesGraveyard.filter((g) => gameNow - g.time <= 10);
   }
 
   // -------------------------------------------------------------
@@ -1320,6 +1320,8 @@ export class GameEngine {
         sound.playBossSpawn();
         this.addFloatingText('ВОСКРЕШЕНИЕ ЛИЧА!', boss.x, boss.y - 18, '#c9d6b0');
         const toRevive = eligible.slice(0, 3);
+        // a body rises once: the risen leave the graveyard
+        this.deadEnemiesGraveyard = this.deadEnemiesGraveyard.filter((g) => !toRevive.includes(g));
         for (const g of toRevive) {
           this.spawnEnemy(g.type, g.entranceIndex);
           const newSpawn = this.enemies[this.enemies.length - 1];
@@ -1677,7 +1679,7 @@ export class GameEngine {
       this.deadEnemiesGraveyard.push({
         x: e.x,
         y: e.y,
-        time: performance.now() / 1000,
+        time: this.runStats.time, // game time: pause and speed move it together with the Lich's timer
         type: e.type,
         entranceIndex: e.entranceIndex,
         pathIndex: e.pathIndex,
