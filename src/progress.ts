@@ -1,6 +1,7 @@
 /**
  * Player progress for «Тёмный рубеж»: opened levels, stars, endless records.
- * Always kept in localStorage; after sign-in it is also synced with the account (cloud.ts).
+ * Kept in localStorage separately for the guest and for every account; a signed-in account is also synced
+ * with the cloud (cloud.ts). Progress of one owner never mixes with another's.
  */
 
 export type Difficulty = 'easy' | 'normal' | 'hard';
@@ -85,8 +86,17 @@ export function sameProgress(a: Progress, b: Progress): boolean {
   return JSON.stringify(normalizeProgress(a)) === JSON.stringify(normalizeProgress(b));
 }
 
-export function readLocalProgress(): Progress {
+export const isEmptyProgress = (p: Progress) => sameProgress(p, EMPTY_PROGRESS);
+
+/** Progress of a signed-in account is kept on the device in its own key; the guest copy (owner null) in the old keys */
+const accountKey = (owner: string) => `dark_frontier_progress_${owner}`;
+
+export function readLocalProgress(owner: string | null = null): Progress {
   try {
+    if (owner) {
+      const raw = localStorage.getItem(accountKey(owner));
+      return normalizeProgress(raw ? JSON.parse(raw) : undefined);
+    }
     const parse = (key: string) => {
       const raw = localStorage.getItem(key);
       return raw ? JSON.parse(raw) : undefined;
@@ -101,8 +111,12 @@ export function readLocalProgress(): Progress {
   }
 }
 
-export function writeLocalProgress(p: Progress) {
+export function writeLocalProgress(p: Progress, owner: string | null = null) {
   try {
+    if (owner) {
+      localStorage.setItem(accountKey(owner), JSON.stringify(p));
+      return;
+    }
     localStorage.setItem(KEYS.unlocked, String(p.unlocked));
     localStorage.setItem(KEYS.stars, JSON.stringify(p.stars));
     localStorage.setItem(KEYS.endlessBest, JSON.stringify(p.endlessBest));

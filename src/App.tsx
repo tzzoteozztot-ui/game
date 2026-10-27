@@ -28,7 +28,7 @@ import { PauseModal, VictoryModal, DefeatModal, HowToPlayModal, DuelResultModal,
 import { OrientationWarning } from './components/OrientationWarning';
 import { fullscreenSupported, toggleFullscreen } from './fullscreen';
 import { AccountModal, SyncState } from './components/AccountModal';
-import { Progress, EMPTY_PROGRESS, readLocalProgress, writeLocalProgress, mergeProgress } from './progress';
+import { Progress, EMPTY_PROGRESS, readLocalProgress, writeLocalProgress, mergeProgress, isEmptyProgress } from './progress';
 import { cloudEnabled, onUserChange, loadCloudProgress, saveCloudProgress } from './cloud';
 import type { User } from '@supabase/supabase-js';
 
@@ -72,7 +72,8 @@ export default function App() {
 
   // Persistent progression
   // Progress: localStorage, plus the account when signed in (see progress.ts, cloud.ts)
-  const [progress, setProgress] = useState<Progress>(readLocalProgress);
+  const [progress, setProgress] = useState<Progress>(() => readLocalProgress(null));
+  const [progressOwner, setProgressOwner] = useState<string | null>(null); // whose progress is in `progress`: guest (null) or an account
   const { unlocked: unlockedLevel, stars: levelStars, endlessBest } = progress;
   const [user, setUser] = useState<User | null>(null);
   const [syncState, setSyncState] = useState<SyncState>('idle');
@@ -368,22 +369,34 @@ export default function App() {
     setScreen(mode === 'duel' ? 'duelLobby' : 'briefing');
   };
 
-  // Account: follow sign-in; on sign-in merge the account's progress with this device's
+  // Account: progress belongs to its owner (guest or account). Signing in switches to the account's copy
+  // (device + cloud, max); the guest progress moves in only if the account has none yet. Sign-out returns to the guest copy.
   const cloudLoadedFor = useRef<string | null>(null); // the account whose progress is already merged in
+  const ownerRef = useRef<string | null>(null);
   const [cloudTick, setCloudTick] = useState(0); // forces a save right after the merge
+  const switchOwner = (owner: string | null) => {
+    ownerRef.current = owner;
+    setProgressOwner(owner);
+    setProgress(readLocalProgress(owner));
+  };
   useEffect(() => onUserChange(setUser), []);
   useEffect(() => {
     if (!user) {
       cloudLoadedFor.current = null;
+      if (ownerRef.current !== null) switchOwner(null);
       setSyncState('idle');
       return;
     }
     let cancelled = false;
+    if (ownerRef.current !== user.id) switchOwner(user.id);
     setSyncState('syncing');
     loadCloudProgress(user.id)
       .then((cloud) => {
         if (cancelled) return;
-        if (cloud) setProgress((prev) => mergeProgress(prev, cloud));
+        setProgress((prev) => {
+          const merged = cloud ? mergeProgress(prev, cloud) : prev;
+          return isEmptyProgress(merged) ? readLocalProgress(null) : merged;
+        });
         cloudLoadedFor.current = user.id;
         // Saving below runs with the merged progress and writes it back to the account
         setSyncState('ok');
@@ -395,10 +408,10 @@ export default function App() {
     };
   }, [user]);
 
-  // Save on every change: this device always, the account (after its progress was read) with a short delay
+  // Save on every change: this device under its owner, the account (after its progress was read) with a short delay
   useEffect(() => {
-    writeLocalProgress(progress);
-    if (!user || cloudLoadedFor.current !== user.id) return;
+    writeLocalProgress(progress, progressOwner);
+    if (!user || progressOwner !== user.id || cloudLoadedFor.current !== user.id) return;
     const t = setTimeout(() => {
       setSyncState('syncing');
       saveCloudProgress(user.id, progress)
@@ -406,7 +419,7 @@ export default function App() {
         .catch(() => setSyncState('error'));
     }, 600);
     return () => clearTimeout(t);
-  }, [progress, user, cloudTick]);
+  }, [progress, progressOwner, user, cloudTick]);
 
   // Handle Level Start from briefing
   const handleStartBattle = () => {
