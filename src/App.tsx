@@ -393,10 +393,14 @@ export default function App() {
     loadCloudProgress(user.id)
       .then((cloud) => {
         if (cancelled) return;
-        setProgress((prev) => {
-          const merged = cloud ? mergeProgress(prev, cloud) : prev;
-          return isEmptyProgress(merged) ? readLocalProgress(null) : merged;
-        });
+        if (cloud) setProgress((prev) => mergeProgress(prev, cloud));
+        // A brand-new account takes the guest progress once; the guest copy is emptied so the next account starts clean
+        const own = cloud ? mergeProgress(readLocalProgress(user.id), cloud) : readLocalProgress(user.id);
+        const guest = readLocalProgress(null);
+        if (isEmptyProgress(own) && !isEmptyProgress(guest)) {
+          setProgress(guest);
+          writeLocalProgress(EMPTY_PROGRESS, null);
+        }
         cloudLoadedFor.current = user.id;
         // Saving below runs with the merged progress and writes it back to the account
         setSyncState('ok');
