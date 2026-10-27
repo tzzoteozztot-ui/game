@@ -433,3 +433,10 @@ test('kill gold: after wave 12 it falls ×0,985 per wave to a floor, only where 
   assert.equal(calculateKillGold(100, 1, 24, true), Math.round(100 * Math.pow(0.985, 12)));
   assert.equal(calculateKillGold(100, 1, 500, true), 30);
 });
+
+test('isEmptyProgress: пустой прогресс отличается от начатого', async () => {
+  const { isEmptyProgress, EMPTY_PROGRESS } = await import('../progress');
+  assert.equal(isEmptyProgress(EMPTY_PROGRESS), true);
+  assert.equal(isEmptyProgress(normalizeProgress({ unlocked: 2 })), false);
+  assert.equal(isEmptyProgress(normalizeProgress({ stars: { hard: { 1: 1 } } })), false);
+});
