@@ -24,6 +24,9 @@ import {
 } from './rules';
 import { sound } from './audio';
 import { sprites, drawSprite, PreparedSprite, SpritePose, SpriteVariant } from './sprites';
+
+// Light rim color (r, g, b) under the pedestal of the dark tower figures
+const TOWER_RIMS: Partial<Record<TowerType, string>> = { archer: '214, 236, 190', mage: '214, 200, 255' };
 import { attackStats, specBadge, specPower, specsOfType, stackedSlow } from './towerStats';
 
 // -------------------------------------------------------------
@@ -2912,8 +2915,13 @@ export class GameEngine {
     ctx.globalAlpha = 1;
   }
 
+  // Each level has its own figure (public/sprites/tower_<type>_<level>.png)
+  private towerSprite(type: TowerType, level: number): PreparedSprite | null {
+    return sprites.get(`tower_${type}_${level}`) ?? sprites.get(`tower_${type}_1`);
+  }
+
   private renderTower(ctx: CanvasRenderingContext2D, t: Tower, cellSize: number, timeSec: number) {
-    const spr = sprites.get(`tower_${t.type}`);
+    const spr = this.towerSprite(t.type, t.level);
     if (spr) {
       this.renderTowerSprite(ctx, t, cellSize, spr, timeSec);
       return;
@@ -2929,18 +2937,115 @@ export class GameEngine {
     return { sy: 1 + breath - 0.07 * k, sx: 1 + 0.04 * k, tilt: -t.facing * 0.05 * k };
   }
 
+  // Dark figures (Archer, Mage) get a light rim around the pedestal so they read on dark maps
+  private drawBaseRim(ctx: CanvasRenderingContext2D, type: TowerType, x: number, footY: number, k: number) {
+    const rim = TOWER_RIMS[type];
+    if (!rim) return;
+    const rx = 19 * k;
+    const ry = 7 * k;
+    const y = footY - 6 * k;
+    const g = ctx.createRadialGradient(x, y, rx * 0.4, x, y, rx * 1.35);
+    g.addColorStop(0, `rgba(${rim}, 0.32)`);
+    g.addColorStop(1, `rgba(${rim}, 0)`);
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.ellipse(x, y, rx * 1.35, ry * 1.6, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = `rgba(${rim}, 0.7)`;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.ellipse(x, y, rx, ry, 0, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+
+  // Binding between the two figures of a pair: glowing bases, an arc of light, a pulsing crystal.
+  // `power` 0..1 grows with the levels of both parts.
+  private drawBond(
+    ctx: CanvasRenderingContext2D,
+    x1: number,
+    x2: number,
+    footY: number,
+    power: number,
+    timeSec: number,
+    layer: 'back' | 'front'
+  ) {
+    const color = CONFIG.binder.color;
+    const pulse = 0.5 + 0.5 * Math.sin(timeSec * (3 + power * 2));
+    ctx.save();
+    ctx.shadowColor = color;
+    if (layer === 'back') {
+      // Glow under both pedestals
+      for (const x of [x1, x2]) {
+        const g = ctx.createRadialGradient(x, footY - 4, 2, x, footY - 4, 18);
+        g.addColorStop(0, `rgba(62, 214, 196, ${0.35 + 0.35 * power})`);
+        g.addColorStop(1, 'rgba(62, 214, 196, 0)');
+        ctx.fillStyle = g;
+        ctx.beginPath();
+        ctx.ellipse(x, footY - 4, 18, 8, 0, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.restore();
+      return;
+    }
+    // Arcs from figure to figure over the crystal; more strands and wider glow on higher levels
+    const midX = (x1 + x2) / 2;
+    const y = footY - 18;
+    const strands = power > 0.75 ? 3 : power > 0.45 ? 2 : 1;
+    ctx.strokeStyle = color;
+    ctx.lineCap = 'round';
+    ctx.shadowBlur = 6 + 10 * power;
+    for (let i = 0; i < strands; i++) {
+      const lift = 8 + i * 4 + Math.sin(timeSec * 7 + i * 2.1) * 2;
+      ctx.globalAlpha = (0.55 + 0.45 * pulse) * (1 - i * 0.25);
+      ctx.lineWidth = 1.2 + power * 1.3;
+      ctx.beginPath();
+      ctx.moveTo(x1 + 3, y);
+      // A jagged arc: three bends with a little flicker
+      for (let s = 1; s <= 4; s++) {
+        const f = s / 4;
+        const jitter = s < 4 ? Math.sin(timeSec * 23 + s * 3.7 + i * 5) * (1 + power) : 0;
+        ctx.lineTo(x1 + 3 + (x2 - x1 - 6) * f, y - Math.sin(f * Math.PI) * lift + jitter);
+      }
+      ctx.stroke();
+    }
+    // Pulsing crystal between the pedestals
+    const cy = footY - 9 - pulse * 1.5;
+    const h = 5 + power * 2.5;
+    const w = 3 + power * 1.5;
+    ctx.globalAlpha = 1;
+    ctx.shadowBlur = 8 + 14 * power * pulse;
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.moveTo(midX, cy - h);
+    ctx.lineTo(midX + w, cy);
+    ctx.lineTo(midX, cy + h * 0.7);
+    ctx.lineTo(midX - w, cy);
+    ctx.closePath();
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = 'rgba(230, 255, 251, 0.85)';
+    ctx.beginPath();
+    ctx.moveTo(midX, cy - h * 0.8);
+    ctx.lineTo(midX + w * 0.35, cy - h * 0.15);
+    ctx.lineTo(midX - w * 0.35, cy - h * 0.15);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+  }
+
   private renderTowerSprite(ctx: CanvasRenderingContext2D, t: Tower, cellSize: number, spr: PreparedSprite, timeSec: number) {
     const cx = (t.x + 0.5) * cellSize;
     const cy = (t.y + 0.5) * cellSize;
     const baseDef = CONFIG.towers[t.type];
     const ringY = cy + 22;
+    const footY = cy + 30;
 
     // Ground shadow, level 3 glow, back half of level rings
     ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
     ctx.beginPath();
     ctx.ellipse(cx, cy + 25, 25, 8, 0, 0, Math.PI * 2);
     ctx.fill();
-    if (t.level >= 3) {
+    if (t.level >= 3 && !t.second) {
       ctx.fillStyle = baseDef.color;
       ctx.globalAlpha = 0.28;
       ctx.beginPath();
@@ -2963,23 +3068,24 @@ export class GameEngine {
         ctx.stroke();
       }
     };
-    if (t.second) {
-      // Binding ring under both figures
-      ctx.strokeStyle = CONFIG.binder.color;
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.ellipse(cx, ringY + 2, 30, 9, 0, 0, Math.PI * 2);
-      ctx.stroke();
-    }
     rings(Math.PI, Math.PI * 2);
 
     if (t.second) {
-      // Second figure smaller, at the right; the main one shifted left
-      const spr2 = sprites.get(`tower_${t.second.type}`);
-      drawSprite(ctx, spr, cx - 9, cy + 30, t.facing, 56, this.towerPose(t, t, timeSec));
-      if (spr2) drawSprite(ctx, spr2, cx + 15, cy + 30, t.facing, 48, this.towerPose(t, t.second, timeSec));
+      // Two single figures side by side, drawn smaller, joined by the binding effect
+      const k = 0.72;
+      const x1 = cx - 14;
+      const x2 = cx + 15;
+      const spr2 = this.towerSprite(t.second.type, t.second.level);
+      const power = (t.level + t.second.level - 2) / 4;
+      this.drawBond(ctx, x1, x2, footY, power, timeSec, 'back');
+      this.drawBaseRim(ctx, t.type, x1, footY, k);
+      this.drawBaseRim(ctx, t.second.type, x2, footY, k);
+      drawSprite(ctx, spr, x1, footY, t.facing, spr.meta.drawH * k, this.towerPose(t, t, timeSec));
+      if (spr2) drawSprite(ctx, spr2, x2, footY, t.facing, spr2.meta.drawH * k, this.towerPose(t, t.second, timeSec));
+      this.drawBond(ctx, x1, x2, footY, power, timeSec, 'front');
     } else {
-      drawSprite(ctx, spr, cx, cy + 30, t.facing, 62, this.towerPose(t, t, timeSec));
+      this.drawBaseRim(ctx, t.type, cx, footY, 1);
+      drawSprite(ctx, spr, cx, footY, t.facing, undefined, this.towerPose(t, t, timeSec));
     }
 
     // Front half of the rings over the pedestal
