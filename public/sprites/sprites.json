@@ -1,37 +1,109 @@
 {
-  "tower_archer": {
-    "file": "tower_archer.png",
-    "w": 176,
-    "h": 198,
-    "drawH": 66,
-    "anchorX": 0.464,
+  "tower_archer_1": {
+    "file": "tower_archer_1.png",
+    "w": 135,
+    "h": 176,
+    "drawH": 58.8,
+    "anchorX": 0.414,
     "anchorY": 1,
     "facing": 1
   },
-  "tower_mage": {
-    "file": "tower_mage.png",
-    "w": 132,
-    "h": 198,
-    "drawH": 66,
-    "anchorX": 0.499,
+  "tower_archer_2": {
+    "file": "tower_archer_2.png",
+    "w": 153,
+    "h": 177,
+    "drawH": 59.1,
+    "anchorX": 0.459,
     "anchorY": 1,
     "facing": 1
   },
-  "tower_ballista": {
-    "file": "tower_ballista.png",
+  "tower_archer_3": {
+    "file": "tower_archer_3.png",
     "w": 167,
-    "h": 198,
-    "drawH": 66,
-    "anchorX": 0.4,
+    "h": 195,
+    "drawH": 65.0,
+    "anchorX": 0.44,
     "anchorY": 1,
     "facing": 1
   },
-  "tower_priest": {
-    "file": "tower_priest.png",
-    "w": 117,
-    "h": 198,
-    "drawH": 66,
-    "anchorX": 0.508,
+  "tower_priest_1": {
+    "file": "tower_priest_1.png",
+    "w": 108,
+    "h": 182,
+    "drawH": 60.8,
+    "anchorX": 0.476,
+    "anchorY": 1,
+    "facing": 1
+  },
+  "tower_priest_2": {
+    "file": "tower_priest_2.png",
+    "w": 134,
+    "h": 187,
+    "drawH": 62.2,
+    "anchorX": 0.471,
+    "anchorY": 1,
+    "facing": 1
+  },
+  "tower_priest_3": {
+    "file": "tower_priest_3.png",
+    "w": 150,
+    "h": 209,
+    "drawH": 69.7,
+    "anchorX": 0.437,
+    "anchorY": 1,
+    "facing": 1
+  },
+  "tower_mage_1": {
+    "file": "tower_mage_1.png",
+    "w": 113,
+    "h": 174,
+    "drawH": 58.0,
+    "anchorX": 0.488,
+    "anchorY": 1,
+    "facing": 1
+  },
+  "tower_mage_2": {
+    "file": "tower_mage_2.png",
+    "w": 120,
+    "h": 184,
+    "drawH": 61.3,
+    "anchorX": 0.439,
+    "anchorY": 1,
+    "facing": 1
+  },
+  "tower_mage_3": {
+    "file": "tower_mage_3.png",
+    "w": 141,
+    "h": 196,
+    "drawH": 65.5,
+    "anchorX": 0.476,
+    "anchorY": 1,
+    "facing": 1
+  },
+  "tower_ballista_1": {
+    "file": "tower_ballista_1.png",
+    "w": 179,
+    "h": 140,
+    "drawH": 46.8,
+    "anchorX": 0.393,
+    "anchorY": 1,
+    "facing": 1
+  },
+  "tower_ballista_2": {
+    "file": "tower_ballista_2.png",
+    "w": 191,
+    "h": 147,
+    "drawH": 49.0,
+    "anchorX": 0.394,
+    "anchorY": 1,
+    "facing": 1
+  },
+  "tower_ballista_3": {
+    "file": "tower_ballista_3.png",
+    "w": 195,
+    "h": 187,
+    "drawH": 62.4,
+    "anchorX": 0.418,
     "anchorY": 1,
     "facing": 1
   },

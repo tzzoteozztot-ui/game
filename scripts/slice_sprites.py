@@ -22,11 +22,17 @@ OUT = os.path.join(ROOT, 'public', 'sprites')
 SCALE = 3  # спрайт втрое крупнее, чем рисуется в игре
 
 # name: (лист, рамка x0, y0, x1, y1, точка внутри фигуры, высота в игре в px, куда смотрит фигура)
+# Точка None — берётся всё непрозрачное в рамке (искры, флаги); высота None — по масштабу листа (SHEET_OPTS 'px'),
+# чтобы ярусы одной башни сохранили соотношение размеров и общую линию основания.
+TOWER_COLUMNS = {'archer': (60, 420), 'priest': (430, 790), 'mage': (790, 1150), 'ballista': (1150, 1520)}
+TOWER_ROWS = {1: (5, 228), 2: (228, 440), 3: (440, 690)}
+
 SPRITES = {
-    'tower_archer': ('towers', (250, 20, 630, 400), (420, 300), 66, 1),
-    'tower_mage': ('towers', (930, 40, 1210, 440), (1060, 300), 66, 1),
-    'tower_ballista': ('towers', (290, 540, 650, 970), (450, 850), 66, 1),
-    'tower_priest': ('towers', (920, 490, 1210, 970), (1060, 850), 66, 1),
+    **{
+        f'tower_{kind}_{tier}': ('towers-tiers', (x0, y0, x1, y1), None, None, 1)
+        for kind, (x0, x1) in TOWER_COLUMNS.items()
+        for tier, (y0, y1) in TOWER_ROWS.items()
+    },
     'enemy_infantry': ('enemies', (55, 100, 460, 495), (290, 330), 34, -1),
     'enemy_scout': ('enemies', (585, 130, 915, 485), (760, 300), 32, -1),
     'enemy_heavy': ('enemies', (1035, 55, 1470, 505), (1200, 300), 40, 1),
@@ -97,6 +103,8 @@ def box_mean(a, r):
 
 # Листы с менее ровным фоном: тени в «карманах» темнее фона, вокруг фигур светлый серый ободок
 SHEET_OPTS = {
+    # Лист ярусов башен: фон — нарисованная шахматка (белый и светло-серый)
+    'towers-tiers': {'checker': True, 'px': 0.28},
     'enemies/factions': {'pocket': (9, 13), 'light_rim': True},
     'enemies/ice-legion': {'pocket': (9, 13), 'light_rim': True},
 }
@@ -129,10 +137,56 @@ def sheet_alpha(rgb, pocket=(5, 8), light_rim=False):
     return alpha, bg
 
 
+def checker_alpha(rgb):
+    """Фон-шахматка: почти белые серые пиксели, связанные с краем, и крупные карманы того же цвета."""
+    lo, sat = rgb.min(-1), rgb.max(-1) - rgb.min(-1)
+    near = (lo > 222) & (sat < 12)
+    edge = np.zeros_like(near)
+    edge[0, :] = edge[-1, :] = edge[:, 0] = edge[:, -1] = True
+    background = reconstruct(edge, near)
+    background |= reconstruct(box_mean(near.astype(float), 2) > 0.99, near)
+    bg = np.array([244.0, 244.0, 244.0])
+    dist = np.sqrt(((rgb - bg) ** 2).sum(-1))
+    alpha = np.ones(near.shape)
+    alpha[background] = 0
+    # Ободок в 2 px вокруг фона: частичная прозрачность по удалённости от цвета фона
+    rim = dilate(background, 2) & ~background
+    alpha[rim] = np.clip((dist[rim] - 14) / 40, 0, 1)
+    return alpha, bg
+
+
 def decontaminate(rgb, alpha, bg):
     a = np.maximum(alpha, 1e-3)[..., None]
     clean = (rgb - (1 - a) * bg) / a
     return np.clip(clean, 0, 255)
+
+
+def rect_parts(alpha, rect, reach=120):
+    """Все части фигуры, чей центр лежит в рамке. Части ищутся в рамке, расширенной на reach, чтобы
+    флаги и сияние соседних рядов, заходящие за границу, не обрезались и не попадали сюда.
+    Части считаются по плотным пикселям (без расширения: сияние фонаря почти касается
+    постамента ряда выше), полупрозрачный край потом добирается в 2 px вокруг них."""
+    x0, y0, x1, y1 = rect
+    ey0, ey1 = max(0, y0 - reach), min(alpha.shape[0], y1 + reach)
+    sub = alpha[ey0:ey1, x0:x1]
+    left = sub > 0.5
+    keep = np.zeros_like(left)
+    other = np.zeros_like(left)
+    while left.any():
+        seed = np.zeros_like(left)
+        ys, xs = np.nonzero(left)
+        seed[ys[0], xs[0]] = True
+        part = reconstruct(seed, left)
+        left &= ~part
+        py = np.nonzero(part)[0]
+        if part.sum() > 30 and y0 <= ey0 + py.mean() < y1:
+            keep |= part
+        else:
+            other |= part
+    keep = dilate(keep, 2) & ~dilate(other, 1) & (sub > 0)
+    obj = np.zeros(alpha.shape, bool)
+    obj[ey0:ey1, x0:x1] = keep
+    return obj
 
 
 def main():
@@ -142,18 +196,22 @@ def main():
     for name, (sheet, rect, seed_pt, draw_h, facing) in SPRITES.items():
         if sheet not in sheets:
             rgb = np.asarray(Image.open(os.path.join(SRC, sheet + '.png')).convert('RGB')).astype(float)
-            alpha, bg = sheet_alpha(rgb, **SHEET_OPTS.get(sheet, {}))
+            opts = {k: v for k, v in SHEET_OPTS.get(sheet, {}).items() if k != 'px'}
+            alpha, bg = checker_alpha(rgb) if opts.pop('checker', False) else sheet_alpha(rgb, **opts)
             sheets[sheet] = (decontaminate(rgb, alpha, bg), alpha)
         rgb, alpha = sheets[sheet]
 
         x0, y0, x1, y1 = rect
         region = np.zeros(alpha.shape, bool)
         region[y0:y1, x0:x1] = True
-        solid = dilate(alpha > 0.15, 3) & region
-        seed = np.zeros_like(solid)
-        sx, sy = seed_pt
-        seed[sy - 3:sy + 4, sx - 3:sx + 4] = True
-        obj = reconstruct(seed, solid)
+        if seed_pt is None:
+            obj = rect_parts(alpha, rect)
+        else:
+            solid = dilate(alpha > 0.15, 3) & region
+            seed = np.zeros_like(solid)
+            sx, sy = seed_pt
+            seed[sy - 3:sy + 4, sx - 3:sx + 4] = True
+            obj = reconstruct(seed, solid)
         a = np.where(obj, alpha, 0)
         # Срезаем внешний ободок в 1 px: в нём остаётся серый фон листа
         e = a.copy()
@@ -172,7 +230,9 @@ def main():
 
         rgba = np.dstack([rgb[top:bottom, left:right], a[top:bottom, left:right] * 255]).round().astype(np.uint8)
         img = Image.fromarray(rgba, 'RGBA')
-        out_h = draw_h * SCALE
+        if draw_h is None:
+            draw_h = round((bottom - top) * SHEET_OPTS[sheet]['px'], 1)
+        out_h = round(draw_h * SCALE)
         out_w = max(1, round(img.width * out_h / img.height))
         img = img.convert('RGBa').resize((out_w, out_h), Image.LANCZOS).convert('RGBA')
         img.save(os.path.join(OUT, name + '.png'), optimize=True)

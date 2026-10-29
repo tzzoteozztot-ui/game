@@ -12,7 +12,7 @@ export function TowerSpriteIcon({ type, size = 24, color }: { type: TowerType; s
   if (failed) return <TowerShapeIcon type={type} size={size} color={color} />;
   return (
     <img
-      src={`sprites/tower_${type}.png`}
+      src={`sprites/tower_${type}_1.png`}
       alt=""
       draggable={false}
       onError={() => setFailed(true)}

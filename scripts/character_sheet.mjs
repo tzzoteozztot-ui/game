@@ -52,7 +52,7 @@ await page.evaluate(async () => {
     figure((ctx) => {
       ctx.translate(0.2 * 64, 0.3 * 64);
       const t = { id: 'x', type, level, specs, second, x: 0, y: 0, facing: 1, frozenTimer: 0 };
-      engine.renderTowerSprite(ctx, t, 64, sprites.get(`tower_${type}`), 0);
+      engine.renderTowerSprite(ctx, t, 64, sprites.get(`tower_${type}_${level}`), 0);
     });
 
   const binder = (triple) =>
