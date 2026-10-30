@@ -361,6 +361,7 @@ export class GameEngine {
   public viewZoom = 1;
   public viewX = 0;
   public viewY = 0;
+  private dpr = 1; // device pixel ratio the canvas bitmap was sized for
 
   // Callbacks to UI
   public onStateChange?: (snapshot: GameStateSnapshot) => void;
@@ -405,6 +406,7 @@ export class GameEngine {
   public resizeCanvas() {
     if (!this.canvas) return;
     const dpr = window.devicePixelRatio || 1;
+    this.dpr = dpr;
     // Logical dimensions: CONFIG.grid.totalWidth x totalHeight
     this.canvas.width = CONFIG.grid.totalWidth * dpr;
     this.canvas.height = CONFIG.grid.totalHeight * dpr;
@@ -2534,8 +2536,8 @@ export class GameEngine {
   public render() {
     const ctx = this.ctx;
     if (!ctx) return;
-    // The view (zoom and shift) goes on top of the device pixel ratio set in resizeCanvas
-    const dpr = window.devicePixelRatio || 1;
+    // The view (zoom and shift) goes on top of the pixel ratio the bitmap was sized for in resizeCanvas
+    const dpr = this.dpr;
     const z = dpr * this.viewZoom;
     ctx.setTransform(z, 0, 0, z, -z * this.viewX, -z * this.viewY);
     this.renderField(ctx);

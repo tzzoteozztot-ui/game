@@ -792,8 +792,8 @@ export default function App() {
     if (engineRef.current) engineRef.current.hoverCell = null;
   };
 
-  // Wheel: a mouse wheel or a trackpad pinch (ctrlKey) zooms at the cursor, a two-finger
-  // trackpad scroll pans. A native listener, since React's wheel listener cannot preventDefault
+  // Wheel: a trackpad pinch or Ctrl + wheel (ctrlKey) zooms at the cursor, a plain wheel or a
+  // two-finger trackpad scroll pans. A native listener, since React's wheel listener cannot preventDefault
   useEffect(() => {
     const canvas = canvasRef.current;
     if (screen !== 'playing' || !canvas) return;
@@ -805,10 +805,8 @@ export default function App() {
       const unit = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? 400 : 1;
       const dx = e.deltaX * unit;
       const dy = e.deltaY * unit;
-      // Mouse wheels step in whole notches with no sideways part
-      const mouseWheel = e.deltaMode !== 0 || (dx === 0 && Number.isInteger(dy) && Math.abs(dy) >= 50);
-      if (e.ctrlKey || mouseWheel) {
-        engine.zoomAt(c.x, c.y, Math.exp(-Math.max(-100, Math.min(100, dy)) * (e.ctrlKey ? 0.01 : 0.0025)));
+      if (e.ctrlKey) {
+        engine.zoomAt(c.x, c.y, Math.exp(-Math.max(-100, Math.min(100, dy)) * 0.01));
       } else {
         const rect = canvas.getBoundingClientRect();
         engine.panBy((-dx * CONFIG.grid.totalWidth) / rect.width, (-dy * CONFIG.grid.totalHeight) / rect.height);
@@ -846,10 +844,6 @@ export default function App() {
         e.preventDefault();
         engine.togglePause();
       }
-    } else if (screen === 'playing' && (e.key === '+' || e.key === '=' || e.key === '-' || e.key === '_')) {
-      // Zoom the field at its centre of view
-      e.preventDefault();
-      engine.zoomAt(CONFIG.grid.totalWidth / 2, CONFIG.grid.totalHeight / 2, e.key === '+' || e.key === '=' ? 1.25 : 0.8);
     } else if (screen === 'playing' && e.key === '0') {
       e.preventDefault();
       engine.resetView();
