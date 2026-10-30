@@ -58,7 +58,6 @@ const SIDE_VARS_DUEL = {
 export default function App() {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const dragTowerRef = useRef<string | null>(null); // tower pressed between waves, for drag-to-move
   const engineRef = useRef<GameEngine | null>(null);
 
   // App screen state
@@ -136,6 +135,7 @@ export default function App() {
     isBinding: false,
     canMoveTowers: false,
     rerollCost: CONFIG.shop.rerollCost,
+    zoomed: false,
   });
 
   // Shop state (5 card slots)
@@ -636,22 +636,25 @@ export default function App() {
     engine.cycleTargetPriority(engine.selectedTowerId);
   };
 
-  // Canvas pointer interaction (Placement & Selection)
-  const handleCanvasPointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
-    sound.init();
+  // Canvas pointer interaction (Placement & Selection). A tap acts on release, so the first
+  // finger of a pinch does nothing; one finger dragged pans a zoomed field, or between waves
+  // moves the tower it started on; two fingers zoom and pan
+  const toCanvas = (clientX: number, clientY: number) => {
+    const rect = canvasRef.current!.getBoundingClientRect();
+    return {
+      x: ((clientX - rect.left) * CONFIG.grid.totalWidth) / rect.width,
+      y: ((clientY - rect.top) * CONFIG.grid.totalHeight) / rect.height,
+    };
+  };
+  const toCell = (clientX: number, clientY: number) => {
+    const c = toCanvas(clientX, clientY);
+    const p = engineRef.current!.screenToField(c.x, c.y);
+    return { x: Math.floor(p.x / CONFIG.grid.cellSize), y: Math.floor(p.y / CONFIG.grid.cellSize) };
+  };
+
+  const handleCanvasTap = (cellX: number, cellY: number) => {
     const engine = engineRef.current;
-    const canvas = canvasRef.current;
-    if (!engine || !canvas) return;
-
-    const rect = canvas.getBoundingClientRect();
-    const scaleX = CONFIG.grid.totalWidth / rect.width;
-    const scaleY = CONFIG.grid.totalHeight / rect.height;
-
-    const clickX = (e.clientX - rect.left) * scaleX;
-    const clickY = (e.clientY - rect.top) * scaleY;
-
-    const cellX = Math.floor(clickX / CONFIG.grid.cellSize);
-    const cellY = Math.floor(clickY / CONFIG.grid.cellSize);
+    if (!engine) return;
 
     // If in placement mode:
     if (engine.placingSlot !== null) {
@@ -681,8 +684,6 @@ export default function App() {
     } else if (clickedTower) {
       engine.selectTower(clickedTower.id);
       sound.playBuy();
-      // Between waves a press on a tower can drag it to another cell
-      if (engine.canMoveTowers()) dragTowerRef.current = clickedTower.id;
     } else if (engine.selectedTowerId && engine.moveSelectedTower(cellX, cellY)) {
       // Between waves: a tap on a free cell moves the selected tower there
     } else {
@@ -691,45 +692,129 @@ export default function App() {
     }
   };
 
-  const handleCanvasPointerMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
+  const pointersRef = useRef(new Map<number, { x: number; y: number }>());
+  // The current press: where it started, whether it became a drag or a pinch
+  const gestureRef = useRef<{ x: number; y: number; mode: 'tap' | 'pan' | 'tower' | 'pinch'; towerId: string | null } | null>(null);
+  const pinchRef = useRef<{ dist: number; midX: number; midY: number } | null>(null);
+  const DRAG_START_PX = 8;
+
+  const pinchState = () => {
+    const [a, b] = [...pointersRef.current.values()];
+    const ca = toCanvas(a.x, a.y);
+    const cb = toCanvas(b.x, b.y);
+    return { dist: Math.hypot(ca.x - cb.x, ca.y - cb.y), midX: (ca.x + cb.x) / 2, midY: (ca.y + cb.y) / 2 };
+  };
+
+  const handleCanvasPointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    sound.init();
     const engine = engineRef.current;
-    const canvas = canvasRef.current;
-    if (!engine || !canvas) return;
+    if (!engine || !canvasRef.current) return;
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    e.currentTarget.setPointerCapture(e.pointerId);
+    pointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
 
-    const rect = canvas.getBoundingClientRect();
-    const scaleX = CONFIG.grid.totalWidth / rect.width;
-    const scaleY = CONFIG.grid.totalHeight / rect.height;
-
-    const mouseX = (e.clientX - rect.left) * scaleX;
-    const mouseY = (e.clientY - rect.top) * scaleY;
-
-    const cellX = Math.floor(mouseX / CONFIG.grid.cellSize);
-    const cellY = Math.floor(mouseY / CONFIG.grid.cellSize);
-
-    if (cellX >= 0 && cellX < CONFIG.grid.cols && cellY >= 0 && cellY < CONFIG.grid.rows) {
-      engine.hoverCell = { x: cellX, y: cellY };
-    } else {
-      engine.hoverCell = null;
+    if (pointersRef.current.size === 1) {
+      const cell = toCell(e.clientX, e.clientY);
+      const tower = engine.towers.find((t) => t.x === cell.x && t.y === cell.y);
+      // Between waves a press on a tower can drag it to another cell
+      const towerId = tower && engine.placingSlot === null && !engine.bindingFromId && !engine.upgradingFromBinderId && engine.canMoveTowers() ? tower.id : null;
+      gestureRef.current = { x: e.clientX, y: e.clientY, mode: 'tap', towerId };
+    } else if (pointersRef.current.size === 2) {
+      if (gestureRef.current) gestureRef.current.mode = 'pinch';
+      pinchRef.current = pinchState();
     }
   };
 
-  // Drag a tower between waves: release over a free cell moves it
+  const handleCanvasPointerMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    const engine = engineRef.current;
+    if (!engine || !canvasRef.current) return;
+
+    const cell = toCell(e.clientX, e.clientY);
+    if (cell.x >= 0 && cell.x < CONFIG.grid.cols && cell.y >= 0 && cell.y < CONFIG.grid.rows) {
+      engine.hoverCell = cell;
+    } else {
+      engine.hoverCell = null;
+    }
+
+    const prev = pointersRef.current.get(e.pointerId);
+    if (!prev) return;
+    pointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    const g = gestureRef.current;
+    if (!g) return;
+
+    if (g.mode === 'pinch') {
+      if (pointersRef.current.size < 2 || !pinchRef.current) return;
+      const now = pinchState();
+      const before = pinchRef.current;
+      if (before.dist > 0) engine.zoomAt(now.midX, now.midY, now.dist / before.dist);
+      engine.panBy(now.midX - before.midX, now.midY - before.midY);
+      pinchRef.current = now;
+      return;
+    }
+    if (g.mode === 'tap' && Math.hypot(e.clientX - g.x, e.clientY - g.y) > DRAG_START_PX) {
+      if (g.towerId) {
+        g.mode = 'tower';
+        engine.selectTower(g.towerId);
+        sound.playBuy();
+      } else if (engine.viewZoom > 1) {
+        g.mode = 'pan';
+      }
+    }
+    if (g.mode === 'pan') {
+      const a = toCanvas(prev.x, prev.y);
+      const b = toCanvas(e.clientX, e.clientY);
+      engine.panBy(b.x - a.x, b.y - a.y);
+    }
+  };
+
+  // Release: a tap acts, a tower drag moves the tower over a free cell
   const handleCanvasPointerUp = (e: React.PointerEvent<HTMLCanvasElement>) => {
     const engine = engineRef.current;
-    const canvas = canvasRef.current;
-    const dragId = dragTowerRef.current;
-    dragTowerRef.current = null;
-    if (!engine || !canvas || !dragId || engine.selectedTowerId !== dragId) return;
-    const rect = canvas.getBoundingClientRect();
-    const cellX = Math.floor(((e.clientX - rect.left) * CONFIG.grid.totalWidth) / rect.width / CONFIG.grid.cellSize);
-    const cellY = Math.floor(((e.clientY - rect.top) * CONFIG.grid.totalHeight) / rect.height / CONFIG.grid.cellSize);
-    const tower = engine.towers.find((t) => t.id === dragId);
-    if (tower && (tower.x !== cellX || tower.y !== cellY)) engine.moveSelectedTower(cellX, cellY);
+    if (!pointersRef.current.delete(e.pointerId)) return;
+    const g = gestureRef.current;
+    if (g?.mode === 'pinch') {
+      if (pointersRef.current.size === 2) pinchRef.current = pinchState();
+      if (pointersRef.current.size === 0) gestureRef.current = null;
+      return;
+    }
+    gestureRef.current = null;
+    if (!engine || !canvasRef.current || !g || e.type === 'pointercancel') return;
+    const cell = toCell(e.clientX, e.clientY);
+    if (g.mode === 'tap') {
+      handleCanvasTap(cell.x, cell.y);
+    } else if (g.mode === 'tower' && engine.selectedTowerId === g.towerId) {
+      const tower = engine.towers.find((t) => t.id === g.towerId);
+      if (tower && (tower.x !== cell.x || tower.y !== cell.y)) engine.moveSelectedTower(cell.x, cell.y);
+    }
   };
 
   const handleCanvasPointerLeave = () => {
     if (engineRef.current) engineRef.current.hoverCell = null;
   };
+
+  // Wheel: a trackpad pinch or Ctrl + wheel (ctrlKey) zooms at the cursor, a plain wheel or a
+  // two-finger trackpad scroll pans. A native listener, since React's wheel listener cannot preventDefault
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (screen !== 'playing' || !canvas) return;
+    const onWheel = (e: WheelEvent) => {
+      const engine = engineRef.current;
+      if (!engine) return;
+      e.preventDefault();
+      const c = toCanvas(e.clientX, e.clientY);
+      const unit = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? 400 : 1;
+      const dx = e.deltaX * unit;
+      const dy = e.deltaY * unit;
+      if (e.ctrlKey) {
+        engine.zoomAt(c.x, c.y, Math.exp(-Math.max(-100, Math.min(100, dy)) * 0.01));
+      } else {
+        const rect = canvas.getBoundingClientRect();
+        engine.panBy((-dx * CONFIG.grid.totalWidth) / rect.width, (-dy * CONFIG.grid.totalHeight) / rect.height);
+      }
+    };
+    canvas.addEventListener('wheel', onWheel, { passive: false });
+    return () => canvas.removeEventListener('wheel', onWheel);
+  }, [screen]);
 
   // Keyboard controls: the handler is rebuilt every render, so it always sees the current
   // mode, level and difficulty; the listener is added once and calls the latest one
@@ -759,6 +844,9 @@ export default function App() {
         e.preventDefault();
         engine.togglePause();
       }
+    } else if (screen === 'playing' && e.key === '0') {
+      e.preventDefault();
+      engine.resetView();
     } else if (e.key === 'f' || e.key === 'F' || e.key === 'а' || e.key === 'А') {
       if (fullscreenSupported()) {
         e.preventDefault();
@@ -929,6 +1017,7 @@ export default function App() {
                   onPointerMove={handleCanvasPointerMove}
                   onPointerUp={handleCanvasPointerUp}
                   onPointerLeave={handleCanvasPointerLeave}
+                  onPointerCancel={handleCanvasPointerUp}
                   className="w-full h-full block cursor-crosshair touch-none"
                   style={{ imageRendering: 'pixelated' }}
                 />
@@ -955,6 +1044,16 @@ export default function App() {
                   faction={gameState.faction}
                   isWaveActive={gameState.isWaveActive}
                 />
+                {gameState.zoomed && (
+                  <button
+                    type="button"
+                    onClick={() => engineRef.current?.resetView()}
+                    title="Показать всё поле (0)"
+                    className="absolute right-2 bottom-2 px-3 py-1.5 rounded-md border border-white/15 bg-black/45 hover:bg-black/65 backdrop-blur-[2px] text-white/90 text-xs sm:text-sm font-bold select-none"
+                  >
+                    Всё поле
+                  </button>
+                )}
               </div>
             </div>
 
