@@ -1115,10 +1115,10 @@ export default function App() {
               </div>
             </div>
 
-            {/* Right Column: only the shop and the backpack, a quarter of the screen at most (gold, lives and the
+            {/* Right Column: only the shop and the backpack, under a fifth of the screen (gold, lives and the
                 selected tower are over the field). Sizes follow the column's height (cqh) and width (cqw) */}
             <div
-              className="w-[25%] min-w-[160px] max-w-[340px] shrink-0 h-full flex flex-col justify-center-safe bg-[#171520] border-l border-[#2d2938] text-[#f4f2e6] overflow-y-auto overflow-x-hidden select-none z-10 [container-type:size]"
+              className="w-[18%] min-w-[132px] max-w-[260px] shrink-0 h-full flex flex-col justify-center-safe bg-[#171520] border-l border-[#2d2938] text-[#f4f2e6] overflow-y-auto overflow-x-hidden select-none z-10 [container-type:size]"
               style={gameState.duel ? SIDE_VARS_DUEL : SIDE_VARS}
             >
               {gameState.duel && (
