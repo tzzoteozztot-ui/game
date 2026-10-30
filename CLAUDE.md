@@ -113,7 +113,7 @@ React хранит снимок в состоянии и рисует по не�
 ## Спрайты
 
 ```
-art/concepts/            исходные листы концептов 1536×1024 (towers-tiers — башни по ярусам на фоне-шахматке, enemies, bosses,
+art/concepts/            исходные листы концептов 1536×1024 (towers-tiers — башни по ярусам, PNG со своей прозрачностью, enemies, bosses,
                          enemies/factions — враги пяти фракций, enemies/ice-legion — ледяной легион)
 scripts/slice_sprites.py нарезка листов: прозрачный фон без ореола, рамки и размеры фигур
 public/sprites/          PNG (tower_<тип>_<уровень>, enemy_*, enemy_<тип>_<уровень>, boss_1..5) и sprites.json

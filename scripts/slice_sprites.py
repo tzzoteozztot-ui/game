@@ -24,8 +24,8 @@ SCALE = 3  # спрайт втрое крупнее, чем рисуется в 
 # name: (лист, рамка x0, y0, x1, y1, точка внутри фигуры, высота в игре в px, куда смотрит фигура)
 # Точка None — берётся всё непрозрачное в рамке (искры, флаги); высота None — по масштабу листа (SHEET_OPTS 'px'),
 # чтобы ярусы одной башни сохранили соотношение размеров и общую линию основания.
-TOWER_COLUMNS = {'archer': (60, 420), 'priest': (430, 790), 'mage': (790, 1150), 'ballista': (1150, 1520)}
-TOWER_ROWS = {1: (5, 228), 2: (228, 440), 3: (440, 690)}
+TOWER_COLUMNS = {'archer': (90, 430), 'priest': (450, 760), 'mage': (790, 1100), 'ballista': (1150, 1520)}
+TOWER_ROWS = {1: (5, 240), 2: (240, 460), 3: (460, 715)}
 
 SPRITES = {
     **{
@@ -103,8 +103,8 @@ def box_mean(a, r):
 
 # Листы с менее ровным фоном: тени в «карманах» темнее фона, вокруг фигур светлый серый ободок
 SHEET_OPTS = {
-    # Лист ярусов башен: фон — нарисованная шахматка (белый и светло-серый)
-    'towers-tiers': {'checker': True, 'px': 0.28},
+    # Лист ярусов башен: настоящая прозрачность, фон вырезать не нужно
+    'towers-tiers': {'alpha': True, 'px': 0.26},
     'enemies/factions': {'pocket': (9, 13), 'light_rim': True},
     'enemies/ice-legion': {'pocket': (9, 13), 'light_rim': True},
 }
@@ -195,11 +195,18 @@ def main():
     meta = {}
     for name, (sheet, rect, seed_pt, draw_h, facing) in SPRITES.items():
         if sheet not in sheets:
-            rgb = np.asarray(Image.open(os.path.join(SRC, sheet + '.png')).convert('RGB')).astype(float)
+            src = Image.open(os.path.join(SRC, sheet + '.png'))
+            rgb = np.asarray(src.convert('RGB')).astype(float)
             opts = {k: v for k, v in SHEET_OPTS.get(sheet, {}).items() if k != 'px'}
-            alpha, bg = checker_alpha(rgb) if opts.pop('checker', False) else sheet_alpha(rgb, **opts)
-            sheets[sheet] = (decontaminate(rgb, alpha, bg), alpha)
-        rgb, alpha = sheets[sheet]
+            if opts.pop('alpha', False):
+                # Своя прозрачность листа; слабую дымку сияния (< 10 %) отбрасываем
+                alpha = np.asarray(src.convert('RGBA'))[..., 3] / 255.0
+                alpha = np.where(alpha < 0.1, 0, alpha)
+                sheets[sheet] = (rgb, alpha, False)
+            else:
+                alpha, bg = checker_alpha(rgb) if opts.pop('checker', False) else sheet_alpha(rgb, **opts)
+                sheets[sheet] = (decontaminate(rgb, alpha, bg), alpha, True)
+        rgb, alpha, erode = sheets[sheet]
 
         x0, y0, x1, y1 = rect
         region = np.zeros(alpha.shape, bool)
@@ -213,13 +220,14 @@ def main():
             seed[sy - 3:sy + 4, sx - 3:sx + 4] = True
             obj = reconstruct(seed, solid)
         a = np.where(obj, alpha, 0)
-        # Срезаем внешний ободок в 1 px: в нём остаётся серый фон листа
-        e = a.copy()
-        e[1:, :] = np.minimum(e[1:, :], a[:-1, :])
-        e[:-1, :] = np.minimum(e[:-1, :], a[1:, :])
-        e[:, 1:] = np.minimum(e[:, 1:], a[:, :-1])
-        e[:, :-1] = np.minimum(e[:, :-1], a[:, 1:])
-        a = e
+        if erode:
+            # Срезаем внешний ободок в 1 px: в нём остаётся серый фон листа
+            e = a.copy()
+            e[1:, :] = np.minimum(e[1:, :], a[:-1, :])
+            e[:-1, :] = np.minimum(e[:-1, :], a[1:, :])
+            e[:, 1:] = np.minimum(e[:, 1:], a[:, :-1])
+            e[:, :-1] = np.minimum(e[:, :-1], a[:, 1:])
+            a = e
         a[a < 0.04] = 0
 
         ys, xs = np.nonzero(a)
