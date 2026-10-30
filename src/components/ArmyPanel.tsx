@@ -25,8 +25,10 @@ export function ArmyPanel({ gold, prices, outgoing, outgoingCost, income, onBuy,
   return (
     <div className="w-full p-1.5 bg-[#171520] text-[#f4f2e6] text-[length:var(--fs-md)] flex flex-col gap-1 shrink-0 select-none">
       <div className="h-[var(--h-line)] flex items-center justify-between px-0.5 leading-none shrink-0">
-        <span className="text-[length:var(--fs-sm)] uppercase font-semibold tracking-wider text-stone-400">Армия сопернику</span>
-        <span className="text-amber-400 font-bold text-[length:var(--fs-sm)] tabular-nums" title="Золото в начале каждого раунда">
+        <span className="text-[length:var(--fs-sm)] uppercase font-semibold tracking-wider text-stone-400 whitespace-nowrap">
+          Армия<span className="hidden @min-[150px]:inline"> сопернику</span>
+        </span>
+        <span className="text-amber-400 font-bold text-[length:var(--fs-sm)] tabular-nums whitespace-nowrap" title="Золото в начале каждого раунда">
           доход +{income}
         </span>
       </div>
@@ -52,7 +54,8 @@ export function ArmyPanel({ gold, prices, outgoing, outgoingCost, income, onBuy,
                     : 'border-[#262330] bg-[#181622] opacity-50'
               }`}
             >
-              <span className="absolute top-0.5 left-1 max-w-[calc(100%-8px)] truncate text-stone-300 text-[length:var(--fs-xs)] font-semibold leading-none [text-shadow:0_1px_2px_#000]">
+              {/* No room for the name in a narrow column: the sprite and the tooltip stay */}
+              <span className="absolute top-0.5 left-1 max-w-[calc(100%-8px)] truncate hidden @min-[150px]:block text-stone-300 text-[length:var(--fs-xs)] font-semibold leading-none [text-shadow:0_1px_2px_#000]">
                 {def.name}
               </span>
               {n > 0 && (

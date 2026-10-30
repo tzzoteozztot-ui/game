@@ -81,8 +81,10 @@ export function ShopPanel({
           </>
         ) : (
           <>
-            <span className="text-[length:var(--fs-sm)] uppercase font-semibold tracking-wider text-stone-400">Лавка башен</span>
-            <span className="text-amber-400 font-bold text-[length:var(--fs-sm)]">Ярус {tier}</span>
+            <span className="text-[length:var(--fs-sm)] uppercase font-semibold tracking-wider text-stone-400 whitespace-nowrap">
+              Лавка<span className="hidden @min-[150px]:inline"> башен</span>
+            </span>
+            <span className="text-amber-400 font-bold text-[length:var(--fs-sm)] whitespace-nowrap">Ярус {tier}</span>
           </>
         )}
       </div>
@@ -184,7 +186,7 @@ export function ShopPanel({
           type="button"
           onClick={onReroll}
           disabled={gold < rerollCost}
-          className={`h-[var(--h-card)] px-1 rounded border text-[length:var(--fs-md)] font-semibold flex flex-col items-center justify-center gap-1 transition-colors cursor-pointer ${
+          className={`h-[var(--h-card)] px-1 rounded border text-[length:var(--fs-md)] font-semibold flex flex-col items-center justify-center gap-0.5 transition-colors cursor-pointer ${
             gold >= rerollCost
               ? 'bg-[#221f2d] hover:bg-[#2c283a] text-stone-200 border-[#383347]'
               : 'bg-[#181622] text-stone-600 border-[#262330] cursor-not-allowed'
@@ -192,7 +194,8 @@ export function ShopPanel({
           title="Обновить лавку (R)"
         >
           <span className="text-[length:var(--fs-lg)] leading-none">↻</span>
-          <span className="text-[length:var(--fs-xs)]">Обновить</span>
+          {/* The word is dropped in a narrow column, the icon and the price stay */}
+          <span className="hidden @min-[150px]:inline text-[length:var(--fs-xs)] whitespace-nowrap">Обновить</span>
           <span className="flex items-center gap-0.5 text-amber-300 tabular-nums font-bold leading-none">
             <GoldIcon size="0.95em" />
             {rerollCost}
@@ -213,10 +216,12 @@ export function ShopPanel({
         title="Поднять ярус лавки (U)"
       >
         {tier >= 5 ? (
-          <span>Ярус лавки 5 (макс)</span>
+          <span className="whitespace-nowrap">Ярус<span className="hidden @min-[150px]:inline"> лавки</span> 5 (макс)</span>
         ) : (
           <>
-            <span>Ярус лавки {tier}→{tier + 1}</span>
+            <span className="whitespace-nowrap">
+              Ярус<span className="hidden @min-[150px]:inline"> лавки</span> {tier}→{tier + 1}
+            </span>
             <span className="flex items-center gap-0.5 text-amber-300 tabular-nums font-bold">
               <GoldIcon size="0.95em" />
               {tierCost}
