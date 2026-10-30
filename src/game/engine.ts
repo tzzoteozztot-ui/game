@@ -2666,13 +2666,14 @@ export class GameEngine {
 
     // 7. Render Towers
     // Sorted by y so lower figures overlap the ones behind them; flyers on top
-    for (const b of this.binders) {
-      this.renderBinder(ctx, b, cellSize, timeSec);
-    }
-    const towersByDepth = [...this.towers].sort((a, b) => a.y - b.y);
-    for (const t of towersByDepth) {
-      this.renderTower(ctx, t, cellSize, timeSec);
-    }
+    // Binders, towers and the castle sprite share one depth order (castle and binders before towers of their row)
+    const figures: { y: number; draw: () => void }[] = [
+      { y: CONFIG.grid.castleCells[0].y - 0.2, draw: () => this.renderCastleFigure(ctx, cellSize, timeSec) },
+      ...this.binders.map((b) => ({ y: b.y - 0.1, draw: () => this.renderBinder(ctx, b, cellSize, timeSec) })),
+      ...this.towers.map((t) => ({ y: t.y, draw: () => this.renderTower(ctx, t, cellSize, timeSec) })),
+    ];
+    figures.sort((a, b) => a.y - b.y);
+    for (const f of figures) f.draw();
 
     // 8. Render Enemies
     this.renderCorpses(ctx, timeSec);
@@ -2803,6 +2804,15 @@ export class GameEngine {
     ctx.fillRect(x0 - cellSize / 2, y0 - cellSize / 2, cellSize * 2, cellSize * 2);
     ctx.globalAlpha = 1;
 
+    // The castle sprite stands with the towers (renderCastleFigure); here only its ground shadow
+    if (sprites.has('castle')) {
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
+      ctx.beginPath();
+      ctx.ellipse(cx, cy + 22, 34, 10, 0, 0, Math.PI * 2);
+      ctx.fill();
+      return;
+    }
+
     // Keep: square wall with corner towers
     ctx.fillStyle = '#121118';
     ctx.fillRect(x0 + 3, y0 + 3, cellSize - 6, cellSize - 6);
@@ -2859,6 +2869,15 @@ export class GameEngine {
     ctx.fill();
   }
 
+  // Castle sprite (public/sprites/castle.png), drawn in depth order with the towers; larger than its cell
+  private renderCastleFigure(ctx: CanvasRenderingContext2D, cellSize: number, timeSec: number) {
+    const spr = sprites.get('castle');
+    if (!spr) return;
+    const c = CONFIG.grid.castleCells[0];
+    const breath = Math.sin(timeSec * 1.6) * 0.008;
+    drawSprite(ctx, spr, (c.x + 0.5) * cellSize, (c.y + 0.5) * cellSize + 30, 1, undefined, { sy: 1 + breath });
+  }
+
   // -------------------------------------------------------------
   // Entity Drawing
   // -------------------------------------------------------------
@@ -2867,6 +2886,26 @@ export class GameEngine {
     const cx = (b.x + 0.5) * cellSize;
     const cy = (b.y + 0.5) * cellSize;
     const color = CONFIG.binder.color;
+    // Sprite: a crystal pillar (plain) or a crystal crown (triple) over a pulsing glow
+    const spr = sprites.get(b.triple ? 'binder_triple' : 'binder');
+    if (spr) {
+      const pulse = 0.5 + 0.5 * Math.sin(timeSec * 3 + b.x);
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
+      ctx.beginPath();
+      ctx.ellipse(cx, cy + 25, 20, 7, 0, 0, Math.PI * 2);
+      ctx.fill();
+      const r = b.triple ? 30 : 24;
+      const g = ctx.createRadialGradient(cx, cy + 4, 2, cx, cy + 4, r);
+      g.addColorStop(0, `rgba(62, 214, 196, ${(b.triple ? 0.4 : 0.28) + 0.2 * pulse})`);
+      g.addColorStop(1, 'rgba(62, 214, 196, 0)');
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.arc(cx, cy + 4, r, 0, Math.PI * 2);
+      ctx.fill();
+      const breath = Math.sin(timeSec * 2 + b.x * 1.3 + b.y) * 0.015;
+      drawSprite(ctx, spr, cx, cy + 29, 1, undefined, { sy: 1 + breath });
+      return;
+    }
     ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
     ctx.beginPath();
     ctx.ellipse(cx, cy + 22, 22, 7, 0, 0, Math.PI * 2);
