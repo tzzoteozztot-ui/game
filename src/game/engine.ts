@@ -3072,10 +3072,10 @@ export class GameEngine {
     // Front half of the rings over the pedestal
     rings(0, Math.PI);
 
-    // A bound tower has a badge for each part: the main one under its figure, the second above its own
+    // A bound tower has a badge for each part, each at the foot of its own figure (staggered like the figures)
     if (t.second) {
-      if (t.specs.length > 0) this.drawSpecBadge(ctx, specBadge(t.specs), cx - 14, cy + 20, cx, cellSize);
-      if (t.second.specs.length > 0) this.drawSpecBadge(ctx, specBadge(t.second.specs), cx + 21, cy - 24, cx, cellSize);
+      if (t.specs.length > 0) this.drawSpecBadge(ctx, specBadge(t.specs), cx - 14, cy + 14, cx, cellSize);
+      if (t.second.specs.length > 0) this.drawSpecBadge(ctx, specBadge(t.second.specs), cx + 18, cy + 27, cx, cellSize);
     } else if (t.specs.length > 0) {
       this.drawSpecBadge(ctx, specBadge(t.specs), cx + 21, cy + 20, cx, cellSize);
     }
