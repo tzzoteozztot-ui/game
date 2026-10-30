@@ -394,5 +394,32 @@
     "anchorX": 0.454,
     "anchorY": 1,
     "facing": 1
+  },
+  "binder": {
+    "file": "binder.png",
+    "w": 76,
+    "h": 132,
+    "drawH": 44,
+    "anchorX": 0.388,
+    "anchorY": 1,
+    "facing": 1
+  },
+  "binder_triple": {
+    "file": "binder_triple.png",
+    "w": 92,
+    "h": 150,
+    "drawH": 50,
+    "anchorX": 0.529,
+    "anchorY": 1,
+    "facing": 1
+  },
+  "castle": {
+    "file": "castle.png",
+    "w": 214,
+    "h": 252,
+    "drawH": 84,
+    "anchorX": 0.373,
+    "anchorY": 1,
+    "facing": 1
   }
 }

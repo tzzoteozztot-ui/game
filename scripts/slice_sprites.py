@@ -66,6 +66,10 @@ SPRITES = {
     'boss_3': ('bosses', (1085, 15, 1405, 535), (1220, 330), 72, 1),
     'boss_4': ('bosses', (325, 465, 725, 965), (520, 700), 72, 1),
     'boss_5': ('bosses', (795, 555, 1245, 1005), (1030, 750), 72, 1),
+    # Связки и замок (art/concepts/props): снимки экрана на тёмном фоне-градиенте, по одной фигуре на лист
+    'binder': ('props/binder', (0, 0, 620, 1030), None, 44, 1),
+    'binder_triple': ('props/binder_triple', (0, 0, 690, 1100), None, 50, 1),
+    'castle': ('props/castle', (0, 0, 770, 870), None, 84, 1),
 }
 
 
@@ -107,13 +111,32 @@ SHEET_OPTS = {
     'towers-tiers': {'alpha': True, 'px': 0.26},
     'enemies/factions': {'pocket': (9, 13), 'light_rim': True},
     'enemies/ice-legion': {'pocket': (9, 13), 'light_rim': True},
+    'props/binder': {'gradient': True},
+    'props/binder_triple': {'gradient': True},
+    'props/castle': {'gradient': True},
 }
 
 
-def sheet_alpha(rgb, pocket=(5, 8), light_rim=False):
+def gradient_bg(rgb, band=24):
+    """Тёмный фон с плавным градиентом: по каждому каналу плоскость второй степени,
+    подогнанная по полосе у края листа."""
     h, w, _ = rgb.shape
-    border = np.concatenate([rgb[:8].reshape(-1, 3), rgb[-8:].reshape(-1, 3)])
-    bg = np.median(border, axis=0)
+    yy, xx = np.mgrid[0:h, 0:w]
+    edge = np.zeros((h, w), bool)
+    edge[:band] = edge[-band:] = edge[:, :band] = edge[:, -band:] = True
+    x, y = xx / w, yy / h
+    basis = np.stack([np.ones_like(x), x, y, x * x, x * y, y * y], -1)
+    coef, *_ = np.linalg.lstsq(basis[edge], rgb[edge], rcond=None)
+    return basis @ coef
+
+
+def sheet_alpha(rgb, pocket=(5, 8), light_rim=False, gradient=False):
+    h, w, _ = rgb.shape
+    if gradient:
+        bg = gradient_bg(rgb)
+    else:
+        border = np.concatenate([rgb[:8].reshape(-1, 3), rgb[-8:].reshape(-1, 3)])
+        bg = np.median(border, axis=0)
     dist = np.sqrt(((rgb - bg) ** 2).sum(-1))
 
     near = dist < 16
@@ -134,6 +157,11 @@ def sheet_alpha(rgb, pocket=(5, 8), light_rim=False):
     if light_rim:
         soft[grey & (rgb.mean(-1) > bg.mean() - 2)] = 0
     alpha[background] = soft[background]
+    if gradient:
+        # Шумный край снимка: резкая маска без крошек (размыкание на 2 px) и сглаживание в 1 px
+        m = alpha > 0.5
+        m = dilate(~dilate(~m, 2), 2)
+        alpha = np.clip(box_mean(m.astype(float), 1), 0, 1)
     return alpha, bg
 
 
