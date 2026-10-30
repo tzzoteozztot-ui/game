@@ -21,6 +21,7 @@ import {
   endlessArmorBonus,
   SendType,
   SEND_TYPES,
+  canBindLevels,
 } from './rules';
 import { sound } from './audio';
 import { sprites, drawSprite, PreparedSprite, SpritePose, SpriteVariant } from './sprites';
@@ -2134,13 +2135,15 @@ export class GameEngine {
     return this.binders.filter((b) => !b.triple);
   }
 
-  // Towers the given one can be bound with: another type, neither already bound
+  // Towers the given one can be bound with: another type, neither already bound, both Ур.2 or Ур.3
   public getBindPartners(tower: Tower): Tower[] {
     if (tower.second || this.plainBinders().length === 0) return [];
+    if (!canBindLevels(tower.level, tower.level)) return [];
     // a level-2 tower still choosing its specialization can't be bound yet
     if (tower.level === 2 && tower.specs.length === 0) return [];
     return this.towers.filter(
-      (t) => t !== tower && t.type !== tower.type && !t.second && (t.level !== 2 || t.specs.length > 0)
+      (t) =>
+        t !== tower && t.type !== tower.type && !t.second && canBindLevels(tower.level, t.level) && (t.level !== 2 || t.specs.length > 0)
     );
   }
 
@@ -2154,6 +2157,7 @@ export class GameEngine {
     const tower = this.selectedTowerId ? this.towers.find((t) => t.id === this.selectedTowerId) : null;
     if (!tower || this.getBindPartners(tower).length === 0) {
       sound.playError();
+      if (tower && !tower.second && this.plainBinders().length > 0 && !canBindLevels(tower.level, tower.level)) this.warnBindLevel(tower);
       return false;
     }
     this.bindingFromId = tower.id;
@@ -2167,6 +2171,8 @@ export class GameEngine {
     this.bindingFromId = null;
     if (!tower || !this.getBindPartners(tower).includes(partner)) {
       sound.playError();
+      if (tower && partner !== tower && partner.type !== tower.type && !partner.second && !canBindLevels(tower.level, partner.level))
+        this.warnBindLevel(partner);
       this.notifyState();
       return false;
     }
@@ -2189,6 +2195,11 @@ export class GameEngine {
     this.selectedTowerId = tower.id;
     this.notifyState();
     return true;
+  }
+
+  private warnBindLevel(at: { x: number; y: number }) {
+    const cs = CONFIG.grid.cellSize;
+    this.addFloatingText('Связка — только Ур.2 и Ур.3', (at.x + 0.5) * cs, (at.y + 0.5) * cs - 16, '#e0452f');
   }
 
   private nearest<T extends { x: number; y: number }>(list: T[], to: { x: number; y: number }): T[] {
