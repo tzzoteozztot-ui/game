@@ -275,7 +275,7 @@ export interface GameStateSnapshot {
   bindPartnerCount: number; // towers the selected one can be bound with
   zoomed: boolean; // the field is zoomed in (the «whole field» button shows)
   selectedDamage: { wave: number; run: number } | null; // damage the selected tower has dealt this wave and this run
-  selectedCell: { x: number; y: number } | null; // cell of the selected tower or binder
+  selectedSide: 'left' | 'right' | null; // half of the screen (with the zoom) the selected tower or binder is on
   isBinding: boolean; // waiting for a tap on the second tower
   canMoveTowers: boolean; // between waves towers can be moved to a free cell
   rerollCost: number; // price of the next shop reroll
@@ -361,6 +361,9 @@ export class GameEngine {
   // Field view: zoom (1 = whole field) and the visible top-left corner in field coordinates.
   // Drawing only: game rules always work in field coordinates
   public viewZoom = 1;
+  private selectedDamageDirty = false; // the selected tower dealt damage since the last snapshot
+  private selectedDamageShown = 0; // performance.now() of the last snapshot
+  private selectedSideShown: 'left' | 'right' | null = null; // selectedSide in the last snapshot
   public viewX = 0;
   public viewY = 0;
 
@@ -445,7 +448,7 @@ export class GameEngine {
     this.viewZoom = 1;
     this.viewX = 0;
     this.viewY = 0;
-    if (wasZoomed) this.notifyState();
+    if (wasZoomed || this.selectedSide() !== this.selectedSideShown) this.notifyState();
   }
 
   private clampView() {
@@ -453,6 +456,16 @@ export class GameEngine {
     const h = CONFIG.grid.totalHeight;
     this.viewX = Math.max(0, Math.min(w - w / this.viewZoom, this.viewX));
     this.viewY = Math.max(0, Math.min(h - h / this.viewZoom, this.viewY));
+    // The tower card sits away from the selected tower: tell the UI when the tower crosses the middle of the screen
+    if (this.selectedSide() !== this.selectedSideShown) this.notifyState();
+  }
+
+  // Half of the screen the selected tower or binder is on, with the zoom
+  private selectedSide(): 'left' | 'right' | null {
+    const sel = this.towers.find((t) => t.id === this.selectedTowerId) || this.binders.find((b) => b.id === this.selectedBinderId);
+    if (!sel) return null;
+    const sx = ((sel.x + 0.5) * CONFIG.grid.cellSize - this.viewX) * this.viewZoom;
+    return sx < CONFIG.grid.totalWidth / 2 ? 'left' : 'right';
   }
 
   public startLevel(level: number, diff: Difficulty, endless = false) {
@@ -589,6 +602,9 @@ export class GameEngine {
         }
         this.tickWaveCountdown(Math.min(rawDt, 0.25));
       }
+
+      // The selected tower's card shows its damage: refresh it a few times a second while it hits
+      if (this.selectedDamageDirty && time - this.selectedDamageShown > 250) this.notifyState();
 
       this.render();
       this.animFrameId = requestAnimationFrame(frame);
@@ -904,6 +920,7 @@ export class GameEngine {
     } else {
       this.waveStats.dmg.set(id, (this.waveStats.dmg.get(id) || 0) + amount);
       this.runStats.dmg.set(id, (this.runStats.dmg.get(id) || 0) + amount);
+      if (id === this.selectedTowerId) this.selectedDamageDirty = true;
     }
   }
 
@@ -2472,7 +2489,9 @@ export class GameEngine {
   public notifyState() {
     if (!this.onStateChange) return;
     const selected = this.selectedTowerId ? this.towers.find((t) => t.id === this.selectedTowerId) || null : null;
-    const selectedCell = selected || this.binders.find((b) => b.id === this.selectedBinderId);
+    this.selectedDamageDirty = false;
+    this.selectedDamageShown = performance.now();
+    this.selectedSideShown = this.selectedSide();
     const eligibleTowers = selected ? this.getEligibleMergeTowers(selected) : [];
     const mergeBinder = selected && eligibleTowers.length === 2 ? this.mergeStandIn(selected) : null;
     const eligibleCount = eligibleTowers.length + (mergeBinder ? 1 : 0);
@@ -2529,7 +2548,7 @@ export class GameEngine {
       rerollCost: this.rerollCost(),
       zoomed: this.viewZoom > 1,
       selectedDamage: selected ? { wave: this.waveStats.dmg.get(selected.id) || 0, run: this.runStats.dmg.get(selected.id) || 0 } : null,
-      selectedCell: selectedCell ? { x: selectedCell.x, y: selectedCell.y } : null,
+      selectedSide: this.selectedSideShown,
     });
   }
 

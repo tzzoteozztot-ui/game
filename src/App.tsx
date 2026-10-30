@@ -139,7 +139,7 @@ export default function App() {
     rerollCost: CONFIG.shop.rerollCost,
     zoomed: false,
     selectedDamage: null,
-    selectedCell: null,
+    selectedSide: null,
   });
 
   // Shop state (5 card slots)
@@ -946,13 +946,8 @@ export default function App() {
   };
 
   // The selected tower's card sits in the bottom corner away from it (on screen, with the zoom)
-  const panelSide: 'left' | 'right' | null = (() => {
-    const cell = gameState.selectedCell;
-    const engine = engineRef.current;
-    if (!cell || !engine || (!gameState.selectedTower && !gameState.selectedBinder)) return null;
-    const sx = ((cell.x + 0.5) * CONFIG.grid.cellSize - engine.viewX) * engine.viewZoom;
-    return sx < CONFIG.grid.totalWidth / 2 ? 'right' : 'left';
-  })();
+  const panelSide: 'left' | 'right' | null =
+    gameState.selectedSide === null ? null : gameState.selectedSide === 'left' ? 'right' : 'left';
   const towerPanel = (
     <TowerPanel
       tower={gameState.selectedTower}
