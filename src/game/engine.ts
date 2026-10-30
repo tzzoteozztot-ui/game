@@ -273,6 +273,7 @@ export interface GameStateSnapshot {
   canUpgradeSelected: boolean; // the selected tower can be raised by a triple binder standing on the field
   isUpgrading: boolean; // triple binder waiting for a tap on a tower
   bindPartnerCount: number; // towers the selected one can be bound with
+  zoomed: boolean; // the field is zoomed in (the «whole field» button shows)
   isBinding: boolean; // waiting for a tap on the second tower
   canMoveTowers: boolean; // between waves towers can be moved to a free cell
   rerollCost: number; // price of the next shop reroll
@@ -355,6 +356,11 @@ export class GameEngine {
   public bindingFromId: string | null = null; // tower waiting for its partner
   public upgradingFromBinderId: string | null = null; // triple binder waiting for the tower to raise
   public hoverCell: Point | null = null;
+  // Field view: zoom (1 = whole field) and the visible top-left corner in field coordinates.
+  // Drawing only: game rules always work in field coordinates
+  public viewZoom = 1;
+  public viewX = 0;
+  public viewY = 0;
 
   // Callbacks to UI
   public onStateChange?: (snapshot: GameStateSnapshot) => void;
@@ -407,12 +413,53 @@ export class GameEngine {
     }
   }
 
+  // Field point under a point of the canvas (both in logical px, 0..totalWidth)
+  public screenToField(sx: number, sy: number): Point {
+    return { x: this.viewX + sx / this.viewZoom, y: this.viewY + sy / this.viewZoom };
+  }
+
+  // Zoom by factor keeping the field point under (sx, sy) in place
+  public zoomAt(sx: number, sy: number, factor: number) {
+    const p = this.screenToField(sx, sy);
+    const wasZoomed = this.viewZoom > 1;
+    let zoom = Math.max(1, Math.min(CONFIG.view.maxZoom, this.viewZoom * factor));
+    if (zoom < 1.02) zoom = 1; // snap back to the whole field
+    this.viewZoom = zoom;
+    this.viewX = p.x - sx / zoom;
+    this.viewY = p.y - sy / zoom;
+    this.clampView();
+    if (wasZoomed !== zoom > 1) this.notifyState();
+  }
+
+  // Shift the view by a canvas distance (logical px): the field follows the finger
+  public panBy(dx: number, dy: number) {
+    this.viewX -= dx / this.viewZoom;
+    this.viewY -= dy / this.viewZoom;
+    this.clampView();
+  }
+
+  public resetView() {
+    const wasZoomed = this.viewZoom > 1;
+    this.viewZoom = 1;
+    this.viewX = 0;
+    this.viewY = 0;
+    if (wasZoomed) this.notifyState();
+  }
+
+  private clampView() {
+    const w = CONFIG.grid.totalWidth;
+    const h = CONFIG.grid.totalHeight;
+    this.viewX = Math.max(0, Math.min(w - w / this.viewZoom, this.viewX));
+    this.viewY = Math.max(0, Math.min(h - h / this.viewZoom, this.viewY));
+  }
+
   public startLevel(level: number, diff: Difficulty, endless = false) {
     this.level = Math.max(1, Math.min(5, level));
     this.faction = this.level;
     this.difficulty = diff;
     this.endless = endless;
     this.duelStart = null;
+    this.resetView();
     this.duelOutgoing = {};
     this.duelOutgoingCost = 0;
     this.duelIncome = 0;
@@ -2477,6 +2524,7 @@ export class GameEngine {
       isBinding: this.bindingFromId !== null,
       canMoveTowers: this.canMoveTowers(),
       rerollCost: this.rerollCost(),
+      zoomed: this.viewZoom > 1,
     });
   }
 
@@ -2486,7 +2534,15 @@ export class GameEngine {
   public render() {
     const ctx = this.ctx;
     if (!ctx) return;
+    // The view (zoom and shift) goes on top of the device pixel ratio set in resizeCanvas
+    const dpr = window.devicePixelRatio || 1;
+    const z = dpr * this.viewZoom;
+    ctx.setTransform(z, 0, 0, z, -z * this.viewX, -z * this.viewY);
+    this.renderField(ctx);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
 
+  private renderField(ctx: CanvasRenderingContext2D) {
     const palette = CONFIG.palettes[this.level - 1];
     const cellSize = CONFIG.grid.cellSize;
 

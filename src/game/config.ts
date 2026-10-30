@@ -74,6 +74,10 @@ export const CONFIG = {
     castleCells: [{ x: 6, y: 4 }], // single cell next to the centre
     castleTarget: { x: 6.5, y: 4.5 }, // center of castle for flyers
   },
+  // Field zoom (drawing only, Артур 2026-10-30): pinch, wheel or +/−; 1 = whole field
+  view: {
+    maxZoom: 2.5,
+  },
 
   lives: {
     start: 20,
