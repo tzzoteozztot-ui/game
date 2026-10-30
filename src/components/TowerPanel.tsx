@@ -139,7 +139,7 @@ export function TowerPanel({
             ? isUpgrading
               ? 'Коснитесь башни или пары: каждая её башня ниже Ур.3 поднимется на уровень.'
               : 'Поднимает любую башню или пару на уровень, кроме Ур.3.'
-            : 'Выберите башню, нажмите «Связать» и коснитесь башни другого вида. Три связки сливаются в тройную с ' + CONFIG.binder.tripleFromTier + '-го яруса лавки.'}
+            : 'Выберите башню Ур.2 или Ур.3, нажмите «Связать» и коснитесь башни другого вида, тоже Ур.2 или Ур.3. Три связки сливаются в тройную с ' + CONFIG.binder.tripleFromTier + '-го яруса лавки.'}
         </div>
         <div className="grid grid-cols-2 gap-1 h-[var(--h-btn)] shrink-0">
           <button
@@ -199,6 +199,8 @@ export function TowerPanel({
     ? 'готово'
     : binderCount === 0
     ? 'нет'
+    : tower.level < CONFIG.binder.minLevel
+    ? `с Ур.${CONFIG.binder.minLevel}`
     : bindPartnerCount === 0
     ? 'нет пары'
     : 'выбрать';
@@ -362,7 +364,7 @@ export function TowerPanel({
               ? 'bg-teal-950/60 hover:bg-teal-900/60 text-[#3ed6c4] border border-[#3ed6c4]/60 cursor-pointer'
               : 'bg-black/30 text-stone-500 border border-white/10 cursor-not-allowed'
           }`}
-          title="Связать с башней другого вида (B)"
+          title={`Связать с башней другого вида (B); обе башни — Ур.${CONFIG.binder.minLevel} или Ур.3`}
         >
           <span className="text-[length:var(--fs-btn4)]">Связать</span>
           <span className="text-[length:var(--fs-xs)] mt-0.5 whitespace-nowrap">{bindLabel}</span>

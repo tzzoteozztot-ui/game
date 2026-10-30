@@ -128,6 +128,11 @@ export function calculateWaveClearReward(wave: number): number {
   return 20 + 3 * wave;
 }
 
+// A binder joins two towers only when both are Ур.2 or Ур.3
+export function canBindLevels(levelA: number, levelB: number): boolean {
+  return levelA >= CONFIG.binder.minLevel && levelB >= CONFIG.binder.minLevel;
+}
+
 export function calculateSellRefund(baseCost: number, level: number, ratio = CONFIG.upgrade.sellRatio): number {
   // Lvl 1: 1 tower invested
   // Lvl 2: 3 towers invested (merged or bought as triplet)

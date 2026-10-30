@@ -363,6 +363,7 @@ export const CONFIG = {
     cost: 80,
     color: '#3ed6c4',
     tripleFromTier: 5, // three binders merge into a triple one only from this shop tier (Артур, 2026-10-26)
+    minLevel: 2, // both towers of a pair must be at least this level (Артур, 2026-10-30)
   },
 
   waveTimer: {

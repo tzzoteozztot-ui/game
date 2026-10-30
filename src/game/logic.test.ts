@@ -440,3 +440,16 @@ test('isEmptyProgress: пустой прогресс отличается от �
   assert.equal(isEmptyProgress(normalizeProgress({ unlocked: 2 })), false);
   assert.equal(isEmptyProgress(normalizeProgress({ stars: { hard: { 1: 1 } } })), false);
 });
+
+import { canBindLevels } from './rules';
+
+test('a binder joins only towers of Ур.2 and Ур.3, in any mix (Артур, 2026-10-30)', () => {
+  assert.equal(CONFIG.binder.minLevel, 2);
+  assert.equal(canBindLevels(2, 2), true);
+  assert.equal(canBindLevels(2, 3), true);
+  assert.equal(canBindLevels(3, 2), true);
+  assert.equal(canBindLevels(3, 3), true);
+  assert.equal(canBindLevels(1, 2), false);
+  assert.equal(canBindLevels(3, 1), false);
+  assert.equal(canBindLevels(1, 1), false);
+});

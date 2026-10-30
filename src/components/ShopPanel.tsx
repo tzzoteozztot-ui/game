@@ -110,7 +110,7 @@ export function ShopPanel({
                 key={card.id}
                 type="button"
                 onClick={() => onSelectCard(idx)}
-                title={`${CONFIG.binder.name}: связывает две башни разных видов в одну — ${binderCost} золота (${idx + 1})`}
+                title={`${CONFIG.binder.name}: связывает две башни разных видов Ур.2 или Ур.3 в одну — ${binderCost} золота (${idx + 1})`}
                 className={`h-[var(--h-card)] rounded border flex flex-col items-center justify-center relative transition-all cursor-pointer select-none shrink-0 ${
                   isPicked
                     ? 'border-[#3ed6c4] bg-teal-950/40 ring-1 ring-[#3ed6c4] shadow-sm'
