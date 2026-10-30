@@ -1,6 +1,6 @@
 /**
  * Backpack for «Тёмный рубеж»: bought towers and binders wait here until they are placed.
- * Tap a slot to take the item in hand (tap again to put it back); while it is in hand the label turns into «Продать».
+ * Tap a slot to take the item in hand (tap again to put it back); while it is in hand the header line offers «Продать».
  */
 
 import { CONFIG, TowerType } from '../game/config';
@@ -18,28 +18,24 @@ export function Backpack({ items, slots, placingSlot, onSelect, onSell }: Backpa
   const overflow = items.length > slots; // a purchase that found no free slot
   const inHand = placingSlot !== null && placingSlot < slots ? items[placingSlot] : null;
   return (
-    <div className="w-full px-1.5 pb-1.5 bg-[#171520] text-[#f4f2e6] flex gap-1 shrink-0 select-none">
-      {inHand && placingSlot !== null ? (
-        <button
-          type="button"
-          onClick={() => onSell(placingSlot)}
-          title="Продать из рюкзака за столько же, сколько заплатили"
-          className="w-[22%] rounded border border-[#383347] bg-[#221f2d] hover:bg-[#2c283a] text-[length:var(--fs-xs)] font-semibold text-stone-200 leading-tight cursor-pointer"
-        >
-          Продать
-          <br />
-          <span className="text-amber-300 tabular-nums">+{inHand.sell}</span>
-        </button>
-      ) : overflow ? (
-        <div className="w-[22%] flex items-center justify-center text-center text-[length:var(--fs-xs)] font-semibold text-amber-300 leading-tight">
-          Поставьте или замените
-        </div>
-      ) : (
-        <div className="w-[22%] flex items-center justify-center text-[length:var(--fs-xs)] uppercase font-semibold tracking-wider text-stone-400">
-          Рюкзак
-        </div>
-      )}
-      <div className="flex-1 grid grid-cols-3 gap-1">
+    <div className="w-full px-1.5 pb-1.5 bg-[#171520] text-[#f4f2e6] flex flex-col gap-1 shrink-0 select-none">
+      {/* Header line: the label, or «Продать» for the item in hand */}
+      <div className="h-[var(--h-line)] flex items-center justify-between gap-1 px-0.5 leading-none">
+        <span className="text-[length:var(--fs-sm)] uppercase font-semibold tracking-wider text-stone-400">Рюкзак</span>
+        {inHand && placingSlot !== null ? (
+          <button
+            type="button"
+            onClick={() => onSell(placingSlot)}
+            title="Продать из рюкзака за столько же, сколько заплатили"
+            className="h-full px-1.5 rounded border border-[#383347] bg-[#221f2d] hover:bg-[#2c283a] text-[length:var(--fs-xs)] font-semibold text-stone-200 cursor-pointer whitespace-nowrap"
+          >
+            Продать <span className="text-amber-300 tabular-nums">+{inHand.sell}</span>
+          </button>
+        ) : overflow ? (
+          <span className="text-[length:var(--fs-xs)] font-semibold text-amber-300 truncate">поставьте или замените</span>
+        ) : null}
+      </div>
+      <div className="grid grid-cols-3 gap-1">
       {Array.from({ length: slots }, (_, i) => {
         const item = items[i];
         if (!item) {

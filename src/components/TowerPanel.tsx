@@ -1,9 +1,10 @@
 /**
  * Tower Detail & Management Panel for «Тёмный рубеж»
- * Always visible beneath the shop with fixed height.
- * Shows selected tower stats; target priority, merge and sell share one row.
- * Shows "Коснитесь башни" when no tower is selected; for a selected «Связка» a note with
+ * A semi-transparent card over the field, shown while a tower or «Связка» is selected (App puts it in the
+ * bottom corner away from it). Shows the tower's stats; target priority, merge, bind and sell share one row; «Подробнее»
+ * opens what each specialization does and the damage the tower has dealt. For a selected «Связка» a note with
  * merge (three into a triple one) or raise (triple) and sell buttons. A bound tower shows both parts' stats as «main / second».
+ * Same cell unit as FieldHud: one cell is 100cqw / CONFIG.grid.cols. Only the card takes taps: the rest of the field stays free.
  */
 
 import React from 'react';
@@ -11,6 +12,22 @@ import { Tower, TowerPart } from '../game/engine';
 import { CONFIG } from '../game/config';
 import { calculateSellRefund } from '../game/rules';
 import { TowerSpriteIcon, BinderIcon } from './Icons';
+
+const CELL = `calc(100cqw / ${CONFIG.grid.cols})`;
+
+// Sizes follow the field's cell, with phone minimums and desktop caps
+const PANEL_VARS = {
+  '--cell': CELL,
+  '--fs-xs': `clamp(9px, calc(${CELL} * 0.22), 14px)`,
+  '--fs-sm': `clamp(10px, calc(${CELL} * 0.25), 15px)`,
+  '--fs-md': `clamp(11px, calc(${CELL} * 0.28), 17px)`,
+  '--fs-lg': `clamp(12px, calc(${CELL} * 0.33), 20px)`,
+  '--fs-btn4': `clamp(10px, calc(${CELL} * 0.26), 16px)`,
+  '--h-btn': `clamp(32px, calc(${CELL} * 0.8), 54px)`,
+  '--h-head': `clamp(24px, calc(${CELL} * 0.6), 40px)`,
+} as React.CSSProperties;
+
+const glassBtn = 'rounded border border-white/15 bg-white/5 hover:bg-white/15 text-white/85 flex items-center justify-center leading-none cursor-pointer';
 import { attackStats, specSummary } from '../game/towerStats';
 
 interface TowerPanelProps {
@@ -35,6 +52,28 @@ interface TowerPanelProps {
   onMerge: () => void;
   onBind: () => void;
   onSell: () => void;
+  onClose: () => void;
+  details: boolean; // «Подробнее» is open: what the specializations do, the damage dealt
+  onToggleDetails: () => void;
+  damage: { wave: number; run: number } | null; // damage the selected tower has dealt
+}
+
+const fmt = (n: number) => Math.round(n).toLocaleString('ru-RU');
+
+// The card's frame: App puts it in a bottom corner of the field, inside an inline-size container as wide as the field
+function Card({ children }: { children: React.ReactNode }) {
+  return (
+    <div
+      className="pointer-events-auto flex flex-col gap-1 p-1.5 rounded-lg bg-[#121018]/70 border border-white/15 backdrop-blur-[3px] shadow-xl text-[#f4f2e6] text-[length:var(--fs-md)] select-none overflow-y-auto"
+      style={{
+        ...PANEL_VARS,
+        width: `clamp(232px, calc(${CELL} * 4.9), 420px)`,
+        maxHeight: `calc(${CELL} * ${CONFIG.grid.rows - 2.2})`,
+      }}
+    >
+      {children}
+    </div>
+  );
 }
 
 // Live stats of one part: a part whose only specialization is «Кара» shows its pulse
@@ -70,22 +109,32 @@ export function TowerPanel({
   onMerge,
   onBind,
   onSell,
+  onClose,
+  damage,
+  details,
+  onToggleDetails,
 }: TowerPanelProps) {
+  const closeBtn = (
+    <button type="button" onClick={onClose} title="Закрыть (Esc)" className={`${glassBtn} w-[var(--h-head)] h-[var(--h-head)] text-[length:var(--fs-lg)] shrink-0`}>
+      ×
+    </button>
+  );
   if (!tower && selectedBinder) {
     const triple = selectedBinderTriple;
     const binderRefund = Math.floor(CONFIG.binder.cost * (triple ? 3 : 1) * sellRatio);
     const canAct = triple ? isUpgrading || upgradeTargetCount > 0 : canMergeBinders;
     return (
-      <div className="w-full flex-1 min-h-[112px] flex flex-col justify-between gap-1 p-1.5 bg-[#171520] border-t border-[#2d2938] text-[#f4f2e6] text-[length:var(--fs-md)] shrink-0 select-none">
+      <Card>
         <div className="flex items-center gap-2 h-[var(--h-head)] shrink-0">
-          <div className="w-[var(--h-head)] h-[var(--h-head)] flex items-center justify-center bg-[#13111a] rounded border border-[#2e2a3b] shrink-0">
+          <div className="w-[var(--h-head)] h-[var(--h-head)] flex items-center justify-center bg-black/30 rounded border border-white/10 shrink-0">
             <BinderIcon size="80%" />
           </div>
-          <div className="font-bold text-[length:var(--fs-md)]" style={{ color: CONFIG.binder.color }}>
+          <div className="flex-1 font-bold text-[length:var(--fs-md)]" style={{ color: CONFIG.binder.color }}>
             {triple ? 'Тройная связка' : CONFIG.binder.name}
           </div>
+          {closeBtn}
         </div>
-        <div className="flex-1 flex items-center text-[length:var(--fs-sm)] leading-tight text-stone-400">
+        <div className="flex items-center text-[length:var(--fs-sm)] leading-tight text-stone-300">
           {triple
             ? isUpgrading
               ? 'Коснитесь башни или пары: каждая её башня ниже Ур.3 поднимется на уровень.'
@@ -102,7 +151,7 @@ export function TowerPanel({
                 ? 'bg-[#3ed6c4] text-stone-950 border border-teal-200 cursor-pointer'
                 : canAct
                   ? 'bg-teal-950/60 hover:bg-teal-900/60 text-[#3ed6c4] border border-[#3ed6c4]/60 cursor-pointer'
-                  : 'bg-[#1b1926] text-stone-600 border border-[#2d2938] cursor-not-allowed'
+                  : 'bg-black/30 text-stone-500 border border-white/10 cursor-not-allowed'
             }`}
             title={triple ? 'Поднять уровень башни (B)' : shopTier < CONFIG.binder.tripleFromTier ? `Три связки сливаются в тройную с ${CONFIG.binder.tripleFromTier}-го яруса лавки` : 'Слить три связки в тройную (M)'}
           >
@@ -121,23 +170,11 @@ export function TowerPanel({
             <span className="text-amber-300 font-bold text-[length:var(--fs-xs)] tabular-nums mt-0.5">{binderRefund}</span>
           </button>
         </div>
-      </div>
+      </Card>
     );
   }
 
-  // No tower selected: a short reminder of the controls fills the panel on tall screens
-  if (!tower) {
-    return (
-      <div className="w-full flex-1 min-h-[112px] flex flex-col items-center justify-center gap-2 p-1.5 text-center bg-[#171520] border-t border-[#2d2938] select-none">
-        <div className="text-[length:var(--fs-md)] font-semibold text-stone-500">Коснитесь башни</div>
-        <ul className="text-[length:var(--fs-xs)] leading-snug text-stone-500 space-y-1 [@container(max-height:520px)]:hidden">
-          <li>Три одинаковые башни одного уровня сливаются в одну (M).</li>
-          <li>На Ур.2 башня получает свойство, на Ур.3 — все свойства трёх башен.</li>
-          <li>«Связка» объединяет две башни разных видов (B), три связки — в тройную (M, с 5-го яруса лавки).</li>
-        </ul>
-      </div>
-    );
-  }
+  if (!tower) return null;
 
   const baseDef = CONFIG.towers[tower.type];
   const canMerge = eligibleMergeCount >= 3 && tower.level < 3;
@@ -206,14 +243,14 @@ export function TowerPanel({
       : 'Ближний';
 
   return (
-    <div className="w-full flex-1 min-h-[112px] flex flex-col justify-between gap-1 p-1.5 bg-[#171520] border-t border-[#2d2938] text-[#f4f2e6] text-[length:var(--fs-md)] shrink-0 select-none">
-      {/* 1. Header: Name, level, specialization */}
-      <div className="flex items-center gap-2 h-[var(--h-head)] shrink-0">
-        <div className="w-[var(--h-head)] h-[var(--h-head)] flex items-center justify-center bg-[#13111a] rounded border border-[#2e2a3b] shrink-0 overflow-hidden">
+    <Card>
+      {/* 1. Header: Name, level, specialization; details and close */}
+      <div className="flex items-center gap-1.5 h-[var(--h-head)] shrink-0">
+        <div className="w-[var(--h-head)] h-[var(--h-head)] flex items-center justify-center bg-black/30 rounded border border-white/10 shrink-0 overflow-hidden">
           <TowerSpriteIcon type={tower.type} size="85%" color={baseDef.color} />
         </div>
         <div className="min-w-0 flex-1 flex items-baseline justify-between gap-1 leading-none">
-          <div className={`font-bold text-stone-200 text-[length:var(--fs-md)] ${second ? 'shrink-0' : 'truncate'}`}>
+          <div className={`font-bold text-stone-200 text-[length:var(--fs-md)] shrink-0`}>
             {baseDef.name}{' '}
             <span className="text-amber-400 text-[length:var(--fs-md)] font-bold">{second ? tower.level : `Ур.${tower.level}`}</span>
             {second && secondDef && (
@@ -224,58 +261,61 @@ export function TowerPanel({
             )}
           </div>
           <div
-            className={`text-[length:var(--fs-sm)] text-amber-300 font-semibold truncate ${second ? 'min-w-0' : 'shrink-0'}`}
+            className={`text-[length:var(--fs-sm)] text-amber-300 font-semibold truncate min-w-0`}
             title={specText}
           >
             {specText || (tower.level === 3 ? 'МАКС' : 'Базовая')}
           </div>
         </div>
+        <button
+          type="button"
+          onClick={onToggleDetails}
+          aria-expanded={details}
+          title="Подробнее о башне (I)"
+          className={`${glassBtn} h-[var(--h-head)] px-1.5 text-[length:var(--fs-sm)] font-bold shrink-0 ${details ? '!bg-amber-600/60 !border-amber-300/50 !text-white' : ''}`}
+        >
+          ⓘ
+        </button>
+        {closeBtn}
       </div>
 
-      {/* 2. Stats Grid: Damage, Period, Range */}
-      <div className="grid grid-cols-3 gap-1 bg-[#121118] shrink-0 p-1 rounded border border-[#2d2938] text-center">
-        <div>
-          <div className="text-[length:var(--fs-xs)] text-stone-400 uppercase leading-none">Урон</div>
-          <div className={`font-bold text-amber-200 ${second ? 'text-[length:var(--fs-md)]' : 'text-[length:var(--fs-lg)]'} whitespace-nowrap tabular-nums mt-0.5`}>
-            {pair(main.damage, other?.damage)}
-          </div>
-        </div>
-        <div>
-          <div className="text-[length:var(--fs-xs)] text-stone-400 uppercase leading-none">Период</div>
-          <div className={`font-bold text-stone-200 ${second ? 'text-[length:var(--fs-md)]' : 'text-[length:var(--fs-lg)]'} whitespace-nowrap tabular-nums mt-0.5`}>
-            {pair(main.period, other?.period)}с
-          </div>
-        </div>
-        <div>
-          <div className="text-[length:var(--fs-xs)] text-stone-400 uppercase leading-none">Радиус</div>
-          <div className={`font-bold text-stone-200 ${second ? 'text-[length:var(--fs-md)]' : 'text-[length:var(--fs-lg)]'} whitespace-nowrap tabular-nums mt-0.5`}>
-            {pair(main.range, other?.range)}
-          </div>
-        </div>
-      </div>
-
-      {/* Specialization notes: fill the room tall screens leave, hidden when there is none */}
-      {/* Column wrap: a note that doesn't fit whole moves to a clipped second column */}
-      <div className="flex-1 min-h-0 overflow-hidden flex flex-col flex-wrap gap-y-0.5 gap-x-4 text-[length:var(--fs-xs)] leading-snug text-stone-400 [@container(max-height:520px)]:hidden">
-        {notes.map((n) => (
-          <div key={n.title} className="w-full">
-            <span className="text-amber-300 font-semibold">{n.title}</span> — {n.text}
+      {/* 2. Stats line: Damage, Period, Range */}
+      <div className="grid grid-cols-3 gap-1 bg-black/30 shrink-0 px-1 py-0.5 rounded border border-white/10 text-center leading-none whitespace-nowrap tabular-nums">
+        {[
+          { label: 'Урон', value: pair(main.damage, other?.damage), color: 'text-amber-200' },
+          { label: 'Период', value: `${pair(main.period, other?.period)}с`, color: 'text-stone-200' },
+          { label: 'Радиус', value: pair(main.range, other?.range), color: 'text-stone-200' },
+        ].map((st) => (
+          <div key={st.label} className="flex items-baseline justify-center gap-1 min-w-0">
+            <span className="text-[length:var(--fs-xs)] text-stone-400">{st.label}</span>
+            <span className={`font-bold ${st.color} text-[length:var(--fs-md)]`}>{st.value}</span>
           </div>
         ))}
       </div>
 
-      {/* 3. Target priority, merge, bind and sell: one row, a 2×2 grid on tall screens */}
-      <div
-        className={`grid gap-1 h-[var(--h-btn)] shrink-0 [@container(min-height:560px)]:grid-cols-2 [@container(min-height:560px)]:[--fs-btn4:var(--fs-md)] [@container(min-height:560px)]:[--fs-xs:var(--fs-sm)] ${
-          canUpgrade
-            ? 'grid-cols-5 [@container(min-height:560px)]:h-[calc(var(--h-btn)*3+8px)]'
-            : 'grid-cols-4 [@container(min-height:560px)]:h-[calc(var(--h-btn)*2+4px)]'
-        }`}
-      >
+      {/* Details: what each specialization does and the damage dealt */}
+      {details && (
+        <div className="flex flex-col gap-y-0.5 text-[length:var(--fs-xs)] leading-snug text-stone-300">
+          {notes.map((n) => (
+            <div key={n.title}>
+              <span className="text-amber-300 font-semibold">{n.title}</span> — {n.text}
+            </div>
+          ))}
+          {damage && (
+            <div className="tabular-nums text-stone-400">
+              Урон: в этой волне <span className="text-amber-200 font-semibold">{fmt(damage.wave)}</span>, за бой{' '}
+              <span className="text-amber-200 font-semibold">{fmt(damage.run)}</span>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* 3. Target priority, merge, bind and sell: one row */}
+      <div className={`grid gap-1 h-[var(--h-btn)] shrink-0 ${canUpgrade ? 'grid-cols-5' : 'grid-cols-4'}`}>
         <button
           type="button"
           onClick={onCyclePriority}
-          className="h-[var(--h-btn)] px-1 rounded bg-[#221f2d] hover:bg-[#2c283a] border border-[#383347] flex flex-col items-center justify-center leading-none cursor-pointer"
+          className="h-[var(--h-btn)] px-1 rounded bg-white/5 hover:bg-white/15 border border-white/15 flex flex-col items-center justify-center leading-none cursor-pointer"
           title="Приоритет цели (Tab)"
         >
           <span className="text-[length:var(--fs-xs)] text-stone-400">Цель</span>
@@ -289,7 +329,7 @@ export function TowerPanel({
           className={`h-[var(--h-btn)] px-1 rounded font-bold flex flex-col items-center justify-center leading-none transition-all ${
             canMerge
               ? 'bg-amber-500 hover:bg-amber-400 text-stone-950 border border-amber-300 shadow-md shadow-amber-950/40 animate-pulse cursor-pointer'
-              : 'bg-[#1b1926] text-stone-600 border border-[#2d2938] cursor-not-allowed'
+              : 'bg-black/30 text-stone-500 border border-white/10 cursor-not-allowed'
           }`}
           title="Слить 3 башни в одну (M); связка заменяет третью: обычная для Ур.1, тройная для Ур.2"
         >
@@ -320,7 +360,7 @@ export function TowerPanel({
               ? 'bg-[#3ed6c4] text-stone-950 border border-teal-200 cursor-pointer'
               : canBind
               ? 'bg-teal-950/60 hover:bg-teal-900/60 text-[#3ed6c4] border border-[#3ed6c4]/60 cursor-pointer'
-              : 'bg-[#1b1926] text-stone-600 border border-[#2d2938] cursor-not-allowed'
+              : 'bg-black/30 text-stone-500 border border-white/10 cursor-not-allowed'
           }`}
           title="Связать с башней другого вида (B)"
         >
@@ -338,6 +378,6 @@ export function TowerPanel({
           <span className="text-amber-300 font-bold text-[length:var(--fs-xs)] tabular-nums mt-0.5">{refund}</span>
         </button>
       </div>
-    </div>
+    </Card>
   );
 }

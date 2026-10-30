@@ -55,7 +55,7 @@ export function ShopPanel({
         {isBinding ? (
           <>
             <span className="font-bold truncate" style={{ color: CONFIG.binder.color }}>Связка</span>
-            <span className="text-[length:var(--fs-sm)] text-stone-400 shrink-0">тапните вторую башню</span>
+            <span className="text-[length:var(--fs-sm)] text-stone-400 shrink-0">тапните башню</span>
           </>
         ) : placingBinder ? (
           <>
@@ -68,7 +68,7 @@ export function ShopPanel({
         ) : isMoving && !inHandDef && !placingBinder ? (
           <>
             <span className="text-amber-300 font-bold shrink-0">Перестановка</span>
-            <span className="text-[length:var(--fs-sm)] text-stone-400 truncate">тапните свободную клетку</span>
+            <span className="text-[length:var(--fs-sm)] text-stone-400 truncate">тапните клетку</span>
           </>
         ) : inHandDef ? (
           <>
@@ -192,7 +192,7 @@ export function ShopPanel({
           title="Обновить лавку (R)"
         >
           <span className="text-[length:var(--fs-lg)] leading-none">↻</span>
-          <span>Обновить</span>
+          <span className="text-[length:var(--fs-xs)]">Обновить</span>
           <span className="flex items-center gap-0.5 text-amber-300 tabular-nums font-bold leading-none">
             <GoldIcon size="0.95em" />
             {rerollCost}
