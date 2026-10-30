@@ -274,6 +274,8 @@ export interface GameStateSnapshot {
   isUpgrading: boolean; // triple binder waiting for a tap on a tower
   bindPartnerCount: number; // towers the selected one can be bound with
   zoomed: boolean; // the field is zoomed in (the «whole field» button shows)
+  selectedDamage: { wave: number; run: number } | null; // damage the selected tower has dealt this wave and this run
+  selectedCell: { x: number; y: number } | null; // cell of the selected tower or binder
   isBinding: boolean; // waiting for a tap on the second tower
   canMoveTowers: boolean; // between waves towers can be moved to a free cell
   rerollCost: number; // price of the next shop reroll
@@ -2470,6 +2472,7 @@ export class GameEngine {
   public notifyState() {
     if (!this.onStateChange) return;
     const selected = this.selectedTowerId ? this.towers.find((t) => t.id === this.selectedTowerId) || null : null;
+    const selectedCell = selected || this.binders.find((b) => b.id === this.selectedBinderId);
     const eligibleTowers = selected ? this.getEligibleMergeTowers(selected) : [];
     const mergeBinder = selected && eligibleTowers.length === 2 ? this.mergeStandIn(selected) : null;
     const eligibleCount = eligibleTowers.length + (mergeBinder ? 1 : 0);
@@ -2525,6 +2528,8 @@ export class GameEngine {
       canMoveTowers: this.canMoveTowers(),
       rerollCost: this.rerollCost(),
       zoomed: this.viewZoom > 1,
+      selectedDamage: selected ? { wave: this.waveStats.dmg.get(selected.id) || 0, run: this.runStats.dmg.get(selected.id) || 0 } : null,
+      selectedCell: selectedCell ? { x: selectedCell.x, y: selectedCell.y } : null,
     });
   }
 

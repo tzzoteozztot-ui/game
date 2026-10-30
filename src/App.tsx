@@ -11,7 +11,7 @@ import { GameEngine, GameStateSnapshot, Tower } from './game/engine';
 import { calculateStars } from './game/rules';
 import { sprites } from './game/sprites';
 
-import { TopBar } from './components/TopBar';
+import { FieldStats } from './components/FieldStats';
 import { FieldHud } from './components/FieldHud';
 import { WaveInfo } from './components/WaveInfo';
 import { Backpack } from './components/Backpack';
@@ -34,7 +34,7 @@ import type { User } from '@supabase/supabase-js';
 
 type ScreenState = 'menu' | 'briefing' | 'duelLobby' | 'playing';
 
-// Side column sizes: phone-size minimums, growing with the column height (cqh) and width (cqw)
+// Side column sizes (shop and backpack only): phone-size minimums, growing with the column height (cqh) and width (cqw)
 const SIDE_VARS = {
   '--fs-xs': 'clamp(10px, min(2.6cqh, 5cqw), 16px)',
   '--fs-sm': 'clamp(11px, min(2.9cqh, 5.7cqw), 17px)',
@@ -44,15 +44,17 @@ const SIDE_VARS = {
   '--h-line': 'max(14px, 3.3cqh)',
   '--fs-btn4': 'clamp(10px, min(2.6cqh, 4.8cqw), 15px)', // four buttons in a row
   '--h-btn': 'max(32px, 9.5cqh - 4px)',
-  '--h-card': 'clamp(40px, min(13.5cqh - 3px, 34cqw), 160px)',
-  '--h-head': 'max(26px, 6cqh)',
+  '--h-card': 'clamp(40px, min(19cqh, 30cqw), 170px)',
+  '--h-tier': 'clamp(28px, 8cqh, 56px)',
+  '--h-pack': 'clamp(28px, min(12cqh, 22cqw), 90px)',
 } as React.CSSProperties;
 
 // A duel adds the opponent's line and the tabs to the column: the cards give them the room
 const SIDE_VARS_DUEL = {
   ...SIDE_VARS,
-  '--h-card': 'clamp(40px, min(13cqh, 30cqw), 150px)',
+  '--h-card': 'clamp(40px, min(16cqh, 30cqw), 150px)',
   '--h-tier': 'clamp(28px, 7cqh, 56px)',
+  '--h-pack': 'clamp(26px, min(10cqh, 22cqw), 80px)',
 } as React.CSSProperties;
 
 export default function App() {
@@ -136,6 +138,8 @@ export default function App() {
     canMoveTowers: false,
     rerollCost: CONFIG.shop.rerollCost,
     zoomed: false,
+    selectedDamage: null,
+    selectedCell: null,
   });
 
   // Shop state (5 card slots)
@@ -285,6 +289,7 @@ export default function App() {
   const duelLinkRef = useRef<DuelLink | null>(null);
   const duelSeenRef = useRef(0); // performance.now() of the opponent's last message
   const [opponent, setOpponent] = useState<{ lives: number; wave: number; income: number } | null>(null);
+  const [towerDetails, setTowerDetails] = useState<boolean>(false); // the tower card shows its specializations and damage
   const [sideTab, setSideTab] = useState<'towers' | 'army'>('towers'); // duel: tower shop or enemies for the opponent
   const [duelOutcome, setDuelOutcome] = useState<DuelOutcome | null>(null);
   const duelOutcomeRef = useRef<DuelOutcome | null>(null);
@@ -881,6 +886,8 @@ export default function App() {
         const idx = parseInt(e.key, 10) - 1;
         handleSelectShopCard(idx);
       }
+    } else if (e.key === 'i' || e.key === 'I' || e.key === 'ш' || e.key === 'Ш') {
+      if (screen === 'playing' && engine.selectedTowerId) setTowerDetails((d) => !d);
     } else if (e.key === 'r' || e.key === 'R' || e.key === 'к' || e.key === 'К') {
       if (screen === 'playing' && !engine.isPaused) {
         handleRerollShop();
@@ -937,6 +944,44 @@ export default function App() {
     sound.toggleMute();
     setAudioSettings(sound.getSettings());
   };
+
+  // The selected tower's card sits in the bottom corner away from it (on screen, with the zoom)
+  const panelSide: 'left' | 'right' | null = (() => {
+    const cell = gameState.selectedCell;
+    const engine = engineRef.current;
+    if (!cell || !engine || (!gameState.selectedTower && !gameState.selectedBinder)) return null;
+    const sx = ((cell.x + 0.5) * CONFIG.grid.cellSize - engine.viewX) * engine.viewZoom;
+    return sx < CONFIG.grid.totalWidth / 2 ? 'right' : 'left';
+  })();
+  const towerPanel = (
+    <TowerPanel
+      tower={gameState.selectedTower}
+      eligibleMergeCount={gameState.eligibleMergeCount}
+      mergeUsesBinder={gameState.mergeUsesBinder}
+      selectedBinder={gameState.selectedBinder}
+      binderCount={gameState.binderCount}
+      bindPartnerCount={gameState.bindPartnerCount}
+      isBinding={gameState.isBinding}
+      selectedBinderTriple={gameState.selectedBinderTriple}
+      canMergeBinders={gameState.canMergeBinders}
+      shopTier={gameState.tier}
+      upgradeTargetCount={gameState.upgradeTargetCount}
+      isUpgrading={gameState.isUpgrading}
+      canUpgrade={gameState.canUpgradeSelected}
+      sellRatio={gameState.sellRatio}
+      onUpgradeTower={handleUpgradeTower}
+      onMergeBinders={handleMergeBinders}
+      onUpgradeWithBinder={handleUpgradeWithBinder}
+      onCyclePriority={handleCyclePriority}
+      onMerge={handleMerge}
+      onBind={handleBind}
+      onSell={handleSell}
+      onClose={() => engineRef.current?.selectTower(null)}
+      damage={gameState.selectedDamage}
+      details={towerDetails}
+      onToggleDetails={() => setTowerDetails((d) => !d)}
+    />
+  );
 
   return (
     <div className="w-full h-full overflow-hidden bg-[#121118] text-[#f4f2e6] flex flex-col font-sans select-none">
@@ -1002,10 +1047,8 @@ export default function App() {
             {/* Canvas Container keeps the field's aspect ratio */}
             <div
               ref={containerRef}
-              className="h-full min-w-0 bg-[#121118] flex items-center justify-center p-1 sm:p-2 overflow-hidden"
-              // As wide as the field at full height (it shrinks when the screen is narrower);
-              // the side column takes whatever width is left
-              style={{ flex: '0 1 auto', width: `calc((100cqh - 16px) * ${CONFIG.grid.cols} / ${CONFIG.grid.rows} + 16px)` }}
+              className="flex-1 h-full min-w-0 bg-[#121118] flex items-center justify-center p-1 sm:p-2 overflow-hidden"
+              // Takes the width the side column leaves; the field keeps its aspect ratio inside
             >
               <div
                 className="relative shadow-2xl rounded overflow-hidden"
@@ -1050,35 +1093,45 @@ export default function App() {
                   faction={gameState.faction}
                   isWaveActive={gameState.isWaveActive}
                 />
-                {gameState.zoomed && (
-                  <button
-                    type="button"
-                    onClick={() => engineRef.current?.resetView()}
-                    title="Показать всё поле (0)"
-                    className="absolute right-2 bottom-2 px-3 py-1.5 rounded-md border border-white/15 bg-black/45 hover:bg-black/65 backdrop-blur-[2px] text-white/90 text-xs sm:text-sm font-bold select-none"
-                  >
-                    Всё поле
-                  </button>
-                )}
+                {/* Bottom corners: gold and lives on the left; the selected tower's card on the half away from it,
+                    «Всё поле» on the right. Only the plates' own buttons take taps */}
+                <div className="absolute inset-0 pointer-events-none [container-type:inline-size]">
+                  <div className="absolute left-1.5 bottom-1.5 flex flex-col items-start gap-1.5">
+                    {panelSide === 'left' && towerPanel}
+                    <FieldStats
+                      gold={gameState.gold}
+                      lives={gameState.lives}
+                      wave={gameState.wave}
+                      maxWaves={gameState.maxWaves}
+                      endless={gameState.endless}
+                      supply={gameState.supplyActive ? { power: gameState.supplyPower, mult: gameState.supplyMult, next: gameState.supplyNext } : null}
+                      opponent={gameState.duel ? opponent : undefined}
+                      opponentArmy={gameState.duel ? CONFIG.factions[opponentArmy - 1]?.name : undefined}
+                    />
+                  </div>
+                  <div className="absolute right-1.5 bottom-1.5 flex flex-col items-end gap-1.5">
+                    {panelSide === 'right' && towerPanel}
+                    {gameState.zoomed && (
+                      <button
+                        type="button"
+                        onClick={() => engineRef.current?.resetView()}
+                        title="Показать всё поле (0)"
+                        className="pointer-events-auto px-3 py-1.5 rounded-md border border-white/15 bg-black/45 hover:bg-black/65 backdrop-blur-[2px] text-white/90 text-xs sm:text-sm font-bold select-none"
+                      >
+                        Всё поле
+                      </button>
+                    )}
+                  </div>
+                </div>
               </div>
             </div>
 
-            {/* Right Column: HUD, shop, tower panel. Sizes follow the column's height (cqh) so the
-                buttons grow on tall screens and the tower panel takes the rest: no empty space */}
+            {/* Right Column: only the shop and the backpack, a quarter of the screen at most (gold, lives and the
+                selected tower are over the field). Sizes follow the column's height (cqh) and width (cqw) */}
             <div
-              className="flex-1 min-w-[208px] h-full flex flex-col bg-[#171520] border-l border-[#2d2938] text-[#f4f2e6] overflow-y-auto overflow-x-hidden select-none z-10 [container-type:size]"
+              className="w-[25%] min-w-[160px] max-w-[340px] shrink-0 h-full flex flex-col justify-center-safe bg-[#171520] border-l border-[#2d2938] text-[#f4f2e6] overflow-y-auto overflow-x-hidden select-none z-10 [container-type:size]"
               style={gameState.duel ? SIDE_VARS_DUEL : SIDE_VARS}
             >
-              <TopBar
-                gold={gameState.gold}
-                lives={gameState.lives}
-                wave={gameState.wave}
-                maxWaves={gameState.maxWaves}
-                endless={gameState.endless}
-                supply={gameState.supplyActive ? { power: gameState.supplyPower, mult: gameState.supplyMult, next: gameState.supplyNext } : null}
-                opponent={gameState.duel ? opponent : undefined}
-                opponentArmy={gameState.duel ? CONFIG.factions[opponentArmy - 1]?.name : undefined}
-              />
               {gameState.duel && (
                 <div className="px-1.5 pt-1 grid grid-cols-2 gap-1 shrink-0" role="tablist">
                   {(['towers', 'army'] as const).map((tab) => (
@@ -1141,29 +1194,6 @@ export default function App() {
                   onSell={(i) => engineRef.current?.sellBackpack(i)}
                 />
               )}
-              <TowerPanel
-                tower={gameState.selectedTower}
-                eligibleMergeCount={gameState.eligibleMergeCount}
-                mergeUsesBinder={gameState.mergeUsesBinder}
-                selectedBinder={gameState.selectedBinder}
-                binderCount={gameState.binderCount}
-                bindPartnerCount={gameState.bindPartnerCount}
-                isBinding={gameState.isBinding}
-                selectedBinderTriple={gameState.selectedBinderTriple}
-                canMergeBinders={gameState.canMergeBinders}
-                shopTier={gameState.tier}
-                upgradeTargetCount={gameState.upgradeTargetCount}
-                isUpgrading={gameState.isUpgrading}
-                canUpgrade={gameState.canUpgradeSelected}
-                sellRatio={gameState.sellRatio}
-                onUpgradeTower={handleUpgradeTower}
-                onMergeBinders={handleMergeBinders}
-                onUpgradeWithBinder={handleUpgradeWithBinder}
-                onCyclePriority={handleCyclePriority}
-                onMerge={handleMerge}
-                onBind={handleBind}
-                onSell={handleSell}
-              />
             </div>
           </div>
         </div>
