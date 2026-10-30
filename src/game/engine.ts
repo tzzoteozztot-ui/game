@@ -2997,13 +2997,14 @@ export class GameEngine {
     ctx.stroke();
   }
 
-  // Binding between the two figures of a pair: glowing bases, an arc of light, a pulsing crystal.
+  // Binding between the two figures of a pair: glowing bases and a small pulsing crystal between them.
   // `power` 0..1 grows with the levels of both parts.
   private drawBond(
     ctx: CanvasRenderingContext2D,
     x1: number,
+    y1: number,
     x2: number,
-    footY: number,
+    y2: number,
     power: number,
     timeSec: number,
     layer: 'back' | 'front'
@@ -3014,45 +3015,24 @@ export class GameEngine {
     ctx.shadowColor = color;
     if (layer === 'back') {
       // Glow under both pedestals
-      for (const x of [x1, x2]) {
-        const g = ctx.createRadialGradient(x, footY - 4, 2, x, footY - 4, 18);
+      for (const [x, y] of [[x1, y1], [x2, y2]]) {
+        const g = ctx.createRadialGradient(x, y - 4, 2, x, y - 4, 18);
         g.addColorStop(0, `rgba(62, 214, 196, ${0.35 + 0.35 * power})`);
         g.addColorStop(1, 'rgba(62, 214, 196, 0)');
         ctx.fillStyle = g;
         ctx.beginPath();
-        ctx.ellipse(x, footY - 4, 18, 8, 0, 0, Math.PI * 2);
+        ctx.ellipse(x, y - 4, 18, 8, 0, 0, Math.PI * 2);
         ctx.fill();
       }
       ctx.restore();
       return;
     }
-    // Arcs from figure to figure over the crystal; more strands and wider glow on higher levels
-    const midX = (x1 + x2) / 2;
-    const y = footY - 18;
-    const strands = power > 0.75 ? 3 : power > 0.45 ? 2 : 1;
-    ctx.strokeStyle = color;
-    ctx.lineCap = 'round';
-    ctx.shadowBlur = 6 + 10 * power;
-    for (let i = 0; i < strands; i++) {
-      const lift = 8 + i * 4 + Math.sin(timeSec * 7 + i * 2.1) * 2;
-      ctx.globalAlpha = (0.55 + 0.45 * pulse) * (1 - i * 0.25);
-      ctx.lineWidth = 1.2 + power * 1.3;
-      ctx.beginPath();
-      ctx.moveTo(x1 + 3, y);
-      // A jagged arc: three bends with a little flicker
-      for (let s = 1; s <= 4; s++) {
-        const f = s / 4;
-        const jitter = s < 4 ? Math.sin(timeSec * 23 + s * 3.7 + i * 5) * (1 + power) : 0;
-        ctx.lineTo(x1 + 3 + (x2 - x1 - 6) * f, y - Math.sin(f * Math.PI) * lift + jitter);
-      }
-      ctx.stroke();
-    }
     // Pulsing crystal between the pedestals
-    const cy = footY - 9 - pulse * 1.5;
-    const h = 5 + power * 2.5;
-    const w = 3 + power * 1.5;
-    ctx.globalAlpha = 1;
-    ctx.shadowBlur = 8 + 14 * power * pulse;
+    const midX = (x1 + x2) / 2;
+    const cy = (y1 + y2) / 2 - 7 - pulse;
+    const h = 3.5 + power * 1.5;
+    const w = 2 + power;
+    ctx.shadowBlur = 5 + 8 * power * pulse;
     ctx.fillStyle = color;
     ctx.beginPath();
     ctx.moveTo(midX, cy - h);
@@ -3110,18 +3090,19 @@ export class GameEngine {
     rings(Math.PI, Math.PI * 2);
 
     if (t.second) {
-      // Two single figures side by side, drawn smaller, joined by the binding effect
-      const k = 0.72;
-      const x1 = cx - 14;
-      const x2 = cx + 15;
+      // Two single figures at full size on a diagonal: the main one behind and higher, the second in front and lower
+      const x1 = cx - 13;
+      const y1 = footY - 14;
+      const x2 = cx + 13;
+      const y2 = footY;
       const spr2 = this.towerSprite(t.second.type, t.second.level);
       const power = (t.level + t.second.level - 2) / 4;
-      this.drawBond(ctx, x1, x2, footY, power, timeSec, 'back');
-      this.drawBaseRim(ctx, t.type, x1, footY, k);
-      this.drawBaseRim(ctx, t.second.type, x2, footY, k);
-      drawSprite(ctx, spr, x1, footY, t.facing, spr.meta.drawH * k, this.towerPose(t, t, timeSec));
-      if (spr2) drawSprite(ctx, spr2, x2, footY, t.facing, spr2.meta.drawH * k, this.towerPose(t, t.second, timeSec));
-      this.drawBond(ctx, x1, x2, footY, power, timeSec, 'front');
+      this.drawBond(ctx, x1, y1, x2, y2, power, timeSec, 'back');
+      this.drawBaseRim(ctx, t.type, x1, y1, 1);
+      drawSprite(ctx, spr, x1, y1, t.facing, undefined, this.towerPose(t, t, timeSec));
+      this.drawBaseRim(ctx, t.second.type, x2, y2, 1);
+      if (spr2) drawSprite(ctx, spr2, x2, y2, t.facing, undefined, this.towerPose(t, t.second, timeSec));
+      this.drawBond(ctx, x1, y1, x2, y2, power, timeSec, 'front');
     } else {
       this.drawBaseRim(ctx, t.type, cx, footY, 1);
       drawSprite(ctx, spr, cx, footY, t.facing, undefined, this.towerPose(t, t, timeSec));
@@ -3130,10 +3111,10 @@ export class GameEngine {
     // Front half of the rings over the pedestal
     rings(0, Math.PI);
 
-    // A bound tower has a badge for each part: the main one under its figure, the second above its own
+    // A bound tower has a badge for each part, each at the foot of its own figure (staggered like the figures)
     if (t.second) {
-      if (t.specs.length > 0) this.drawSpecBadge(ctx, specBadge(t.specs), cx - 14, cy + 20, cx, cellSize);
-      if (t.second.specs.length > 0) this.drawSpecBadge(ctx, specBadge(t.second.specs), cx + 21, cy - 24, cx, cellSize);
+      if (t.specs.length > 0) this.drawSpecBadge(ctx, specBadge(t.specs), cx - 14, cy + 14, cx, cellSize);
+      if (t.second.specs.length > 0) this.drawSpecBadge(ctx, specBadge(t.second.specs), cx + 18, cy + 27, cx, cellSize);
     } else if (t.specs.length > 0) {
       this.drawSpecBadge(ctx, specBadge(t.specs), cx + 21, cy + 20, cx, cellSize);
     }
