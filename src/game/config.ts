@@ -66,13 +66,13 @@ export interface FactionDef {
 
 export const CONFIG = {
   grid: {
-    cols: 12,
-    rows: 9,
+    cols: 14,
+    rows: 8,
     cellSize: 64, // logical width & height
-    totalWidth: 768, // 12 * 64
-    totalHeight: 576, // 9 * 64
-    castleCells: [{ x: 6, y: 4 }], // single cell next to the centre
-    castleTarget: { x: 6.5, y: 4.5 }, // center of castle for flyers
+    totalWidth: 896, // 14 * 64
+    totalHeight: 512, // 8 * 64
+    castleCells: [{ x: 7, y: 4 }], // single cell next to the centre
+    castleTarget: { x: 7.5, y: 4.5 }, // center of castle for flyers
   },
   // Field zoom (drawing only, Артур 2026-10-30): pinch, wheel or +/−; 1 = whole field
   view: {
