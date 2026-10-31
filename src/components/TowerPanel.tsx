@@ -65,13 +65,13 @@ interface TowerPanelProps {
 const fmt = (n: number) => Math.round(n).toLocaleString('ru-RU');
 
 // The card's frame: App puts it in a bottom corner of the field, inside an inline-size container as wide as the field
-function Card({ children }: { children: React.ReactNode }) {
+function Card({ children, wide = false }: { children: React.ReactNode; wide?: boolean }) {
   return (
     <div
       className="pointer-events-auto flex flex-col gap-1 p-1.5 rounded-lg bg-[#121018]/70 border border-white/15 backdrop-blur-[3px] shadow-xl text-[#f4f2e6] text-[length:var(--fs-md)] select-none overflow-y-auto"
       style={{
         ...PANEL_VARS,
-        width: `clamp(232px, calc(${CELL} * 4.9), 420px)`,
+        width: wide ? `clamp(290px, calc(${CELL} * 6), 460px)` : `clamp(232px, calc(${CELL} * 4.9), 420px)`,
         maxHeight: `calc(${CELL} * ${CONFIG.grid.rows - 2.2})`,
       }}
     >
@@ -121,6 +121,19 @@ export function TowerPanel({
   gold = 0,
   onUpgradeCastle,
 }: TowerPanelProps) {
+  // Waiting for a tap on a target (raise with a triple binder, bind): the card shrinks to a hint with a cancel button
+  // and lets taps through to the field, so the towers under it can still be chosen
+  const waitingHint = (text: string, color: string, cancel: () => void) => (
+    <div
+      className="flex items-center gap-1.5 p-1 rounded-lg bg-[#121018]/60 border border-white/15 text-[#f4f2e6] text-[length:var(--fs-sm)] select-none pointer-events-none"
+      style={PANEL_VARS}
+    >
+      <span className="font-bold leading-tight" style={{ color }}>{text}</span>
+      <button type="button" onClick={cancel} className={`${glassBtn} pointer-events-auto h-[var(--h-head)] px-2 text-[length:var(--fs-sm)] font-bold shrink-0`}>
+        Отмена
+      </button>
+    </div>
+  );
   const closeBtn = (
     <button type="button" onClick={onClose} title="Закрыть (Esc)" className={`${glassBtn} w-[var(--h-head)] h-[var(--h-head)] text-[length:var(--fs-lg)] shrink-0`}>
       ×
@@ -181,6 +194,7 @@ export function TowerPanel({
   if (!tower && selectedBinder) {
     const triple = selectedBinderTriple;
     const binderRefund = Math.floor(CONFIG.binder.cost * (triple ? 3 : 1) * sellRatio);
+    if (triple && isUpgrading) return waitingHint('Коснитесь башни: поднимется на уровень', CONFIG.binder.color, onUpgradeWithBinder);
     const canAct = triple ? isUpgrading || upgradeTargetCount > 0 : canMergeBinders;
     return (
       <Card>
@@ -234,6 +248,8 @@ export function TowerPanel({
   }
 
   if (!tower) return null;
+
+  if (isBinding) return waitingHint('Коснитесь башни другого вида', CONFIG.binder.color, onBind);
 
   const baseDef = CONFIG.towers[tower.type];
   const canMerge = eligibleMergeCount >= 3 && tower.level < 3;
@@ -304,7 +320,7 @@ export function TowerPanel({
       : 'Ближний';
 
   return (
-    <Card>
+    <Card wide={canUpgrade}>
       {/* 1. Header: Name, level, specialization; details and close */}
       <div className="flex items-center gap-1.5 h-[var(--h-head)] shrink-0">
         <div className="w-[var(--h-head)] h-[var(--h-head)] flex items-center justify-center bg-black/30 rounded border border-white/10 shrink-0 overflow-hidden">
@@ -407,7 +423,7 @@ export function TowerPanel({
             className="h-[var(--h-btn)] px-0.5 rounded font-bold flex flex-col items-center justify-center leading-none bg-teal-500 hover:bg-teal-400 text-stone-950 border border-teal-200 shadow-md shadow-teal-950/40 animate-pulse cursor-pointer"
             title="Поднять уровень тройной связкой (U)"
           >
-            <span className="text-[length:var(--fs-btn4)]">Усилить</span>
+            <span className="text-[length:var(--fs-btn4)]">Уровень!</span>
             <span className="text-[length:var(--fs-xs)] mt-0.5 whitespace-nowrap">связкой</span>
           </button>
         )}
