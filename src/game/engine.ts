@@ -3525,8 +3525,9 @@ export class GameEngine {
     const isImp = e.type === 'imp';
     const factionName = `enemy_${e.type}_${this.faction}`;
     const hasFaction = !isBoss && !isImp && sprites.has(factionName);
-    const name = isBoss ? `boss_${this.faction}` : isImp ? 'enemy_scout' : hasFaction ? factionName : `enemy_${e.type}`;
-    const tint = isBoss || hasFaction ? null : isImp ? '#e0452f' : CONFIG.palettes[this.faction - 1].enemies;
+    const ownImp = isImp && sprites.has('enemy_imp');
+    const name = isBoss ? `boss_${this.faction}` : ownImp ? 'enemy_imp' : isImp ? 'enemy_scout' : hasFaction ? factionName : `enemy_${e.type}`;
+    const tint = isBoss || hasFaction || ownImp ? null : isImp ? '#e0452f' : CONFIG.palettes[this.faction - 1].enemies;
     return { name, tint };
   }
 

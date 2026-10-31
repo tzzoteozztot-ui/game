@@ -13,7 +13,7 @@ function BeastImage({ creature, factionId }: { creature: BestiaryCreature; facti
     creature.kind === 'boss'
       ? [`boss_${factionId}`]
       : creature.kind === 'imp'
-        ? ['enemy_scout']
+        ? ['enemy_imp', 'enemy_scout']
         : [`enemy_${creature.kind}_${factionId}`, `enemy_${creature.kind}`];
   const [step, setStep] = useState(0);
   useEffect(() => setStep(0), [factionId, creature.kind]);
