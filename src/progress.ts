@@ -12,8 +12,19 @@ export type ByDifficulty = Record<Difficulty, Record<number, number>>;
 export interface Progress {
   unlocked: number; // highest opened level, 1..5
   stars: ByDifficulty; // difficulty -> level -> best stars
-  endlessBest: ByDifficulty; // difficulty -> level -> best wave reached in endless mode
+  endlessBest: ByDifficulty; // difficulty -> record key (endlessRecordKey) -> best wave reached in endless mode
 }
+
+/**
+ * Key of an endless record: the map's number when its own faction attacks (as before), otherwise
+ * map × 10 + faction (16 — Пограничье against людей). Endless mode lets one pick enemies apart from the map
+ * (Артур, 2026-10-31).
+ */
+export function endlessRecordKey(level: number, faction: number): number {
+  return faction === level ? level : level * 10 + faction;
+}
+
+const validKey = (k: number) => (k >= 1 && k <= 5) || (k >= 11 && k <= 56 && k % 10 >= 1 && k % 10 <= 6);
 
 const KEYS = {
   unlocked: 'dark_frontier_unlocked',
@@ -30,7 +41,7 @@ function numberMap(v: unknown): Record<number, number> {
   if (v && typeof v === 'object') {
     for (const [k, n] of Object.entries(v as Record<string, unknown>)) {
       const lvl = Number(k);
-      if (Number.isInteger(lvl) && lvl >= 1 && lvl <= 5 && typeof n === 'number' && n > 0) out[lvl] = n;
+      if (Number.isInteger(lvl) && validKey(lvl) && typeof n === 'number' && n > 0) out[lvl] = n;
     }
   }
   return out;

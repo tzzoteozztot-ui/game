@@ -8,6 +8,7 @@ import { CONFIG } from '../game/config';
 
 interface LevelBriefingProps {
   level: number;
+  faction: number; // whose enemies come: the map's own, or another one picked for endless mode
   difficulty: 'easy' | 'normal' | 'hard';
   endless: boolean;
   onStartBattle: () => void;
@@ -16,13 +17,14 @@ interface LevelBriefingProps {
 
 export function LevelBriefing({
   level,
+  faction: factionId,
   difficulty,
   endless,
   onStartBattle,
   onBack,
 }: LevelBriefingProps) {
-  const faction = CONFIG.factions[level - 1];
-  const palette = CONFIG.palettes[level - 1];
+  const faction = CONFIG.factions[factionId - 1] ?? CONFIG.factions[level - 1];
+  const palette = CONFIG.palettes[faction.id - 1];
 
   return (
     <div className="fixed inset-0 z-40 bg-[#121118] text-[#f4f2e6] flex flex-col items-center overflow-y-auto p-4 sm:p-6 short:p-2 select-none animate-fade-in">
@@ -35,7 +37,7 @@ export function LevelBriefing({
             Рубеж {level} из 5{endless && ' · бесконечный режим'}
           </div>
           <h2 className="text-2xl sm:text-3xl font-black text-amber-300 tracking-wide">
-            {faction.location}
+            {CONFIG.factions[level - 1].location}
           </h2>
           <div className="text-xs text-stone-400 mt-1">
             Фракция врагов: <strong className="text-stone-200">{faction.name}</strong>
