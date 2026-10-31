@@ -90,7 +90,11 @@ export function Bestiary({ onClose, initialFaction = 1 }: { onClose: () => void;
             <div className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5">
               <h3 className="text-lg font-black text-amber-300">{faction.name}</h3>
               <span className="text-xs text-stone-400">{faction.tagline}</span>
-              {conf && <span className="text-[11px] text-stone-500 ml-auto">Карта: {conf.location}</span>}
+              {conf && (
+                <span className="text-[11px] text-stone-500 ml-auto">
+                  {conf.id > CONFIG.levelCount ? 'Бесконечный режим и дуэль' : `Карта: ${conf.location}`}
+                </span>
+              )}
             </div>
             <div className="mt-2 space-y-2 text-[13px] leading-relaxed text-stone-300">
               {faction.lore.map((p, i) => (

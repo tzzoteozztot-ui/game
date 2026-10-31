@@ -107,6 +107,8 @@ export interface Enemy {
   reviveTimer: number;
   invulnerableTimer: number; // dark elf boss
   dashTimer: number;
+  repairCalm?: number; // люди: s since the last damage taken
+  repairHp?: number; // люди: HP at the end of the previous step, to notice damage from any source
 
   // Boss ability timer
   bossAbilityTimer: number;
@@ -485,9 +487,10 @@ export class GameEngine {
     return sx < CONFIG.grid.totalWidth / 2 ? 'left' : 'right';
   }
 
-  public startLevel(level: number, diff: Difficulty, endless = false) {
-    this.level = Math.max(1, Math.min(5, level));
-    this.faction = this.level;
+  /** `faction`: whose enemies come; by default the map's own (endless mode lets one pick another) */
+  public startLevel(level: number, diff: Difficulty, endless = false, faction?: number) {
+    this.level = Math.max(1, Math.min(CONFIG.levelCount, level));
+    this.faction = endless && faction ? Math.max(1, Math.min(CONFIG.factions.length, Math.floor(faction))) : this.level;
     this.difficulty = diff;
     this.endless = endless;
     this.duelStart = null;
@@ -635,7 +638,7 @@ export class GameEngine {
   /** Duel: an endless game on this map whose waves follow the shared clock from startAt (performance.now()) */
   public startDuel(level: number, startAt: number, opponentArmy: number) {
     this.startLevel(level, 'normal', true);
-    this.faction = Math.max(1, Math.min(5, Math.floor(opponentArmy) || level));
+    this.faction = Math.max(1, Math.min(CONFIG.factions.length, Math.floor(opponentArmy) || level));
     this.duelStart = startAt;
     this.waveCountdown = this.duelNextWaveAt() / 1000 - performance.now() / 1000;
     this.notifyState();
@@ -1272,6 +1275,18 @@ export class GameEngine {
         }
       }
 
+      // Люди trait: field repair - unhurt for repairDelay s, the enemy restores repairPerSec of max HP a second
+      if (this.faction === 6) {
+        const hum = CONFIG.humans;
+        if (e.repairHp !== undefined && e.hp < e.repairHp - 1e-6) e.repairCalm = 0;
+        else e.repairCalm = (e.repairCalm ?? 0) + dt;
+        if (e.repairCalm >= hum.repairDelay && e.hp < e.maxHp) {
+          e.hp = Math.min(e.maxHp, e.hp + e.maxHp * hum.repairPerSec * dt);
+          if (Math.random() < 0.04) this.spawnSpark(e.x, e.y, '#5b8fd8');
+        }
+        e.repairHp = e.hp;
+      }
+
       // Boss ability triggers
       if (e.type === 'boss') {
         e.bossAbilityTimer += dt;
@@ -1512,8 +1527,34 @@ export class GameEngine {
       this.spawnRing(boss.x, boss.y, '#3ed6c4');
 
       // Advance exactly 3 cells along the road from where she stands (stops short of the castle)
+      this.advanceAlongPath(boss, 3);
+    }
+
+    // Люди: Командор экспедиции - every gateEvery s carries himself and up to gateCount allies nearby
+    // gateCells along the road (the gate of the artifacts; Claude 2026-10-31, waits for Артур's choice)
+    const hum = CONFIG.humans;
+    if (this.faction === 6 && boss.bossAbilityTimer >= hum.gateEvery) {
+      boss.bossAbilityTimer = 0;
+      sound.playBossSpawn();
+      this.addFloatingText('ВРАТА!', boss.x, boss.y - 18, '#5b8fd8');
+      const radius = hum.gateRadius * CONFIG.grid.cellSize;
+      const carried = this.enemies
+        .filter((e) => e !== boss && !e.isFlyer && !e.isReviving && !e.sieging && Math.hypot(e.x - boss.x, e.y - boss.y) <= radius)
+        .sort((a, b) => Math.hypot(a.x - boss.x, a.y - boss.y) - Math.hypot(b.x - boss.x, b.y - boss.y))
+        .slice(0, hum.gateCount);
+      for (const e of [boss, ...carried]) {
+        if (e.sieging) continue;
+        this.spawnRing(e.x, e.y, '#5b8fd8');
+        this.advanceAlongPath(e, hum.gateCells);
+        this.spawnRing(e.x, e.y, '#5b8fd8');
+      }
+    }
+  }
+
+  /** Moves a walking enemy `cells` cells along its road from where it stands (stops short of the castle) */
+  private advanceAlongPath(boss: Enemy, cells: number) {
       const path = this.currentMap.paths[boss.entranceIndex];
-      let left = 3 * CONFIG.grid.cellSize;
+      let left = cells * CONFIG.grid.cellSize;
       while (left > 0) {
         const next = path[boss.pathIndex + 1];
         const tx = next ? (next.x + 0.5) * CONFIG.grid.cellSize : CONFIG.grid.castleTarget.x * CONFIG.grid.cellSize;
@@ -1543,7 +1584,6 @@ export class GameEngine {
           break;
         }
       }
-    }
   }
 
   // -------------------------------------------------------------
