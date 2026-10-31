@@ -377,7 +377,7 @@ export const CONFIG = {
     },
   ] as FactionDef[],
 
-  // Люди (faction 6), предложение Claude 2026-10-31, ждёт выбора Артура
+  // Люди (faction 6): предложение Claude, утвердил Артур 2026-10-31
   humans: {
     repairDelay: 3, // s without damage before repair starts
     repairPerSec: 0.02, // share of max HP restored per second

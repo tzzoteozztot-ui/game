@@ -1531,7 +1531,7 @@ export class GameEngine {
     }
 
     // Люди: Командор экспедиции - every gateEvery s carries himself and up to gateCount allies nearby
-    // gateCells along the road (the gate of the artifacts; Claude 2026-10-31, waits for Артур's choice)
+    // gateCells along the road (the gate of the artifacts; approved by Артур 2026-10-31)
     const hum = CONFIG.humans;
     if (this.faction === 6 && boss.bossAbilityTimer >= hum.gateEvery) {
       boss.bossAbilityTimer = 0;
