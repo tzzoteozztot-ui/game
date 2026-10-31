@@ -21,7 +21,7 @@ const args = process.argv.slice(2);
 const out = args.find((a) => !a.startsWith('--')) ?? 'balance_results.json';
 const opt = (name, def) => {
   const a = args.find((x) => x.startsWith(`--${name}=`));
-  return a ? a.split('=')[1] : def;
+  return a ? a.slice(a.indexOf('=') + 1) : def;
 };
 const RUNS = Number(opt('runs', 8));
 const ONLY = opt('only', '');
@@ -29,6 +29,12 @@ const URL_ = opt('url', 'http://localhost:3000/');
 const PAGES = Number(opt('pages', 4));
 const DIFF = opt('difficulty', 'normal'); // сложность бесконечных прогонов
 const MAXWAVE = Number(opt('maxwave', 150));
+// Пробные числа без правки config.ts: --set=siege.attack.shaman.range=2,lives.start=300
+const SET = opt('set', '')
+  .split(',')
+  .filter(Boolean)
+  .map((kv) => kv.split('='))
+  .map(([k, v]) => [k, Number(v)]);
 
 // Задания. style: pro — расчётливый игрок (лучшие клетки, обновления лавки, ярус);
 // casual — обычный игрок (клетка «получше» наугад, без обновлений лавки, ярус только при лишнем золоте)
@@ -54,6 +60,12 @@ async function runInPage(job) {
   const { GameEngine } = await import('/src/game/engine.ts');
   const { CONFIG } = await import('/src/game/config.ts');
   const { calculateKillGold } = await import('/src/game/rules.ts');
+  for (const [path, value] of job.set ?? []) {
+    const keys = path.split('.');
+    let o = CONFIG;
+    for (const k of keys.slice(0, -1)) o = o[k];
+    o[keys[keys.length - 1]] = value;
+  }
 
   // Seeded randomness and game-time clock (boss abilities and the Lich's graveyard read performance.now)
   let seed = job.seed >>> 0;
@@ -79,7 +91,9 @@ async function runInPage(job) {
     income: { start: engine.gold, kills: 0, waveClear: 0, early: 0 },
     spend: { archer: 0, priest: 0, mage: 0, ballista: 0, binder: 0, reroll: 0, tier: 0 },
     damage: {}, // "type" and "type:spec" → hp removed
-    leaks: {}, // enemy type → enemies that reached the castle
+    leaks: {}, // enemy type → enemies that reached the artifact
+    castleDmg: {}, // enemy type → artifact HP taken
+    guardAt: {}, // guard level → wave reached
     leakWaves: {}, // wave → lives lost
     waves: [], // per wave: lives, gold, towers, levels
     merges: { l2: 0, l3: 0 },
@@ -110,11 +124,17 @@ async function runInPage(job) {
     origKill(e, idx);
     killGold += engine.gold - g;
   };
-  const origCastle = engine.damageCastle.bind(engine);
-  engine.damageCastle = (e, idx) => {
+  // Осада артефакта: каждый удар врага (кто дошёл — leaks, урон по видам — castleDmg, по волнам — leakWaves)
+  const seen = new Set();
+  const origCastle = engine.hitCastle.bind(engine);
+  engine.hitCastle = (e, dmg) => {
     const l = engine.lives;
-    origCastle(e, idx);
-    stats.leaks[e.type] = (stats.leaks[e.type] ?? 0) + 1;
+    origCastle(e, dmg);
+    if (!seen.has(e.id)) {
+      seen.add(e.id);
+      stats.leaks[e.type] = (stats.leaks[e.type] ?? 0) + 1;
+    }
+    stats.castleDmg[e.type] = (stats.castleDmg[e.type] ?? 0) + (l - engine.lives);
     stats.leakWaves[engine.wave] = (stats.leakWaves[engine.wave] ?? 0) + (l - engine.lives);
   };
   const origStart = engine.startNextWave.bind(engine);
@@ -139,6 +159,8 @@ async function runInPage(job) {
       roadCells.push({ x: a.x + ((castle.x - a.x) * d) / len, y: a.y + ((castle.y - a.y) * d) / len, w: 0.35 });
     }
   }
+  // Осада: дошедшие враги стоят у артефакта и бьют его, пока их не добьют — его окрестность важнее любой клетки дороги
+  roadCells.push({ x: castle.x, y: castle.y, w: 4 });
   const coverCache = {};
   const coverage = (x, y, range) => {
     const k = `${x},${y},${range}`;
@@ -333,6 +355,15 @@ async function runInPage(job) {
         doBinders();
         continue;
       }
+      // Защита артефакта: следующий уровень, когда на поле уже есть башни и золото с запасом
+      const guardCost = engine.guardUpgradeCost();
+      if (guardCost !== null && engine.towers.length >= 2 + 2 * engine.guardLevel && engine.gold >= guardCost + (casual ? 120 : 40)) {
+        if (engine.upgradeGuard()) {
+          stats.spend.guard = (stats.spend.guard ?? 0) + guardCost;
+          stats.guardAt[engine.guardLevel] = engine.wave;
+          continue;
+        }
+      }
       // Nothing worth buying: raise the tier when there is a board, else reroll while gold lasts
       const tierCost = CONFIG.shop.tierUpgradeCosts[engine.tier - 1];
       if (engine.tier < 5 && engine.towers.length >= 3 * engine.tier && engine.gold >= tierCost + (casual ? 120 : 40)) {
@@ -421,6 +452,8 @@ async function runInPage(job) {
     killGoldCheck: calculateKillGold(5, job.level),
     towersFinal,
     tier: engine.tier,
+    guardLevel: engine.guardLevel,
+    otherDmg: Math.round(engine.runStats.other), // урон не от башен: в основном защита артефакта
     stats,
   };
 }
@@ -436,7 +469,7 @@ async function worker() {
   await page.waitForFunction(() => window.gameEngine);
   while (next < jobs.length) {
     const job = jobs[next++];
-    const r = await page.evaluate(runInPage, { ...job, maxWave: MAXWAVE });
+    const r = await page.evaluate(runInPage, { ...job, maxWave: MAXWAVE, set: SET });
     results.push(r);
     console.log(
       `${results.length}/${jobs.length} ${job.kind} ур.${job.level} ${job.policy} ${job.style} ${job.difficulty}: ` +

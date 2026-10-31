@@ -11,7 +11,8 @@ import React from 'react';
 import { Tower, TowerPart } from '../game/engine';
 import { CONFIG } from '../game/config';
 import { calculateSellRefund } from '../game/rules';
-import { TowerSpriteIcon, BinderIcon } from './Icons';
+import { TowerSpriteIcon, BinderIcon, HeartCastleIcon } from './Icons';
+import type { GameStateSnapshot } from '../game/engine';
 
 const CELL = `calc(100cqw / ${CONFIG.grid.cols})`;
 
@@ -56,6 +57,9 @@ interface TowerPanelProps {
   details: boolean; // «Подробнее» is open: what the specializations do, the damage dealt
   onToggleDetails: () => void;
   damage: { wave: number; run: number } | null; // damage the selected tower has dealt
+  castle?: GameStateSnapshot['castle']; // the artifact's card: HP and its defence
+  gold?: number;
+  onUpgradeCastle?: () => void;
 }
 
 const fmt = (n: number) => Math.round(n).toLocaleString('ru-RU');
@@ -113,12 +117,67 @@ export function TowerPanel({
   damage,
   details,
   onToggleDetails,
+  castle = null,
+  gold = 0,
+  onUpgradeCastle,
 }: TowerPanelProps) {
   const closeBtn = (
     <button type="button" onClick={onClose} title="Закрыть (Esc)" className={`${glassBtn} w-[var(--h-head)] h-[var(--h-head)] text-[length:var(--fs-lg)] shrink-0`}>
       ×
     </button>
   );
+  if (!tower && castle) {
+    const canBuy = castle.cost !== null && gold >= castle.cost;
+    return (
+      <Card>
+        <div className="flex items-center gap-2 h-[var(--h-head)] shrink-0">
+          <div className="w-[var(--h-head)] h-[var(--h-head)] flex items-center justify-center bg-black/30 rounded border border-white/10 shrink-0 text-red-400">
+            <HeartCastleIcon size="70%" />
+          </div>
+          <div className="flex-1 font-bold text-[length:var(--fs-md)] text-[#7fd6e0]">Артефакт</div>
+          {closeBtn}
+        </div>
+        <div className="grid grid-cols-3 gap-1 text-[length:var(--fs-sm)] tabular-nums leading-tight">
+          <div>
+            <div className="text-stone-400 text-[length:var(--fs-xs)]">Прочность</div>
+            <div className="font-bold text-red-300">
+              {castle.hp}/{castle.maxHp}
+            </div>
+          </div>
+          <div>
+            <div className="text-stone-400 text-[length:var(--fs-xs)]">Защита</div>
+            <div className="font-bold">
+              ур. {castle.level}/{castle.maxLevel}
+            </div>
+          </div>
+          <div>
+            <div className="text-stone-400 text-[length:var(--fs-xs)]">Урон</div>
+            <div className="font-bold">
+              {castle.damage}
+              {castle.nextDamage !== null && <span className="text-[#7fd6e0]"> → {castle.nextDamage}</span>}
+            </div>
+          </div>
+        </div>
+        <div className="text-[length:var(--fs-xs)] leading-tight text-stone-300">
+          Раз в {String(CONFIG.siege.guard.every).replace('.', ',')} с бьёт магией ближайшего врага в {String(CONFIG.siege.guard.radius).replace('.', ',')} клетки.
+        </div>
+        <button
+          type="button"
+          onClick={onUpgradeCastle}
+          disabled={!canBuy}
+          title="Усилить защиту артефакта"
+          className={`h-[var(--h-btn)] px-1 rounded font-bold flex flex-col items-center justify-center leading-none transition-all shrink-0 ${
+            canBuy
+              ? 'bg-teal-950/60 hover:bg-teal-900/60 text-[#7fd6e0] border border-[#7fd6e0]/60 cursor-pointer'
+              : 'bg-black/30 text-stone-500 border border-white/10 cursor-not-allowed'
+          }`}
+        >
+          <span className="text-[length:var(--fs-btn4)]">{castle.cost === null ? 'Защита на пределе' : 'Усилить защиту'}</span>
+          {castle.cost !== null && <span className="text-amber-300 text-[length:var(--fs-xs)] mt-0.5 tabular-nums">{castle.cost}</span>}
+        </button>
+      </Card>
+    );
+  }
   if (!tower && selectedBinder) {
     const triple = selectedBinderTriple;
     const binderRefund = Math.floor(CONFIG.binder.cost * (triple ? 3 : 1) * sellRatio);

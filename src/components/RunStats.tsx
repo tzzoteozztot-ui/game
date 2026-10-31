@@ -31,9 +31,9 @@ export function RunStats({ stats }: { stats: RunSummary | null }) {
       <div className="grid grid-cols-3 gap-y-1.5 mb-2">
         {cell('волн', fmt(stats.wave))}
         {cell('убито', fmt(stats.killed))}
-        {cell('прорвалось', fmt(stats.leaked), stats.leaked > 0)}
+        {cell('дошло до артефакта', fmt(stats.leaked), stats.leaked > 0)}
         {cell('золото', `+${fmt(stats.gold)}`)}
-        {cell('жизней потеряно', fmt(stats.lives), stats.lives > 0)}
+        {cell('урон артефакту', fmt(stats.lives), stats.lives > 0)}
         {cell('время', fmtTime(stats.seconds))}
       </div>
       {(top.length > 0 || rest > 0) && (

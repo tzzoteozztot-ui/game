@@ -142,7 +142,7 @@ const DUEL_OUTCOME_TEXT: Record<DuelOutcome, string> = {
   won: 'Замок соперника пал.',
   left: 'Соперник сдался и вышел из дуэли.',
   gone: 'Соперник пропал из сети.',
-  lost: 'Враги прорвали оборону и захватили ваш замок.',
+  lost: 'Враги дошли до артефакта и разбили его.',
 };
 
 export function DuelResultModal({ outcome, wave, stats, onToMenu }: { outcome: DuelOutcome; wave: number; stats?: RunSummary | null; onToMenu: () => void }) {
@@ -216,7 +216,7 @@ export function VictoryModal({
         </div>
 
         <div className="text-xs text-stone-300 mb-5 bg-[#121118] py-2 px-3 rounded border border-[#2d2938]">
-          Сохранено жизней замка: <span className="font-bold text-red-400">{lives} / 20</span>
+          Прочность артефакта: <span className="font-bold text-red-400">{lives} / {CONFIG.lives.start}</span>
         </div>
         <RunStats stats={stats ?? null} />
 
@@ -273,7 +273,7 @@ export function DefeatModal({ stats, wave, endless, best, onRestart, onToMenu }:
           РУБЕЖ ПАЛ
         </h2>
         <p className="text-xs text-stone-300 mb-2">
-          Враги прорвали оборону и захватили замок.
+          Враги дошли до артефакта и разбили его.
         </p>
         <p className="text-sm font-bold text-amber-300 mb-3 bg-[#121118] py-2 px-3 rounded border border-[#2d2938]">
           {endless ? `Вы продержались до волны ${wave}` : `Вы дошли до волны ${Math.min(wave, 12)} из 12`}
@@ -332,7 +332,7 @@ export function HowToPlayModal({ onClose }: { onClose: () => void }) {
           <section>
             <h3 className="font-bold text-amber-200 text-sm mb-1">Цель игры</h3>
             <p className="text-stone-300">
-              Защитить замок от 12 волн чудовищ и победить босса каждой фракции. У замка 20 жизней. Обычный враг отнимает 1 жизнь, босс — 5.
+              Защитить артефакт в центре лагеря от 12 волн чудовищ и победить босса каждой фракции. У артефакта {CONFIG.lives.start} прочности. Дошедший враг не исчезает, а стоит и бьёт: ближние — в упор, лучники и шаманы — с 1–3 клеток, пока башни их не добьют. Звёзды: от 75 % прочности — три, от 40 % — две.
             </p>
           </section>
 
