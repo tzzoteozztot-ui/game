@@ -417,7 +417,7 @@ export function HowToPlayModal({ onClose }: { onClose: () => void }) {
             <ul className="list-disc pl-4 space-y-1 text-stone-300">
               <li><strong className="text-stone-100">Орки:</strong> при HP &lt; 50% бегут на 30% быстрее.</li>
               <li><strong className="text-stone-100">Нежить:</strong> пехотинцы и разведчики воскресают один раз через 1 с.</li>
-              <li><strong className="text-stone-100">Культисты:</strong> все замедления ослаблены в 2 раза.</li>
+              <li><strong className="text-stone-100">Культисты льда:</strong> все замедления ослаблены в 2 раза.</li>
               <li><strong className="text-stone-100">Демоны:</strong> огнеупорная кожа (урон огня снижен на 50%).</li>
               <li><strong className="text-stone-100">Тёмные эльфы:</strong> 25% физических выстрелов летят мимо.</li>
             </ul>

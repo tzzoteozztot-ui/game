@@ -306,7 +306,7 @@ export const CONFIG = {
     },
     {
       id: 3,
-      name: 'Культисты',
+      name: 'Культисты льда',
       location: 'Ледяные пустоши',
       traitName: 'Закалка',
       traitDesc: 'Все замедления слабее вдвое.',
