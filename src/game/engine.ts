@@ -283,6 +283,8 @@ export interface GameStateSnapshot {
   zoomed: boolean; // the field is zoomed in (the «whole field» button shows)
   selectedDamage: { wave: number; run: number } | null; // damage the selected tower has dealt this wave and this run
   selectedSide: 'left' | 'right' | null; // half of the screen (with the zoom) the selected tower or binder is on
+  // The artifact's card (open while the artifact is selected)
+  castle: { hp: number; maxHp: number; level: number; maxLevel: number; damage: number; nextDamage: number | null; cost: number | null } | null;
   isBinding: boolean; // waiting for a tap on the second tower
   canMoveTowers: boolean; // between waves towers can be moved to a free cell
   rerollCost: number; // price of the next shop reroll
@@ -362,6 +364,9 @@ export class GameEngine {
   public lastSummary: WaveSummary | null = null;
   public placingSlot: number | null = null;
   public selectedBinderId: string | null = null;
+  public castleSelected = false; // the artifact's card is open
+  public guardLevel = 1; // level of the artifact's own defence (CONFIG.siege.guard)
+  private guardTimer = 0;
   public bindingFromId: string | null = null; // tower waiting for its partner
   public upgradingFromBinderId: string | null = null; // triple binder waiting for the tower to raise
   public hoverCell: Point | null = null;
@@ -471,7 +476,10 @@ export class GameEngine {
 
   // Half of the screen the selected tower or binder is on, with the zoom
   private selectedSide(): 'left' | 'right' | null {
-    const sel = this.towers.find((t) => t.id === this.selectedTowerId) || this.binders.find((b) => b.id === this.selectedBinderId);
+    const sel =
+      this.towers.find((t) => t.id === this.selectedTowerId) ||
+      this.binders.find((b) => b.id === this.selectedBinderId) ||
+      (this.castleSelected ? CONFIG.grid.castleCells[0] : null);
     if (!sel) return null;
     const sx = ((sel.x + 0.5) * CONFIG.grid.cellSize - this.viewX) * this.viewZoom;
     return sx < CONFIG.grid.totalWidth / 2 ? 'left' : 'right';
@@ -489,6 +497,9 @@ export class GameEngine {
     this.duelIncome = 0;
     this.currentMap = MAPS[this.level - 1];
     this.lives = CONFIG.lives.start;
+    this.guardLevel = 1;
+    this.guardTimer = 0;
+    this.castleSelected = false;
     this.gold = Math.floor((200 + 25 * (this.level - 1)) * CONFIG.difficulty[diff].goldMult);
     this.wave = 1;
     this.tier = 1;
@@ -1378,6 +1389,9 @@ export class GameEngine {
       }
     }
 
+    // The artifact's own defence
+    if (!this.isGameOver && !this.isVictory) this.updateGuard(dt);
+
     // 6. Update particles
     for (const p of this.particles) {
       if (!p.active) continue;
@@ -2028,6 +2042,7 @@ export class GameEngine {
     if (this.overflowPending()) return; // the bought tower must be placed or swapped first
     this.selectedTowerId = id;
     this.selectedBinderId = null;
+    this.castleSelected = false;
     this.bindingFromId = null;
     this.upgradingFromBinderId = null;
     this.clearPlacing();
@@ -2142,6 +2157,61 @@ export class GameEngine {
     sound.playBuy();
     this.notifyState();
     return true;
+  }
+
+  // The artifact's card: its HP and its own defence, which can be raised for gold
+  public selectCastle() {
+    this.selectTower(null);
+    if (this.overflowPending()) return;
+    this.castleSelected = true;
+    this.notifyState();
+  }
+
+  public guardUpgradeCost(): number | null {
+    return CONFIG.siege.guard.upgradeCost[this.guardLevel - 1] ?? null;
+  }
+
+  public upgradeGuard(): boolean {
+    const cost = this.guardUpgradeCost();
+    if (cost === null || this.gold < cost) {
+      sound.playError();
+      return false;
+    }
+    this.gold -= cost;
+    this.guardLevel++;
+    const c = CONFIG.grid.castleTarget;
+    this.spawnRing(c.x * CONFIG.grid.cellSize, c.y * CONFIG.grid.cellSize, '#7fd6e0');
+    this.addFloatingText(`Защита ${this.guardLevel}`, c.x * CONFIG.grid.cellSize, (c.y - 0.8) * CONFIG.grid.cellSize, '#7fd6e0');
+    sound.playBuy();
+    this.notifyState();
+    return true;
+  }
+
+  // The artifact's defence strikes the nearest enemy in its radius
+  private updateGuard(dt: number) {
+    this.guardTimer -= dt;
+    if (this.guardTimer > 0) return;
+    const g = CONFIG.siege.guard;
+    const cx = CONFIG.grid.castleTarget.x * CONFIG.grid.cellSize;
+    const cy = CONFIG.grid.castleTarget.y * CONFIG.grid.cellSize;
+    let target: Enemy | null = null;
+    let best = g.radius * CONFIG.grid.cellSize;
+    for (const e of this.enemies) {
+      if (e.isReviving || e.invulnerableTimer > 0) continue;
+      const d = Math.hypot(e.x - cx, e.y - cy);
+      if (d <= best) {
+        best = d;
+        target = e;
+      }
+    }
+    if (!target) {
+      this.guardTimer = 0;
+      return;
+    }
+    this.guardTimer = g.every;
+    this.spawnBolt(cx, cy - 0.3 * CONFIG.grid.cellSize, target.x, target.y - 10, '#7fd6e0');
+    this.dmgSource = null;
+    this.applyDamageToEnemy(target, g.damage[this.guardLevel - 1], 'mag', 'mage', []);
   }
 
   public selectBinder(id: string | null) {
@@ -2634,6 +2704,17 @@ export class GameEngine {
       zoomed: this.viewZoom > 1,
       selectedDamage: selected ? { wave: this.waveStats.dmg.get(selected.id) || 0, run: this.runStats.dmg.get(selected.id) || 0 } : null,
       selectedSide: this.selectedSideShown,
+      castle: this.castleSelected
+        ? {
+            hp: this.lives,
+            maxHp: CONFIG.lives.start,
+            level: this.guardLevel,
+            maxLevel: CONFIG.siege.guard.damage.length,
+            damage: CONFIG.siege.guard.damage[this.guardLevel - 1],
+            nextDamage: CONFIG.siege.guard.damage[this.guardLevel] ?? null,
+            cost: this.guardUpgradeCost(),
+          }
+        : null,
     });
   }
 
@@ -2758,6 +2839,16 @@ export class GameEngine {
         ctx.fill();
         ctx.stroke();
       }
+    }
+    if (this.castleSelected) {
+      // Reach of the artifact's defence
+      ctx.fillStyle = 'rgba(127, 214, 224, 0.08)';
+      ctx.strokeStyle = 'rgba(127, 214, 224, 0.5)';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.arc(CONFIG.grid.castleTarget.x * cellSize, CONFIG.grid.castleTarget.y * cellSize, CONFIG.siege.guard.radius * cellSize, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
     }
 
     // Between waves the selected tower can move: free cells are marked, the hovered one shows the target

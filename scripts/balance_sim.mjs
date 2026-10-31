@@ -93,6 +93,7 @@ async function runInPage(job) {
     damage: {}, // "type" and "type:spec" → hp removed
     leaks: {}, // enemy type → enemies that reached the artifact
     castleDmg: {}, // enemy type → artifact HP taken
+    guardAt: {}, // guard level → wave reached
     leakWaves: {}, // wave → lives lost
     waves: [], // per wave: lives, gold, towers, levels
     merges: { l2: 0, l3: 0 },
@@ -354,6 +355,15 @@ async function runInPage(job) {
         doBinders();
         continue;
       }
+      // Защита артефакта: следующий уровень, когда на поле уже есть башни и золото с запасом
+      const guardCost = engine.guardUpgradeCost();
+      if (guardCost !== null && engine.towers.length >= 2 + 2 * engine.guardLevel && engine.gold >= guardCost + (casual ? 120 : 40)) {
+        if (engine.upgradeGuard()) {
+          stats.spend.guard = (stats.spend.guard ?? 0) + guardCost;
+          stats.guardAt[engine.guardLevel] = engine.wave;
+          continue;
+        }
+      }
       // Nothing worth buying: raise the tier when there is a board, else reroll while gold lasts
       const tierCost = CONFIG.shop.tierUpgradeCosts[engine.tier - 1];
       if (engine.tier < 5 && engine.towers.length >= 3 * engine.tier && engine.gold >= tierCost + (casual ? 120 : 40)) {
@@ -442,6 +452,8 @@ async function runInPage(job) {
     killGoldCheck: calculateKillGold(5, job.level),
     towersFinal,
     tier: engine.tier,
+    guardLevel: engine.guardLevel,
+    otherDmg: Math.round(engine.runStats.other), // урон не от башен: в основном защита артефакта
     stats,
   };
 }
