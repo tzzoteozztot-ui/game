@@ -59,7 +59,7 @@ export function DuelLobby({ level, onStart, onBack }: DuelLobbyProps) {
     startedRef.current = true;
     onStart(link, lvl, performance.now(), opponentArmy, army);
   };
-  const clampArmy = (a: unknown) => Math.max(1, Math.min(5, Math.floor(Number(a)) || 1));
+  const clampArmy = (a: unknown) => Math.max(1, Math.min(CONFIG.factions.length, Math.floor(Number(a)) || 1));
 
   const handleCreate = async () => {
     setError(null);
@@ -144,7 +144,7 @@ export function DuelLobby({ level, onStart, onBack }: DuelLobbyProps) {
         {(state.kind === 'choose' || state.kind === 'joining' || state.kind === 'bot') && (
           <div className="mb-3">
             <div className="text-xs text-stone-400 mb-1">Ваша армия против соперника:</div>
-            <div className="grid grid-cols-5 gap-1">
+            <div className="grid grid-cols-3 gap-1">
               {CONFIG.factions.map((f) => (
                 <button
                   key={f.id}

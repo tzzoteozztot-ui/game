@@ -2,7 +2,7 @@
 // с игровым временем вместо реального, и пишет итоги прогонов в JSON.
 //
 // Запуск: сначала `npm run dev`, затем
-//   node scripts/balance_sim.mjs [out.json] [--runs=N] [--only=endless|campaign|mono]
+//   node scripts/balance_sim.mjs [out.json] [--runs=N] [--only=endless|campaign|mono] [--faction=6] [--levels=1,3]
 // Нужен Playwright (как для scripts/character_sheet.mjs).
 //
 // Стратегия бота: покупает карточки, которые доводят тройку до слияния, ставит башню в свободную клетку,
@@ -29,6 +29,9 @@ const URL_ = opt('url', 'http://localhost:3000/');
 const PAGES = Number(opt('pages', 4));
 const DIFF = opt('difficulty', 'normal'); // сложность бесконечных прогонов
 const MAXWAVE = Number(opt('maxwave', 150));
+// Враги в бесконечном режиме отдельно от карты: --faction=6 (люди на всех картах); 0 — хозяева карты
+const FACTION = Number(opt('faction', 0));
+const LEVELS = opt('levels', '1,2,3,4,5').split(',').map(Number);
 // Пробные числа без правки config.ts: --set=siege.attack.shaman.range=2,lives.start=300
 const SET = opt('set', '')
   .split(',')
@@ -42,10 +45,10 @@ const jobs = [];
 const add = (n, job) => {
   for (let r = 0; r < n; r++) jobs.push({ ...job, seed: jobs.length * 7919 + 17 });
 };
-for (let level = 1; level <= 5; level++) {
+for (const level of LEVELS) {
   if (!ONLY || ONLY === 'endless') {
-    add(RUNS, { kind: 'endless', level, policy: 'mixed', style: 'pro', difficulty: DIFF });
-    add(RUNS, { kind: 'endless', level, policy: 'mixed', style: 'casual', difficulty: DIFF });
+    add(RUNS, { kind: 'endless', level, policy: 'mixed', style: 'pro', difficulty: DIFF, faction: FACTION });
+    add(RUNS, { kind: 'endless', level, policy: 'mixed', style: 'casual', difficulty: DIFF, faction: FACTION });
   }
   if (!ONLY || ONLY === 'mono')
     for (const t of ['archer', 'priest', 'mage', 'ballista'])
@@ -82,7 +85,7 @@ async function runInPage(job) {
   const engine = new GameEngine();
   engine.setCanvas(document.createElement('canvas'));
   const endless = job.kind === 'endless';
-  engine.startLevel(job.level, job.difficulty, endless);
+  engine.startLevel(job.level, job.difficulty, endless, job.faction || undefined);
   const casual = job.style === 'casual';
   engine.stopLoop();
 
@@ -472,7 +475,7 @@ async function worker() {
     const r = await page.evaluate(runInPage, { ...job, maxWave: MAXWAVE, set: SET });
     results.push(r);
     console.log(
-      `${results.length}/${jobs.length} ${job.kind} ур.${job.level} ${job.policy} ${job.style} ${job.difficulty}: ` +
+      `${results.length}/${jobs.length} ${job.kind} ур.${job.level}${job.faction ? ` фр.${job.faction}` : ''} ${job.policy} ${job.style} ${job.difficulty}: ` +
         (job.kind === 'campaign' ? (r.victory ? `победа, жизней ${r.lives}` : `поражение на волне ${r.reached}`) : `дошёл до волны ${r.reached}`) +
         ` (${Math.round((Date.now() - t0) / 1000)} с)`
     );

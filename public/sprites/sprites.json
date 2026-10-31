@@ -413,6 +413,69 @@
     "anchorY": 1,
     "facing": 1
   },
+  "enemy_infantry_6": {
+    "file": "enemy_infantry_6.png",
+    "w": 51,
+    "h": 102,
+    "drawH": 34,
+    "anchorX": 0.414,
+    "anchorY": 1,
+    "facing": 1
+  },
+  "enemy_scout_6": {
+    "file": "enemy_scout_6.png",
+    "w": 64,
+    "h": 96,
+    "drawH": 32,
+    "anchorX": 0.385,
+    "anchorY": 1,
+    "facing": 1
+  },
+  "enemy_heavy_6": {
+    "file": "enemy_heavy_6.png",
+    "w": 80,
+    "h": 120,
+    "drawH": 40,
+    "anchorX": 0.462,
+    "anchorY": 1,
+    "facing": 1
+  },
+  "enemy_flyer_6": {
+    "file": "enemy_flyer_6.png",
+    "w": 146,
+    "h": 102,
+    "drawH": 34,
+    "anchorX": 0.451,
+    "anchorY": 1,
+    "facing": 1
+  },
+  "enemy_shaman_6": {
+    "file": "enemy_shaman_6.png",
+    "w": 81,
+    "h": 108,
+    "drawH": 36,
+    "anchorX": 0.416,
+    "anchorY": 1,
+    "facing": 1
+  },
+  "enemy_swarm_6": {
+    "file": "enemy_swarm_6.png",
+    "w": 46,
+    "h": 48,
+    "drawH": 16,
+    "anchorX": 0.315,
+    "anchorY": 1,
+    "facing": 1
+  },
+  "boss_6": {
+    "file": "boss_6.png",
+    "w": 121,
+    "h": 216,
+    "drawH": 72,
+    "anchorX": 0.405,
+    "anchorY": 1,
+    "facing": 1
+  },
   "boss_1": {
     "file": "boss_1.png",
     "w": 159,

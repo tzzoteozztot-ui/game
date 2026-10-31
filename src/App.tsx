@@ -30,7 +30,7 @@ import { PauseModal, VictoryModal, DefeatModal, HowToPlayModal, DuelResultModal,
 import { OrientationWarning } from './components/OrientationWarning';
 import { fullscreenSupported, toggleFullscreen } from './fullscreen';
 import { AccountModal, SyncState } from './components/AccountModal';
-import { Progress, EMPTY_PROGRESS, readLocalProgress, writeLocalProgress, mergeProgress, isEmptyProgress } from './progress';
+import { Progress, EMPTY_PROGRESS, readLocalProgress, writeLocalProgress, mergeProgress, isEmptyProgress, endlessRecordKey } from './progress';
 import { cloudEnabled, onUserChange, loadCloudProgress, saveCloudProgress } from './cloud';
 import type { User } from '@supabase/supabase-js';
 
@@ -103,6 +103,9 @@ export default function App() {
   const [difficulty, setDifficulty] = useState<Difficulty>('normal');
   const [mode, setMode] = useState<GameMode>('campaign');
   const endless = mode === 'endless';
+  // Endless mode: enemies are picked apart from the map (Артур, 2026-10-31); 0 — the map's own faction
+  const [endlessEnemies, setEndlessEnemies] = useState<number>(0);
+  const enemyFaction = endless && endlessEnemies ? endlessEnemies : selectedLevel;
   const [showHowToPlay, setShowHowToPlay] = useState<boolean>(false);
   const [showBestiary, setShowBestiary] = useState<boolean>(false);
   const [isPortrait, setIsPortrait] = useState<boolean>(false);
@@ -310,17 +313,18 @@ export default function App() {
   useEffect(() => {
     if (gameState.endless && !gameState.duel && (gameState.isWaveActive || gameState.isGameOver)) {
       const diff = engineRef.current?.difficulty ?? 'normal';
+      const key = endlessRecordKey(gameState.level, gameState.faction);
       setProgress((prev) =>
-        (prev.endlessBest[diff][gameState.level] || 0) >= gameState.wave
+        (prev.endlessBest[diff][key] || 0) >= gameState.wave
           ? prev
           : mergeProgress(prev, {
               unlocked: 1,
               stars: EMPTY_PROGRESS.stars,
-              endlessBest: { ...EMPTY_PROGRESS.endlessBest, [diff]: { [gameState.level]: gameState.wave } },
+              endlessBest: { ...EMPTY_PROGRESS.endlessBest, [diff]: { [key]: gameState.wave } },
             })
       );
     }
-  }, [gameState.isWaveActive, gameState.isGameOver, gameState.endless, gameState.duel, gameState.wave, gameState.level]);
+  }, [gameState.isWaveActive, gameState.isGameOver, gameState.endless, gameState.duel, gameState.wave, gameState.level, gameState.faction]);
 
   // Duel: the room's link, the opponent's last state, how the duel ended
   const duelLinkRef = useRef<DuelLink | null>(null);
@@ -484,7 +488,7 @@ export default function App() {
     setTimeout(() => {
       if (canvasRef.current && engineRef.current) {
         engineRef.current.setCanvas(canvasRef.current);
-        engineRef.current.startLevel(selectedLevel, difficulty, endless);
+        engineRef.current.startLevel(selectedLevel, difficulty, endless, enemyFaction);
         setShopCards(generateShopCards(1));
       }
     }, 50);
@@ -520,13 +524,13 @@ export default function App() {
 
     if (screen === 'playing' && canvasRef.current) {
       engine.setCanvas(canvasRef.current);
-      engine.startLevel(selectedLevel, difficulty, endless);
+      engine.startLevel(selectedLevel, difficulty, endless, enemyFaction);
     } else {
       setScreen('playing');
       setTimeout(() => {
         if (canvasRef.current && engineRef.current) {
           engineRef.current.setCanvas(canvasRef.current);
-          engineRef.current.startLevel(selectedLevel, difficulty, endless);
+          engineRef.current.startLevel(selectedLevel, difficulty, endless, enemyFaction);
         }
       }, 50);
     }
@@ -1043,6 +1047,11 @@ export default function App() {
           sfxVol={audioSettings.sfxVolume}
           isMuted={audioSettings.muted}
           selectedLevel={Math.min(selectedLevel, unlockedLevel)}
+          endlessEnemies={endlessEnemies}
+          onChangeEnemies={(f) => {
+            sound.init();
+            setEndlessEnemies(f);
+          }}
           onSelectLevel={(lvl) => {
             sound.init();
             setSelectedLevel(lvl);
@@ -1070,6 +1079,7 @@ export default function App() {
       {screen === 'briefing' && (
         <LevelBriefing
           level={selectedLevel}
+          faction={enemyFaction}
           difficulty={difficulty}
           endless={endless}
           onStartBattle={handleStartBattle}
@@ -1314,7 +1324,7 @@ export default function App() {
           stats={gameState.runSummary}
           wave={gameState.wave}
           endless={gameState.endless}
-          best={endlessBest[engineRef.current?.difficulty ?? difficulty]?.[gameState.level] || 0}
+          best={endlessBest[engineRef.current?.difficulty ?? difficulty]?.[endlessRecordKey(gameState.level, gameState.faction)] || 0}
           onRestart={handleRestartLevel}
           onToMenu={handleToMenu}
         />

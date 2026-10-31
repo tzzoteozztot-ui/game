@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { MAPS, makePath, validateMap, validateAllMaps, MAX_ROAD_CELLS, MIN_FREE_CELLS, MIN_PATH_LENGTH, CASTLE, isHudCell, GRID_COLS, GRID_ROWS } from './maps';
 import { CONFIG } from './config';
+import { endlessRecordKey } from '../progress';
 import { attackStats, specSummary, stackedSlow } from './towerStats';
 
 test('all 5 maps meet the game rules', () => {
@@ -455,4 +456,18 @@ test('a binder joins only towers of Ур.2 and Ур.3, in any mix (Артур, 2
   assert.equal(canBindLevels(1, 2), false);
   assert.equal(canBindLevels(3, 1), false);
   assert.equal(canBindLevels(1, 1), false);
+});
+
+test('endless records: own faction keeps the map key, another faction gets map×10+faction', () => {
+  assert.equal(endlessRecordKey(1, 1), 1);
+  assert.equal(endlessRecordKey(1, 6), 16);
+  assert.equal(endlessRecordKey(5, 3), 53);
+  const p = normalizeProgress({ endlessBest: { hard: { 1: 20, 16: 14, 53: 9, 17: 5, 60: 3 } } });
+  assert.deepEqual(p.endlessBest.hard, { 1: 20, 16: 14, 53: 9 });
+});
+
+test('every faction has a palette; factions past the maps have no map of their own', () => {
+  assert.equal(CONFIG.palettes.length, CONFIG.factions.length);
+  assert.equal(MAPS.length, CONFIG.levelCount);
+  CONFIG.factions.forEach((f, i) => assert.equal(f.id, i + 1));
 });

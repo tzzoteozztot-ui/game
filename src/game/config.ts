@@ -109,8 +109,8 @@ export const CONFIG = {
       damage: [6, 12, 20, 30, 45], // урон по уровням 1–5
       upgradeCost: [240, 420, 660, 960], // цена перехода на уровни 2–5 (×3 к первой пробе, Артур 2026-10-31)
     },
-    // Разведчик стреляет издали только там, где он лучник (нежить, культисты, тёмные эльфы); у орков и демонов бьёт в упор
-    rangedScoutFactions: [2, 3, 5],
+    // Разведчик стреляет издали только там, где он лучник (нежить, культисты, тёмные эльфы, следопыт людей); у орков и демонов бьёт в упор
+    rangedScoutFactions: [2, 3, 5, 6],
   },
 
   difficulty: {
@@ -311,7 +311,14 @@ export const CONFIG = {
     { ground: '#1f2733', road: '#5d7084', enemies: '#7fc8f0', light: '#d6f0ff' }, // Level 3
     { ground: '#241818', road: '#4a3a38', enemies: '#e0452f', light: '#ff8a5a' }, // Level 4
     { ground: '#171a2e', road: '#3b3f66', enemies: '#3ed6c4', light: '#e8c76a' }, // Level 5
+    // Faction 6 (люди) has no map of its own: only `enemies` is used (tint, puffs); the rest copies level 1
+    { ground: '#2e2227', road: '#7a5238', enemies: '#5b8fd8', light: '#f4c06a' },
   ] as LevelPalette[],
+
+  // Maps (levels) 1..levelCount; factions 1..levelCount are the hosts of those maps, factions past it
+  // (люди) have no map and come only in endless mode and duel, on any map (Артур, 2026-10-31)
+  levelCount: 5,
+
 
   factions: [
     {
@@ -359,7 +366,26 @@ export const CONFIG = {
       bossName: 'Королева теней Сайрит',
       bossDesc: 'Раз в 15 с становится неуязвима на 3 с и совершает рывок на 3 клетки вперёд.',
     },
+    {
+      id: 6,
+      name: 'Люди',
+      location: 'Любая карта', // своей карты нет
+      traitName: 'Полевой ремонт',
+      traitDesc: 'Враг, которого 3 с никто не ранил, восстанавливает 2% здоровья в секунду.',
+      bossName: 'Командор экспедиции',
+      bossDesc: 'Раз в 12 с открывает врата: до 5 врагов в радиусе 3 кл. и он сам переносятся на 2 клетки вперёд.',
+    },
   ] as FactionDef[],
+
+  // Люди (faction 6): предложение Claude, утвердил Артур 2026-10-31
+  humans: {
+    repairDelay: 3, // s without damage before repair starts
+    repairPerSec: 0.02, // share of max HP restored per second
+    gateEvery: 12, // s between the commander's gates
+    gateRadius: 3, // cells around the commander
+    gateCount: 5, // allies carried besides the commander
+    gateCells: 2, // how far along the road
+  },
 
   waves: [
     { infantry: 6 },

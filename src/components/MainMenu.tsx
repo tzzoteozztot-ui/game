@@ -5,6 +5,7 @@
 
 import React, { useState } from 'react';
 import { CONFIG, Difficulty } from '../game/config';
+import { endlessRecordKey } from '../progress';
 
 export type GameMode = 'campaign' | 'endless' | 'duel';
 
@@ -23,7 +24,9 @@ interface MainMenuProps {
   selectedDifficulty: Difficulty;
   mode: GameMode;
   duelAvailable: boolean; // duel needs the server (or ?duel=local)
-  endlessBest: Record<number, number>; // level -> best wave reached in endless mode
+  endlessBest: Record<number, number>; // endlessRecordKey(level, faction) -> best wave reached in endless mode
+  endlessEnemies: number; // endless mode: whose enemies come, 0 — the map's own faction
+  onChangeEnemies: (faction: number) => void;
   musicVol: number;
   sfxVol: number;
   isMuted: boolean;
@@ -52,6 +55,8 @@ export function MainMenu({
   sfxVol,
   isMuted,
   selectedLevel,
+  endlessEnemies,
+  onChangeEnemies,
   onSelectLevel,
   onPlay,
   onChangeDifficulty,
@@ -115,8 +120,9 @@ export function MainMenu({
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-5 gap-1.5 sm:gap-2">
-          {CONFIG.factions.map((f, idx) => {
+          {CONFIG.factions.slice(0, CONFIG.levelCount).map((f, idx) => {
             const lvl = idx + 1;
+            const best = endlessBest[endlessRecordKey(lvl, endlessEnemies || lvl)];
             const isUnlocked = lvl <= unlockedLevel;
             const stars = levelStars[lvl] || 0;
             const palette = CONFIG.palettes[idx];
@@ -154,7 +160,7 @@ export function MainMenu({
                 <div className="mt-1.5 pt-1 border-t border-[#262233] flex items-center justify-between">
                   {endless ? (
                     <span className="text-[9px] sm:text-[10px] font-semibold text-amber-300">
-                      {endlessBest[lvl] ? `Рекорд: волна ${endlessBest[lvl]}` : 'Рекорда нет'}
+                      {best ? `Рекорд: волна ${best}` : 'Рекорда нет'}
                     </span>
                   ) : (
                     <div className="flex items-center gap-0.5">
@@ -201,6 +207,30 @@ export function MainMenu({
           </div>
         </div>
 
+        {/* Endless mode: enemies apart from the map (Артур, 2026-10-31) */}
+        {endless && (
+          <label className="w-full flex items-center justify-between gap-2 p-1 bg-[#171520] rounded-lg border border-[#2d2938]">
+            <span className="text-xs font-semibold text-stone-400 pl-3 short:pl-2">Враги:</span>
+            <select
+              value={endlessEnemies}
+              onChange={(e) => onChangeEnemies(Number(e.target.value))}
+              title={
+                endlessEnemies
+                  ? `${CONFIG.factions[endlessEnemies - 1].traitName}: ${CONFIG.factions[endlessEnemies - 1].traitDesc}`
+                  : 'Враги той фракции, чья это земля'
+              }
+              className="min-h-[36px] short:min-h-[34px] flex-1 max-w-[220px] rounded bg-[#221f2d] border border-[#383347] px-2 text-xs font-bold text-stone-200 cursor-pointer"
+            >
+              <option value={0}>Хозяева карты ({CONFIG.factions[selectedLevel - 1].name})</option>
+              {CONFIG.factions.map((f) => (
+                <option key={f.id} value={f.id}>
+                  {f.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
+
         {/* Difficulty Selector (a duel is always on the normal difficulty) */}
         {mode !== 'duel' && (
         <div className="w-full flex items-center justify-between p-1 bg-[#171520] rounded-lg border border-[#2d2938]">
@@ -232,6 +262,7 @@ export function MainMenu({
         >
           {mode === 'duel' ? 'Дуэль' : 'Играть'}: {CONFIG.factions[selectedLevel - 1].location}
           {mode !== 'duel' && ` · ${endless ? 'бесконечный' : 'кампания'}`}
+          {endless && endlessEnemies > 0 && endlessEnemies !== selectedLevel && ` · ${CONFIG.factions[endlessEnemies - 1].name}`}
         </button>
 
         {/* Buttons Row */}
