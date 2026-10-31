@@ -6,13 +6,23 @@
 import React from 'react';
 import { TowerType } from '../game/config';
 
-/** Tower picture from public/sprites; falls back to the shape icon if the file is missing. */
+/** Tower picture from public/sprites. A failed load (a hiccup of the network or of a deploy) is retried a few times;
+ *  the shape icon stands in meanwhile and stays only if the file is really missing. */
 export function TowerSpriteIcon({ type, size = 24, color }: { type: TowerType; size?: number | string; color?: string }) {
+  const [tries, setTries] = React.useState(0);
   const [failed, setFailed] = React.useState(false);
+  React.useEffect(() => {
+    if (!failed || tries >= 3) return;
+    const id = setTimeout(() => {
+      setTries((t) => t + 1);
+      setFailed(false);
+    }, 1500 * (tries + 1));
+    return () => clearTimeout(id);
+  }, [failed, tries]);
   if (failed) return <TowerShapeIcon type={type} size={size} color={color} />;
   return (
     <img
-      src={`sprites/tower_${type}_1.png`}
+      src={`sprites/tower_${type}_1.png${tries ? `?retry=${tries}` : ''}`}
       alt=""
       draggable={false}
       onError={() => setFailed(true)}

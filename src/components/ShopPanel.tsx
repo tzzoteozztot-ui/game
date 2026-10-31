@@ -55,29 +55,30 @@ export function ShopPanel({
         {isBinding ? (
           <>
             <span className="font-bold truncate" style={{ color: CONFIG.binder.color }}>Связка</span>
-            <span className="text-[length:var(--fs-sm)] text-stone-400 shrink-0">тапните башню</span>
+            <span className="hidden @min-[200px]:inline text-[length:var(--fs-sm)] text-stone-400 shrink-0">тапните башню</span>
           </>
         ) : placingBinder ? (
           <>
-            <span className="font-bold flex items-center gap-1 truncate" style={{ color: CONFIG.binder.color }}>
-              <span className="text-stone-400 font-normal">В руке:</span>
-              <span>{CONFIG.binder.name}</span>
+            <span className="font-bold flex items-center gap-1 min-w-0" style={{ color: CONFIG.binder.color }}>
+              <span className="hidden @min-[200px]:inline text-stone-400 font-normal">В руке:</span>
+              <span className="truncate">{CONFIG.binder.name}</span>
             </span>
-            <span className="text-[length:var(--fs-sm)] text-stone-400 shrink-0">тапните клетку</span>
+            <span className="hidden @min-[240px]:inline text-[length:var(--fs-sm)] text-stone-400 shrink-0">тапните клетку</span>
           </>
         ) : isMoving && !inHandDef && !placingBinder ? (
           <>
-            <span className="text-amber-300 font-bold shrink-0">Перестановка</span>
-            <span className="text-[length:var(--fs-sm)] text-stone-400 truncate">тапните клетку</span>
+            <span className="text-amber-300 font-bold truncate">Перестановка</span>
+            <span className="hidden @min-[240px]:inline text-[length:var(--fs-sm)] text-stone-400 shrink-0">тапните клетку</span>
           </>
         ) : inHandDef ? (
           <>
-            <span className="text-amber-300 font-bold flex items-center gap-1 truncate">
-              <span className="text-stone-400 font-normal">В руке:</span>
-              <span>{inHandDef.name}</span>
+            {/* A narrow column keeps only the name: «В руке:» and the hint drop out first */}
+            <span className="text-amber-300 font-bold flex items-center gap-1 min-w-0">
+              <span className="hidden @min-[200px]:inline text-stone-400 font-normal">В руке:</span>
+              <span className="truncate">{inHandDef.name}</span>
               {placingIsTriplet && <span className="text-amber-400 font-black">★</span>}
             </span>
-            <span className="text-[length:var(--fs-sm)] text-stone-400 shrink-0">тапните клетку</span>
+            <span className="hidden @min-[240px]:inline text-[length:var(--fs-sm)] text-stone-400 shrink-0">тапните клетку</span>
           </>
         ) : (
           <>
@@ -90,7 +91,7 @@ export function ShopPanel({
       </div>
 
       {/* 5 cards and the reroll button in a 3×2 grid (big icon + price, triplet marked with ★) */}
-      <div className="grid grid-cols-3 gap-1 shrink-0">
+      <div className="grid grid-cols-[repeat(var(--shop-cols,3),minmax(0,1fr))] gap-1 shrink-0">
         {cards.map((card, idx) => {
           if (!card) {
             return (

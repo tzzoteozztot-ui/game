@@ -14,5 +14,12 @@ body,
   padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
 }
 
+/* In battle the field runs under the cut-out on its side, as in other games (Артур, 2026-10-31);
+   the side column keeps its own inset on the other side */
+#root:has(.game-stage) {
+  padding-left: 0;
+  padding-right: 0;
+}
+
 /* Low landscape screen (a phone on its side): menus switch to two columns so nothing has to scroll */
 @custom-variant short (@media (orientation: landscape) and (max-height: 560px));

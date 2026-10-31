@@ -34,9 +34,9 @@ test('road stretches must not touch by a side except at merges', () => {
 
 test('cells under the field buttons stay free of road', () => {
   assert.equal(isHudCell(0, 0), true);
-  assert.equal(isHudCell(13, 0), true);
-  assert.equal(isHudCell(10, 0), true);
-  assert.equal(isHudCell(9, 0), false);
+  assert.equal(isHudCell(3, 0), true);
+  assert.equal(isHudCell(13, 0), false);
+  assert.equal(isHudCell(10, 0), false);
   assert.equal(isHudCell(4, 0), false);
   assert.equal(isHudCell(0, 1), false);
   for (const m of MAPS) {

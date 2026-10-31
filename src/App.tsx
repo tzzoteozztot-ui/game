@@ -13,6 +13,7 @@ import { sprites } from './game/sprites';
 
 import { FieldStats } from './components/FieldStats';
 import { FieldHud } from './components/FieldHud';
+import { GameControls } from './components/GameControls';
 import { WaveInfo } from './components/WaveInfo';
 import { Backpack } from './components/Backpack';
 import { ShopPanel, ShopCard } from './components/ShopPanel';
@@ -34,7 +35,10 @@ import type { User } from '@supabase/supabase-js';
 
 type ScreenState = 'menu' | 'briefing' | 'duelLobby' | 'playing';
 
-// Side column sizes (shop and backpack only): phone-size minimums, growing with the column height (cqh) and width (cqw)
+// The side column is never narrower than this (a phone minimum, an eighth of a wide screen): the field gives way to it
+const SIDE_MIN_W = 'max(132px, 12cqw)';
+
+// Side column sizes (game controls, shop and backpack): phone-size minimums, growing with the column height (cqh) and width (cqw)
 const SIDE_VARS = {
   '--fs-xs': 'clamp(10px, min(2.6cqh, 5cqw), 16px)',
   '--fs-sm': 'clamp(11px, min(2.9cqh, 5.7cqw), 17px)',
@@ -57,9 +61,39 @@ const SIDE_VARS_DUEL = {
   '--h-pack': 'clamp(26px, min(10cqh, 22cqw), 80px)',
 } as React.CSSProperties;
 
+// Bottom strip (a screen close to square: tablets, 4:3, 16:10): controls, shop in one row and the backpack side by side.
+// Sizes follow the strip's height (cqh) and width (cqw)
+const BOTTOM_MIN_H = 150;
+const BOTTOM_MIN_H_DUEL = 176; // the duel tabs need a line more
+const BOTTOM_VARS = {
+  '--fs-xs': 'clamp(10px, min(8cqh, 1.1cqw), 15px)',
+  '--fs-sm': 'clamp(11px, min(9cqh, 1.25cqw), 16px)',
+  '--fs-md': 'clamp(12px, min(10cqh, 1.4cqw), 18px)',
+  '--fs-lg': 'clamp(13px, min(12cqh, 1.6cqw), 21px)',
+  '--h-line': 'clamp(14px, 13cqh, 26px)',
+  '--h-card': 'clamp(38px, min(42cqh, 9cqw), 120px)',
+  '--h-tier': 'clamp(24px, 22cqh, 46px)',
+  '--h-pack': 'clamp(26px, min(32cqh, 7cqw), 84px)',
+  '--shop-cols': '6',
+  '--ctl-cols': '2',
+  '--ctl-w': 'clamp(84px, 11cqw, 150px)',
+} as React.CSSProperties;
+
+type StageLayout = 'side' | 'bottom';
+
+// Which arrangement gives the bigger field on a stage of this size: the column at the side or the strip below
+function pickLayout(w: number, h: number, bottomMinH: number): StageLayout {
+  const ratio = CONFIG.grid.cols / CONFIG.grid.rows;
+  const side = Math.min(w - Math.max(132, 0.12 * w), h * ratio);
+  const bottom = Math.min(w, (h - bottomMinH) * ratio);
+  return bottom > side ? 'bottom' : 'side';
+}
+
 export default function App() {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const stageRef = useRef<HTMLDivElement | null>(null);
+  const [layout, setLayout] = useState<StageLayout>('side');
   const engineRef = useRef<GameEngine | null>(null);
 
   // App screen state
@@ -291,6 +325,16 @@ export default function App() {
   const [opponent, setOpponent] = useState<{ lives: number; wave: number; income: number } | null>(null);
   const [towerDetails, setTowerDetails] = useState<boolean>(false); // the tower card shows its specializations and damage
   const [sideTab, setSideTab] = useState<'towers' | 'army'>('towers'); // duel: tower shop or enemies for the opponent
+
+  // The stage picks the column at the side or the strip below by its own size
+  useEffect(() => {
+    const el = stageRef.current;
+    if (!el || screen !== 'playing') return;
+    const minH = gameState.duel ? BOTTOM_MIN_H_DUEL : BOTTOM_MIN_H;
+    const ro = new ResizeObserver(() => setLayout(pickLayout(el.clientWidth, el.clientHeight, minH)));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [screen, gameState.duel]);
   const [duelOutcome, setDuelOutcome] = useState<DuelOutcome | null>(null);
   const duelOutcomeRef = useRef<DuelOutcome | null>(null);
 
@@ -1031,22 +1075,25 @@ export default function App() {
       {/* 4. Active Gameplay Screen */}
       {screen === 'playing' && (
         <div className="w-full h-full flex flex-col">
-          {/* Main Game Stage: Canvas (left/center) + Right Panel */}
-          <div className="flex-1 flex overflow-hidden min-h-0 relative [container-type:size]">
-            {/* Canvas Container keeps the field's aspect ratio */}
+          {/* Main Game Stage: the field takes the full height, the side column takes the width that is left
+              (Артур, 2026-10-31: no bars around the field). On a screen too narrow for that the field is limited by
+              the width; past the column's maximum both stand in the middle */}
+          <div
+            ref={stageRef}
+            className={`game-stage flex-1 flex ${layout === 'bottom' ? 'flex-col' : ''} justify-center overflow-hidden min-h-0 relative bg-[#121118] [container-type:size]`}
+          >
             <div
               ref={containerRef}
-              className="flex-1 h-full min-w-0 bg-[#121118] flex items-center justify-center p-1 sm:p-2 overflow-hidden"
-              // Takes the width the side column leaves; the field keeps its aspect ratio inside
+              className={`shrink-0 flex items-center justify-center overflow-hidden ${layout === 'bottom' ? 'w-full' : 'h-full'}`}
             >
               <div
-                className="relative shadow-2xl rounded overflow-hidden"
+                className="relative overflow-hidden"
                 style={{
                   aspectRatio: `${CONFIG.grid.cols} / ${CONFIG.grid.rows}`,
-                  // Explicit width: 'auto' would follow the canvas bitmap, which is smaller on dpr 1 screens
-                  width: `min(100%, (100cqh - 16px) * ${CONFIG.grid.cols} / ${CONFIG.grid.rows})`,
-                  maxHeight: '100%',
-                  height: 'auto',
+                  width:
+                    layout === 'bottom'
+                      ? `min(100cqw, (100cqh - ${gameState.duel ? BOTTOM_MIN_H_DUEL : BOTTOM_MIN_H}px) * ${CONFIG.grid.cols} / ${CONFIG.grid.rows})`
+                      : `min(100cqw - ${SIDE_MIN_W}, 100cqh * ${CONFIG.grid.cols} / ${CONFIG.grid.rows})`,
                 }}
               >
                 <canvas
@@ -1060,18 +1107,12 @@ export default function App() {
                   style={{ imageRendering: 'pixelated' }}
                 />
                 <FieldHud
-                  speed={gameState.speed}
-                  isPaused={gameState.isPaused}
-                  isMuted={audioSettings.muted}
                   isSpawning={gameState.isSpawning}
                   isWaveActive={gameState.isWaveActive}
                   allWavesLaunched={gameState.allWavesLaunched}
                   duel={gameState.duel}
                   waveCountdown={gameState.waveCountdown}
                   earlyStartBonus={gameState.earlyStartBonus}
-                  onTogglePause={() => engineRef.current?.togglePause()}
-                  onSetSpeed={(v) => engineRef.current?.setSpeed(v)}
-                  onToggleMute={handleToggleMute}
                   onStartWave={handleStartWave}
                   autoStart={gameState.autoStart}
                   onToggleAutoStart={() => engineRef.current?.setAutoStart(!engineRef.current.autoStart)}
@@ -1115,12 +1156,33 @@ export default function App() {
               </div>
             </div>
 
-            {/* Right Column: only the shop and the backpack, under a fifth of the screen (gold, lives and the
-                selected tower are over the field). Sizes follow the column's height (cqh) and width (cqw) */}
+            {/* Right Column: game controls on top, then the shop and the backpack (gold, lives and the selected tower
+                are over the field). It takes the width the field leaves. Sizes follow the column's height (cqh) and width (cqw) */}
             <div
-              className="w-[18%] min-w-[132px] max-w-[260px] shrink-0 h-full flex flex-col justify-center-safe bg-[#171520] border-l border-[#2d2938] text-[#f4f2e6] overflow-y-auto overflow-x-hidden select-none z-10 [container-type:size]"
-              style={gameState.duel ? SIDE_VARS_DUEL : SIDE_VARS}
+              className={`flex-1 flex bg-[#171520] text-[#f4f2e6] overflow-hidden select-none z-10 [container-type:size] ${
+                layout === 'bottom'
+                  ? 'w-full flex-row items-center gap-1 px-1 border-t border-[#2d2938]'
+                  : 'min-w-[max(132px,12cqw)] max-w-[340px] h-full flex-col overflow-y-auto border-l border-[#2d2938]'
+              }`}
+              style={
+                layout === 'bottom'
+                  ? { ...BOTTOM_VARS, paddingLeft: 'env(safe-area-inset-left)', paddingRight: 'env(safe-area-inset-right)' }
+                  : { ...(gameState.duel ? SIDE_VARS_DUEL : SIDE_VARS), paddingRight: 'env(safe-area-inset-right)' }
+              }
             >
+              <GameControls
+                speed={gameState.speed}
+                isPaused={gameState.isPaused}
+                isMuted={audioSettings.muted}
+                duel={gameState.duel}
+                onTogglePause={() => engineRef.current?.togglePause()}
+                onSetSpeed={(v) => engineRef.current?.setSpeed(v)}
+                onToggleMute={handleToggleMute}
+                dropUp={layout === 'bottom'}
+              />
+              <div className={layout === 'bottom' ? 'flex-1 min-w-0 h-full flex flex-row items-center gap-1' : 'flex-1 flex flex-col justify-center-safe'}>
+              {/* In the strip the shop (with the duel tabs) and the backpack stand side by side */}
+              <div className={layout === 'bottom' ? 'flex-[3] min-w-0 flex flex-col justify-center' : 'contents'}>
               {gameState.duel && (
                 <div className="px-1.5 pt-1 grid grid-cols-2 gap-1 shrink-0" role="tablist">
                   {(['towers', 'army'] as const).map((tab) => (
@@ -1171,7 +1233,9 @@ export default function App() {
                 onUpgradeTier={handleUpgradeTier}
               />
               )}
+              </div>
               {!(gameState.duel && sideTab === 'army') && (
+                <div className={layout === 'bottom' ? 'flex-[1.5] min-w-0 flex flex-col justify-center' : 'contents'}>
                 <Backpack
                   items={gameState.backpack}
                   slots={gameState.backpackSlots}
@@ -1182,7 +1246,9 @@ export default function App() {
                   }}
                   onSell={(i) => engineRef.current?.sellBackpack(i)}
                 />
+                </div>
               )}
+              </div>
             </div>
           </div>
         </div>
