@@ -1159,10 +1159,10 @@ export default function App() {
             {/* Right Column: game controls on top, then the shop and the backpack (gold, lives and the selected tower
                 are over the field). It takes the width the field leaves. Sizes follow the column's height (cqh) and width (cqw) */}
             <div
-              className={`flex-1 flex bg-[#171520] text-[#f4f2e6] overflow-hidden select-none z-10 [container-type:size] ${
+              className={`flex-1 flex bg-[#171520] text-[#f4f2e6] select-none z-10 [container-type:size] ${
                 layout === 'bottom'
                   ? 'w-full flex-row items-center gap-1 px-1 border-t border-[#2d2938]'
-                  : 'min-w-[max(132px,12cqw)] max-w-[340px] h-full flex-col overflow-y-auto border-l border-[#2d2938]'
+                  : 'min-w-[max(132px,12cqw)] max-w-[340px] h-full flex-col overflow-hidden overflow-y-auto border-l border-[#2d2938]'
               }`}
               style={
                 layout === 'bottom'
