@@ -69,8 +69,8 @@ export function makePath(points: Point[]): Point[] {
 // -------------------------------------------------------------
 // MAP 1 (Level 1: 2 entrances)
 const map1Paths: Point[][] = [
-  makePath([{ x: 13, y: 4 }, { x: 13, y: 7 }, { x: 0, y: 7 }, { x: 0, y: 4 }, { x: 6, y: 4 }]),
-  makePath([{ x: 0, y: 2 }, { x: 13, y: 2 }, { x: 13, y: 7 }, { x: 0, y: 7 }, { x: 0, y: 4 }, { x: 6, y: 4 }]),
+  makePath([{ x: 4, y: 0 }, { x: 4, y: 2 }, { x: 13, y: 2 }, { x: 13, y: 7 }, { x: 0, y: 7 }, { x: 0, y: 5 }, { x: 7, y: 5 }]),
+  makePath([{ x: 0, y: 2 }, { x: 13, y: 2 }, { x: 13, y: 7 }, { x: 0, y: 7 }, { x: 0, y: 5 }, { x: 7, y: 5 }]),
 ];
 
 // MAP 2 (Level 2: 3 entrances)
