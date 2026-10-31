@@ -42,14 +42,22 @@ class SpriteStore {
           Object.entries(metas).map(
             ([name, meta]) =>
               new Promise<void>((resolve) => {
-                const img = new Image();
-                img.onload = () => {
-                  this.images.set(name, { img, meta });
-                  resolve();
+                // A failed file is asked again a few times (a network or deploy hiccup); the figure keeps its
+                // fallback shape until it arrives, and for good if the file is really missing
+                const attempt = (n: number) => {
+                  const img = new Image();
+                  img.onload = () => {
+                    this.images.set(name, { img, meta });
+                    this.cache.clear();
+                    resolve();
+                  };
+                  img.onerror = () => {
+                    resolve();
+                    if (n < 3) setTimeout(() => attempt(n + 1), 1500 * (n + 1));
+                  };
+                  img.src = new URL(meta.file, base).href + (n ? `?retry=${n}` : '');
                 };
-                // A missing file keeps the fallback shape for that figure only
-                img.onerror = () => resolve();
-                img.src = new URL(meta.file, base).href;
+                attempt(0);
               })
           )
         );
