@@ -91,7 +91,7 @@ export function ShopPanel({
       </div>
 
       {/* 5 cards and the reroll button in a 3×2 grid (big icon + price, triplet marked with ★) */}
-      <div className="grid grid-cols-3 gap-1 shrink-0">
+      <div className="grid grid-cols-[repeat(var(--shop-cols,3),minmax(0,1fr))] gap-1 shrink-0">
         {cards.map((card, idx) => {
           if (!card) {
             return (

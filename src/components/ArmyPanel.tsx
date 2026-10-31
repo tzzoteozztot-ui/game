@@ -33,7 +33,7 @@ export function ArmyPanel({ gold, prices, outgoing, outgoingCost, income, onBuy,
         </span>
       </div>
 
-      <div className="grid grid-cols-3 gap-1 shrink-0">
+      <div className="grid grid-cols-[repeat(var(--shop-cols,3),minmax(0,1fr))] gap-1 shrink-0">
         {SEND_TYPES.map((type, idx) => {
           const def = CONFIG.enemies[type];
           const price = prices[type];

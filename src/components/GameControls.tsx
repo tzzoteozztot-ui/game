@@ -1,7 +1,7 @@
 /**
  * Speed, sound, full screen and pause for «Тёмный рубеж»: a row at the top of the side column
  * (they used to sit over the top-right cells of the field; Артур moved them, 2026-10-31).
- * Sizes follow the column's SIDE_VARS (--h-tier, --fs-*).
+ * Sizes follow the column's SIDE_VARS or the strip's BOTTOM_VARS (--h-tier, --fs-*).
  */
 
 import React from 'react';
@@ -17,6 +17,7 @@ interface GameControlsProps {
   onTogglePause: () => void;
   onSetSpeed: (speed: number) => void;
   onToggleMute: () => void;
+  dropUp?: boolean; // the speed list opens upwards (the strip below the field)
 }
 
 const fmtSpeed = (v: number) => String(v).replace('.', ',');
@@ -26,13 +27,17 @@ const btn =
 const plain = 'bg-[#221f2d] hover:bg-[#2c283a] border-[#383347] text-stone-200';
 const icon = 'text-[length:var(--fs-lg)]';
 
-export function GameControls({ speed, isPaused, isMuted, duel, onTogglePause, onSetSpeed, onToggleMute }: GameControlsProps) {
+export function GameControls({ speed, isPaused, isMuted, duel, onTogglePause, onSetSpeed, onToggleMute, dropUp = false }: GameControlsProps) {
   const fullscreen = useFullscreen();
   const [speedOpen, setSpeedOpen] = React.useState(false);
   const count = 2 + (duel ? 0 : 1) + (fullscreen.supported ? 1 : 0);
 
   return (
-    <div className="px-1.5 pt-1.5 grid gap-1 shrink-0" style={{ gridTemplateColumns: `repeat(${count}, minmax(0, 1fr))` }}>
+    // One row in the side column; the bottom strip sets --ctl-cols and --ctl-w for a compact block
+    <div
+      className="px-1.5 pt-1.5 grid gap-1 shrink-0"
+      style={{ gridTemplateColumns: `repeat(var(--ctl-cols, ${count}), minmax(0, 1fr))`, width: 'var(--ctl-w, auto)' }}
+    >
       {!duel && (
         <div className="relative">
           <button
@@ -50,7 +55,7 @@ export function GameControls({ speed, isPaused, isMuted, duel, onTogglePause, on
             <>
               {/* A tap anywhere else closes the list */}
               <div className="fixed inset-0 z-20" onPointerDown={() => setSpeedOpen(false)} />
-              <div className="absolute top-full left-0 mt-1 z-30 flex flex-col gap-1 p-1 rounded bg-black/80 border border-white/15 backdrop-blur-sm">
+              <div className={`absolute left-0 z-30 ${dropUp ? 'bottom-full mb-1' : 'top-full mt-1'} flex flex-col gap-1 p-1 rounded bg-black/80 border border-white/15 backdrop-blur-sm`}>
                 {CONFIG.speeds.map((v) => (
                   <button
                     key={v}
