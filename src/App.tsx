@@ -20,6 +20,7 @@ import { ShopPanel, ShopCard } from './components/ShopPanel';
 import { TowerPanel } from './components/TowerPanel';
 import { SpecModal } from './components/SpecModal';
 import { MainMenu, GameMode } from './components/MainMenu';
+import { Bestiary } from './components/Bestiary';
 import { DuelLobby } from './components/DuelLobby';
 import { ArmyPanel } from './components/ArmyPanel';
 import { SEND_TYPES } from './game/rules';
@@ -103,6 +104,7 @@ export default function App() {
   const [mode, setMode] = useState<GameMode>('campaign');
   const endless = mode === 'endless';
   const [showHowToPlay, setShowHowToPlay] = useState<boolean>(false);
+  const [showBestiary, setShowBestiary] = useState<boolean>(false);
   const [isPortrait, setIsPortrait] = useState<boolean>(false);
 
   // Persistent progression
@@ -881,7 +883,7 @@ export default function App() {
         handleStartWave();
       }
     } else if (e.key === 'Enter') {
-      if (screen === 'menu' && !showHowToPlay) {
+      if (screen === 'menu' && !showHowToPlay && !showBestiary) {
         e.preventDefault();
         handleOpenBriefing();
       } else if (screen === 'briefing') {
@@ -1048,6 +1050,7 @@ export default function App() {
             setMode(m);
           }}
           onOpenHowToPlay={() => setShowHowToPlay(true)}
+          onOpenBestiary={() => setShowBestiary(true)}
           accountLabel={cloudEnabled ? (user ? 'Аккаунт ✓' : 'Войти') : null}
           onOpenAccount={() => setShowAccount(true)}
           onMusicChange={handleMusicChange}
@@ -1311,6 +1314,8 @@ export default function App() {
       {showAccount && (
         <AccountModal user={user} syncState={syncState} onClose={() => setShowAccount(false)} />
       )}
+
+      {showBestiary && <Bestiary onClose={() => setShowBestiary(false)} initialFaction={selectedLevel} />}
 
       {showHowToPlay && (
         <HowToPlayModal onClose={() => setShowHowToPlay(false)} />

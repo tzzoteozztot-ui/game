@@ -33,6 +33,7 @@ interface MainMenuProps {
   onChangeDifficulty: (diff: Difficulty) => void;
   onChangeMode: (mode: GameMode) => void;
   onOpenHowToPlay: () => void;
+  onOpenBestiary: () => void;
   accountLabel: string | null; // null when accounts are not set up
   onOpenAccount: () => void;
   onMusicChange: (val: number) => void;
@@ -56,6 +57,7 @@ export function MainMenu({
   onChangeDifficulty,
   onChangeMode,
   onOpenHowToPlay,
+  onOpenBestiary,
   accountLabel,
   onOpenAccount,
   onMusicChange,
@@ -240,6 +242,13 @@ export function MainMenu({
             className="min-h-[40px] px-3 py-2 rounded bg-[#221f2d] hover:bg-[#2c283a] border border-[#383347] text-xs font-bold text-stone-200 transition-colors cursor-pointer"
           >
             Как играть
+          </button>
+          <button
+            type="button"
+            onClick={onOpenBestiary}
+            className="min-h-[40px] px-3 py-2 rounded bg-[#221f2d] hover:bg-[#2c283a] border border-[#383347] text-xs font-bold text-stone-200 transition-colors cursor-pointer"
+          >
+            Бестиарий
           </button>
           <button
             type="button"

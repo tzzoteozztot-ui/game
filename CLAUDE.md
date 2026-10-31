@@ -53,12 +53,14 @@ src/index.css            @import "tailwindcss", высота html/body/#root 100
 src/progress.ts          прогресс игрока (уровни, звёзды, рекорды): localStorage, слияние двух копий
 src/cloud.ts             аккаунт Supabase: вход по коду из письма, чтение и запись строки progress
 src/duel.ts              связь дуэли: канал Supabase Realtime `duel-<код>` (broadcast), `?duel=local` — BroadcastChannel между вкладками
+src/bestiary.ts          данные бестиария: фракции и существа с текстами по лору (дополнять здесь; спрайты берутся из public/sprites/)
 src/fullscreen.ts        кнопка «Во весь экран» (Fullscreen API, клавиша F), признак запуска с экрана «Домой»
 public/manifest.webmanifest, public/icons/  установка на экран «Домой» (значки — scripts/make_icons.py)
 src/App.tsx              корневой компонент: экраны (menu → briefing → playing), магазин,
                          клавиатура, ввод с холста, сохранение прогресса, связь с движком
 src/components/          UI-оверлеи поверх холста (чистый React + Tailwind)
   MainMenu.tsx           выбор уровня/сложности, звёзды, настройки звука, ссылка на Telegram Артура (t.me/popataras, «По вопросам сотрудничества»; она же в «Как играть»)
+  Bestiary.tsx           бестиарий из главного меню: вкладки пяти фракций, карточка на каждого врага и босса (картинка + описание из src/bestiary.ts)
   LevelBriefing.tsx      описание фракции и босса перед уровнем
   DuelLobby.tsx          дуэль: создать комнату (код из 4 цифр), войти по коду или играть с ботом (`src/duelBot.ts`)
   ArmyPanel.tsx          дуэль: враги сопернику за золото, доход за раунд
