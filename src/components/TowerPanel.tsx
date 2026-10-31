@@ -62,6 +62,19 @@ interface TowerPanelProps {
   onUpgradeCastle?: () => void;
 }
 
+// Waiting for a tap on a target (raise with a triple binder, bind): the hint with «Отмена» stands outside the field
+// (App puts it in the side column), so no tower is covered and a tap on the field never cancels by accident
+export function WaitingHint({ text, onCancel }: { text: string; onCancel: () => void }) {
+  return (
+    <div className="shrink-0 m-1.5 p-1.5 rounded-lg bg-teal-950/50 border border-[#3ed6c4]/50 text-[#3ed6c4] flex flex-col gap-1 text-[length:var(--fs-sm,13px)] leading-tight">
+      <span className="font-bold">{text}</span>
+      <button type="button" onClick={onCancel} className={`${glassBtn} h-8 text-[length:var(--fs-sm,13px)] font-bold`}>
+        Отмена
+      </button>
+    </div>
+  );
+}
+
 const fmt = (n: number) => Math.round(n).toLocaleString('ru-RU');
 
 // The card's frame: App puts it in a bottom corner of the field, inside an inline-size container as wide as the field
@@ -121,19 +134,6 @@ export function TowerPanel({
   gold = 0,
   onUpgradeCastle,
 }: TowerPanelProps) {
-  // Waiting for a tap on a target (raise with a triple binder, bind): the card shrinks to a hint with a cancel button
-  // and lets taps through to the field, so the towers under it can still be chosen
-  const waitingHint = (text: string, color: string, cancel: () => void) => (
-    <div
-      className="flex items-center gap-1.5 p-1 rounded-lg bg-[#121018]/60 border border-white/15 text-[#f4f2e6] text-[length:var(--fs-sm)] select-none pointer-events-none"
-      style={PANEL_VARS}
-    >
-      <span className="font-bold leading-tight" style={{ color }}>{text}</span>
-      <button type="button" onClick={cancel} className={`${glassBtn} pointer-events-auto h-[var(--h-head)] px-2 text-[length:var(--fs-sm)] font-bold shrink-0`}>
-        Отмена
-      </button>
-    </div>
-  );
   const closeBtn = (
     <button type="button" onClick={onClose} title="Закрыть (Esc)" className={`${glassBtn} w-[var(--h-head)] h-[var(--h-head)] text-[length:var(--fs-lg)] shrink-0`}>
       ×
@@ -194,7 +194,7 @@ export function TowerPanel({
   if (!tower && selectedBinder) {
     const triple = selectedBinderTriple;
     const binderRefund = Math.floor(CONFIG.binder.cost * (triple ? 3 : 1) * sellRatio);
-    if (triple && isUpgrading) return waitingHint('Коснитесь башни: поднимется на уровень', CONFIG.binder.color, onUpgradeWithBinder);
+    if (triple && isUpgrading) return null;
     const canAct = triple ? isUpgrading || upgradeTargetCount > 0 : canMergeBinders;
     return (
       <Card>
@@ -249,7 +249,7 @@ export function TowerPanel({
 
   if (!tower) return null;
 
-  if (isBinding) return waitingHint('Коснитесь башни другого вида', CONFIG.binder.color, onBind);
+  if (isBinding) return null;
 
   const baseDef = CONFIG.towers[tower.type];
   const canMerge = eligibleMergeCount >= 3 && tower.level < 3;
