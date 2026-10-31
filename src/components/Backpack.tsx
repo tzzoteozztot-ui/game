@@ -21,13 +21,20 @@ export function Backpack({ items, slots, placingSlot, onSelect, onSell }: Backpa
     <div className="w-full px-1.5 pb-1.5 bg-[#171520] text-[#f4f2e6] flex flex-col gap-1 shrink-0 select-none">
       {/* Header line: the label, or «Продать» for the item in hand */}
       <div className="h-[var(--h-line)] flex items-center justify-between gap-1 px-0.5 leading-none">
-        <span className="text-[length:var(--fs-sm)] uppercase font-semibold tracking-wider text-stone-400">Рюкзак</span>
+        {/* In a narrow column the label gives way to «Продать» */}
+        <span
+          className={`text-[length:var(--fs-sm)] uppercase font-semibold tracking-wider text-stone-400 ${
+            inHand && placingSlot !== null ? 'hidden @min-[170px]:inline' : ''
+          }`}
+        >
+          Рюкзак
+        </span>
         {inHand && placingSlot !== null ? (
           <button
             type="button"
             onClick={() => onSell(placingSlot)}
             title="Продать из рюкзака за столько же, сколько заплатили"
-            className="h-full px-1.5 rounded border border-[#383347] bg-[#221f2d] hover:bg-[#2c283a] text-[length:var(--fs-xs)] font-semibold text-stone-200 cursor-pointer whitespace-nowrap"
+            className="h-full px-1.5 rounded border border-[#383347] bg-[#221f2d] hover:bg-[#2c283a] text-[length:var(--fs-xs)] font-semibold text-stone-200 cursor-pointer whitespace-nowrap ml-auto"
           >
             Продать <span className="text-amber-300 tabular-nums">+{inHand.sell}</span>
           </button>

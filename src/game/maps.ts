@@ -22,10 +22,10 @@ export const CASTLE: Point = { x: 7, y: 4 };
 export const MIN_PATH_LENGTH = 26;
 export const MAX_ROAD_CELLS = 56;
 export const MIN_FREE_CELLS = GRID_COLS * GRID_ROWS - 1 - MAX_ROAD_CELLS;
-// Top-row corners hold the buttons drawn over the field (wave on the left, speed / sound /
-// full screen / pause on the right): no road and no towers there
+// The top-left corner holds the wave buttons drawn over the field: no road and no towers there.
+// Speed, sound, full screen and pause moved to the side column (2026-10-31), so the top-right corner is free
 export const HUD_LEFT_COLS = 4;
-export const HUD_RIGHT_COLS = 4;
+export const HUD_RIGHT_COLS = 0;
 export function isHudCell(x: number, y: number): boolean {
   return y === 0 && (x < HUD_LEFT_COLS || x >= GRID_COLS - HUD_RIGHT_COLS);
 }

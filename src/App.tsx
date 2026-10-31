@@ -13,6 +13,7 @@ import { sprites } from './game/sprites';
 
 import { FieldStats } from './components/FieldStats';
 import { FieldHud } from './components/FieldHud';
+import { GameControls } from './components/GameControls';
 import { WaveInfo } from './components/WaveInfo';
 import { Backpack } from './components/Backpack';
 import { ShopPanel, ShopCard } from './components/ShopPanel';
@@ -34,7 +35,10 @@ import type { User } from '@supabase/supabase-js';
 
 type ScreenState = 'menu' | 'briefing' | 'duelLobby' | 'playing';
 
-// Side column sizes (shop and backpack only): phone-size minimums, growing with the column height (cqh) and width (cqw)
+// The side column is never narrower than this (a phone minimum, an eighth of a wide screen): the field gives way to it
+const SIDE_MIN_W = 'max(132px, 12cqw)';
+
+// Side column sizes (game controls, shop and backpack): phone-size minimums, growing with the column height (cqh) and width (cqw)
 const SIDE_VARS = {
   '--fs-xs': 'clamp(10px, min(2.6cqh, 5cqw), 16px)',
   '--fs-sm': 'clamp(11px, min(2.9cqh, 5.7cqw), 17px)',
@@ -1031,23 +1035,18 @@ export default function App() {
       {/* 4. Active Gameplay Screen */}
       {screen === 'playing' && (
         <div className="w-full h-full flex flex-col">
-          {/* Main Game Stage: Canvas (left/center) + Right Panel */}
-          <div className="flex-1 flex overflow-hidden min-h-0 relative [container-type:size]">
-            {/* Canvas Container keeps the field's aspect ratio */}
+          {/* Main Game Stage: the field takes the full height, the side column takes the width that is left
+              (Артур, 2026-10-31: no bars around the field). On a screen too narrow for that the field is limited by
+              the width; past the column's maximum both stand in the middle */}
+          <div className="game-stage flex-1 flex justify-center overflow-hidden min-h-0 relative bg-[#121118] [container-type:size]">
             <div
               ref={containerRef}
-              className="flex-1 h-full min-w-0 bg-[#121118] flex items-center justify-center p-1 sm:p-2 overflow-hidden"
-              // Takes the width the side column leaves; the field keeps its aspect ratio inside
+              className="h-full shrink-0 flex items-center overflow-hidden"
+              style={{ width: `min(100cqw - ${SIDE_MIN_W}, 100cqh * ${CONFIG.grid.cols} / ${CONFIG.grid.rows})` }}
             >
               <div
-                className="relative shadow-2xl rounded overflow-hidden"
-                style={{
-                  aspectRatio: `${CONFIG.grid.cols} / ${CONFIG.grid.rows}`,
-                  // Explicit width: 'auto' would follow the canvas bitmap, which is smaller on dpr 1 screens
-                  width: `min(100%, (100cqh - 16px) * ${CONFIG.grid.cols} / ${CONFIG.grid.rows})`,
-                  maxHeight: '100%',
-                  height: 'auto',
-                }}
+                className="relative w-full overflow-hidden"
+                style={{ aspectRatio: `${CONFIG.grid.cols} / ${CONFIG.grid.rows}` }}
               >
                 <canvas
                   ref={canvasRef}
@@ -1060,18 +1059,12 @@ export default function App() {
                   style={{ imageRendering: 'pixelated' }}
                 />
                 <FieldHud
-                  speed={gameState.speed}
-                  isPaused={gameState.isPaused}
-                  isMuted={audioSettings.muted}
                   isSpawning={gameState.isSpawning}
                   isWaveActive={gameState.isWaveActive}
                   allWavesLaunched={gameState.allWavesLaunched}
                   duel={gameState.duel}
                   waveCountdown={gameState.waveCountdown}
                   earlyStartBonus={gameState.earlyStartBonus}
-                  onTogglePause={() => engineRef.current?.togglePause()}
-                  onSetSpeed={(v) => engineRef.current?.setSpeed(v)}
-                  onToggleMute={handleToggleMute}
                   onStartWave={handleStartWave}
                   autoStart={gameState.autoStart}
                   onToggleAutoStart={() => engineRef.current?.setAutoStart(!engineRef.current.autoStart)}
@@ -1115,12 +1108,22 @@ export default function App() {
               </div>
             </div>
 
-            {/* Right Column: only the shop and the backpack, under a fifth of the screen (gold, lives and the
-                selected tower are over the field). Sizes follow the column's height (cqh) and width (cqw) */}
+            {/* Right Column: game controls on top, then the shop and the backpack (gold, lives and the selected tower
+                are over the field). It takes the width the field leaves. Sizes follow the column's height (cqh) and width (cqw) */}
             <div
-              className="w-[18%] min-w-[132px] max-w-[260px] shrink-0 h-full flex flex-col justify-center-safe bg-[#171520] border-l border-[#2d2938] text-[#f4f2e6] overflow-y-auto overflow-x-hidden select-none z-10 [container-type:size]"
-              style={gameState.duel ? SIDE_VARS_DUEL : SIDE_VARS}
+              className="flex-1 min-w-[max(132px,12cqw)] max-w-[340px] h-full flex flex-col bg-[#171520] border-l border-[#2d2938] text-[#f4f2e6] overflow-y-auto overflow-x-hidden select-none z-10 [container-type:size]"
+              style={{ ...(gameState.duel ? SIDE_VARS_DUEL : SIDE_VARS), paddingRight: 'env(safe-area-inset-right)' }}
             >
+              <GameControls
+                speed={gameState.speed}
+                isPaused={gameState.isPaused}
+                isMuted={audioSettings.muted}
+                duel={gameState.duel}
+                onTogglePause={() => engineRef.current?.togglePause()}
+                onSetSpeed={(v) => engineRef.current?.setSpeed(v)}
+                onToggleMute={handleToggleMute}
+              />
+              <div className="flex-1 flex flex-col justify-center-safe">
               {gameState.duel && (
                 <div className="px-1.5 pt-1 grid grid-cols-2 gap-1 shrink-0" role="tablist">
                   {(['towers', 'army'] as const).map((tab) => (
@@ -1183,6 +1186,7 @@ export default function App() {
                   onSell={(i) => engineRef.current?.sellBackpack(i)}
                 />
               )}
+              </div>
             </div>
           </div>
         </div>
