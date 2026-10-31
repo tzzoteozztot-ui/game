@@ -67,8 +67,9 @@ await page.evaluate(async () => {
     const isBoss = type === 'boss';
     const isImp = type === 'imp';
     const hasOwn = !isBoss && !isImp && sprites.has(own);
-    const name = isBoss ? `boss_${level}` : isImp ? 'enemy_scout' : hasOwn ? own : `enemy_${type}`;
-    const tint = isBoss || hasOwn ? null : isImp ? '#e0452f' : CONFIG.palettes[level - 1].enemies;
+    const ownImp = isImp && sprites.has('enemy_imp');
+    const name = isBoss ? `boss_${level}` : ownImp ? 'enemy_imp' : isImp ? 'enemy_scout' : hasOwn ? own : `enemy_${type}`;
+    const tint = isBoss || hasOwn || ownImp ? null : isImp ? '#e0452f' : CONFIG.palettes[level - 1].enemies;
     const spr = sprites.get(name, tint);
     const h = isImp ? 24 : spr.meta.drawH;
     const size = isBoss ? 1.3 : 0.9;

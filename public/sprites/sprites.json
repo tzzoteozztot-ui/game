@@ -350,6 +350,69 @@
     "anchorY": 1,
     "facing": 1
   },
+  "enemy_flyer_1": {
+    "file": "enemy_flyer_1.png",
+    "w": 101,
+    "h": 102,
+    "drawH": 34,
+    "anchorX": 0.443,
+    "anchorY": 1,
+    "facing": 1
+  },
+  "enemy_swarm_1": {
+    "file": "enemy_swarm_1.png",
+    "w": 63,
+    "h": 48,
+    "drawH": 16,
+    "anchorX": 0.484,
+    "anchorY": 1,
+    "facing": 1
+  },
+  "enemy_flyer_2": {
+    "file": "enemy_flyer_2.png",
+    "w": 118,
+    "h": 102,
+    "drawH": 34,
+    "anchorX": 0.392,
+    "anchorY": 1,
+    "facing": 1
+  },
+  "enemy_swarm_2": {
+    "file": "enemy_swarm_2.png",
+    "w": 109,
+    "h": 48,
+    "drawH": 16,
+    "anchorX": 0.518,
+    "anchorY": 1,
+    "facing": 1
+  },
+  "enemy_scout_4": {
+    "file": "enemy_scout_4.png",
+    "w": 161,
+    "h": 96,
+    "drawH": 32,
+    "anchorX": 0.355,
+    "anchorY": 1,
+    "facing": 1
+  },
+  "enemy_swarm_4": {
+    "file": "enemy_swarm_4.png",
+    "w": 39,
+    "h": 48,
+    "drawH": 16,
+    "anchorX": 0.485,
+    "anchorY": 1,
+    "facing": 1
+  },
+  "enemy_imp": {
+    "file": "enemy_imp.png",
+    "w": 76,
+    "h": 72,
+    "drawH": 24,
+    "anchorX": 0.465,
+    "anchorY": 1,
+    "facing": 1
+  },
   "boss_1": {
     "file": "boss_1.png",
     "w": 159,
