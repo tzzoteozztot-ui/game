@@ -125,7 +125,7 @@ export default function App() {
 
   // Live game state from engine
   const [gameState, setGameState] = useState<GameStateSnapshot>({
-    lives: 20,
+    lives: CONFIG.lives.start,
     gold: 200,
     level: 1,
     wave: 1,
@@ -176,6 +176,7 @@ export default function App() {
     zoomed: false,
     selectedDamage: null,
     selectedSide: null,
+    castle: null,
   });
 
   // Shop state (5 card slots)
@@ -729,7 +730,10 @@ export default function App() {
       return;
     }
     const clickedBinder = engine.binders.find((b) => b.x === cellX && b.y === cellY);
-    if (clickedBinder) {
+    if (CONFIG.grid.castleCells.some((c) => c.x === cellX && c.y === cellY)) {
+      engine.selectCastle();
+      sound.playBuy();
+    } else if (clickedBinder) {
       engine.selectBinder(clickedBinder.id);
       sound.playBuy();
     } else if (clickedTower) {
@@ -914,7 +918,7 @@ export default function App() {
         engine.toggleBinding();
       } else if (engine.upgradingFromBinderId) {
         engine.toggleUpgrading();
-      } else if (engine.selectedTowerId || engine.selectedBinderId) {
+      } else if (engine.selectedTowerId || engine.selectedBinderId || engine.castleSelected) {
         engine.selectTower(null);
       } else if (screen === 'playing') {
         engine.togglePause();
@@ -1015,6 +1019,9 @@ export default function App() {
       damage={gameState.selectedDamage}
       details={towerDetails}
       onToggleDetails={() => setTowerDetails((d) => !d)}
+      castle={gameState.castle}
+      gold={gameState.gold}
+      onUpgradeCastle={() => engineRef.current?.upgradeGuard()}
     />
   );
 

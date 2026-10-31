@@ -142,9 +142,11 @@ export function calculateSellRefund(baseCost: number, level: number, ratio = CON
   return Math.floor(totalInvested * ratio);
 }
 
-export function calculateStars(remainingLives: number): number {
-  if (remainingLives >= 15) return 3;
-  if (remainingLives >= 8) return 2;
+// Звёзды по доле уцелевшей прочности артефакта: ≥ 75 % — 3, ≥ 40 % — 2 (те же пороги, что 15 и 8 из 20 жизней)
+export function calculateStars(remainingHp: number, maxHp: number = CONFIG.lives.start): number {
+  const share = remainingHp / maxHp;
+  if (share >= 0.75) return 3;
+  if (share >= 0.4) return 2;
   return 1;
 }
 

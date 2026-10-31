@@ -105,9 +105,9 @@ export function WaveInfo({ nextWave, summary, faction, isWaveActive }: WaveInfoP
           <div className="font-bold text-amber-200 mb-[2px]">Волна {summary.wave}</div>
           <div className="grid grid-cols-2 gap-x-[calc(var(--cell)*0.2)] tabular-nums">
             <span>Убито: {fmt(summary.killed)}</span>
-            <span className={summary.leaked > 0 ? 'text-red-300' : ''}>Прорыв: {fmt(summary.leaked)}</span>
+            <span className={summary.leaked > 0 ? 'text-red-300' : ''}>Дошло: {fmt(summary.leaked)}</span>
             <span>Золото: +{fmt(summary.gold)}</span>
-            <span className={summary.lives > 0 ? 'text-red-300' : ''}>Жизни: −{fmt(summary.lives)}</span>
+            <span className={summary.lives > 0 ? 'text-red-300' : ''}>Артефакт: −{fmt(summary.lives)}</span>
           </div>
           {(summary.towers.length > 0 || summary.other > 0) && (
             <div className="mt-[3px] pt-[3px] border-t border-white/15">
