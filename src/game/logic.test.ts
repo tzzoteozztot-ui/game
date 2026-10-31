@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { MAPS, makePath, validateMap, validateAllMaps, MAX_ROAD_CELLS, MIN_FREE_CELLS, MIN_PATH_LENGTH, CASTLE, isHudCell, GRID_COLS, GRID_ROWS } from './maps';
 import { CONFIG } from './config';
-import { endlessRecordKey, normalizeProgress } from '../progress';
+import { endlessRecordKey } from '../progress';
 import { attackStats, specSummary, stackedSlow } from './towerStats';
 
 test('all 5 maps meet the game rules', () => {
