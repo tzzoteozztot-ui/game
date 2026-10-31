@@ -6,6 +6,7 @@
 
 import React from 'react';
 import { CONFIG, EnemyType } from '../game/config';
+import { enemyName } from '../bestiary';
 import { HUD_LEFT_COLS } from '../game/maps';
 import type { WaveSummary } from '../game/engine';
 
@@ -63,8 +64,8 @@ export function WaveInfo({ nextWave, summary, faction, isWaveActive }: WaveInfoP
               <div key={g.type} className="flex items-center justify-center gap-[1px] min-w-0">
                 <img
                   src={enemyIcon(g.type, faction)}
-                  alt={CONFIG.enemies[g.type].name}
-                  title={CONFIG.enemies[g.type].name}
+                  alt={enemyName(g.type, faction, CONFIG.enemies[g.type].name)}
+                  title={enemyName(g.type, faction, CONFIG.enemies[g.type].name)}
                   className="h-[calc(var(--cell)*0.36)] w-[calc(var(--cell)*0.36)] object-contain shrink-0"
                   draggable={false}
                 />

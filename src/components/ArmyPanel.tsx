@@ -7,6 +7,7 @@ import React from 'react';
 import { CONFIG } from '../game/config';
 import { SEND_TYPES, SendType, calculateSendIncome } from '../game/rules';
 import { GoldIcon } from './Icons';
+import { enemyName } from '../bestiary';
 
 interface ArmyPanelProps {
   gold: number;
@@ -14,11 +15,12 @@ interface ArmyPanelProps {
   outgoing: Partial<Record<SendType, number>>;
   outgoingCost: number;
   income: number;
+  faction: number; // army the player sends: its enemies' names
   onBuy: (type: SendType) => void;
   onClear: () => void;
 }
 
-export function ArmyPanel({ gold, prices, outgoing, outgoingCost, income, onBuy, onClear }: ArmyPanelProps) {
+export function ArmyPanel({ gold, prices, outgoing, outgoingCost, income, faction, onBuy, onClear }: ArmyPanelProps) {
   const count = SEND_TYPES.reduce((n, t) => n + (outgoing[t] ?? 0), 0);
   const gain = calculateSendIncome(outgoingCost);
 
@@ -39,7 +41,8 @@ export function ArmyPanel({ gold, prices, outgoing, outgoingCost, income, onBuy,
           const price = prices[type];
           const canAfford = gold >= price;
           const n = outgoing[type] ?? 0;
-          const name = type === 'swarm' ? `${def.name} (${CONFIG.swarmGroupCount} шт.)` : def.name;
+          const label = enemyName(type, faction, def.name);
+          const name = type === 'swarm' ? `${label} (${CONFIG.swarmGroupCount} шт.)` : label;
           return (
             <button
               key={type}
@@ -56,7 +59,7 @@ export function ArmyPanel({ gold, prices, outgoing, outgoingCost, income, onBuy,
             >
               {/* No room for the name in a narrow column: the sprite and the tooltip stay */}
               <span className="absolute top-0.5 left-1 max-w-[calc(100%-8px)] truncate hidden @min-[150px]:block text-stone-300 text-[length:var(--fs-xs)] font-semibold leading-none [text-shadow:0_1px_2px_#000]">
-                {def.name}
+                {label}
               </span>
               {n > 0 && (
                 <span className="absolute bottom-1 right-1 text-red-300 text-[length:var(--fs-md)] font-black leading-none tabular-nums">
@@ -66,7 +69,7 @@ export function ArmyPanel({ gold, prices, outgoing, outgoingCost, income, onBuy,
               <div className="w-full h-[calc(var(--h-card)-var(--fs-md)-10px)] flex items-center justify-center shrink-0">
                 <img
                   src={`sprites/enemy_${type}.png`}
-                  alt={def.name}
+                  alt={label}
                   draggable={false}
                   style={{ height: '100%', width: 'auto', maxWidth: '100%', objectFit: 'contain' }}
                 />

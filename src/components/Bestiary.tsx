@@ -130,7 +130,7 @@ export function Bestiary({ onClose, initialFaction = 1 }: { onClose: () => void;
                     </div>
                     {boss && conf && (
                       <div className="mt-2 pt-2 border-t border-[#262233] text-xs text-stone-400">
-                        <b className="text-amber-400">{conf.bossName}.</b> {conf.bossDesc}
+                        <b className="text-amber-400">Способность.</b> {conf.bossDesc}
                       </div>
                     )}
                   </div>

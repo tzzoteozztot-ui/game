@@ -1213,6 +1213,7 @@ export default function App() {
                   outgoing={gameState.duelOutgoing}
                   outgoingCost={gameState.duelOutgoingCost}
                   income={gameState.duelIncome}
+                  faction={gameState.faction}
                   onBuy={(t) => {
                     sound.init();
                     engineRef.current?.buySend(t);
