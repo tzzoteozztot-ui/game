@@ -168,3 +168,9 @@ export const BESTIARY: BestiaryFaction[] = [
     ],
   },
 ];
+
+/** Название врага в игре: своё у каждой фракции (орк — «Воин рода», нежить — «Скелет-воин»), иначе общее из CONFIG */
+export function enemyName(kind: BeastKind, factionId: number, fallback: string): string {
+  const f = BESTIARY.find((x) => x.id === factionId);
+  return f?.creatures.find((c) => c.kind === kind)?.name ?? fallback;
+}

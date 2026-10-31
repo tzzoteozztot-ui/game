@@ -54,6 +54,7 @@ src/progress.ts          прогресс игрока (уровни, звёзд
 src/cloud.ts             аккаунт Supabase: вход по коду из письма, чтение и запись строки progress
 src/duel.ts              связь дуэли: канал Supabase Realtime `duel-<код>` (broadcast), `?duel=local` — BroadcastChannel между вкладками
 src/bestiary.ts          данные бестиария: фракции и существа с текстами по лору (дополнять здесь; спрайты берутся из public/sprites/)
+                         и названия врагов по фракциям (`enemyName`: «Воин рода», «Скелет-воин»…; общие названия из config.ts — запасные; имена боссов — `bossName` в config.ts)
 src/fullscreen.ts        кнопка «Во весь экран» (Fullscreen API, клавиша F), признак запуска с экрана «Домой»
 public/manifest.webmanifest, public/icons/  установка на экран «Домой» (значки — scripts/make_icons.py)
 src/App.tsx              корневой компонент: экраны (menu → briefing → playing), магазин,
