@@ -17,7 +17,7 @@ import { GameControls } from './components/GameControls';
 import { WaveInfo } from './components/WaveInfo';
 import { Backpack } from './components/Backpack';
 import { ShopPanel, ShopCard } from './components/ShopPanel';
-import { TowerPanel } from './components/TowerPanel';
+import { TowerPanel, WaitingHint } from './components/TowerPanel';
 import { SpecModal } from './components/SpecModal';
 import { MainMenu, GameMode } from './components/MainMenu';
 import { Bestiary } from './components/Bestiary';
@@ -1190,6 +1190,8 @@ export default function App() {
                 onToggleMute={handleToggleMute}
                 dropUp={layout === 'bottom'}
               />
+              {gameState.isUpgrading && <WaitingHint text="Коснитесь башни: поднимется на уровень" onCancel={handleUpgradeWithBinder} />}
+              {gameState.isBinding && <WaitingHint text="Коснитесь башни другого вида" onCancel={handleBind} />}
               <div className={layout === 'bottom' ? 'flex-1 min-w-0 h-full flex flex-row items-center gap-1' : 'flex-1 flex flex-col justify-center-safe'}>
               {/* In the strip the shop (with the duel tabs) and the backpack stand side by side */}
               <div className={layout === 'bottom' ? 'flex-[3] min-w-0 flex flex-col justify-center' : 'contents'}>
