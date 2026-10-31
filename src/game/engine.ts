@@ -112,6 +112,12 @@ export interface Enemy {
   bossAbilityTimer: number;
 
   hitFlashTimer: number;
+  // Siege (Артур, 2026-10-31): at the artifact the enemy stops and strikes it until killed
+  sieging: boolean; // has reached the artifact at least once (counted as a breach once)
+  siegeTimer: number; // s until the next strike
+  attackAnim: number; // s left of the strike lunge (drawing only)
+  siegeX?: number; // where it settles around the artifact (px), so a crowd spreads around it
+  siegeY?: number;
   facing: number; // 1 = right, -1 = left (direction of movement)
   animSeed: number; // phase offset so figures do not step in unison
 }
@@ -937,11 +943,16 @@ export class GameEngine {
     this.runStats.killed++;
   }
 
-  private statLeak(lives: number) {
+  // An enemy reached the artifact (counted once per enemy)
+  private statLeak() {
     this.waveStats.leaked++;
-    this.waveStats.lives += lives;
     this.runStats.leaked++;
-    this.runStats.lives += lives;
+  }
+
+  // Artifact HP lost
+  private statCastleDamage(hp: number) {
+    this.waveStats.lives += hp;
+    this.runStats.lives += hp;
   }
 
   // Totals of the whole run for the end screens: the towers still standing keep their names, the rest go under «other»
@@ -1046,6 +1057,9 @@ export class GameEngine {
       dashTimer: 0,
       bossAbilityTimer: 0,
       hitFlashTimer: 0,
+      sieging: false,
+      siegeTimer: 0,
+      attackAnim: 0,
       animSeed: Math.random() * Math.PI * 2,
       facing: 1,
     };
@@ -1275,24 +1289,53 @@ export class GameEngine {
         speed *= 1 - e.slowPercent;
       }
 
+      // Siege: within reach of the artifact the enemy stops and strikes it (Артур, 2026-10-31)
+      if (e.attackAnim > 0) e.attackAnim -= dt;
+      const castlePxX = CONFIG.grid.castleTarget.x * CONFIG.grid.cellSize;
+      const castlePxY = CONFIG.grid.castleTarget.y * CONFIG.grid.cellSize;
+      const toCastle = Math.hypot(castlePxX - e.x, castlePxY - e.y);
+      if (toCastle <= this.siegeReach(e)) {
+        if (!e.sieging) {
+          e.sieging = true;
+          e.siegeTimer = 0.3 + (e.animSeed / (Math.PI * 2)) * 0.4; // first strike soon, not all in unison
+          // Settle a little to the side along the ring, so those coming by one road do not stand in one point
+          const ang = Math.atan2(e.y - castlePxY, e.x - castlePxX) + (e.animSeed / Math.PI - 1) * 0.7;
+          e.siegeX = castlePxX + Math.cos(ang) * toCastle;
+          e.siegeY = castlePxY + Math.sin(ang) * toCastle;
+          this.statLeak();
+        }
+        if (e.siegeX !== undefined && e.siegeY !== undefined) {
+          const sx = e.siegeX - e.x;
+          const sy = e.siegeY - e.y;
+          const sd = Math.hypot(sx, sy);
+          const st = Math.min(sd, speed * 0.5 * dt);
+          if (sd > 0.5) {
+            e.x += (sx / sd) * st;
+            e.y += (sy / sd) * st;
+          }
+        }
+        if (Math.abs(castlePxX - e.x) > 1) e.facing = castlePxX < e.x ? -1 : 1;
+        e.siegeTimer -= dt;
+        if (e.siegeTimer <= 0) {
+          const atk = CONFIG.siege.attack[e.type];
+          e.siegeTimer += atk.every;
+          this.hitCastle(e, atk.dmg);
+          if (this.isGameOver) return;
+        }
+        continue;
+      }
+
       // Movement
       if (e.isFlyer) {
         // Fly directly towards castle center
-        const targetPxX = CONFIG.grid.castleTarget.x * CONFIG.grid.cellSize;
-        const targetPxY = CONFIG.grid.castleTarget.y * CONFIG.grid.cellSize;
-        const dx = targetPxX - e.x;
-        const dy = targetPxY - e.y;
-        const dist = Math.hypot(dx, dy);
-
-        if (dist < 12) {
-          // Reached castle!
-          this.damageCastle(e, i);
-          continue;
+        const dx = castlePxX - e.x;
+        const dy = castlePxY - e.y;
+        const dist = toCastle;
+        const moveStep = Math.min(speed * dt, dist);
+        if (dist > 0.5) {
+          e.x += (dx / dist) * moveStep;
+          e.y += (dy / dist) * moveStep;
         }
-
-        const moveStep = speed * dt;
-        e.x += (dx / dist) * moveStep;
-        e.y += (dy / dist) * moveStep;
         e.distanceTraveled += moveStep;
         if (Math.abs(dx) > 1) e.facing = dx < 0 ? -1 : 1;
       } else {
@@ -1301,19 +1344,15 @@ export class GameEngine {
         const nextCell = path[e.pathIndex + 1];
 
         if (!nextCell) {
-          // Reached the end of the road next to the castle: walk into the castle cell
-          const cx = CONFIG.grid.castleTarget.x * CONFIG.grid.cellSize;
-          const cy = CONFIG.grid.castleTarget.y * CONFIG.grid.cellSize;
-          const dx = cx - e.x;
-          const dy = cy - e.y;
-          const dist = Math.hypot(dx, dy);
-          const moveStep = speed * dt;
-          if (dist <= Math.max(moveStep, 14)) {
-            this.damageCastle(e, i);
-            continue;
+          // Reached the end of the road next to the castle: walk towards the castle until in reach
+          const dx = castlePxX - e.x;
+          const dy = castlePxY - e.y;
+          const dist = toCastle;
+          const moveStep = Math.min(speed * dt, dist);
+          if (dist > 0.5) {
+            e.x += (dx / dist) * moveStep;
+            e.y += (dy / dist) * moveStep;
           }
-          e.x += (dx / dist) * moveStep;
-          e.y += (dy / dist) * moveStep;
           e.distanceTraveled += moveStep;
           if (Math.abs(dx) > 1) e.facing = dx < 0 ? -1 : 1;
         } else {
@@ -1802,18 +1841,33 @@ export class GameEngine {
     this.notifyState();
   }
 
-  private damageCastle(e: Enemy, index: number) {
-    this.enemies.splice(index, 1);
-    const cost = e.type === 'boss' ? CONFIG.lives.bossCost : CONFIG.lives.regularCost;
-    this.statLeak(Math.min(this.lives, cost));
-    this.lives = Math.max(0, this.lives - cost);
-    sound.playError();
-    this.addFloatingText(
-      `-${cost} ЖИЗНИ`,
-      CONFIG.grid.castleTarget.x * CONFIG.grid.cellSize,
-      (CONFIG.grid.castleTarget.y - 0.7) * CONFIG.grid.cellSize,
-      '#e0452f'
-    );
+  /** How close to the artifact centre (px) the enemy stops to strike it: melee at the wall, ranged from 1–3 cells */
+  private siegeReach(e: Enemy): number {
+    const atk = CONFIG.siege.attack[e.type];
+    const ranged = atk.range > 0 && (e.type !== 'scout' || CONFIG.siege.rangedScoutFactions.includes(this.faction));
+    const spread = (e.animSeed / (Math.PI * 2)) * 0.2; // a little scatter so the crowd does not stand in one point
+    return ((ranged ? atk.range : CONFIG.siege.meleeReach) + spread) * CONFIG.grid.cellSize;
+  }
+
+  private lastCastleSound = 0;
+
+  /** One strike of a besieging enemy: the artifact loses HP; ranged enemies send a visible bolt */
+  public hitCastle(e: Enemy, dmg: number) {
+    const lost = Math.min(this.lives, dmg);
+    this.statCastleDamage(lost);
+    this.lives = Math.max(0, this.lives - dmg);
+    e.attackAnim = 0.22;
+    const cx = CONFIG.grid.castleTarget.x * CONFIG.grid.cellSize;
+    const cy = (CONFIG.grid.castleTarget.y - 0.2) * CONFIG.grid.cellSize;
+    const d = Math.hypot(cx - e.x, cy - e.y);
+    if (d > CONFIG.grid.cellSize) this.spawnBolt(e.x, e.y - 14, cx, cy, e.type === 'shaman' ? '#b58cf0' : '#e8d9a8');
+    else this.spawnSpark(cx + (e.x - cx) * 0.4, cy + (e.y - cy) * 0.4, '#e0452f');
+    this.addFloatingText(`-${dmg}`, cx + (Math.random() - 0.5) * 24, cy - 26, '#e0452f');
+    const now = performance.now();
+    if (now - this.lastCastleSound > 600) {
+      this.lastCastleSound = now;
+      sound.playError();
+    }
 
     if (this.lives <= 0) {
       this.isGameOver = true;
@@ -2448,6 +2502,24 @@ export class GameEngine {
       p.maxLife = 0.2 + Math.random() * 0.15;
       p.type = 'spark';
     }
+  }
+
+  /** A ranged enemy's shot at the artifact: a bright dot flying from (x, y) to (tx, ty) */
+  public spawnBolt(x: number, y: number, tx: number, ty: number, color: string) {
+    const p = this.particles.find((item) => !item.active);
+    if (!p) return;
+    const flight = 0.25;
+    p.active = true;
+    p.x = x;
+    p.y = y;
+    p.vx = (tx - x) / flight;
+    p.vy = (ty - y) / flight;
+    p.size = 3;
+    p.color = color;
+    p.alpha = 1;
+    p.life = 0;
+    p.maxLife = flight;
+    p.type = 'spark';
   }
 
   public spawnPuff(x: number, y: number, color: string) {
@@ -3374,6 +3446,11 @@ export class GameEngine {
   // Walking: a hop and a lean per step, driven by the path covered (stops when the enemy stops);
   // flyers hover and flap
   private enemyPose(e: Enemy, timeSec: number): SpritePose {
+    if (e.attackAnim > 0) {
+      // Strike: a quick lean forward and squash
+      const k = Math.sin((1 - e.attackAnim / 0.22) * Math.PI);
+      return { lift: e.isFlyer ? 3 : 0, tilt: e.facing * 0.22 * k, sx: 1 + 0.06 * k, sy: 1 - 0.06 * k };
+    }
     if (e.isFlyer) {
       const ph = timeSec * 7 + e.animSeed;
       return { lift: 3 + Math.sin(ph) * 3, sy: 1 + Math.sin(ph * 2) * 0.05, tilt: Math.sin(ph * 0.5) * 0.05 };

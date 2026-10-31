@@ -30,8 +30,10 @@ export const BOT_LEVELS: Record<BotLevel, { label: string; hint: string; strengt
 
 const STRENGTH_POWER = 1.6;
 const STRENGTH_BASE = 100; // a start that holds the first waves on any level
-const LOSS_PER_OVERLOAD = 4; // lives lost per 100 % of overload
-const MAX_LOSS_PER_WAVE = 8;
+// Bot losses were tuned for 20 lives; scaled to the artifact's HP so the bot holds as long as before
+const HP_SCALE = CONFIG.lives.start / 20;
+const LOSS_PER_OVERLOAD = 4 * HP_SCALE; // artifact HP lost per 100 % of overload
+const MAX_LOSS_PER_WAVE = 8 * HP_SCALE;
 
 /** Price-weight of the wave a defender meets in this round (half wave, as in a duel) */
 export function waveWeight(round: number, level: number): number {

@@ -125,7 +125,7 @@ export default function App() {
 
   // Live game state from engine
   const [gameState, setGameState] = useState<GameStateSnapshot>({
-    lives: 20,
+    lives: CONFIG.lives.start,
     gold: 200,
     level: 1,
     wave: 1,

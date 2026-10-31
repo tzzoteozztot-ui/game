@@ -111,12 +111,15 @@ test('economy and reward calculations', () => {
   assert.equal(calculateSellRefund(50, 3), Math.floor(450 * 0.7)); // 315
 
   // Stars: >=15 -> 3, >=8 -> 2, else 1
-  assert.equal(calculateStars(20), 3);
-  assert.equal(calculateStars(15), 3);
-  assert.equal(calculateStars(14), 2);
-  assert.equal(calculateStars(8), 2);
-  assert.equal(calculateStars(7), 1);
+  // артефакт 200 HP: 3 звезды от 150, 2 — от 80
+  assert.equal(calculateStars(200), 3);
+  assert.equal(calculateStars(150), 3);
+  assert.equal(calculateStars(149), 2);
+  assert.equal(calculateStars(80), 2);
+  assert.equal(calculateStars(79), 1);
   assert.equal(calculateStars(1), 1);
+  assert.equal(calculateStars(15, 20), 3);
+  assert.equal(calculateStars(7, 20), 1);
 });
 
 test('enemy scaling and damage formulas', () => {

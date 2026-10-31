@@ -32,7 +32,7 @@ export function FieldStats({ gold, lives, wave, maxWaves, endless, supply, oppon
           <GoldIcon size="1.15em" />
           {gold}
         </span>
-        <span className="flex items-center gap-1 font-bold text-red-400" title="Жизни замка">
+        <span className="flex items-center gap-1 font-bold text-red-400" title="Прочность артефакта">
           <HeartCastleIcon size="1.15em" />
           {lives}
         </span>

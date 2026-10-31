@@ -79,10 +79,28 @@ export const CONFIG = {
     maxZoom: 2.5,
   },
 
+  // Прочность артефакта (бывший замок; поле по-прежнему `lives`). Артур, 2026-10-31: 200 HP,
+  // враги у артефакта не исчезают, а стоят и бьют (CONFIG.siege)
   lives: {
-    start: 20,
-    regularCost: 1,
-    bossCost: 5,
+    start: 200,
+  },
+
+  // Осада артефакта (Артур, 2026-10-31): ближние бьют в упор, дальние — с 1–3 клеток; башни их добивают.
+  // dmg — урон за удар, every — секунд между ударами, range — дальность в клетках от центра артефакта (0 — в упор)
+  siege: {
+    meleeReach: 0.55, // клеток от центра артефакта, где останавливаются ближние (плюс разброс до 0,2)
+    attack: {
+      infantry: { dmg: 2, every: 1.0, range: 0 },
+      scout: { dmg: 1, every: 1.0, range: 2 },
+      heavy: { dmg: 4, every: 1.2, range: 0 },
+      flyer: { dmg: 2, every: 1.0, range: 1 },
+      shaman: { dmg: 2, every: 1.5, range: 2 }, // с 3 клеток бот жил вдвое меньше (медиана 20 волн против 44)
+      swarm: { dmg: 1, every: 1.5, range: 0 },
+      boss: { dmg: 10, every: 1.0, range: 0 },
+      imp: { dmg: 1, every: 1.0, range: 0 },
+    } as Record<EnemyType, { dmg: number; every: number; range: number }>,
+    // Разведчик стреляет издали только там, где он лучник (нежить, культисты, тёмные эльфы); у орков и демонов бьёт в упор
+    rangedScoutFactions: [2, 3, 5],
   },
 
   difficulty: {
