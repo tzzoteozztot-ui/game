@@ -219,7 +219,7 @@ export function ShopPanel({
             ? 'bg-[#221f2d] hover:bg-[#2c283a] text-stone-200 border-[#383347]'
             : 'bg-[#181622] text-stone-600 border-[#262330] cursor-not-allowed'
         }`}
-        title="Поднять ярус лавки (U)"
+        title={CONFIG.shop.tierLinksGuard ? 'Поднять ярус лавки и защиту артефакта (U)' : 'Поднять ярус лавки (U)'}
       >
         {tier >= 5 ? (
           <span className="whitespace-nowrap">Ярус<span className="hidden @min-[150px]:inline"> лавки</span> 5 (макс)</span>

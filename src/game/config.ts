@@ -702,13 +702,13 @@ export const CONFIG = {
     slotsCount: 5,
     rerollCost: 10,
     rerollStep: 5, // each reroll within a wave costs 5 more (10, 15, 20…), back to 10 when a wave starts
-    tierUpgradeCosts: [30, 60, 100, 150], // for 1->2, 2->3, 3->4, 4->5
+    tierUpgradeCosts: [60, 150, 300, 500], // for 1->2, 2->3, 3->4, 4->5; with the defence (Артур, 2026-11-01, variant «В»; was 30/60/100/150 and the defence 240/420/660/960 apart)
     tripletChances: [0, 0.03, 0.06, 0.10, 0.15], // for tier 1..5
     binderChances: [0, 0, 0.06, 0.12, 0.18], // «Связка» card per slot, for tier 1..5
     level3Chances: [0, 0, 0, 0, 0.04], // a ready Ур.3 tower per slot, for tier 1..5 (Артур, 2026-11-01: from tier 5; the number is a draft)
     // Pseudo-random (Артур, 2026-11-01): chances stay, but at least one ready ★ / Ур.3 card comes within this many shop refreshes (0 — no guarantee), for tier 1..5
     pity: [0, 0, 10, 5, 5],
-    tierLinksGuard: false, // true: raising the shop tier also raises the artifact's defence by a level (one purchase), the separate defence upgrade is gone
+    tierLinksGuard: true, // true: raising the shop tier also raises the artifact's defence by a level (one purchase), the separate defence upgrade is gone
   },
 
   // «Связка»: rare figure that binds two towers of different types into one cell
