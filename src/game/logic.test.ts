@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { MAPS, makePath, validateMap, validateAllMaps, MAX_ROAD_CELLS, MIN_FREE_CELLS, MIN_PATH_LENGTH, CASTLE, isHudCell, GRID_COLS, GRID_ROWS } from './maps';
 import { CONFIG } from './config';
+import { generateMap, GEN_MAX_ROAD, GEN_MIN_ROAD } from './mapgen';
 import { endlessRecordKey } from '../progress';
 import { attackStats, specSummary, stackedSlow } from './towerStats';
 import { emptyPairState, pairRound, placesForFallen, type PairState } from '../brawl';
@@ -465,6 +466,34 @@ test('endless records: own faction keeps the map key, another faction gets map×
   assert.equal(endlessRecordKey(5, 3), 53);
   const p = normalizeProgress({ endlessBest: { hard: { 1: 20, 16: 14, 53: 9, 17: 5, 60: 3 } } });
   assert.deepEqual(p.endlessBest.hard, { 1: 20, 16: 14, 53: 9 });
+});
+
+test('endless records on a generated road are kept apart: 100 + map×10 + faction', () => {
+  assert.equal(endlessRecordKey(1, 1, true), 111);
+  assert.equal(endlessRecordKey(5, 6, true), 156);
+  const p = normalizeProgress({ endlessBest: { normal: { 1: 20, 111: 12, 156: 4, 160: 3, 107: 2 } } });
+  assert.deepEqual(p.endlessBest.normal, { 1: 20, 111: 12, 156: 4 });
+});
+
+test('generated maps meet the same rules as the fixed ones, for every level', () => {
+  for (let level = 1; level <= MAPS.length; level++) {
+    const seen = new Set<string>();
+    for (let seed = 1; seed <= 60; seed++) {
+      const m = generateMap(level, seed);
+      assert.notEqual(m, MAPS[level - 1], `level ${level}, seed ${seed}: fell back to the fixed map`);
+      const res = validateMap(m);
+      assert.equal(res.valid, true, `level ${level}, seed ${seed}: ${res.errors.join('; ')}`);
+      assert.equal(m.entrances.length, level + 1);
+      assert.ok(res.stats.roadCellsCount >= GEN_MIN_ROAD && res.stats.roadCellsCount <= GEN_MAX_ROAD);
+      seen.add(JSON.stringify(m.paths));
+    }
+    assert.ok(seen.size >= 55, `level ${level}: only ${seen.size} different maps out of 60`);
+  }
+});
+
+test('one seed always gives the same map', () => {
+  assert.deepEqual(generateMap(3, 12345), generateMap(3, 12345));
+  assert.notDeepEqual(generateMap(3, 12345), generateMap(3, 12346));
 });
 
 test('every faction has a palette; factions past the maps have no map of their own', () => {
