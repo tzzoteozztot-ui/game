@@ -2,7 +2,7 @@
  * 60 FPS Game Engine & Canvas Renderer for «Тёмный рубеж»
  */
 
-import { CONFIG, TowerType, TargetPriority, Difficulty, EnemyType, RaceId, TowerBaseDef, BOONS, BoonDef } from './config';
+import { CONFIG, TowerType, TargetPriority, Difficulty, EnemyType, RaceId, TowerBaseDef, BOONS, BoonDef, pickBoons } from './config';
 import { MAPS, Point, MapDef, isHudCell } from './maps';
 import { generateMap } from './mapgen';
 import {
@@ -857,12 +857,7 @@ export class GameEngine {
   /** Three boons not taken and not on offer yet; nothing once the pool runs dry */
   private offerBoons() {
     const busy = new Set([...this.boons, ...this.boonOffers.flat()]);
-    const pool = BOONS.filter((b) => !busy.has(b.id)).map((b) => b.id);
-    for (let i = pool.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [pool[i], pool[j]] = [pool[j], pool[i]];
-    }
-    const offer = pool.slice(0, CONFIG.brawl.boonOffer);
+    const offer = pickBoons(BOONS.filter((b) => !busy.has(b.id)), CONFIG.brawl.boonOffer).map((b) => b.id);
     if (offer.length === 0) return;
     this.boonOffers.push(offer);
     sound.playBuy();
