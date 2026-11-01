@@ -54,43 +54,33 @@ export function botStrength(difficulty: BotLevel, round: number): number {
   return STRENGTH_BASE + BOT_LEVELS[difficulty].strength * Math.pow(round, STRENGTH_POWER);
 }
 
-export function createBotLink(level: number, difficulty: BotLevel): DuelLink {
-  const cfg = BOT_LEVELS[difficulty];
-  const startedAt = performance.now();
-  let handler: (msg: DuelMessage, from: string) => void = () => {};
-  let timer: number | null = null;
-  let lives = CONFIG.lives.start;
-  let income = 0;
-  let round = 0; // rounds already played
-  let received = 0; // weight of enemies the human sent, waiting for the next wave
-  let lastState = 0;
-  let over = false;
+/**
+ * A bot's field without a board: its artifact HP, the income of its sends and the weight of what it
+ * was sent. Shared by the duel bot and the brawl's seats (src/brawl.ts).
+ */
+export class BotField {
+  lives = CONFIG.lives.start;
+  income = 0;
+  received = 0; // weight of enemies sent to it, waiting for its next wave
 
-  const emit = (msg: DuelMessage) => {
-    if (!over) setTimeout(() => handler(msg, 'бот'), 0);
-  };
-  const stop = () => {
-    over = true;
-    if (timer !== null) window.clearInterval(timer);
-    timer = null;
-  };
+  constructor(public level: number, public difficulty: BotLevel) {}
 
-  const nextRound = () => {
-    round++;
-    const strength = botStrength(difficulty, round) * (0.9 + Math.random() * 0.2);
-    const weight = waveWeight(round, level) + received;
-    received = 0;
+  /** Wave `round` hits: what it was sent joins the wave; an overload costs HP. Returns true when the artifact fell */
+  defend(round: number): boolean {
+    const strength = botStrength(this.difficulty, round) * (0.9 + Math.random() * 0.2);
+    const weight = waveWeight(round, this.level) + this.received;
+    this.received = 0;
     const overload = weight / strength - 1;
     if (overload > 0) {
-      lives = Math.max(0, lives - Math.min(MAX_LOSS_PER_WAVE, Math.ceil(overload * LOSS_PER_OVERLOAD)));
+      this.lives = Math.max(0, this.lives - Math.min(MAX_LOSS_PER_WAVE, Math.ceil(overload * LOSS_PER_OVERLOAD)));
     }
-    if (lives <= 0) {
-      emit({ t: 'lost', wave: round });
-      stop();
-      return;
-    }
-    // Buys enemies for the human: a random mix for a part of this wave's weight
-    const budget = round >= 2 ? waveWeight(round, level) * cfg.sendShare : 0;
+    return this.lives <= 0;
+  }
+
+  /** Buys enemies for its opponent at the start of wave `round`: a random mix for a part of this wave's weight */
+  buySends(round: number): Partial<Record<SendType, number>> | null {
+    const level = this.level;
+    const budget = round >= 2 ? waveWeight(round, level) * BOT_LEVELS[this.difficulty].sendShare : 0;
     const enemies: Partial<Record<SendType, number>> = {};
     let spent = 0;
     for (let guard = 0; guard < 400; guard++) {
@@ -105,10 +95,47 @@ export function createBotLink(level: number, difficulty: BotLevel): DuelLink {
       enemies[type] = (enemies[type] ?? 0) + 1;
       spent += price;
     }
-    if (spent > 0) {
-      income += calculateSendIncome(spent);
-      emit({ t: 'send', enemies });
+    if (spent <= 0) return null;
+    this.income += calculateSendIncome(spent);
+    return enemies;
+  }
+
+  /** Enemies sent to it come at its next wave, at what they cost (`round`: waves already out) */
+  receive(enemies: Partial<Record<SendType, number>>, round: number) {
+    for (const type of SEND_TYPES) {
+      const n = Math.max(0, Math.floor(Number(enemies[type]) || 0));
+      this.received += n * calculateSendPrice(type, round + 1, this.level);
     }
+  }
+}
+
+export function createBotLink(level: number, difficulty: BotLevel): DuelLink {
+  const startedAt = performance.now();
+  const field = new BotField(level, difficulty);
+  let handler: (msg: DuelMessage, from: string) => void = () => {};
+  let timer: number | null = null;
+  let round = 0; // rounds already played
+  let lastState = 0;
+  let over = false;
+
+  const emit = (msg: DuelMessage) => {
+    if (!over) setTimeout(() => handler(msg, 'бот'), 0);
+  };
+  const stop = () => {
+    over = true;
+    if (timer !== null) window.clearInterval(timer);
+    timer = null;
+  };
+
+  const nextRound = () => {
+    round++;
+    if (field.defend(round)) {
+      emit({ t: 'lost', wave: round });
+      stop();
+      return;
+    }
+    const enemies = field.buySends(round);
+    if (enemies) emit({ t: 'send', enemies });
   };
 
   const tick = () => {
@@ -117,7 +144,7 @@ export function createBotLink(level: number, difficulty: BotLevel): DuelLink {
     while (!over && elapsed >= (round + 1) * CONFIG.duel.roundLength) nextRound();
     if (!over && elapsed - lastState >= CONFIG.duel.stateInterval) {
       lastState = elapsed;
-      emit({ t: 'state', lives, wave: Math.max(1, round), income });
+      emit({ t: 'state', lives: field.lives, wave: Math.max(1, round), income: field.income });
     }
   };
 
@@ -125,19 +152,15 @@ export function createBotLink(level: number, difficulty: BotLevel): DuelLink {
     role: 'host',
     code: 'бот',
     send(msg) {
-      if (msg.t === 'send') {
-        // What the human sends comes at the bot's next wave, at what it cost
-        for (const type of SEND_TYPES) {
-          const n = Math.max(0, Math.floor(Number(msg.enemies[type]) || 0));
-          received += n * calculateSendPrice(type, round + 1, level);
-        }
-      } else if (msg.t === 'lost' || msg.t === 'leave') stop();
+      // What the human sends comes at the bot's next wave, at what it cost
+      if (msg.t === 'send') field.receive(msg.enemies, round);
+      else if (msg.t === 'lost' || msg.t === 'leave') stop();
     },
     onMessage(cb) {
       handler = cb;
       if (timer === null && !over) {
         timer = window.setInterval(tick, 500);
-        emit({ t: 'state', lives, wave: Math.max(1, round), income });
+        emit({ t: 'state', lives: field.lives, wave: Math.max(1, round), income: field.income });
       }
     },
     pair() {},

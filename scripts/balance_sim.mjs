@@ -2,7 +2,8 @@
 // с игровым временем вместо реального, и пишет итоги прогонов в JSON.
 //
 // Запуск: сначала `npm run dev`, затем
-//   node scripts/balance_sim.mjs [out.json] [--runs=N] [--only=endless|campaign|mono] [--faction=6] [--levels=1,3]
+//   node scripts/balance_sim.mjs [out.json] [--runs=N] [--only=endless|campaign|mono|brawl] [--faction=6] [--levels=1,3]
+// --only=brawl: «Потасовка» — бот только защищается против семерых ботов (--difficulty — сила ботов), итог — место
 // Нужен Playwright (как для scripts/character_sheet.mjs).
 //
 // Стратегия бота: покупает карточки, которые доводят тройку до слияния, ставит башню в свободную клетку,
@@ -54,6 +55,8 @@ for (const level of LEVELS) {
     add(RUNS, { kind: 'endless', level, policy: 'mixed', style: 'pro', difficulty: DIFF, faction: FACTION, race });
     add(RUNS, { kind: 'endless', level, policy: 'mixed', style: 'casual', difficulty: DIFF, faction: FACTION, race });
   }
+  if (ONLY === 'brawl')
+    for (const style of ['pro', 'casual']) add(RUNS, { kind: 'brawl', level, policy: 'mixed', style, difficulty: DIFF, race });
   if ((!ONLY || ONLY === 'mono') && race === 'humans')
     for (const t of ['archer', 'priest', 'mage', 'ballista'])
       add(Math.max(2, Math.ceil(RUNS / 2)), { kind: 'endless', level, policy: t, style: 'pro', difficulty: 'normal', race });
@@ -89,7 +92,20 @@ async function runInPage(job) {
   const engine = new GameEngine();
   engine.setCanvas(document.createElement('canvas'));
   const endless = job.kind === 'endless';
-  engine.startLevel(job.level, job.difficulty, endless, job.faction || undefined, job.race || 'humans');
+  const brawlJob = job.kind === 'brawl';
+  let room = null;
+  let brawlWon = false;
+  if (brawlJob) {
+    // «Потасовка»: часы дуэли от 0, комната тикает вручную, её сообщения — сразу
+    const { BrawlRoom, brawlBots } = await import('/src/brawl.ts');
+    engine.startDuel(job.level, 0, job.level, job.race || 'humans');
+    room = new BrawlRoom(job.level, engine.race, brawlBots(job.difficulty), 0, () => engine.lives);
+    room.emit = (msg) => {
+      if (msg.t === 'send') engine.receiveSend(msg.enemies);
+      else if (msg.t === 'lost') brawlWon = true;
+    };
+    engine.onDuelSend = (enemies) => room.send({ t: 'send', enemies });
+  } else engine.startLevel(job.level, job.difficulty, endless, job.faction || undefined, job.race || 'humans');
   const raceDef = CONFIG.races[engine.race];
   const NEED = raceDef.merge;
   if (engine.race === 'demons') engine.setAutoAbilities(true);
@@ -148,9 +164,9 @@ async function runInPage(job) {
     stats.leakWaves[engine.wave] = (stats.leakWaves[engine.wave] ?? 0) + (l - engine.lives);
   };
   const origStart = engine.startNextWave.bind(engine);
-  engine.startNextWave = () => {
+  engine.startNextWave = (...args) => {
     const g = engine.gold;
-    const ok = origStart();
+    const ok = origStart(...args);
     stats.income.early += engine.gold - g;
     return ok;
   };
@@ -406,8 +422,41 @@ async function runInPage(job) {
     }
   };
 
-  // --- main loop in game time
+  // --- «Потасовка»: волны идут по часам, бот только защищается
   const DT = 0.05;
+  if (brawlJob) {
+    let lastTick = 0;
+    let steps = 0;
+    think();
+    while (!engine.isGameOver && !brawlWon && clock < 3 * 3600) {
+      engine.update(DT);
+      engine.tickWaveCountdown(DT);
+      clock += DT;
+      steps++;
+      if (clock - lastTick >= 0.5) {
+        lastTick = clock;
+        room.tick();
+        think();
+      }
+      if (steps % 200 === 0) {
+        engine.floatingTexts.length = 0;
+        engine.corpses.length = 0;
+      }
+      if (steps % 2000 === 0) await new Promise((r) => setTimeout(r, 0));
+    }
+    if (engine.isGameOver) room.send({ t: 'lost', wave: engine.wavesLaunched });
+    const snap = room.snapshot();
+    return {
+      ...job,
+      place: snap.yourPlace,
+      wavesLaunched: engine.wavesLaunched,
+      lives: engine.lives,
+      gameTime: Math.round(clock),
+      table: snap.seats.map((x) => ({ name: x.name, kind: x.kind, place: x.place })),
+    };
+  }
+
+  // --- main loop in game time
   const maxWave = endless ? job.maxWave : 12;
   let lastThink = 0;
   let steps = 0;
@@ -491,7 +540,7 @@ async function worker() {
     results.push(r);
     console.log(
       `${results.length}/${jobs.length} ${job.race} ${job.kind} ур.${job.level}${job.faction ? ` фр.${job.faction}` : ''} ${job.policy} ${job.style} ${job.difficulty}: ` +
-        (job.kind === 'campaign' ? (r.victory ? `победа, жизней ${r.lives}` : `поражение на волне ${r.reached}`) : `дошёл до волны ${r.reached}`) +
+        (job.kind === 'brawl' ? `место ${r.place}, волна ${r.wavesLaunched}, ${Math.round(r.gameTime / 60)} мин` : job.kind === 'campaign' ? (r.victory ? `победа, жизней ${r.lives}` : `поражение на волне ${r.reached}`) : `дошёл до волны ${r.reached}`) +
         ` (${Math.round((Date.now() - t0) / 1000)} с)`
     );
     writeFileSync(out, JSON.stringify(results, null, 1));
