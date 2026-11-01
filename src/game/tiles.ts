@@ -32,6 +32,19 @@ const DECOR_SHARE = 0.32; // доля свободных клеток с дек�
 export type Tileset = Map<string, HTMLImageElement>;
 const sets = new Map<string, Promise<Tileset | null>>();
 
+/** Картинка с тремя повторами: сбой сети или выкладки не должен насовсем оставить поле без тайлов */
+function loadImage(url: string): Promise<HTMLImageElement | null> {
+  return new Promise((resolve) => {
+    const attempt = (n: number) => {
+      const img = new Image();
+      img.onload = () => resolve(img);
+      img.onerror = () => (n < 3 ? setTimeout(() => attempt(n + 1), 1000 * (n + 1)) : resolve(null));
+      img.src = n ? `${url}?retry=${n}` : url;
+    };
+    attempt(0);
+  });
+}
+
 export function loadTileset(name: string): Promise<Tileset | null> {
   let p = sets.get(name);
   if (!p) {
@@ -40,27 +53,21 @@ export function loadTileset(name: string): Promise<Tileset | null> {
       NAMES.map(
         (n) =>
           new Promise<[TileName, HTMLImageElement] | null>((resolve) => {
-            const img = new Image();
-            img.onload = () => resolve([n, img]);
-            img.onerror = () => resolve(null);
-            img.src = new URL(`${n}.png`, base).href;
+            loadImage(new URL(`${n}.png`, base).href).then((img) => resolve(img ? [n, img] : null));
           })
       )
     ).then(async (r) => {
-      if (!r.every(Boolean)) return null;
+      if (!r.every(Boolean)) {
+        sets.delete(name); // не вышло — следующий запуск уровня попробует снова
+        return null;
+      }
       const set: Tileset = new Map(r as [TileName, HTMLImageElement][]);
       // Декор необязателен: не загрузился — поле просто без него
       await Promise.all(
         DECOR.map(
           ([n]) =>
-            new Promise<void>((resolve) => {
-              const img = new Image();
-              img.onload = () => {
-                set.set(`decor/${n}`, img);
-                resolve();
-              };
-              img.onerror = () => resolve();
-              img.src = new URL(`decor/${n}.png`, base).href;
+            loadImage(new URL(`decor/${n}.png`, base).href).then((img) => {
+              if (img) set.set(`decor/${n}`, img);
             })
         )
       );
