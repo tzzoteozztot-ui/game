@@ -19,7 +19,7 @@ import { Backpack } from './components/Backpack';
 import { ShopPanel, ShopCard } from './components/ShopPanel';
 import { TowerPanel, WaitingHint } from './components/TowerPanel';
 import { SpecModal } from './components/SpecModal';
-import { MainMenu, GameMode } from './components/MainMenu';
+import { MainMenu, GameMode, MenuPage } from './components/MainMenu';
 import { Bestiary } from './components/Bestiary';
 import { DuelLobby } from './components/DuelLobby';
 import { ArmyPanel } from './components/ArmyPanel';
@@ -102,6 +102,7 @@ export default function App() {
   const [selectedLevel, setSelectedLevel] = useState<number>(1);
   const [difficulty, setDifficulty] = useState<Difficulty>('normal');
   const [mode, setMode] = useState<GameMode>('campaign');
+  const [menuPage, setMenuPage] = useState<MenuPage>('home'); // which page of the main menu is open
   const endless = mode === 'endless';
   // Endless mode: enemies are picked apart from the map (Артур, 2026-10-31); 0 — the map's own faction
   const [endlessEnemies, setEndlessEnemies] = useState<number>(0);
@@ -891,7 +892,7 @@ export default function App() {
         handleStartWave();
       }
     } else if (e.key === 'Enter') {
-      if (screen === 'menu' && !showHowToPlay && !showBestiary) {
+      if (screen === 'menu' && (menuPage === 'campaign' || menuPage === 'endless') && !showHowToPlay && !showBestiary && !showAccount) {
         e.preventDefault();
         handleOpenBriefing();
       } else if (screen === 'briefing') {
@@ -912,6 +913,21 @@ export default function App() {
         toggleFullscreen();
       }
     } else if (e.key === 'Escape') {
+      // The bestiary, the account and «Как играть» close themselves; nothing under them reacts
+      if (showBestiary) return;
+      if (showAccount || showHowToPlay) {
+        e.preventDefault();
+        setShowAccount(false);
+        setShowHowToPlay(false);
+        return;
+      }
+      if (screen === 'menu') {
+        if (menuPage !== 'home') {
+          e.preventDefault();
+          setMenuPage('home');
+        }
+        return;
+      }
       if (specModalTower) {
         // Specialization choice is mandatory, don't close with Esc
         return;
@@ -1040,7 +1056,12 @@ export default function App() {
           unlockedLevel={unlockedLevel}
           levelStars={levelStars[difficulty] || {}}
           selectedDifficulty={difficulty}
-          mode={mode}
+          page={menuPage}
+          onChangePage={(p) => {
+            sound.init();
+            setMenuPage(p);
+            if (p === 'campaign' || p === 'endless') setMode(p);
+          }}
           duelAvailable={duelAvailable}
           endlessBest={endlessBest[difficulty] || {}}
           musicVol={audioSettings.musicVolume}
@@ -1061,9 +1082,10 @@ export default function App() {
             sound.init();
             setDifficulty(d);
           }}
-          onChangeMode={(m) => {
+          onOpenDuel={() => {
             sound.init();
-            setMode(m);
+            setMode('duel');
+            setScreen('duelLobby');
           }}
           onOpenHowToPlay={() => setShowHowToPlay(true)}
           onOpenBestiary={() => setShowBestiary(true)}
@@ -1089,7 +1111,15 @@ export default function App() {
 
       {/* 3b. Duel room: create or join by code */}
       {screen === 'duelLobby' && (
-        <DuelLobby level={selectedLevel} onStart={handleDuelStart} onBack={() => setScreen('menu')} />
+        <DuelLobby
+          level={Math.min(selectedLevel, unlockedLevel)}
+          unlockedLevel={unlockedLevel}
+          onStart={handleDuelStart}
+          onBack={() => {
+            setMenuPage('home');
+            setScreen('menu');
+          }}
+        />
       )}
 
       {/* 4. Active Gameplay Screen */}
@@ -1292,6 +1322,7 @@ export default function App() {
           onResume={() => engineRef.current?.togglePause()}
           onRestart={handleRestartLevel}
           onToMenu={handleToMenu}
+          onOpenBestiary={() => setShowBestiary(true)}
           musicVol={audioSettings.musicVolume}
           sfxVol={audioSettings.sfxVolume}
           isMuted={audioSettings.muted}
@@ -1335,7 +1366,7 @@ export default function App() {
         <AccountModal user={user} syncState={syncState} onClose={() => setShowAccount(false)} />
       )}
 
-      {showBestiary && <Bestiary onClose={() => setShowBestiary(false)} initialFaction={selectedLevel} />}
+      {showBestiary && <Bestiary onClose={() => setShowBestiary(false)} initialFaction={screen === 'playing' ? gameState.faction : selectedLevel} />}
 
       {showHowToPlay && (
         <HowToPlayModal onClose={() => setShowHowToPlay(false)} />

@@ -18,6 +18,7 @@ interface PauseModalProps {
   onResume: () => void;
   onRestart: () => void;
   onToMenu: () => void;
+  onOpenBestiary: () => void;
   musicVol: number;
   sfxVol: number;
   isMuted: boolean;
@@ -31,6 +32,7 @@ export function PauseModal({
   onResume,
   onRestart,
   onToMenu,
+  onOpenBestiary,
   musicVol,
   sfxVol,
   isMuted,
@@ -42,8 +44,8 @@ export function PauseModal({
   const [showHint, setShowHint] = useState(false);
   return (
     <div className="fixed inset-0 bg-black/85 flex flex-col items-center overflow-y-auto p-4 z-50">
-      <div className="my-auto bg-[#171520] border border-[#3b354a] rounded-xl p-5 max-w-sm w-full shadow-2xl text-[#f4f2e6]">
-        <h2 className="text-xl font-black text-center text-amber-300 tracking-wider mb-4">
+      <div className="my-auto bg-[#171520] border border-[#3b354a] rounded-xl p-5 short:p-3 max-w-sm short:max-w-xl w-full shadow-2xl text-[#f4f2e6]">
+        <h2 className="text-xl font-black text-center text-amber-300 tracking-wider mb-4 short:mb-2">
           {duel ? 'МЕНЮ' : 'ПАУЗА'}
         </h2>
         {duel && (
@@ -52,8 +54,10 @@ export function PauseModal({
           </p>
         )}
 
+        {/* A phone on its side: sound on the left, buttons on the right */}
+        <div className="short:grid short:grid-cols-2 short:gap-3 short:items-start">
         {/* Sound Controls */}
-        <div className="bg-[#121118] p-3 rounded-lg border border-[#2d2938] mb-4 space-y-3">
+        <div className="bg-[#121118] p-3 rounded-lg border border-[#2d2938] mb-4 short:mb-0 space-y-3">
           <div className="flex items-center justify-between text-xs font-semibold text-stone-300">
             <span>Звук</span>
             <button
@@ -101,6 +105,13 @@ export function PauseModal({
           >
             Продолжить (P / Esc)
           </button>
+          <button
+            type="button"
+            onClick={onOpenBestiary}
+            className="w-full min-h-[40px] py-2 px-4 rounded bg-[#221f2d] hover:bg-[#2c283a] text-stone-200 border border-[#383347] font-semibold text-xs transition-colors cursor-pointer"
+          >
+            Бестиарий
+          </button>
           {!isStandalone() && (
             <button
               type="button"
@@ -127,6 +138,7 @@ export function PauseModal({
           >
             {duel ? 'Сдаться и выйти в меню' : 'В главное меню'}
           </button>
+        </div>
         </div>
       </div>
     </div>
