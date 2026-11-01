@@ -18,6 +18,7 @@ import { GameControls } from './components/GameControls';
 import { WaveInfo } from './components/WaveInfo';
 import { Backpack } from './components/Backpack';
 import { ShopPanel, ShopCard } from './components/ShopPanel';
+import { rollShop, ShopPity } from './game/shop';
 import { TowerPanel, WaitingHint } from './components/TowerPanel';
 import { SpecModal } from './components/SpecModal';
 import { MainMenu, GameMode, MenuPage } from './components/MainMenu';
@@ -254,32 +255,21 @@ export default function App() {
     part?: 'main' | 'second'; // which part of a bound pair reached Ур.2
     isPrePlacement?: boolean;
     cardIndex?: number;
+    startLevel?: number; // a shop card of this level (2 — ★, 3 — ready Ур.3)
     cardId?: string; // the shop card being bought: the purchase survives a new wave and a reroll
   } | null>(null);
 
+  // Refreshes since the last ready card (the guarantee, CONFIG.shop.pity)
+  const shopPityRef = useRef<ShopPity>({ since: 0 });
   // Generate 5 shop cards based on current tier
   const generateShopCards = useCallback((currentTier: number): (ShopCard | null)[] => {
     // The player's faction: its own towers (some only from a higher tier), binders and ★ cards where it has them
     const raceDef = CONFIG.races[engineRef.current?.race ?? 'humans'];
     const towerTypes: TowerType[] = raceDef.towers.filter((t) => (CONFIG.towers[t].minTier ?? 1) <= currentTier);
-    const tripletChance = raceDef.triplets ? CONFIG.shop.tripletChances[currentTier - 1] || 0 : 0;
-    const binderChance = raceDef.binders ? CONFIG.shop.binderChances[currentTier - 1] || 0 : 0;
-    const cards: ShopCard[] = [];
-
-    for (let i = 0; i < CONFIG.shop.slotsCount; i++) {
-      if (Math.random() < binderChance) {
-        cards.push({ id: Math.random().toString(36).substring(2, 9), type: 'binder', isTriplet: false });
-        continue;
-      }
-      const type = towerTypes[Math.floor(Math.random() * towerTypes.length)];
-      const isTriplet = Math.random() < tripletChance;
-      cards.push({
-        id: Math.random().toString(36).substring(2, 9),
-        type,
-        isTriplet,
-      });
-    }
-    return cards;
+    return rollShop(currentTier, towerTypes, { triplets: !!raceDef.triplets, binders: !!raceDef.binders }, shopPityRef.current).map((c) => ({
+      id: Math.random().toString(36).substring(2, 9),
+      ...c,
+    }));
   }, []);
 
   // 1. Initial startup logic
@@ -673,10 +663,11 @@ export default function App() {
       return;
     }
 
-    // A triplet first asks for its specialization; nothing is paid until it is chosen (towers without them go straight in)
-    if (card.isTriplet && CONFIG.towers[card.type].specs.length > 0) {
-      if (engine.gold < engine.towerPrice(card.type, true) || engine.overflowPending()) {
-        engine.buyToBackpack('tower', card.type, true, null); // only reports why it cannot
+    // A ready tower (★ or Ур.3) first asks for its specialization; nothing is paid until it is chosen (towers without them go straight in)
+    const startLevel = card.level3 ? 3 : card.isTriplet ? 2 : 1;
+    if (startLevel > 1 && CONFIG.towers[card.type].specs.length > 0) {
+      if (engine.gold < engine.towerPrice(card.type, startLevel) || engine.overflowPending()) {
+        engine.buyToBackpack('tower', card.type, true, null, startLevel); // only reports why it cannot
         return;
       }
       engine.selectTower(null);
@@ -686,11 +677,12 @@ export default function App() {
         isPrePlacement: true,
         cardIndex: cardIdx,
         cardId: card.id,
+        startLevel,
       });
       return;
     }
 
-    if (engine.buyToBackpack('tower', card.type, card.isTriplet, null)) takeCard();
+    if (engine.buyToBackpack('tower', card.type, startLevel > 1, null, startLevel)) takeCard();
   };
 
   // Specialization picked in modal
@@ -702,7 +694,7 @@ export default function App() {
     if (specModalTower.isPrePlacement && specModalTower.cardIndex !== undefined) {
       // Triplet card specialization selected -> pay and put it in the backpack
       const cardId = specModalTower.cardId;
-      if (engine.buyToBackpack('tower', specModalTower.type, true, specId)) {
+      if (engine.buyToBackpack('tower', specModalTower.type, true, specId, specModalTower.startLevel ?? 2)) {
         // The shop may have been refreshed while choosing: take the card away only if it is still there
         setShopCards((prev) => prev.map((c) => (c && c.id === cardId ? null : c)));
       }
@@ -1450,6 +1442,7 @@ export default function App() {
                 gold={gameState.gold}
                 rerollCost={gameState.rerollCost}
                 priceMult={gameState.supplyMult}
+                mergeNeed={gameState.mergeNeed}
                 placingTowerType={engineRef.current?.placingTowerType || null}
                 placingBinder={engineRef.current?.placingBinder || false}
                 isBinding={gameState.isBinding}
