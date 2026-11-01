@@ -120,6 +120,32 @@ export interface RaceDef {
   features: string[]; // what makes the faction different (menu, bestiary)
 }
 
+/** Усиления артефакта в потасовке: id, название, описание, величина (смысл — в engine.ts, `boon`) */
+export interface BoonDef {
+  id: string;
+  name: string;
+  desc: string;
+  value: number;
+}
+export const BOONS: BoonDef[] = [
+  { id: 'sharp', name: 'Острые клинки', desc: '+10 % урона всех башен', value: 0.1 },
+  { id: 'haste', name: 'Быстрые руки', desc: '+10 % скорости атаки всех башен', value: 0.1 },
+  { id: 'sight', name: 'Дальний взор', desc: '+10 % радиуса всех башен', value: 0.1 },
+  { id: 'keen', name: 'Меткость', desc: 'Каждый выстрел: 10 % шанс крита ×2', value: 0.1 },
+  { id: 'slayer', name: 'Гроза великанов', desc: '+25 % урона по тяжёлым и боссам', value: 0.25 },
+  { id: 'bastion', name: 'Последний рубеж', desc: '+30 % урона по врагам у артефакта', value: 0.3 },
+  { id: 'pierce', name: 'Бронебой', desc: 'Броня и сопротивление магии врагов −25 %', value: 0.25 },
+  { id: 'mire', name: 'Вязкая земля', desc: 'Враги идут на 8 % медленнее', value: 0.08 },
+  { id: 'loot', name: 'Мародёр', desc: '+15 % золота за убийство', value: 0.15 },
+  { id: 'tithe', name: 'Подать', desc: '+20 золота в начале каждого раунда', value: 20 },
+  { id: 'walls', name: 'Крепкие стены', desc: '+40 к прочности артефакта (и к её пределу)', value: 40 },
+  { id: 'mend', name: 'Каменщики', desc: 'Артефакт чинится на 3 в начале каждого раунда', value: 3 },
+  { id: 'ward', name: 'Страж', desc: 'Защита артефакта бьёт вдвое сильнее', value: 1 },
+  { id: 'trade', name: 'Торговый пост', desc: 'Башни и связки в лавке на 10 % дешевле', value: 0.1 },
+  { id: 'scout', name: 'Разведка', desc: 'Первое обновление лавки в каждом раунде бесплатно', value: 1 },
+  { id: 'envoy', name: 'Вербовщик', desc: 'Враги в «Армии» на 15 % дешевле', value: 0.15 },
+];
+
 export const CONFIG = {
   grid: {
     cols: 14,
@@ -751,6 +777,11 @@ export const CONFIG = {
       normal: ['easy', 'easy', 'normal', 'normal', 'normal', 'hard', 'hard'],
       hard: ['normal', 'normal', 'normal', 'hard', 'hard', 'hard', 'hard'],
     },
+    // Усиления артефакта (просьба Артура 2026-11-01): после каждой 3-й волны — одно на выбор из трёх, каждое один раз;
+    // числа — черновик, ждут выбора Артура
+    boonEvery: 3,
+    boonOffer: 3,
+    boons: BOONS,
   },
 
   spawnInterval: 0.8, // seconds between spawns

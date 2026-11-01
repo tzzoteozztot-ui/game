@@ -58,6 +58,7 @@ interface TowerPanelProps {
   onToggleDetails: () => void;
   damage: { wave: number; run: number } | null; // damage the selected tower has dealt
   castle?: GameStateSnapshot['castle']; // the artifact's card: HP and its defence
+  boons?: GameStateSnapshot['boons']; // brawl: the artifact's boons
   gold?: number;
   onUpgradeCastle?: () => void;
   mergeNeed?: number; // towers that merge into the next level
@@ -138,6 +139,7 @@ export function TowerPanel({
   details,
   onToggleDetails,
   castle = null,
+  boons = [],
   gold = 0,
   onUpgradeCastle,
   mergeNeed = 3,
@@ -188,6 +190,16 @@ export function TowerPanel({
         <div className="text-[length:var(--fs-xs)] leading-tight text-stone-300">
           Раз в {String(CONFIG.siege.guard.every).replace('.', ',')} с бьёт магией ближайшего врага в {String(CONFIG.siege.guard.radius).replace('.', ',')} клетки.
         </div>
+        {boons.length > 0 && (
+          <div className="text-[length:var(--fs-xs)] leading-tight max-h-[30cqh] overflow-y-auto">
+            <div className="text-[#c9a2ff] font-bold mb-0.5">Усиления</div>
+            {boons.map((b) => (
+              <div key={b.id} className="text-stone-300">
+                <span className="text-[#d9c2ff]">{b.name}</span> — {b.desc}
+              </div>
+            ))}
+          </div>
+        )}
         <button
           type="button"
           onClick={onUpgradeCastle}
