@@ -116,10 +116,10 @@ export class BotField {
     let spent = 0;
     for (let guard = 0; guard < 400; guard++) {
       const type = SEND_TYPES[Math.floor(Math.random() * SEND_TYPES.length)];
-      const price = calculateSendPrice(type, round + 1, level);
+      const price = calculateSendPrice(type, round + 1, level, false);
       if (spent + price > budget) {
         // a cheaper type may still fit; stop when even the cheapest does not
-        const cheapest = Math.min(...SEND_TYPES.map((t) => calculateSendPrice(t, round + 1, level)));
+        const cheapest = Math.min(...SEND_TYPES.map((t) => calculateSendPrice(t, round + 1, level, false)));
         if (spent + cheapest > budget) break;
         continue;
       }
@@ -135,7 +135,7 @@ export class BotField {
   receive(enemies: Partial<Record<SendType, number>>, round: number) {
     for (const type of SEND_TYPES) {
       const n = Math.max(0, Math.floor(Number(enemies[type]) || 0));
-      this.received += n * calculateSendPrice(type, round + 1, this.level);
+      this.received += n * calculateSendPrice(type, round + 1, this.level, false);
     }
   }
 }

@@ -65,7 +65,7 @@ export function calculateSupplyPower(towerLevels: number[], binders: number, tri
 /** Price multiplier of buying towers and binders at this supply: ×growth for every full step above `free` */
 export function calculateSupplyMult(power: number, own?: { free: number; step: number; growth: number }): number {
   const s = own ?? CONFIG.supply;
-  return Math.pow(s.growth, Math.floor(Math.max(0, power - s.free) / s.step));
+  return Math.min(CONFIG.supply.maxMult, Math.pow(s.growth, Math.floor(Math.max(0, power - s.free) / s.step)));
 }
 
 /** How much enemy HP grows with the wave number: 1 on wave 1 */
@@ -80,10 +80,12 @@ export type SendType = 'infantry' | 'scout' | 'heavy' | 'flyer' | 'shaman' | 'sw
 export const SEND_TYPES: SendType[] = ['infantry', 'scout', 'heavy', 'flyer', 'shaman', 'swarm'];
 
 /** Duel: price of one sent enemy (a swarm group) on this wave: 2 × kill gold, growing like its HP */
-export function calculateSendPrice(type: SendType, wave: number, level: number): number {
+export function calculateSendPrice(type: SendType, wave: number, level: number, capped = true): number {
   const group = type === 'swarm' ? CONFIG.swarmGroupCount : 1;
   const killGold = calculateKillGold(CONFIG.enemies[type].gold, level) * group;
-  return Math.round(CONFIG.duel.sendPriceMult * killGold * enemyWaveMult(wave));
+  // capped: what a player pays (the HP multiplier counts up to sendWaveCap); false: the enemy's true weight (bots)
+  const waveMult = capped ? Math.min(CONFIG.duel.sendWaveCap, enemyWaveMult(wave)) : enemyWaveMult(wave);
+  return Math.round(CONFIG.duel.sendPriceMult * killGold * waveMult);
 }
 
 /** Duel: gold added to every later round by a send that cost `cost` */
