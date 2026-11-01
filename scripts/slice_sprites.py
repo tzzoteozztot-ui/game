@@ -69,6 +69,9 @@ SPRITES = {
     'enemy_scout_4': ('enemies/new-demons', (40, 380, 700, 780), (450, 520), 32, 1),
     'enemy_swarm_4': ('enemies/new-demons', (760, 490, 1000, 760), None, 16, 1),
     'enemy_imp': ('enemies/new-demons', (1070, 440, 1430, 780), (1250, 640), 24, 1),
+    'enemy_flyer_5': ('enemies/new-elves', (30, 120, 735, 865), (440, 560), 34, 1),
+    'enemy_shaman_5': ('enemies/new-elves', (700, 320, 1135, 885), (930, 620), 36, 1),
+    'enemy_swarm_5': ('enemies/new-elves', (1235, 565, 1465, 835), (1350, 700), 16, 1),
     # Армия людей (лист Gemini 1024×687, 2026-10-31): фракция 6, только дуэль
     'enemy_infantry_6': ('enemies/humans', (25, 225, 165, 500), (80, 380), 34, 1),
     'enemy_scout_6': ('enemies/humans', (168, 290, 305, 500), (215, 400), 32, 1),
@@ -130,6 +133,7 @@ SHEET_OPTS = {
     'enemies/new-orcs': {'light_rim': True},
     'enemies/new-undead': {'light_rim': True},
     'enemies/new-demons': {'light_rim': True},
+    'enemies/new-elves': {'light_rim': True},
     'enemies/humans': {'light_rim': True},
     'props/binder': {'gradient': True},
     'props/binder_triple': {'gradient': True},

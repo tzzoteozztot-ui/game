@@ -413,6 +413,33 @@
     "anchorY": 1,
     "facing": 1
   },
+  "enemy_flyer_5": {
+    "file": "enemy_flyer_5.png",
+    "w": 97,
+    "h": 102,
+    "drawH": 34,
+    "anchorX": 0.448,
+    "anchorY": 1,
+    "facing": 1
+  },
+  "enemy_shaman_5": {
+    "file": "enemy_shaman_5.png",
+    "w": 83,
+    "h": 108,
+    "drawH": 36,
+    "anchorX": 0.453,
+    "anchorY": 1,
+    "facing": 1
+  },
+  "enemy_swarm_5": {
+    "file": "enemy_swarm_5.png",
+    "w": 40,
+    "h": 48,
+    "drawH": 16,
+    "anchorX": 0.34,
+    "anchorY": 1,
+    "facing": 1
+  },
   "enemy_infantry_6": {
     "file": "enemy_infantry_6.png",
     "w": 51,
