@@ -4,6 +4,7 @@
 
 import { CONFIG, TowerType, TargetPriority, Difficulty, EnemyType, RaceId, TowerBaseDef } from './config';
 import { MAPS, Point, MapDef, isHudCell } from './maps';
+import { generateMap } from './mapgen';
 import {
   calculateDamage,
   calculateEffectiveSlow,
@@ -308,6 +309,8 @@ export interface GameStateSnapshot {
   lives: number;
   gold: number;
   level: number;
+  /** Endless mode on a generated map (its record is kept apart from the fixed map's) */
+  randomMap: boolean;
   wave: number;
   maxWaves: number;
   tier: number;
@@ -483,6 +486,8 @@ export class GameEngine {
   private animFrameId: number | null = null;
   private lastTime: number = 0;
   private currentMap: MapDef = MAPS[0];
+  /** Seed of the generated map (endless mode), null — the level's fixed map */
+  public mapSeed: number | null = null;
   private levelStartTime: number = 0;
   // Road geometry cached per level: ribbon polylines and unique steps for chevrons
   private roadLines: Point[][] = [];
@@ -580,8 +585,11 @@ export class GameEngine {
     return sx < CONFIG.grid.totalWidth / 2 ? 'left' : 'right';
   }
 
-  /** `faction`: whose enemies come; by default the map's own (endless mode lets one pick another) */
-  public startLevel(level: number, diff: Difficulty, endless = false, faction?: number, race: RaceId = 'humans') {
+  /**
+   * `faction`: whose enemies come; by default the map's own (endless mode lets one pick another).
+   * `mapSeed`: a generated road (mapgen.ts) for this level's biome instead of its fixed map; endless mode only.
+   */
+  public startLevel(level: number, diff: Difficulty, endless = false, faction?: number, race: RaceId = 'humans', mapSeed: number | null = null) {
     this.race = CONFIG.races[race] ? race : 'humans';
     this.megas = [];
     this.fires = [];
@@ -599,7 +607,8 @@ export class GameEngine {
     this.duelOutgoing = {};
     this.duelOutgoingCost = 0;
     this.duelIncome = 0;
-    this.currentMap = MAPS[this.level - 1];
+    this.mapSeed = endless && mapSeed ? mapSeed : null;
+    this.currentMap = this.mapSeed ? generateMap(this.level, this.mapSeed) : MAPS[this.level - 1];
     this.lives = CONFIG.lives.start;
     this.guardLevel = 1;
     this.guardTimer = 0;
@@ -3467,6 +3476,7 @@ export class GameEngine {
       lives: this.lives,
       gold: this.gold,
       level: this.level,
+      randomMap: this.mapSeed !== null,
       wave: this.shownWave(),
       maxWaves: 12,
       tier: this.tier,

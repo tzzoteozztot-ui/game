@@ -27,6 +27,8 @@ interface MainMenuProps {
   onChangeRace: (race: RaceId) => void;
   endlessEnemies: number; // endless mode: whose enemies come, 0 — the map's own faction
   onChangeEnemies: (faction: number) => void;
+  randomMap: boolean; // endless mode: a generated road instead of the map's own
+  onChangeRandomMap: (on: boolean) => void;
   musicVol: number;
   sfxVol: number;
   isMuted: boolean;
@@ -259,6 +261,8 @@ function LevelPage({
   endlessBest,
   endlessEnemies,
   onChangeEnemies,
+  randomMap,
+  onChangeRandomMap,
   selectedLevel,
   onSelectLevel,
   onPlay,
@@ -282,7 +286,7 @@ function LevelPage({
           <div className="grid grid-cols-1 sm:grid-cols-5 short:grid-cols-5 gap-1.5 sm:gap-2">
             {CONFIG.factions.slice(0, CONFIG.levelCount).map((f, idx) => {
               const lvl = idx + 1;
-              const best = endlessBest[endlessRecordKey(lvl, endlessEnemies || lvl)];
+              const best = endlessBest[endlessRecordKey(lvl, endlessEnemies || lvl, randomMap)];
               const isUnlocked = lvl <= unlockedLevel;
               const stars = levelStars[lvl] || 0;
               const isSelected = isUnlocked && lvl === selectedLevel;
@@ -366,6 +370,32 @@ function LevelPage({
             </label>
           )}
 
+          {endless && (
+            <div
+              className={`${PANEL} w-full flex items-center justify-between p-1`}
+              title="Случайная дорога: каждый забег новая, по тем же правилам, что и у готовых карт; рекорд отдельный"
+            >
+              <span className="text-xs font-semibold text-stone-400 pl-3 short:pl-2 pr-1">Дорога:</span>
+              <div className="flex items-center gap-1 short:gap-0.5">
+                {[false, true].map((on) => (
+                  <button
+                    key={String(on)}
+                    type="button"
+                    onClick={() => onChangeRandomMap(on)}
+                    aria-pressed={randomMap === on}
+                    className={`px-3 short:px-1.5 py-1.5 min-h-[36px] short:min-h-[34px] rounded text-xs font-bold transition-colors cursor-pointer ${
+                      randomMap === on
+                        ? 'bg-amber-600 text-stone-950 font-black'
+                        : 'text-stone-400 hover:text-stone-200 hover:bg-[#221f2d]'
+                    }`}
+                  >
+                    {on ? 'Случайная' : 'Как на карте'}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
           <div className={`${PANEL} w-full flex items-center justify-between p-1`}>
             <span className="text-xs font-semibold text-stone-400 pl-3 short:pl-2 pr-1">Сложность:</span>
             <div className="flex items-center gap-1 short:gap-0.5">
@@ -389,7 +419,7 @@ function LevelPage({
           <button
             type="button"
             onClick={onPlay}
-            className={`${endless ? 'short:col-span-2' : ''} w-full min-h-[48px] short:min-h-[42px] py-2 px-4 short:px-2 rounded bg-amber-500 hover:bg-amber-400 text-stone-950 font-black text-sm short:text-xs tracking-wider uppercase transition-all shadow-lg shadow-amber-950/50 cursor-pointer active:translate-y-0.5`}
+            className={`w-full min-h-[48px] short:min-h-[42px] py-2 px-4 short:px-2 rounded bg-amber-500 hover:bg-amber-400 text-stone-950 font-black text-sm short:text-xs tracking-wider uppercase transition-all shadow-lg shadow-amber-950/50 cursor-pointer active:translate-y-0.5`}
           >
             В бой: {CONFIG.factions[selectedLevel - 1].location}
             {endless && endlessEnemies > 0 && endlessEnemies !== selectedLevel && ` · ${CONFIG.factions[endlessEnemies - 1].name}`}

@@ -6,6 +6,7 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { CONFIG, Difficulty, TowerType, RaceId } from './game/config';
 import { validateAllMaps } from './game/maps';
+import { newMapSeed } from './game/mapgen';
 import { sound, AudioSettings } from './game/audio';
 import { GameEngine, GameStateSnapshot, Tower } from './game/engine';
 import { calculateStars } from './game/rules';
@@ -116,6 +117,22 @@ export default function App() {
   // Endless mode: enemies are picked apart from the map (Артур, 2026-10-31); 0 — the map's own faction
   const [endlessEnemies, setEndlessEnemies] = useState<number>(0);
   const enemyFaction = endless && endlessEnemies ? endlessEnemies : selectedLevel;
+  // Endless mode: a generated road for the chosen map's biome (roadmap п. 2); a new one every run from the menu
+  const [randomMap, setRandomMapState] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('dark_frontier_random_map') === '1';
+    } catch {
+      return false;
+    }
+  });
+  const setRandomMap = (on: boolean) => {
+    setRandomMapState(on);
+    try {
+      localStorage.setItem('dark_frontier_random_map', on ? '1' : '0');
+    } catch {
+      // no storage: the choice lasts until the page closes
+    }
+  };
   // The player's faction: whose towers the shop sells (выбор Артура 2026-11-01); remembered on this device
   const [race, setRaceState] = useState<RaceId>(() => {
     try {
@@ -158,6 +175,7 @@ export default function App() {
     lives: CONFIG.lives.start,
     gold: 200,
     level: 1,
+    randomMap: false,
     wave: 1,
     maxWaves: 12,
     tier: 1,
@@ -347,7 +365,7 @@ export default function App() {
   useEffect(() => {
     if (gameState.endless && !gameState.duel && (gameState.isWaveActive || gameState.isGameOver)) {
       const diff = engineRef.current?.difficulty ?? 'normal';
-      const key = endlessRecordKey(gameState.level, gameState.faction);
+      const key = endlessRecordKey(gameState.level, gameState.faction, gameState.randomMap);
       setProgress((prev) =>
         (prev.endlessBest[diff][key] || 0) >= gameState.wave
           ? prev
@@ -533,7 +551,7 @@ export default function App() {
     setTimeout(() => {
       if (canvasRef.current && engineRef.current) {
         engineRef.current.setCanvas(canvasRef.current);
-        engineRef.current.startLevel(selectedLevel, difficulty, endless, enemyFaction, race);
+        engineRef.current.startLevel(selectedLevel, difficulty, endless, enemyFaction, race, endless && randomMap ? newMapSeed() : null);
         setShopCards(generateShopCards(1));
       }
     }, 50);
@@ -567,15 +585,16 @@ export default function App() {
     const engine = engineRef.current;
     if (!engine) return;
 
+    const seed = engine.mapSeed; // «Повторить» — та же случайная дорога
     if (screen === 'playing' && canvasRef.current) {
       engine.setCanvas(canvasRef.current);
-      engine.startLevel(selectedLevel, difficulty, endless, enemyFaction, race);
+      engine.startLevel(selectedLevel, difficulty, endless, enemyFaction, race, seed);
     } else {
       setScreen('playing');
       setTimeout(() => {
         if (canvasRef.current && engineRef.current) {
           engineRef.current.setCanvas(canvasRef.current);
-          engineRef.current.startLevel(selectedLevel, difficulty, endless, enemyFaction, race);
+          engineRef.current.startLevel(selectedLevel, difficulty, endless, enemyFaction, race, seed);
         }
       }, 50);
     }
@@ -1139,6 +1158,11 @@ export default function App() {
             setRace(r);
           }}
           endlessEnemies={endlessEnemies}
+          randomMap={randomMap}
+          onChangeRandomMap={(on) => {
+            sound.init();
+            setRandomMap(on);
+          }}
           onChangeEnemies={(f) => {
             sound.init();
             setEndlessEnemies(f);
@@ -1447,7 +1471,7 @@ export default function App() {
           stats={gameState.runSummary}
           wave={gameState.wave}
           endless={gameState.endless}
-          best={endlessBest[engineRef.current?.difficulty ?? difficulty]?.[endlessRecordKey(gameState.level, gameState.faction)] || 0}
+          best={endlessBest[engineRef.current?.difficulty ?? difficulty]?.[endlessRecordKey(gameState.level, gameState.faction, gameState.randomMap)] || 0}
           onRestart={handleRestartLevel}
           onToMenu={handleToMenu}
         />

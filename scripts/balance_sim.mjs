@@ -2,7 +2,7 @@
 // с игровым временем вместо реального, и пишет итоги прогонов в JSON.
 //
 // Запуск: сначала `npm run dev`, затем
-//   node scripts/balance_sim.mjs [out.json] [--runs=N] [--only=endless|campaign|mono|brawl] [--faction=6] [--levels=1,3]
+//   node scripts/balance_sim.mjs [out.json] [--runs=N] [--only=endless|campaign|mono|brawl] [--faction=6] [--levels=1,3] [--random-map]
 // --only=brawl: «Потасовка» — бот только защищается против семерых ботов (--difficulty — сила ботов), итог — место
 // Нужен Playwright (как для scripts/character_sheet.mjs).
 //
@@ -33,6 +33,8 @@ const MAXWAVE = Number(opt('maxwave', 150));
 // Враги в бесконечном режиме отдельно от карты: --faction=6 (люди на всех картах); 0 — хозяева карты
 const FACTION = Number(opt('faction', 0));
 const LEVELS = opt('levels', '1,2,3,4,5').split(',').map(Number);
+// Бесконечный режим на случайных дорогах (src/game/mapgen.ts): --random-map — у каждого прогона своя карта
+const RANDOM_MAP = args.includes('--random-map');
 // Раса игрока (чьи башни в лавке): humans, orcs, undead, cultists, demons, elves или all — все по очереди
 const RACE_OPT = opt('race', 'humans');
 const RACES = RACE_OPT === 'all' ? ['humans', 'orcs', 'undead', 'cultists', 'demons', 'elves'] : RACE_OPT.split(',');
@@ -47,7 +49,8 @@ const SET = opt('set', '')
 // casual — обычный игрок (клетка «получше» наугад, без обновлений лавки, ярус только при лишнем золоте)
 const jobs = [];
 const add = (n, job) => {
-  for (let r = 0; r < n; r++) jobs.push({ ...job, seed: jobs.length * 7919 + 17 });
+  for (let r = 0; r < n; r++)
+    jobs.push({ ...job, seed: jobs.length * 7919 + 17, mapSeed: RANDOM_MAP && job.kind === 'endless' ? jobs.length + 1 : null });
 };
 for (const race of RACES)
 for (const level of LEVELS) {
@@ -105,7 +108,7 @@ async function runInPage(job) {
       else if (msg.t === 'lost') brawlWon = true;
     };
     engine.onDuelSend = (enemies) => room.send({ t: 'send', enemies });
-  } else engine.startLevel(job.level, job.difficulty, endless, job.faction || undefined, job.race || 'humans');
+  } else engine.startLevel(job.level, job.difficulty, endless, job.faction || undefined, job.race || 'humans', job.mapSeed ?? null);
   const raceDef = CONFIG.races[engine.race];
   const NEED = raceDef.merge;
   if (engine.race === 'demons') engine.setAutoAbilities(true);
@@ -517,6 +520,7 @@ async function runInPage(job) {
     lives: engine.lives,
     goldLeft: engine.gold,
     gameTime: Math.round(clock),
+    mapSeed: job.mapSeed ?? null,
     killGoldCheck: calculateKillGold(5, job.level),
     towersFinal,
     tier: engine.tier,

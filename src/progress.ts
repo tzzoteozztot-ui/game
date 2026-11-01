@@ -18,13 +18,18 @@ export interface Progress {
 /**
  * Key of an endless record: the map's number when its own faction attacks (as before), otherwise
  * map × 10 + faction (16 — Пограничье against людей). Endless mode lets one pick enemies apart from the map
- * (Артур, 2026-10-31).
+ * (Артур, 2026-10-31). A generated map («Случайная дорога») keeps its own record: 100 + map × 10 + faction
+ * (111 — случайная дорога Пограничья против орков).
  */
-export function endlessRecordKey(level: number, faction: number): number {
+export function endlessRecordKey(level: number, faction: number, randomMap = false): number {
+  if (randomMap) return 100 + level * 10 + faction;
   return faction === level ? level : level * 10 + faction;
 }
 
-const validKey = (k: number) => (k >= 1 && k <= 5) || (k >= 11 && k <= 56 && k % 10 >= 1 && k % 10 <= 6);
+const validKey = (k: number) => {
+  const j = k > 100 ? k - 100 : k;
+  return (k >= 1 && k <= 5) || (j >= 11 && j <= 56 && j % 10 >= 1 && j % 10 <= 6);
+};
 
 const KEYS = {
   unlocked: 'dark_frontier_unlocked',
