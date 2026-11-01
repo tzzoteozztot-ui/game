@@ -4285,11 +4285,24 @@ export class GameEngine {
 
   private renderTower(ctx: CanvasRenderingContext2D, t: Tower, cellSize: number, timeSec: number) {
     const spr = this.towerSprite(t.type, t.level);
-    if (spr) {
-      this.renderTowerSprite(ctx, t, cellSize, spr, timeSec);
-      return;
-    }
-    this.renderTowerShape(ctx, t, cellSize);
+    if (spr) this.renderTowerSprite(ctx, t, cellSize, spr, timeSec);
+    else this.renderTowerShape(ctx, t, cellSize);
+    this.renderCritCharge(ctx, t, cellSize);
+  }
+
+  // Тёмные эльфы: тонкая полоска у основания башни — шанс крита растёт слева направо и обнуляется выстрелом-критом
+  private renderCritCharge(ctx: CanvasRenderingContext2D, t: Tower, cellSize: number) {
+    if (t.critT === undefined) return;
+    const k = Math.min(1, t.critT / CONFIG.raceMech.critFull);
+    const w = cellSize * 0.56;
+    const x = (t.x + 0.5) * cellSize - w / 2;
+    const y = (t.y + 1) * cellSize - 5;
+    ctx.save();
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.55)';
+    ctx.fillRect(x - 1, y - 1, w + 2, 5);
+    ctx.fillStyle = k >= 1 ? '#fff3b0' : '#3ed6c4';
+    ctx.fillRect(x, y, w * k, 3);
+    ctx.restore();
   }
 
   // Idle breathing plus a short squash and lean back after each shot
