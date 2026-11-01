@@ -99,7 +99,8 @@ export type DamageType = 'phys' | 'fire' | 'ice' | 'lightning' | 'poison';
 /** «Стойкость: ☠ яд · Уязвимость: ❄ лёд» — a faction's stance to damage types, for the menus */
 export function stanceText(f: { resist: DamageType[]; weak: DamageType[] }): string {
   const list = (ts: DamageType[]) => ts.map((t) => `${DAMAGE_TYPES[t].icon} ${DAMAGE_TYPES[t].short}`).join(', ');
-  return `Стойкость: ${list(f.resist)} (−50%) · Уязвимость: ${list(f.weak)} (+25%)`;
+  const pct = (m: number) => Math.round(Math.abs(1 - m) * 100);
+  return `Стойкость: ${list(f.resist)} (−${pct(CONFIG.damage.resistMult)}%) · Уязвимость: ${list(f.weak)} (+${pct(CONFIG.damage.weakMult)}%)`;
 }
 
 export const DAMAGE_TYPES: Record<DamageType, { name: string; short: string; icon: string; color: string }> = {
@@ -241,7 +242,7 @@ export const CONFIG = {
   hardEarlyWaves: { upTo: 3, countMult: 0.8 },
 
   // Стойкость и уязвимость фракций к типам урона (вариант А, выбор Артура 2026-11-01)
-  damage: { resistMult: 0.5, weakMult: 1.25 },
+  damage: { resistMult: 0.75, weakMult: 1.25 }, // ×0,5 ломал зеркальные бои (демоны против демонов: волна 21 → 3)
 
   towers: {
     archer: {
@@ -576,7 +577,7 @@ export const CONFIG = {
       traitDesc: 'Пехотинец и разведчик один раз встают через 1 с с 30% здоровья.',
       bossName: 'Лич Ксаар',
       bossDesc: 'Раз в 12 с воскрешает до 3 павших врагов за последние 10 с в радиусе 3 кл. с 30% HP.',
-      resist: ['poison', 'ice'],
+      resist: ['poison'],
       weak: ['fire'],
     },
     {
@@ -595,7 +596,7 @@ export const CONFIG = {
       name: 'Демоны',
       location: 'Выжженные земли',
       traitName: 'Пепельная кожа',
-      traitDesc: 'Стойкость к огню: любой урон огнём (удар, поджог, горящие пятна) снижен на 50%.',
+      traitDesc: 'Стойкость к огню: любой урон огнём (удар, поджог, горящие пятна) снижен на 25%.',
       bossName: 'Владыка бездны Мал’кеш',
       bossDesc: 'Раз в 10 с призывает 3 бесов: скорость 1,6, здоровье — треть пехотинца той же волны.',
       resist: ['fire'],

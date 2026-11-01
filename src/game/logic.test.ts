@@ -201,7 +201,7 @@ test('enemy scaling and damage formulas', () => {
   });
   assert.equal(resCurse.damage, 125);
 
-  // Demon fire resistance: x0.5
+  // Demon fire resistance
   const resFire = calculateDamage({
     rawDamage: 100,
     damageType: 'fire',
@@ -209,7 +209,7 @@ test('enemy scaling and damage formulas', () => {
     targetMagicResist: 0,
     factionId: 4,
   });
-  assert.equal(resFire.damage, 50);
+  assert.equal(resFire.damage, 100 * CONFIG.damage.resistMult);
   // …and weak to ice: ×1.25, before magic resist
   assert.equal(calculateDamage({ rawDamage: 100, damageType: 'ice', targetArmor: 0, targetMagicResist: 0.2, factionId: 4 }).damage, 100);
   // armor does not cut the elements, magic resist does not cut physical damage
