@@ -359,6 +359,7 @@ export interface GameStateSnapshot {
   rerollCost: number; // price of the next shop reroll
   race: RaceId; // the player's faction
   mergeNeed: number; // towers that merge into the next level
+  maxLevel: number;
   autoAbilities: boolean; // демоны: all abilities cast by themselves
   // Playable factions: what the selected tower has from its faction (bonuses, souls, crit, ability)
   selectedInfo: {
@@ -3259,8 +3260,13 @@ export class GameEngine {
   }
 
   // Get eligible towers for merging with the selected tower
+  /** Highest level a tower of the player's faction reaches: 3, нежить 5 */
+  public maxLevel(): number {
+    return CONFIG.races[this.race].maxLevel ?? 3;
+  }
+
   public getEligibleMergeTowers(selected: Tower): Tower[] {
-    if (selected.level >= 3 || selected.second) return [];
+    if (selected.level >= this.maxLevel() || selected.second) return [];
     return this.towers.filter(
       (t) =>
         !t.second &&
@@ -3282,7 +3288,7 @@ export class GameEngine {
   public mergeSelectedTower(): boolean {
     if (!this.selectedTowerId) return false;
     const selected = this.towers.find((t) => t.id === this.selectedTowerId);
-    if (!selected || selected.level >= 3) return false;
+    if (!selected || selected.level >= this.maxLevel()) return false;
 
     const eligible = this.getEligibleMergeTowers(selected);
     const need = this.mergeNeed();
@@ -3512,6 +3518,7 @@ export class GameEngine {
       rerollCost: this.rerollCost(),
       race: this.race,
       mergeNeed: this.mergeNeed(),
+      maxLevel: this.maxLevel(),
       autoAbilities: this.autoAbilities,
       selectedInfo: selected ? this.selectedInfo(selected) : null,
       zoomed: this.viewZoom > 1,
@@ -4068,7 +4075,7 @@ export class GameEngine {
 
   /** Field height of a faction tower's unit figure: a little taller each level; undefined keeps sprites.json */
   private towerDrawH(type: TowerType, level: number): number | undefined {
-    return CONFIG.towers[type].sprite ? 46 + 7 * (level - 1) : undefined;
+    return CONFIG.towers[type].sprite ? 46 + 7 * (Math.min(3, level) - 1) + 3 * Math.max(0, level - 3) : undefined;
   }
 
   // Stone pedestal under a faction tower so the unit figure reads as a tower, not as an enemy
@@ -4226,6 +4233,13 @@ export class GameEngine {
         ctx.lineWidth = 1.5;
         ctx.beginPath();
         ctx.ellipse(cx, ringY, 31, 12, 0, from, to);
+        ctx.stroke();
+      }
+      // Нежить reaches Ур.5: a ring more for each level past 3
+      for (let l = 4; l <= t.level; l++) {
+        ctx.lineWidth = 1.2;
+        ctx.beginPath();
+        ctx.ellipse(cx, ringY, 31 + 4 * (l - 3), 12 + 2 * (l - 3), 0, from, to);
         ctx.stroke();
       }
     };

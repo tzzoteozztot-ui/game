@@ -109,6 +109,7 @@ export interface RaceDef {
   faction: number; // CONFIG.factions id: colors and unit sprites
   towers: TowerType[];
   merge: number; // towers of one kind and level that merge into the next level
+  maxLevel?: number; // default 3
   levelDamage: number; // damage per level (нежить: the chosen stat)
   levelRange: number;
   binders: boolean; // «Связка» in the shop (люди)
@@ -572,9 +573,9 @@ export const CONFIG = {
     },
     undead: {
       id: 'undead', name: 'Нежить', faction: 2, towers: ['und_archer', 'und_digger', 'und_cauldron', 'und_crypt'],
-      merge: 2, levelDamage: 1.74, levelRange: 1.05, binders: false, triplets: false, sellRatio: 0.8,
+      merge: 2, maxLevel: 5, levelDamage: 1.74, levelRange: 1.05, binders: false, triplets: false, sellRatio: 0.8,
       supply: { free: 30, step: 20, growth: 1.06 },
-      features: ['Две одинаковые башни сливаются в одну: на выбор урон или скорость ×1,74 (две отдельные на 15 % сильнее, зато место и цена).', 'Продажа возвращает 80 %, сила стола дорожает мягче (×1,06).', 'Слабое начало, сила к поздним волнам.'],
+      features: ['Две одинаковые башни сливаются в одну: на выбор урон или скорость ×1,74 (две отдельные на 15 % сильнее, зато место и цена). Уровней пять.', 'Продажа возвращает 80 %, сила стола дорожает мягче (×1,06).', 'Слабое начало, сила к поздним волнам.'],
     },
     cultists: {
       id: 'cultists', name: 'Культисты льда', faction: 3, towers: ['cul_archer', 'cul_altar', 'cul_pillar', 'cul_spike'],

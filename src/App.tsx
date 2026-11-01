@@ -200,6 +200,7 @@ export default function App() {
     castle: null,
     race: 'humans',
     mergeNeed: 3,
+    maxLevel: 3,
     autoAbilities: false,
     selectedInfo: null,
   });
@@ -1068,6 +1069,7 @@ export default function App() {
       gold={gameState.gold}
       onUpgradeCastle={() => engineRef.current?.upgradeGuard()}
       mergeNeed={gameState.mergeNeed}
+      maxLevel={gameState.maxLevel}
       race={gameState.race}
       info={gameState.selectedInfo}
       onCastAbility={() => {

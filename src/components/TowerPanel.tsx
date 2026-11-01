@@ -61,6 +61,7 @@ interface TowerPanelProps {
   gold?: number;
   onUpgradeCastle?: () => void;
   mergeNeed?: number; // towers that merge into the next level
+  maxLevel?: number;
   race?: RaceId;
   info?: GameStateSnapshot['selectedInfo']; // faction bonuses, souls, crit, ability of the selected tower
   onCastAbility?: () => void;
@@ -140,6 +141,7 @@ export function TowerPanel({
   gold = 0,
   onUpgradeCastle,
   mergeNeed = 3,
+  maxLevel = 3,
   race = 'humans',
   info = null,
   onCastAbility,
@@ -264,7 +266,7 @@ export function TowerPanel({
   if (isBinding) return null;
 
   const baseDef = CONFIG.towers[tower.type];
-  const canMerge = eligibleMergeCount >= mergeNeed && tower.level < 3;
+  const canMerge = eligibleMergeCount >= mergeNeed && tower.level < maxLevel;
   const humans = race === 'humans';
   const ability = info?.ability ?? null;
 
@@ -359,7 +361,7 @@ export function TowerPanel({
             className={`text-[length:var(--fs-sm)] text-amber-300 font-semibold truncate min-w-0`}
             title={specText}
           >
-            {specText || (tower.level === 3 ? 'МАКС' : 'Базовая')}
+            {specText || (tower.level >= maxLevel ? "МАКС" : "Базовая")}
           </div>
         </div>
         <button
@@ -459,7 +461,7 @@ export function TowerPanel({
         >
           <span className="text-[length:var(--fs-btn4)]">Слить</span>
           <span className="text-[length:var(--fs-xs)] tabular-nums mt-0.5">
-            {second ? '—' : tower.level >= 3 ? 'макс' : mergeUsesBinder ? '2+связка' : `${eligibleMergeCount}/${mergeNeed}`}
+            {second ? '—' : tower.level >= maxLevel ? 'макс' : mergeUsesBinder ? '2+связка' : `${eligibleMergeCount}/${mergeNeed}`}
           </span>
         </button>
 

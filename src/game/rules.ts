@@ -56,8 +56,8 @@ export function calculateSupplyPower(towerLevels: number[], binders: number, tri
   let power = binders * s.binderPower + tripleBinders * s.tripleBinderPower;
   // Люди: 1/3/9; other factions count the towers merged into one: merge^(level−1)
   for (const level of towerLevels) {
-    const l = Math.min(3, Math.max(1, level));
-    power += merge === 3 ? s.towerPower[l - 1] : Math.pow(merge, l - 1);
+    const l = Math.max(1, level);
+    power += merge === 3 ? s.towerPower[Math.min(3, l) - 1] : Math.pow(merge, l - 1);
   }
   return power;
 }
@@ -139,7 +139,7 @@ export function canBindLevels(levelA: number, levelB: number): boolean {
 
 export function calculateSellRefund(baseCost: number, level: number, ratio = CONFIG.upgrade.sellRatio, merge = 3): number {
   // Towers invested: merge^(level−1) — люди 1/3/9, орки 1/4/16, нежить 1/2/4
-  const count = Math.pow(merge, Math.min(3, Math.max(1, level)) - 1);
+  const count = Math.pow(merge, Math.max(1, level) - 1);
   const totalInvested = baseCost * count;
   return Math.floor(totalInvested * ratio);
 }

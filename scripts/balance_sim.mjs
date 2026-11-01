@@ -32,6 +32,9 @@ const MAXWAVE = Number(opt('maxwave', 150));
 // Враги в бесконечном режиме отдельно от карты: --faction=6 (люди на всех картах); 0 — хозяева карты
 const FACTION = Number(opt('faction', 0));
 const LEVELS = opt('levels', '1,2,3,4,5').split(',').map(Number);
+// Раса игрока (чьи башни в лавке): humans, orcs, undead, cultists, demons, elves или all — все по очереди
+const RACE_OPT = opt('race', 'humans');
+const RACES = RACE_OPT === 'all' ? ['humans', 'orcs', 'undead', 'cultists', 'demons', 'elves'] : RACE_OPT.split(',');
 // Пробные числа без правки config.ts: --set=siege.attack.shaman.range=2,lives.start=300
 const SET = opt('set', '')
   .split(',')
@@ -45,17 +48,18 @@ const jobs = [];
 const add = (n, job) => {
   for (let r = 0; r < n; r++) jobs.push({ ...job, seed: jobs.length * 7919 + 17 });
 };
+for (const race of RACES)
 for (const level of LEVELS) {
   if (!ONLY || ONLY === 'endless') {
-    add(RUNS, { kind: 'endless', level, policy: 'mixed', style: 'pro', difficulty: DIFF, faction: FACTION });
-    add(RUNS, { kind: 'endless', level, policy: 'mixed', style: 'casual', difficulty: DIFF, faction: FACTION });
+    add(RUNS, { kind: 'endless', level, policy: 'mixed', style: 'pro', difficulty: DIFF, faction: FACTION, race });
+    add(RUNS, { kind: 'endless', level, policy: 'mixed', style: 'casual', difficulty: DIFF, faction: FACTION, race });
   }
-  if (!ONLY || ONLY === 'mono')
+  if ((!ONLY || ONLY === 'mono') && race === 'humans')
     for (const t of ['archer', 'priest', 'mage', 'ballista'])
-      add(Math.max(2, Math.ceil(RUNS / 2)), { kind: 'endless', level, policy: t, style: 'pro', difficulty: 'normal' });
+      add(Math.max(2, Math.ceil(RUNS / 2)), { kind: 'endless', level, policy: t, style: 'pro', difficulty: 'normal', race });
   if (!ONLY || ONLY === 'campaign')
     for (const difficulty of ['normal', 'hard'])
-      for (const style of ['pro', 'casual']) add(RUNS, { kind: 'campaign', level, policy: 'mixed', style, difficulty });
+      for (const style of ['pro', 'casual']) add(RUNS, { kind: 'campaign', level, policy: 'mixed', style, difficulty, race });
 }
 
 async function runInPage(job) {
@@ -85,14 +89,17 @@ async function runInPage(job) {
   const engine = new GameEngine();
   engine.setCanvas(document.createElement('canvas'));
   const endless = job.kind === 'endless';
-  engine.startLevel(job.level, job.difficulty, endless, job.faction || undefined);
+  engine.startLevel(job.level, job.difficulty, endless, job.faction || undefined, job.race || 'humans');
+  const raceDef = CONFIG.races[engine.race];
+  const NEED = raceDef.merge;
+  if (engine.race === 'demons') engine.setAutoAbilities(true);
   const casual = job.style === 'casual';
   engine.stopLoop();
 
-  const types = ['archer', 'priest', 'mage', 'ballista'];
+  const types = raceDef.towers;
   const stats = {
     income: { start: engine.gold, kills: 0, waveClear: 0, early: 0 },
-    spend: { archer: 0, priest: 0, mage: 0, ballista: 0, binder: 0, reroll: 0, tier: 0 },
+    spend: { ...Object.fromEntries(raceDef.towers.map((t) => [t, 0])), binder: 0, reroll: 0, tier: 0 },
     damage: {}, // "type" and "type:spec" → hp removed
     leaks: {}, // enemy type → enemies that reached the artifact
     castleDmg: {}, // enemy type → artifact HP taken
@@ -175,6 +182,9 @@ async function runInPage(job) {
     return coverCache[k];
   };
   const rangeOf = (type) => CONFIG.towers[type].range * 1.1;
+  // Культисты: клетка рядом с другими башнями культистов ценнее (так складываются фигуры мегабашен)
+  const adjBonus = (x, y) =>
+    engine.race !== 'cultists' ? 1 : 1 + 0.15 * engine.towers.filter((t) => Math.abs(t.x - x) + Math.abs(t.y - y) === 1).length;
   const freeCells = () => {
     const cells = [];
     for (let y = 0; y < CONFIG.grid.rows; y++)
@@ -184,7 +194,7 @@ async function runInPage(job) {
   const bestCell = (type, worst = false) => {
     if (casual && !worst) {
       // Any cell from the better half by road coverage
-      const cells = freeCells().map((c) => ({ ...c, s: coverage(c.x, c.y, rangeOf(type)) }));
+      const cells = freeCells().map((c) => ({ ...c, s: coverage(c.x, c.y, rangeOf(type)) * adjBonus(c.x, c.y) }));
       if (!cells.length) return null;
       const sorted = [...cells].sort((a, b) => b.s - a.s);
       const top = sorted.slice(0, Math.max(1, Math.ceil(sorted.length / 2)));
@@ -193,7 +203,7 @@ async function runInPage(job) {
     let best = null;
     let bestScore = worst ? Infinity : -1;
     for (const c of freeCells()) {
-      const s = coverage(c.x, c.y, rangeOf(type)) + Math.random() * 0.01;
+      const s = coverage(c.x, c.y, rangeOf(type)) * (worst ? 1 : adjBonus(c.x, c.y)) + Math.random() * 0.01;
       if (worst ? s < bestScore : s > bestScore) {
         bestScore = s;
         best = c;
@@ -205,15 +215,16 @@ async function runInPage(job) {
   // --- shop, as in App.tsx
   let cards = [];
   const genCards = () => {
-    const triplet = CONFIG.shop.tripletChances[engine.tier - 1] || 0;
-    const binder = CONFIG.shop.binderChances[engine.tier - 1] || 0;
+    const triplet = raceDef.triplets ? CONFIG.shop.tripletChances[engine.tier - 1] || 0 : 0;
+    const binder = raceDef.binders ? CONFIG.shop.binderChances[engine.tier - 1] || 0 : 0;
+    const shopTypes = types.filter((t) => (CONFIG.towers[t].minTier ?? 1) <= engine.tier);
     cards = [];
     for (let i = 0; i < CONFIG.shop.slotsCount; i++) {
       if (Math.random() < binder) {
         cards.push({ type: 'binder', isTriplet: false });
         continue;
       }
-      const type = types[Math.floor(Math.random() * types.length)];
+      const type = shopTypes[Math.floor(Math.random() * shopTypes.length)];
       cards.push({ type, isTriplet: Math.random() < triplet });
     }
   };
@@ -240,21 +251,21 @@ async function runInPage(job) {
   const allowed = (type) => job.policy === 'mixed' || job.policy === type;
   const plain = (t) => !t.second;
   const group = (type, level) =>
-    engine.towers.filter((t) => plain(t) && t.type === type && t.level === level && (level === 1 || t.specs.length > 0));
+    engine.towers.filter((t) => plain(t) && t.type === type && t.level === level && !engine.specPending(t));
 
   const doMerges = () => {
     let merged = true;
     while (merged) {
       merged = false;
       for (const type of types)
-        for (const level of [1, 2]) {
+        for (let level = 1; level < (raceDef.maxLevel ?? 3); level++) {
           const g = group(type, level);
-          if (g.length >= 3) {
+          if (g.length >= NEED) {
             g.sort((a, b) => coverage(b.x, b.y, rangeOf(type)) - coverage(a.x, a.y, rangeOf(type)));
             engine.selectTower(g[0].id);
             if (engine.mergeSelectedTower()) {
               merged = true;
-              stats.merges[level === 1 ? 'l2' : 'l3']++;
+              stats.merges[`l${level + 1}`] = (stats.merges[`l${level + 1}`] ?? 0) + 1;
               resolveSpecs();
             }
           }
@@ -263,7 +274,7 @@ async function runInPage(job) {
     engine.selectTower(null);
   };
 
-  const power = (t) => (t.level === 3 ? 9 : t.level === 2 ? 3 : 1) + (t.second ? (t.second.level === 3 ? 9 : t.second.level === 2 ? 3 : 1) : 0);
+  const power = (t) => Math.pow(NEED, t.level - 1) + (t.second ? Math.pow(NEED, t.second.level - 1) : 0);
 
   const doBinders = () => {
     // Bind: the strongest unbound tower with the strongest unbound one of another type
@@ -309,7 +320,7 @@ async function runInPage(job) {
     if (!allowed(c.type)) return -1;
     if (c.isTriplet) return 3 + group(c.type, 2).length;
     const n = group(c.type, 1).length;
-    return 1 + (n === 2 ? 3 : n === 1 ? 1 : 0) - (job.policy === 'mixed' ? 0.15 * engine.towers.filter((t) => t.type === c.type).length : 0);
+    return 1 + (n === NEED - 1 ? 3 : n >= 1 ? 1 : 0) - (job.policy === 'mixed' ? 0.15 * engine.towers.filter((t) => t.type === c.type).length : 0);
   };
   const cost = (c) => (c.type === 'binder' ? engine.binderPrice() : engine.towerPrice(c.type, c.isTriplet));
 
@@ -328,8 +339,9 @@ async function runInPage(job) {
       if (!cell) return false;
       engine.placingTowerType = c.type;
       engine.placingIsTriplet = c.isTriplet;
-      engine.pendingTripletSpec = c.isTriplet ? pickSpec(c.type) : null;
+      engine.pendingTripletSpec = c.isTriplet && CONFIG.towers[c.type].specs.length ? pickSpec(c.type) : null;
       if (!engine.placeTower(cell.x, cell.y)) return false;
+      resolveSpecs();
       if (c.isTriplet) stats.triplets++;
       stats.spend[c.type] += g0 - engine.gold;
     }
@@ -456,6 +468,7 @@ async function runInPage(job) {
     towersFinal,
     tier: engine.tier,
     guardLevel: engine.guardLevel,
+    megas: engine.megas.map((m) => m.shape),
     otherDmg: Math.round(engine.runStats.other), // урон не от башен: в основном защита артефакта
     stats,
   };
@@ -475,7 +488,7 @@ async function worker() {
     const r = await page.evaluate(runInPage, { ...job, maxWave: MAXWAVE, set: SET });
     results.push(r);
     console.log(
-      `${results.length}/${jobs.length} ${job.kind} ур.${job.level}${job.faction ? ` фр.${job.faction}` : ''} ${job.policy} ${job.style} ${job.difficulty}: ` +
+      `${results.length}/${jobs.length} ${job.race} ${job.kind} ур.${job.level}${job.faction ? ` фр.${job.faction}` : ''} ${job.policy} ${job.style} ${job.difficulty}: ` +
         (job.kind === 'campaign' ? (r.victory ? `победа, жизней ${r.lives}` : `поражение на волне ${r.reached}`) : `дошёл до волны ${r.reached}`) +
         ` (${Math.round((Date.now() - t0) / 1000)} с)`
     );

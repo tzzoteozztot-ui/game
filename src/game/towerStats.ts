@@ -106,7 +106,7 @@ function raceAttackStats(type: TowerType, level: number, allSpecs: readonly stri
   const race = CONFIG.races[def.race!];
   const specs = specsOfType(type, allSpecs);
   const n = (id: string) => specPower(specs, id);
-  const lv = Math.min(3, Math.max(1, level)) - 1;
+  const lv = Math.max(1, level) - 1;
   let damage = def.damage;
   let cooldown = def.cooldown;
   let range = def.range * Math.pow(race.levelRange, lv);
