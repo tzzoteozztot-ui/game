@@ -1865,10 +1865,12 @@ export class GameEngine {
     }
     const old = new Map(this.megas.map((g) => [g.key, g]));
     this.megas = this.findMegas().map((g) => ({ ...g, timer: old.get(g.key)?.timer ?? g.timer }));
+    const counted = new Set<string>(); // one bonus of each figure kind per tower, however many figures it is in
     for (const g of this.megas) {
       for (const id of g.ids) {
         const t = this.towers.find((x) => x.id === id);
-        if (!t) continue;
+        if (!t || counted.has(g.shape + id)) continue;
+        counted.add(g.shape + id);
         const m = get(t);
         if (g.shape === 'T') {
           m.dmg *= 1 + mech.megaT;
@@ -1883,51 +1885,38 @@ export class GameEngine {
     }
   }
 
-  /** Cultist towers standing in a figure: Х (plus, 5 cells) first, then П (5), then Т (4); a cell is in one figure */
+  /** Cultist towers standing in a figure: Х (plus, 5 cells), П (5), Т (4). Figures may overlap and share towers
+   *  (a tower can be in several figures); each figure is counted once. */
   private findMegas(): Mega[] {
     const cells = new Map<string, Tower>();
     for (const t of this.towers) if (CONFIG.towers[t.type].race === 'cultists') cells.set(`${t.x},${t.y}`, t);
-    const used = new Set<string>();
-    const free = (x: number, y: number) => cells.has(`${x},${y}`) && !used.has(`${x},${y}`);
+    const has = (p: { x: number; y: number }) => cells.has(`${p.x},${p.y}`);
     const out: Mega[] = [];
+    const seen = new Set<string>();
     const take = (shape: Mega['shape'], pts: { x: number; y: number }[], center: { x: number; y: number }, centerId: string | null) => {
-      const ids: string[] = [];
-      for (const p of pts) {
-        used.add(`${p.x},${p.y}`);
-        ids.push(cells.get(`${p.x},${p.y}`)!.id);
-      }
+      if (!pts.every(has)) return;
       const key = shape + ':' + pts.map((p) => `${p.x},${p.y}`).sort().join(';');
-      out.push({ key, shape, ids, center, centerId, timer: CONFIG.raceMech.megaXEvery });
+      if (seen.has(key)) return;
+      seen.add(key);
+      out.push({ key, shape, ids: pts.map((p) => cells.get(`${p.x},${p.y}`)!.id), center, centerId, timer: CONFIG.raceMech.megaXEvery });
     };
     const list = [...cells.values()].sort((a, b) => a.y - b.y || a.x - b.x);
     for (const t of list) {
-      const { x, y } = t;
-      const pts = [{ x, y }, { x: x - 1, y }, { x: x + 1, y }, { x, y: y - 1 }, { x, y: y + 1 }];
-      if (pts.every((p) => free(p.x, p.y))) take('X', pts, { x, y }, t.id);
-    }
-    const axes = [
-      [1, 0],
-      [0, 1],
-    ];
-    for (const shape of ['P', 'T'] as const) {
-      for (const t of list) {
-        for (const [ax, ay] of axes) {
-          const [px, py] = [ay, ax];
-          for (const side of [1, -1]) {
-            const m = { x: t.x, y: t.y };
-            const a = { x: m.x - ax, y: m.y - ay };
-            const b = { x: m.x + ax, y: m.y + ay };
-            const inner = { x: m.x + px * side, y: m.y + py * side };
-            const pts =
-              shape === 'P'
-                ? [m, a, b, { x: a.x + px * side, y: a.y + py * side }, { x: b.x + px * side, y: b.y + py * side }]
-                : [m, a, b, inner];
-            if (!pts.every((p) => free(p.x, p.y))) continue;
-            if (shape === 'P' && cells.has(`${inner.x},${inner.y}`)) continue;
-            take(shape, pts, shape === 'P' ? inner : m, null);
-            break;
-          }
-          if (used.has(`${t.x},${t.y}`)) break;
+      const m = { x: t.x, y: t.y };
+      take('X', [m, { x: m.x - 1, y: m.y }, { x: m.x + 1, y: m.y }, { x: m.x, y: m.y - 1 }, { x: m.x, y: m.y + 1 }], m, t.id);
+      for (const [ax, ay] of [
+        [1, 0],
+        [0, 1],
+      ]) {
+        const [px, py] = [ay, ax];
+        const a = { x: m.x - ax, y: m.y - ay };
+        const b = { x: m.x + ax, y: m.y + ay };
+        for (const side of [1, -1]) {
+          const off = (p: { x: number; y: number }) => ({ x: p.x + px * side, y: p.y + py * side });
+          // П: a bar of three with legs at both ends; the cell between the legs is where enemies freeze
+          take('P', [m, a, b, off(a), off(b)], off(m), null);
+          // Т: a bar of three with a stem from its middle
+          take('T', [m, a, b, off(m)], m, null);
         }
       }
     }
@@ -4771,6 +4760,7 @@ export class GameEngine {
       if (Math.random() < 0.1) this.spawnSpark(f.x + (Math.random() - 0.5) * f.r, f.y + (Math.random() - 0.5) * f.r, '#ff8a3a');
     }
     const pulse = 0.55 + 0.45 * Math.sin(timeSec * 3);
+    const labels = new Map<Tower, Set<string>>();
     for (const m of this.megas) {
       const pts = m.ids.map((id) => this.towers.find((t) => t.id === id)).filter((t): t is Tower => !!t);
       ctx.save();
@@ -4797,12 +4787,18 @@ export class GameEngine {
         ctx.stroke();
       }
       ctx.restore();
-      ctx.font = 'bold 11px sans-serif';
-      ctx.textAlign = 'center';
-      ctx.fillStyle = '#d6f0ff';
       const c = m.shape === 'P' ? pts[0] : (pts.find((t) => t.id === m.centerId) ?? pts[0]);
-      if (c) ctx.fillText(m.shape === 'X' ? 'Х' : m.shape === 'P' ? 'П' : 'Т', (c.x + 0.5) * cs, c.y * cs + 10);
+      if (c) {
+        const l = labels.get(c) ?? new Set<string>();
+        l.add(m.shape === 'X' ? 'Х' : m.shape === 'P' ? 'П' : 'Т');
+        labels.set(c, l);
+      }
     }
+    // Overlapping figures share towers: one label per tower listing its figure kinds («ХТ»)
+    ctx.font = 'bold 11px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#d6f0ff';
+    for (const [t, l] of labels) ctx.fillText([...l].sort().join(''), (t.x + 0.5) * cs, t.y * cs + 10);
   }
 
   // Over the enemies: imps of the abyss gate and the spheres about to burst
