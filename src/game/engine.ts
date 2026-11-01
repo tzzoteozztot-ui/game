@@ -2,7 +2,7 @@
  * 60 FPS Game Engine & Canvas Renderer for «Тёмный рубеж»
  */
 
-import { CONFIG, TowerType, TargetPriority, Difficulty, EnemyType } from './config';
+import { CONFIG, TowerType, TargetPriority, Difficulty, EnemyType, RaceId, TowerBaseDef } from './config';
 import { MAPS, Point, MapDef, isHudCell } from './maps';
 import {
   calculateDamage,
@@ -52,6 +52,62 @@ export interface Tower extends TowerPart {
   frozenTimer: number; // frozen by Ice Priest boss
   facing: number; // 1 = right, -1 = left (towards last target)
   second: TowerPart | null; // bound tower of another type, shoots from the same cell
+  // Playable factions
+  souls?: number; // Склеп: souls gathered
+  holdCd?: number; // Клетка зверя: s until the hound can hold again
+  critT?: number; // тёмные эльфы: s since the last crit
+  abilityCd?: number; // демоны: s until the ability is ready
+  abilityLeft?: number; // демоны: s the ability still works
+  auto?: boolean; // демоны: the ability casts by itself
+  pulseT?: number; // timer of a repeated effect (Разлом)
+}
+
+/** Cultist megatower: towers standing in a figure work together */
+export interface Mega {
+  key: string;
+  shape: 'T' | 'X' | 'P';
+  ids: string[];
+  center: { x: number; y: number }; // Х: the middle cell; П: the cell between the legs
+  centerId: string | null; // Х: the tower in the middle
+  timer: number;
+}
+
+interface GroundFire {
+  x: number;
+  y: number;
+  r: number; // px
+  dps: number;
+  t: number;
+  towerId: string;
+}
+
+interface Imp {
+  x: number;
+  y: number;
+  t: number;
+  dps: number;
+  towerId: string;
+  gateX: number;
+  gateY: number;
+  reach: number; // px from the gate
+  facing: number;
+}
+
+interface Blast {
+  x: number;
+  y: number;
+  t: number;
+  r: number; // px
+  dmg: number;
+  towerId: string;
+}
+
+/** Bonuses a tower gets from where it stands (totem, squad, megatower) */
+interface TowerMods {
+  dmg: number;
+  cd: number;
+  range: number;
+  lines: string[];
 }
 
 // «Связка» standing on the field until it is spent on binding two towers
@@ -109,6 +165,17 @@ export interface Enemy {
   dashTimer: number;
   repairCalm?: number; // люди: s since the last damage taken
   repairHp?: number; // люди: HP at the end of the previous step, to notice damage from any source
+  // Effects of the playable factions' towers
+  stunTimer?: number; // held by the hound or frozen: does not move or strike
+  heldTimer?: number; // the hound holds it (drawing)
+  poisonDps?: number;
+  poisonTimer?: number;
+  poisonSource?: string | null;
+  chill?: number; // Ледяной стрелок: stacked slow
+  chillTimer?: number;
+  weakTimer?: number; // Ткачиха: strikes the artifact weaker
+  seen?: Set<string>; // towers whose reach it has passed (Клинок сумерек)
+  pFrozen?: Set<string>; // П megatowers that already froze it
 
   // Boss ability timer
   bossAbilityTimer: number;
@@ -290,6 +357,16 @@ export interface GameStateSnapshot {
   isBinding: boolean; // waiting for a tap on the second tower
   canMoveTowers: boolean; // between waves towers can be moved to a free cell
   rerollCost: number; // price of the next shop reroll
+  race: RaceId; // the player's faction
+  mergeNeed: number; // towers that merge into the next level
+  maxLevel: number;
+  autoAbilities: boolean; // демоны: all abilities cast by themselves
+  // Playable factions: what the selected tower has from its faction (bonuses, souls, crit, ability)
+  selectedInfo: {
+    lines: string[];
+    ability: { name: string; desc: string; cost: number; cooldown: number; left: number; ready: boolean; auto: boolean } | null;
+    sacrifice: number | null; // Врата бездны: volley damage of a sacrifice, null without a tower next to it
+  } | null;
 }
 
 export class GameEngine {
@@ -300,6 +377,16 @@ export class GameEngine {
   public level: number = 1;
   // Faction of the enemies (trait, boss, look): the level's own; in a duel the opponent's army
   public faction: number = 1;
+  // The player's faction: whose towers the shop sells (Люди by default)
+  public race: RaceId = 'humans';
+  public megas: Mega[] = [];
+  private fires: GroundFire[] = [];
+  private imps: Imp[] = [];
+  private blasts: Blast[] = [];
+  private mods = new Map<string, TowerMods>();
+  private modsDirty = true;
+  private seenTimer = 0;
+  public autoAbilities = false; // демоны: every ability casts by itself
   public difficulty: Difficulty = 'normal';
   public lives: number = CONFIG.lives.start;
   public gold: number = 200;
@@ -488,7 +575,15 @@ export class GameEngine {
   }
 
   /** `faction`: whose enemies come; by default the map's own (endless mode lets one pick another) */
-  public startLevel(level: number, diff: Difficulty, endless = false, faction?: number) {
+  public startLevel(level: number, diff: Difficulty, endless = false, faction?: number, race: RaceId = 'humans') {
+    this.race = CONFIG.races[race] ? race : 'humans';
+    this.megas = [];
+    this.fires = [];
+    this.imps = [];
+    this.blasts = [];
+    this.mods.clear();
+    this.modsDirty = true;
+    this.autoAbilities = false;
     this.level = Math.max(1, Math.min(CONFIG.levelCount, level));
     this.faction = endless && faction ? Math.max(1, Math.min(CONFIG.factions.length, Math.floor(faction))) : this.level;
     this.difficulty = diff;
@@ -627,6 +722,7 @@ export class GameEngine {
       }
 
       // The selected tower's card shows its damage: refresh it a few times a second while it hits
+      if (this.selectedLive()) this.selectedDamageDirty = true;
       if (this.selectedDamageDirty && time - this.selectedDamageShown > 250) this.notifyState();
 
       this.render();
@@ -635,9 +731,16 @@ export class GameEngine {
     this.animFrameId = requestAnimationFrame(frame);
   }
 
+  // The selected tower's card shows timers that run (ability, crit chance, souls)
+  private selectedLive(): boolean {
+    if (!this.selectedTowerId || this.race === 'humans' || this.race === 'orcs') return false;
+    const t = this.towers.find((x) => x.id === this.selectedTowerId);
+    return !!t && (t.critT !== undefined || t.souls !== undefined || (t.abilityCd ?? 0) > 0 || (t.abilityLeft ?? 0) > 0);
+  }
+
   /** Duel: an endless game on this map whose waves follow the shared clock from startAt (performance.now()) */
-  public startDuel(level: number, startAt: number, opponentArmy: number) {
-    this.startLevel(level, 'normal', true);
+  public startDuel(level: number, startAt: number, opponentArmy: number, race: RaceId = 'humans') {
+    this.startLevel(level, 'normal', true, undefined, race);
     this.faction = Math.max(1, Math.min(CONFIG.factions.length, Math.floor(opponentArmy) || level));
     this.duelStart = startAt;
     this.waveCountdown = this.duelNextWaveAt() / 1000 - performance.now() / 1000;
@@ -1036,7 +1139,7 @@ export class GameEngine {
 
     const hp = calculateEnemyHp(baseDef.hp, type, this.wave, this.level, this.difficulty, this.endless, this.faction);
     const armorBonus = this.endless ? endlessArmorBonus(this.wave) : 0;
-    const killGold = calculateKillGold(baseDef.gold, this.level, this.wave, this.supplyActive());
+    const killGold = Math.round(calculateKillGold(baseDef.gold, this.level, this.wave, this.supplyActive()) * (CONFIG.races[this.race].killGoldMult ?? 1));
     const gold = sent ? Math.round(killGold * CONFIG.duel.sentKillGoldShare) : killGold;
 
     const enemy: Enemy = {
@@ -1135,16 +1238,30 @@ export class GameEngine {
     }
 
     // 3. Update towers & attack
+    if (this.modsDirty) this.computeMods();
+    if (this.race !== 'humans') this.updateRaceEffects(dt);
     for (const tower of this.towers) {
+      if (tower.critT !== undefined) tower.critT += dt;
+      if (tower.holdCd !== undefined && tower.holdCd > 0) tower.holdCd -= dt;
+      if (tower.abilityCd !== undefined && tower.abilityCd > 0) tower.abilityCd = Math.max(0, tower.abilityCd - dt);
+      if (tower.abilityLeft !== undefined && tower.abilityLeft > 0) {
+        tower.abilityLeft = Math.max(0, tower.abilityLeft - dt);
+        this.abilityTick(tower, dt);
+      }
       if (tower.frozenTimer > 0) {
         tower.frozenTimer -= dt;
         continue;
       }
+      if (tower.auto && CONFIG.towers[tower.type].ability) this.autoCast(tower);
       for (const part of tower.second ? [tower, tower.second] : [tower]) {
         if (part.cooldownTimer > 0) {
           part.cooldownTimer -= dt;
         }
         const stats = attackStats(part.type, part.level, part.specs);
+        if (CONFIG.towers[part.type].special) {
+          if (part.cooldownTimer <= 0) this.towerSpecial(tower, stats);
+          continue;
+        }
         if (stats.smiteDamage > 0) {
           part.smiteTimer -= dt;
           if (part.smiteTimer <= 0) {
@@ -1240,6 +1357,25 @@ export class GameEngine {
       }
       if (e.curseTimer > 0) e.curseTimer -= dt;
       if (e.warcryTimer > 0) e.warcryTimer -= dt;
+      if (e.weakTimer) e.weakTimer = Math.max(0, e.weakTimer - dt);
+      if (e.heldTimer) e.heldTimer = Math.max(0, e.heldTimer - dt);
+      if (e.chillTimer) {
+        e.chillTimer -= dt;
+        if (e.chillTimer <= 0) e.chill = 0;
+      }
+      // Poison of the Чумной котёл (ignores resist, like burning)
+      if (e.poisonTimer && e.poisonTimer > 0) {
+        e.poisonTimer -= dt;
+        const dmg = e.invulnerableTimer > 0 ? 0 : (e.poisonDps ?? 0) * dt;
+        this.dmgSource = e.poisonSource ?? null;
+        this.recordDamage(Math.min(e.hp, dmg));
+        e.hp -= dmg;
+        if (Math.random() < 0.15) this.spawnSpark(e.x, e.y, '#8fd45a');
+        if (e.hp <= 0) {
+          this.killEnemy(e, i);
+          continue;
+        }
+      }
       if (e.invulnerableTimer > 0) e.invulnerableTimer -= dt;
 
       // Burn tick
@@ -1313,6 +1449,12 @@ export class GameEngine {
       // Slow penalty
       if (e.slowPercent > 0) {
         speed *= 1 - e.slowPercent;
+      }
+
+      // Held by the hound or frozen: stands still and does not strike
+      if (e.stunTimer && e.stunTimer > 0) {
+        e.stunTimer -= dt;
+        continue;
       }
 
       // Siege: within reach of the artifact the enemy stops and strikes it (Артур, 2026-10-31)
@@ -1596,11 +1738,12 @@ export class GameEngine {
     const towerPxY = (tower.y + 0.5) * CONFIG.grid.cellSize;
     const stats = attackStats(part.type, part.level, part.specs);
     const specs = specsOfType(part.type, part.specs);
-    const rangePx = stats.range * CONFIG.grid.cellSize;
+    const mods = this.towerMods(tower);
+    const rangePx = stats.range * mods.range * CONFIG.grid.cellSize;
     // A tower bound to a priest shoots stronger
     const partner = tower.second ? (part === tower ? tower.second : tower) : null;
-    const rawDamage = stats.damage * (partner?.type === 'priest' && part.type !== 'priest' ? 1 + CONFIG.priestBase.pairBonus : 1);
-    const cooldown = stats.cooldown;
+    let rawDamage = stats.damage * mods.dmg * (partner?.type === 'priest' && part.type !== 'priest' ? 1 + CONFIG.priestBase.pairBonus : 1);
+    const cooldown = stats.cooldown * mods.cd * (this.abilityOn(tower, 'dem_ember') ? 0.5 : 1);
 
     // Find enemies in range
     const inRange = this.enemies.filter((e) => {
@@ -1616,9 +1759,10 @@ export class GameEngine {
 
     const targets = inRange.slice(0, stats.targets);
     if (Math.abs(targets[0].x - towerPxX) > 2) tower.facing = targets[0].x < towerPxX ? -1 : 1;
+    rawDamage *= this.rollCrit(tower);
 
     for (const target of targets) {
-      sound.playShot(part.type);
+      sound.playShot(shotSound(part.type));
 
       if (stats.pierce) {
         // Fire penetrating line projectile
@@ -1655,7 +1799,7 @@ export class GameEngine {
           targetEnemyId: target.id,
           targetX: target.x,
           targetY: target.y,
-          speed: part.type === 'ballista' ? 520 : 380,
+          speed: part.type === 'ballista' ? 520 : part.type === 'orc_trebuchet' ? 260 : 380,
           damage: rawDamage,
           damageType: baseDef.damageType,
           towerType: part.type,
@@ -1670,6 +1814,529 @@ export class GameEngine {
 
     part.cooldownTimer = cooldown;
     part.shotAt = performance.now() / 1000;
+  }
+
+  // -------------------------------------------------------------
+  // Playable factions: towers of orcs, undead, cultists, demons, dark elves
+  // -------------------------------------------------------------
+  private static readonly NO_MODS: TowerMods = { dmg: 1, cd: 1, range: 1, lines: [] };
+
+  /** Bonuses of a tower from where it stands (totem, orc squad, cultist megatower) */
+  public towerMods(t: Tower): TowerMods {
+    if (this.modsDirty) this.computeMods();
+    return this.mods.get(t.id) ?? GameEngine.NO_MODS;
+  }
+
+  private markModsDirty() {
+    this.modsDirty = true;
+  }
+
+  private computeMods() {
+    this.modsDirty = false;
+    this.mods.clear();
+    const mech = CONFIG.raceMech;
+    const get = (t: Tower) => {
+      let m = this.mods.get(t.id);
+      if (!m) {
+        m = { dmg: 1, cd: 1, range: 1, lines: [] };
+        this.mods.set(t.id, m);
+      }
+      return m;
+    };
+    const near = (a: Tower, b: Tower) => a !== b && Math.abs(a.x - b.x) <= 1 && Math.abs(a.y - b.y) <= 1;
+    const orcs = this.towers.filter((t) => CONFIG.towers[t.type].race === 'orcs');
+    for (const t of orcs) {
+      // Тотем предков: the strongest totem next to it hastens it
+      let aura = 0;
+      for (const o of orcs) if (o.type === 'orc_totem' && near(o, t)) aura = Math.max(aura, mech.totemAura[o.level - 1] ?? 0);
+      if (aura > 0) {
+        const m = get(t);
+        m.cd /= 1 + aura;
+        m.lines.push(`Ярость тотема: +${Math.round(aura * 100)} % скорости`);
+      }
+      // Отряд: it and neighbours of two other kinds
+      const kinds = new Set([t.type]);
+      for (const o of orcs) if (near(o, t)) kinds.add(o.type);
+      if (kinds.size >= 3) {
+        const m = get(t);
+        m.dmg *= 1 + mech.orcSquad;
+        m.lines.push(`Отряд: +${Math.round(mech.orcSquad * 100)} % урона`);
+      }
+    }
+    const old = new Map(this.megas.map((g) => [g.key, g]));
+    this.megas = this.findMegas().map((g) => ({ ...g, timer: old.get(g.key)?.timer ?? g.timer }));
+    for (const g of this.megas) {
+      for (const id of g.ids) {
+        const t = this.towers.find((x) => x.id === id);
+        if (!t) continue;
+        const m = get(t);
+        if (g.shape === 'T') {
+          m.dmg *= 1 + mech.megaT;
+          m.lines.push(`Мегабашня Т: +${Math.round(mech.megaT * 100)} % урона`);
+        } else if (g.shape === 'P') {
+          m.range *= 1 + mech.megaPRange;
+          m.lines.push(`Мегабашня П: +${Math.round(mech.megaPRange * 100)} % радиуса, заморозка между ножками`);
+        } else {
+          m.lines.push(`Мегабашня Х: взрыв холода раз в ${mech.megaXEvery} с`);
+        }
+      }
+    }
+  }
+
+  /** Cultist towers standing in a figure: Х (plus, 5 cells) first, then П (5), then Т (4); a cell is in one figure */
+  private findMegas(): Mega[] {
+    const cells = new Map<string, Tower>();
+    for (const t of this.towers) if (CONFIG.towers[t.type].race === 'cultists') cells.set(`${t.x},${t.y}`, t);
+    const used = new Set<string>();
+    const free = (x: number, y: number) => cells.has(`${x},${y}`) && !used.has(`${x},${y}`);
+    const out: Mega[] = [];
+    const take = (shape: Mega['shape'], pts: { x: number; y: number }[], center: { x: number; y: number }, centerId: string | null) => {
+      const ids: string[] = [];
+      for (const p of pts) {
+        used.add(`${p.x},${p.y}`);
+        ids.push(cells.get(`${p.x},${p.y}`)!.id);
+      }
+      const key = shape + ':' + pts.map((p) => `${p.x},${p.y}`).sort().join(';');
+      out.push({ key, shape, ids, center, centerId, timer: CONFIG.raceMech.megaXEvery });
+    };
+    const list = [...cells.values()].sort((a, b) => a.y - b.y || a.x - b.x);
+    for (const t of list) {
+      const { x, y } = t;
+      const pts = [{ x, y }, { x: x - 1, y }, { x: x + 1, y }, { x, y: y - 1 }, { x, y: y + 1 }];
+      if (pts.every((p) => free(p.x, p.y))) take('X', pts, { x, y }, t.id);
+    }
+    const axes = [
+      [1, 0],
+      [0, 1],
+    ];
+    for (const shape of ['P', 'T'] as const) {
+      for (const t of list) {
+        for (const [ax, ay] of axes) {
+          const [px, py] = [ay, ax];
+          for (const side of [1, -1]) {
+            const m = { x: t.x, y: t.y };
+            const a = { x: m.x - ax, y: m.y - ay };
+            const b = { x: m.x + ax, y: m.y + ay };
+            const inner = { x: m.x + px * side, y: m.y + py * side };
+            const pts =
+              shape === 'P'
+                ? [m, a, b, { x: a.x + px * side, y: a.y + py * side }, { x: b.x + px * side, y: b.y + py * side }]
+                : [m, a, b, inner];
+            if (!pts.every((p) => free(p.x, p.y))) continue;
+            if (shape === 'P' && cells.has(`${inner.x},${inner.y}`)) continue;
+            take(shape, pts, shape === 'P' ? inner : m, null);
+            break;
+          }
+          if (used.has(`${t.x},${t.y}`)) break;
+        }
+      }
+    }
+    return out;
+  }
+
+  private stun(e: Enemy, time: number) {
+    const t = e.type === 'boss' ? time * CONFIG.raceMech.bossHoldShare : time;
+    e.stunTimer = Math.max(e.stunTimer ?? 0, t);
+  }
+
+  private enemiesNear(x: number, y: number, rangePx: number): Enemy[] {
+    return this.enemies.filter((e) => !e.isReviving && e.invulnerableTimer <= 0 && Math.hypot(e.x - x, e.y - y) <= rangePx);
+  }
+
+  /** Тёмные эльфы: the chance of a crit grows from 0 to 100 % in critFull s, a crit resets it */
+  private rollCrit(tower: Tower): number {
+    if (tower.critT === undefined) return 1;
+    const mech = CONFIG.raceMech;
+    if (Math.random() < Math.min(1, tower.critT / mech.critFull)) {
+      tower.critT = 0;
+      const cs = CONFIG.grid.cellSize;
+      this.addFloatingText('КРИТ!', (tower.x + 0.5) * cs, tower.y * cs + 4, '#3ed6c4');
+      return mech.critMult;
+    }
+    return 1;
+  }
+
+  /** Towers without a plain shot: Клетка зверя, Алтарь инея, Склеп, Врата бездны */
+  private towerSpecial(tower: Tower, stats: ReturnType<typeof attackStats>) {
+    const def = CONFIG.towers[tower.type];
+    const mods = this.towerMods(tower);
+    const cs = CONFIG.grid.cellSize;
+    const tx = (tower.x + 0.5) * cs;
+    const ty = (tower.y + 0.5) * cs;
+    const rangePx = stats.range * mods.range * cs;
+    const inRange = this.enemiesNear(tx, ty, rangePx);
+    const cooldown = stats.cooldown * mods.cd;
+    const mech = CONFIG.raceMech;
+    this.dmgSource = tower.id;
+    if (inRange.length === 0) return;
+    if (def.special === 'cage') {
+      this.sortEnemiesByPriority(inRange, tower.priority, tx, ty);
+      const e = inRange[0];
+      if (Math.abs(e.x - tx) > 2) tower.facing = e.x < tx ? -1 : 1;
+      if ((tower.holdCd ?? 0) <= 0) {
+        this.stun(e, mech.houndHold);
+        e.heldTimer = e.type === 'boss' ? mech.houndHold * mech.bossHoldShare : mech.houndHold;
+        tower.holdCd = mech.houndHoldEvery;
+      }
+      sound.playShot('archer');
+      this.spawnSpark(e.x, e.y, def.color);
+      this.applyDamageToEnemy(e, stats.damage * mods.dmg, 'phys', tower.type, []);
+    } else if (def.special === 'altar') {
+      const time = mech.freezeTime * (1 + 0.3 * (tower.level - 1));
+      for (const e of inRange) this.stun(e, time);
+      sound.playShot('priest');
+      this.spawnRing(tx, ty, '#d6f0ff', rangePx - 8);
+    } else if (def.special === 'crypt') {
+      const souls = tower.souls ?? 0;
+      if (souls <= 0) {
+        tower.cooldownTimer = 0.5; // nothing to spend yet: look again soon
+        return;
+      }
+      tower.souls = 0;
+      sound.playShot('mage');
+      this.spawnRing(tx, ty, '#c9d6b0', rangePx - 8);
+      for (const e of inRange) {
+        this.dmgSource = tower.id;
+        this.applyDamageToEnemy(e, stats.damage * mods.dmg * souls, 'mag', tower.type, []);
+        this.spawnSpark(e.x, e.y, '#c9d6b0');
+      }
+    } else if (def.special === 'gate') {
+      this.summonImp(tower, stats.damage * mods.dmg);
+    }
+    tower.cooldownTimer = cooldown;
+    tower.shotAt = performance.now() / 1000;
+  }
+
+  private summonImp(tower: Tower, dps: number) {
+    const cs = CONFIG.grid.cellSize;
+    const stats = attackStats(tower.type, tower.level, tower.specs);
+    const gx = (tower.x + 0.5) * cs;
+    const gy = (tower.y + 0.5) * cs;
+    this.imps.push({ x: gx, y: gy, t: CONFIG.raceMech.impTime, dps, towerId: tower.id, gateX: gx, gateY: gy, reach: stats.range * this.towerMods(tower).range * cs, facing: 1 });
+    this.spawnPuff(gx, gy, '#e0452f');
+  }
+
+  /** What a hit of a playable faction's tower leaves on the enemy */
+  private raceHitEffects(e: Enemy, rawDmg: number, type: TowerType) {
+    const mech = CONFIG.raceMech;
+    const cs = CONFIG.grid.cellSize;
+    const group = () => this.enemies.filter((o) => o === e || Math.hypot(o.x - e.x, o.y - e.y) <= cs);
+    if (type === 'und_digger') this.applySlow(e, mech.diggerSlow, mech.diggerTime);
+    else if (type === 'und_cauldron') {
+      const dps = rawDmg * mech.poisonShare;
+      if (!e.poisonTimer || e.poisonTimer <= 0 || dps >= (e.poisonDps ?? 0)) {
+        e.poisonDps = dps;
+        e.poisonSource = this.dmgSource;
+      }
+      e.poisonTimer = mech.poisonTime;
+    } else if (type === 'cul_archer') {
+      e.chill = Math.min(mech.chillMax, (e.chill ?? 0) + mech.chillStep);
+      e.chillTimer = mech.chillTime;
+      const eff = calculateEffectiveSlow(e.chill, this.faction);
+      if (eff >= e.slowPercent) {
+        e.slowPercent = eff;
+        e.slowTimer = Math.max(e.slowTimer, mech.chillTime);
+      }
+    } else if (type === 'dem_ember') {
+      const tower = this.towers.find((t) => t.id === this.dmgSource);
+      const storm = tower ? this.abilityOn(tower, 'dem_ember') : false;
+      e.burnDps = rawDmg * mech.burnShare * (storm ? 1.5 : 1);
+      e.burnSource = this.dmgSource;
+      e.burnTimer = mech.burnTime;
+    } else if (type === 'dem_warper') {
+      for (const o of group()) {
+        if (o.curseTimer <= 0 || mech.warpBonus >= o.curseBonus) {
+          o.curseBonus = mech.warpBonus;
+          o.curseTimer = mech.warpTime;
+        }
+      }
+      this.spawnRing(e.x, e.y, CURSE_COLOR, cs - 8);
+    } else if (type === 'elf_weaver') {
+      for (const o of group()) {
+        this.applySlow(o, mech.weaverSlow, mech.weaverTime);
+        o.weakTimer = mech.weaverTime;
+      }
+      this.spawnRing(e.x, e.y, '#9a7ae0', cs - 8);
+    }
+  }
+
+  /** Final death of an enemy: souls for crypts, ghosts of the gravedigger, poison passing on */
+  private onEnemyDeath(e: Enemy) {
+    const mech = CONFIG.raceMech;
+    const cs = CONFIG.grid.cellSize;
+    for (const t of this.towers) {
+      if (t.type !== 'und_crypt' && t.type !== 'und_digger') continue;
+      const st = attackStats(t.type, t.level, t.specs);
+      if (Math.hypot(e.x - (t.x + 0.5) * cs, e.y - (t.y + 0.5) * cs) > st.range * this.towerMods(t).range * cs) continue;
+      if (t.type === 'und_crypt') t.souls = Math.min(mech.soulsMax, (t.souls ?? 0) + 1);
+      else {
+        for (const o of this.enemies) if (Math.hypot(o.x - e.x, o.y - e.y) <= cs) this.applySlow(o, mech.ghostSlow, mech.ghostTime);
+        this.spawnRing(e.x, e.y, '#c9d6b0', cs - 8);
+      }
+    }
+    if (e.poisonTimer && e.poisonTimer > 0) {
+      let next: Enemy | null = null;
+      let best = cs;
+      for (const o of this.enemies) {
+        if (o.isReviving) continue;
+        const d = Math.hypot(o.x - e.x, o.y - e.y);
+        if (d <= best) {
+          best = d;
+          next = o;
+        }
+      }
+      if (next) {
+        next.poisonDps = Math.max(next.poisonTimer && next.poisonTimer > 0 ? next.poisonDps ?? 0 : 0, e.poisonDps ?? 0);
+        next.poisonTimer = Math.max(next.poisonTimer ?? 0, e.poisonTimer);
+        next.poisonSource = e.poisonSource;
+        this.spawnSpark(next.x, next.y, '#8fd45a');
+      }
+    }
+  }
+
+  /** Damage that does not come from a shot (patches, imps): resist counts, a curse adds */
+  private directDamage(e: Enemy, amount: number, source: string) {
+    if (e.invulnerableTimer > 0 || e.isReviving || amount <= 0) return;
+    let dmg = amount * (1 - Math.min(0.9, e.magicResist));
+    if (e.curseTimer > 0) dmg *= 1 + e.curseBonus;
+    this.dmgSource = source;
+    this.recordDamage(Math.min(e.hp, dmg));
+    e.hp -= dmg;
+    if (e.hp <= 0) {
+      const idx = this.enemies.indexOf(e);
+      if (idx !== -1) this.killEnemy(e, idx);
+    }
+  }
+
+  /** Burning patches, imps, sphere bursts, megatower effects, who passed which tower */
+  private updateRaceEffects(dt: number) {
+    const mech = CONFIG.raceMech;
+    const cs = CONFIG.grid.cellSize;
+    for (let i = this.fires.length - 1; i >= 0; i--) {
+      const f = this.fires[i];
+      f.t -= dt;
+      if (f.t <= 0) {
+        this.fires.splice(i, 1);
+        continue;
+      }
+      const k = this.faction === 4 ? 0.5 : 1; // Пепельная кожа
+      for (const e of this.enemiesNear(f.x, f.y, f.r)) this.directDamage(e, f.dps * dt * k, f.towerId);
+    }
+    for (let i = this.blasts.length - 1; i >= 0; i--) {
+      const b = this.blasts[i];
+      b.t -= dt;
+      if (b.t > 0) continue;
+      this.blasts.splice(i, 1);
+      this.spawnRing(b.x, b.y, '#6a5ad8', b.r);
+      for (const e of this.enemiesNear(b.x, b.y, b.r)) {
+        this.dmgSource = b.towerId;
+        this.applyDamageToEnemy(e, b.dmg, 'mag', 'elf_sphere', []);
+      }
+    }
+    for (let i = this.imps.length - 1; i >= 0; i--) {
+      const imp = this.imps[i];
+      imp.t -= dt;
+      if (imp.t <= 0 || !this.towers.some((t) => t.id === imp.towerId)) {
+        this.spawnPuff(imp.x, imp.y, '#e0452f');
+        this.imps.splice(i, 1);
+        continue;
+      }
+      let target: Enemy | null = null;
+      let best = Infinity;
+      for (const e of this.enemiesNear(imp.gateX, imp.gateY, imp.reach)) {
+        const d = Math.hypot(e.x - imp.x, e.y - imp.y);
+        if (d < best) {
+          best = d;
+          target = e;
+        }
+      }
+      const tx = target ? target.x : imp.gateX;
+      const ty = target ? target.y : imp.gateY;
+      const d = Math.hypot(tx - imp.x, ty - imp.y);
+      const step = Math.min(d, mech.impSpeed * cs * dt);
+      if (d > 1) {
+        imp.x += ((tx - imp.x) / d) * step;
+        imp.y += ((ty - imp.y) / d) * step;
+        if (Math.abs(tx - imp.x) > 1) imp.facing = tx < imp.x ? -1 : 1;
+      }
+      if (target && d < cs * 0.45) this.directDamage(target, imp.dps * dt, imp.towerId);
+    }
+    for (const g of this.megas) {
+      const cx = (g.center.x + 0.5) * cs;
+      const cy = (g.center.y + 0.5) * cs;
+      if (g.shape === 'X') {
+        g.timer -= dt;
+        const centre = this.towers.find((t) => t.id === g.centerId);
+        if (g.timer > 0 || !centre) continue;
+        const hit = this.enemiesNear(cx, cy, mech.megaXRadius * cs);
+        if (hit.length === 0) continue;
+        g.timer = mech.megaXEvery;
+        const st = attackStats(centre.type, centre.level, centre.specs);
+        const dmg = Math.max(st.damage, 4) * this.towerMods(centre).dmg * mech.megaXMult;
+        this.spawnRing(cx, cy, '#d6f0ff', mech.megaXRadius * cs);
+        for (const e of hit) {
+          this.dmgSource = centre.id;
+          this.applyDamageToEnemy(e, dmg, 'mag', centre.type, []);
+        }
+      } else if (g.shape === 'P') {
+        for (const e of this.enemiesNear(cx, cy, cs * 0.55)) {
+          if (e.pFrozen?.has(g.key)) continue;
+          (e.pFrozen ??= new Set()).add(g.key);
+          this.stun(e, mech.megaPFreeze);
+          this.spawnSpark(e.x, e.y, '#d6f0ff');
+        }
+      }
+    }
+    // Клинок сумерек needs to know which towers an enemy has already passed
+    if (this.race === 'elves') {
+      this.seenTimer -= dt;
+      if (this.seenTimer <= 0) {
+        this.seenTimer = 0.2;
+        for (const t of this.towers) {
+          const st = attackStats(t.type, t.level, t.specs);
+          const r = st.range * this.towerMods(t).range * cs;
+          const tx = (t.x + 0.5) * cs;
+          const ty = (t.y + 0.5) * cs;
+          for (const e of this.enemies) if (Math.hypot(e.x - tx, e.y - ty) <= r) (e.seen ??= new Set()).add(t.id);
+        }
+      }
+    }
+  }
+
+  // --- Demons: active abilities
+
+  public abilityOn(tower: Tower, type: TowerType): boolean {
+    return tower.type === type && (tower.abilityLeft ?? 0) > 0;
+  }
+
+  public abilityReady(tower: Tower): boolean {
+    return !!CONFIG.towers[tower.type].ability && (tower.abilityCd ?? 0) <= 0 && (tower.abilityLeft ?? 0) <= 0;
+  }
+
+  /** Casts the ability of the tower for gold; auto keeps a reserve of gold */
+  public castAbility(towerId: string, auto = false): boolean {
+    const tower = this.towers.find((t) => t.id === towerId);
+    const ab = tower ? CONFIG.towers[tower.type].ability : undefined;
+    if (!tower || !ab || this.isGameOver || this.isVictory) return false;
+    const cs = CONFIG.grid.cellSize;
+    const tx = (tower.x + 0.5) * cs;
+    const ty = (tower.y + 0.5) * cs;
+    if (!this.abilityReady(tower) || this.gold < ab.cost + (auto ? CONFIG.raceMech.autoReserve : 0)) {
+      if (!auto) {
+        sound.playError();
+        this.addFloatingText(this.abilityReady(tower) ? 'Не хватает золота!' : 'Ещё не готово', tx, ty - 20, '#e0452f');
+      }
+      return false;
+    }
+    this.gold -= ab.cost;
+    tower.abilityLeft = ab.duration;
+    tower.abilityCd = ab.cooldown;
+    tower.pulseT = 0;
+    const st = attackStats(tower.type, tower.level, tower.specs);
+    const mods = this.towerMods(tower);
+    if (tower.type === 'dem_gate') {
+      this.summonImp(tower, st.damage * mods.dmg);
+      this.summonImp(tower, st.damage * mods.dmg);
+    } else if (tower.type === 'dem_rift') {
+      const near = this.enemiesNear(tx, ty, st.range * mods.range * cs);
+      this.sortEnemiesByPriority(near, tower.priority, tx, ty);
+      if (near[0]) {
+        const m = CONFIG.raceMech;
+        this.fires.push({ x: near[0].x, y: near[0].y, r: m.patchRadius * cs * 3, dps: st.damage * mods.dmg * m.patchShare * 2, t: m.patchTime, towerId: tower.id });
+      }
+    }
+    this.spawnRing(tx, ty, '#ff7a3a', 36);
+    this.addFloatingText(ab.name.toUpperCase() + '!', tx, ty - 20, '#ff7a3a');
+    sound.playBossSpawn();
+    this.notifyState();
+    return true;
+  }
+
+  /** While an ability works: «Разлом» curses everyone within 2 cells every half second */
+  private abilityTick(tower: Tower, dt: number) {
+    if (tower.type !== 'dem_warper') return;
+    tower.pulseT = (tower.pulseT ?? 0) - dt;
+    if (tower.pulseT > 0) return;
+    tower.pulseT = 0.5;
+    const cs = CONFIG.grid.cellSize;
+    const bonus = CONFIG.raceMech.warpBonus * 2;
+    for (const e of this.enemiesNear((tower.x + 0.5) * cs, (tower.y + 0.5) * cs, 2 * cs)) {
+      if (e.curseTimer <= 0 || bonus >= e.curseBonus) {
+        e.curseBonus = bonus;
+        e.curseTimer = Math.max(e.curseTimer, 1);
+      }
+    }
+    this.spawnRing((tower.x + 0.5) * cs, (tower.y + 0.5) * cs, CURSE_COLOR, 2 * cs - 8);
+  }
+
+  /** Auto: the ability goes off when three enemies or a heavy one or a boss are in reach */
+  private autoCast(tower: Tower) {
+    if (!this.abilityReady(tower)) return;
+    const cs = CONFIG.grid.cellSize;
+    const st = attackStats(tower.type, tower.level, tower.specs);
+    const near = this.enemiesNear((tower.x + 0.5) * cs, (tower.y + 0.5) * cs, st.range * this.towerMods(tower).range * cs);
+    if (near.length >= 3 || near.some((e) => e.type === 'boss' || e.type === 'heavy')) this.castAbility(tower.id, true);
+  }
+
+  public setAutoAbilities(on: boolean) {
+    this.autoAbilities = on;
+    for (const t of this.towers) if (CONFIG.towers[t.type].ability) t.auto = on;
+    this.notifyState();
+  }
+
+  public toggleTowerAuto(towerId: string) {
+    const t = this.towers.find((x) => x.id === towerId);
+    if (!t || !CONFIG.towers[t.type].ability) return;
+    t.auto = !t.auto;
+    this.notifyState();
+  }
+
+  /** Gold put into a tower: its price times the towers merged into it */
+  private towerInvested(t: Tower): number {
+    return CONFIG.towers[t.type].cost * Math.pow(CONFIG.races[this.race].merge, t.level - 1);
+  }
+
+  /** Towers next to the gate that can be sacrificed (the cheapest goes first) */
+  public sacrificeVictims(gate: Tower): Tower[] {
+    if (gate.type !== 'dem_gate') return [];
+    return this.towers
+      .filter((t) => t !== gate && Math.abs(t.x - gate.x) <= 1 && Math.abs(t.y - gate.y) <= 1)
+      .sort((a, b) => this.towerInvested(a) - this.towerInvested(b));
+  }
+
+  /** Врата бездны: the cheapest tower next to the gate burns, a volley of sacrificeMult × its gold hits all in reach */
+  public sacrifice(gateId: string): boolean {
+    const gate = this.towers.find((t) => t.id === gateId);
+    const victim = gate ? this.sacrificeVictims(gate)[0] : undefined;
+    const cs = CONFIG.grid.cellSize;
+    if (!gate || !victim) {
+      sound.playError();
+      if (gate) this.addFloatingText('Рядом нет башни для жертвы', (gate.x + 0.5) * cs, gate.y * cs, '#e0452f');
+      return false;
+    }
+    const st = attackStats(gate.type, gate.level, gate.specs);
+    const gx = (gate.x + 0.5) * cs;
+    const gy = (gate.y + 0.5) * cs;
+    const hit = this.enemiesNear(gx, gy, st.range * this.towerMods(gate).range * cs);
+    if (hit.length === 0) {
+      sound.playError();
+      this.addFloatingText('Нет врагов в радиусе', gx, gy - 20, '#e0452f');
+      return false;
+    }
+    const dmg = CONFIG.raceMech.sacrificeMult * this.towerInvested(victim);
+    this.towers.splice(this.towers.indexOf(victim), 1);
+    this.markModsDirty();
+    this.spawnPuff((victim.x + 0.5) * cs, (victim.y + 0.5) * cs, '#ff4a2f');
+    this.spawnRing(gx, gy, '#ff4a2f', st.range * cs);
+    this.addFloatingText('ЖЕРТВА!', gx, gy - 20, '#ff4a2f');
+    sound.playBossSpawn();
+    for (const e of hit) {
+      this.dmgSource = gate.id;
+      this.applyDamageToEnemy(e, dmg, 'mag', gate.type, []);
+      this.spawnSpark(e.x, e.y, '#ff4a2f');
+    }
+    this.notifyState();
+    return true;
   }
 
   // Priest Smite: pulses every 2.5s hitting all enemies in radius with damage * 2.5 (×n)
@@ -1725,7 +2392,45 @@ export class GameEngine {
   private handleProjectileImpact(p: Projectile, target: Enemy | null, impactX: number, impactY: number) {
     this.dmgSource = p.towerId;
     sound.playHit();
-    this.spawnSpark(impactX, impactY, p.damageType === 'mag' ? '#8f6bff' : '#d9b44a');
+    const def = CONFIG.towers[p.towerType];
+    this.spawnSpark(impactX, impactY, def.race ? def.color : p.damageType === 'mag' ? '#8f6bff' : '#d9b44a');
+    const mech = CONFIG.raceMech;
+    const cs = CONFIG.grid.cellSize;
+    if (p.towerType === 'elf_sphere') {
+      // The sphere lands and bursts a moment later
+      this.blasts.push({ x: impactX, y: impactY, t: mech.sphereDelay, r: p.aoeRadius * cs, dmg: p.damage, towerId: p.towerId });
+      return;
+    }
+    if (p.towerType === 'dem_rift') {
+      // A burning patch stays where the bolt fell; «Извержение» makes it three times wider and twice as hot
+      const tower = this.towers.find((t) => t.id === p.towerId);
+      const erupt = tower ? this.abilityOn(tower, 'dem_rift') : false;
+      this.fires.push({
+        x: impactX,
+        y: impactY,
+        r: mech.patchRadius * cs * (erupt ? 3 : 1),
+        dps: p.damage * mech.patchShare * (erupt ? 2 : 1),
+        t: mech.patchTime,
+        towerId: p.towerId,
+      });
+    }
+    if (p.towerType === 'orc_spear' && target) {
+      // The spear goes through: the nearest enemy just behind the target is hit too
+      let next: Enemy | null = null;
+      let best = mech.spearPierce * cs;
+      for (const e of this.enemies) {
+        if (e === target || e.isReviving || e.invulnerableTimer > 0) continue;
+        const d = Math.hypot(e.x - target.x, e.y - target.y);
+        if (d <= best) {
+          best = d;
+          next = e;
+        }
+      }
+      if (next) {
+        this.applyDamageToEnemy(next, p.damage, p.damageType, p.towerType, p.specs);
+        this.spawnSpark(next.x, next.y, def.color);
+      }
+    }
 
     if (p.aoeRadius > 0) {
       const aoeRadiusPx = p.aoeRadius * CONFIG.grid.cellSize;
@@ -1753,6 +2458,13 @@ export class GameEngine {
   ) {
     if (e.invulnerableTimer > 0) return;
     const n = (id: string) => specPower(specs, id);
+    const mech = CONFIG.raceMech;
+    // Ледяной шип: harder on the slowed and frozen; Клинок сумерек: harder on those already past two other towers
+    if (towerType === 'cul_spike' && (e.slowPercent > 0 || (e.stunTimer ?? 0) > 0)) rawDmg *= mech.spikeSlowedMult;
+    if (towerType === 'elf_blade' && e.seen) {
+      const others = e.seen.size - (this.dmgSource && e.seen.has(this.dmgSource) ? 1 : 0);
+      if (others >= mech.huntTowers) rawDmg *= mech.huntMult;
+    }
 
     const res = calculateDamage({
       rawDamage: rawDmg,
@@ -1801,6 +2513,7 @@ export class GameEngine {
       // Slow 35% for 2s
       this.applySlow(e, stackedSlow(0.35, n('frost')), 2.0);
     }
+    if (CONFIG.towers[towerType].race) this.raceHitEffects(e, rawDmg, towerType);
 
     if (towerType === 'priest') {
       const ps = CONFIG.priestSupport;
@@ -1884,6 +2597,7 @@ export class GameEngine {
       });
     }
 
+    if (this.race !== 'humans') this.onEnemyDeath(e);
     this.statKill();
     // Reward gold
     if (e.gold > 0) {
@@ -1907,6 +2621,8 @@ export class GameEngine {
 
   /** One strike of a besieging enemy: the artifact loses HP; ranged enemies send a visible bolt */
   public hitCastle(e: Enemy, dmg: number) {
+    // Ткачиха теней: a webbed enemy strikes the artifact weaker
+    if (e.weakTimer && e.weakTimer > 0) dmg = Math.max(1, Math.round(dmg * (1 - CONFIG.raceMech.weaverWeaken)));
     const lost = Math.min(this.lives, dmg);
     this.statCastleDamage(lost);
     this.lives = Math.max(0, this.lives - dmg);
@@ -1988,29 +2704,40 @@ export class GameEngine {
 
   // Share of the price paid back when selling: lower where the supply works
   public sellRatio(): number {
+    const own = CONFIG.races[this.race].sellRatio;
+    if (own !== undefined) return own;
     return this.supplyActive() ? CONFIG.supply.sellRatio : CONFIG.upgrade.sellRatio;
+  }
+
+  /** Towers of one kind and level that merge into the next level: люди 3, орки 4, нежить 2 */
+  public mergeNeed(): number {
+    return CONFIG.races[this.race].merge;
+  }
+
+  private supplyRules(): { free: number; step: number; growth: number } {
+    return CONFIG.races[this.race].supply ?? CONFIG.supply;
   }
 
   public supplyPower(): number {
     const levels = this.towers.flatMap((t) => (t.second ? [t.level, t.second.level] : [t.level]));
     const triple = this.binders.filter((b) => b.triple).length;
-    return calculateSupplyPower(levels, this.binders.length - triple, triple);
+    return calculateSupplyPower(levels, this.binders.length - triple, triple, this.mergeNeed());
   }
 
   public supplyMult(): number {
-    return this.supplyActive() ? calculateSupplyMult(this.supplyPower()) : 1;
+    return this.supplyActive() ? calculateSupplyMult(this.supplyPower(), this.supplyRules()) : 1;
   }
 
   // Power at which the next price step comes
   public supplyNext(): number {
-    const { free, step } = CONFIG.supply;
+    const { free, step } = this.supplyRules();
     const power = this.supplyPower();
     return power < free ? free : free + (Math.floor((power - free) / step) + 1) * step;
   }
 
   // Shop price of a tower (a triplet is three) or a binder at the current supply
   public towerPrice(type: TowerType, triplet = false): number {
-    return Math.round(CONFIG.towers[type].cost * (triplet ? 3 : 1) * this.supplyMult());
+    return Math.round(CONFIG.towers[type].cost * (triplet ? this.mergeNeed() : 1) * this.supplyMult());
   }
 
   public binderPrice(): number {
@@ -2049,8 +2776,18 @@ export class GameEngine {
       facing: 1,
       second: null,
     };
+    const def = CONFIG.towers[newTower.type];
+    if (def.race === 'elves') newTower.critT = 0;
+    if (def.special === 'cage') newTower.holdCd = 0;
+    if (def.special === 'crypt') newTower.souls = 0;
+    if (def.ability) {
+      newTower.abilityCd = 0;
+      newTower.abilityLeft = 0;
+      newTower.auto = this.autoAbilities;
+    }
 
     this.towers.push(newTower);
+    this.markModsDirty();
     sound.playBuy();
     this.spawnRing((cellX + 0.5) * CONFIG.grid.cellSize, (cellY + 0.5) * CONFIG.grid.cellSize, '#d9b44a');
 
@@ -2058,6 +2795,8 @@ export class GameEngine {
     if (this.placingSlot !== null) this.backpack.splice(this.placingSlot, 1);
     this.clearPlacing();
     this.selectedTowerId = newTower.id;
+    // Орки: the new tower picks its tempering
+    this.askSpecIfNeeded(newTower);
 
     this.notifyState();
     return true;
@@ -2193,6 +2932,7 @@ export class GameEngine {
     this.spawnPuff((tower.x + 0.5) * cs, (tower.y + 0.5) * cs, '#f4c06a');
     tower.x = cellX;
     tower.y = cellY;
+    this.markModsDirty();
     this.spawnRing((cellX + 0.5) * cs, (cellY + 0.5) * cs, '#d9b44a');
     sound.playBuy();
     this.notifyState();
@@ -2301,7 +3041,7 @@ export class GameEngine {
 
   // Towers the given one can be bound with: another type, neither already bound, both Ур.2 or Ур.3
   public getBindPartners(tower: Tower): Tower[] {
-    if (tower.second || this.plainBinders().length === 0) return [];
+    if (tower.second || this.plainBinders().length === 0 || !CONFIG.races[this.race].binders) return [];
     if (!canBindLevels(tower.level, tower.level)) return [];
     // a level-2 tower still choosing its specialization can't be bound yet
     if (tower.level === 2 && tower.specs.length === 0) return [];
@@ -2471,7 +3211,20 @@ export class GameEngine {
   }
 
   // A part that just reached Ур.2 without a specialization asks for one: the main part first
+  /** A part still has to choose: люди on reaching Ур.2, орки on placing and every new level, нежить on every merge */
+  public specPending(part: TowerPart): boolean {
+    const race = CONFIG.towers[part.type].race ?? 'humans';
+    if (race === 'orcs') return part.specs.length < part.level;
+    if (race === 'undead') return part.specs.length < part.level - 1;
+    if (race !== 'humans') return false;
+    return part.level === 2 && part.specs.length === 0;
+  }
+
   private askSpecIfNeeded(tower: Tower) {
+    if (CONFIG.towers[tower.type].race && CONFIG.towers[tower.type].race !== 'humans') {
+      if (this.specPending(tower)) this.onNeedSpecChoice?.(tower, 'main');
+      return;
+    }
     if (tower.level === 2 && tower.specs.length === 0) this.onNeedSpecChoice?.(tower, 'main');
     else if (tower.second && tower.second.level === 2 && tower.second.specs.length === 0)
       this.onNeedSpecChoice?.(tower, 'second');
@@ -2490,7 +3243,7 @@ export class GameEngine {
     const idx = this.towers.indexOf(this.towers.find((t) => t.id === towerId)!);
     if (idx === -1) return false;
     const tower = this.towers[idx];
-    let refund = calculateSellRefund(CONFIG.towers[tower.type].cost, tower.level, this.sellRatio());
+    let refund = calculateSellRefund(CONFIG.towers[tower.type].cost, tower.level, this.sellRatio(), this.mergeNeed());
     if (tower.second) {
       refund += calculateSellRefund(CONFIG.towers[tower.second.type].cost, tower.second.level, this.sellRatio());
       refund += Math.floor(CONFIG.binder.cost * this.sellRatio());
@@ -2498,6 +3251,7 @@ export class GameEngine {
 
     this.gold += refund;
     this.towers.splice(idx, 1);
+    this.markModsDirty();
     this.selectedTowerId = null;
     sound.playBuy();
     this.addFloatingText(`+${refund} золота`, (tower.x + 0.5) * CONFIG.grid.cellSize, (tower.y + 0.5) * CONFIG.grid.cellSize, '#f4c06a');
@@ -2506,22 +3260,27 @@ export class GameEngine {
   }
 
   // Get eligible towers for merging with the selected tower
+  /** Highest level a tower of the player's faction reaches: 3, нежить 5 */
+  public maxLevel(): number {
+    return CONFIG.races[this.race].maxLevel ?? 3;
+  }
+
   public getEligibleMergeTowers(selected: Tower): Tower[] {
-    if (selected.level >= 3 || selected.second) return [];
+    if (selected.level >= this.maxLevel() || selected.second) return [];
     return this.towers.filter(
       (t) =>
         !t.second &&
         t.type === selected.type &&
         t.level === selected.level &&
-        // a level-2 tower waiting for its specialization can't merge yet
-        (selected.level === 1 || t.specs.length > 0)
+        // a tower still choosing its specialization (tempering, merge choice) can't merge yet
+        !this.specPending(t)
     );
   }
 
   // The plain binder that can take the place of the third tower of two equal Ур.1 towers (the nearest one).
   // Ур.2 has no stand-in: a triple binder raises one tower by itself («Усилить» / «Уровень!»), which is strictly cheaper
   public mergeStandIn(selected: Tower): Binder | null {
-    if (selected.second || selected.level !== 1) return null;
+    if (selected.second || selected.level !== 1 || !CONFIG.races[this.race].binders) return null;
     const candidates = this.binders.filter((b) => !b.triple);
     return this.nearest(candidates, selected)[0] ?? null;
   }
@@ -2529,12 +3288,13 @@ export class GameEngine {
   public mergeSelectedTower(): boolean {
     if (!this.selectedTowerId) return false;
     const selected = this.towers.find((t) => t.id === this.selectedTowerId);
-    if (!selected || selected.level >= 3) return false;
+    if (!selected || selected.level >= this.maxLevel()) return false;
 
     const eligible = this.getEligibleMergeTowers(selected);
-    // Two equal towers and a binder: the binder takes the place of the third tower
-    const standIn = eligible.length === 2 ? this.mergeStandIn(selected) : null;
-    if (eligible.length < 3 && !standIn) return false;
+    const need = this.mergeNeed();
+    // Two equal towers and a binder: the binder takes the place of the third tower (люди)
+    const standIn = need === 3 && eligible.length === 2 ? this.mergeStandIn(selected) : null;
+    if (eligible.length < need && !standIn) return false;
 
     // Selected tower stays, pick 2 closest eligible to merge into it
     const others = eligible.filter((t) => t.id !== selected.id);
@@ -2544,7 +3304,7 @@ export class GameEngine {
       return dA - dB;
     });
 
-    const mergePair = standIn ? others : others.slice(0, 2);
+    const mergePair = standIn ? others : others.slice(0, need - 1);
 
     if (standIn) {
       this.binders.splice(this.binders.indexOf(standIn), 1);
@@ -2562,6 +3322,17 @@ export class GameEngine {
     }
 
     selected.level += 1;
+    this.markModsDirty();
+    const ownRace = CONFIG.towers[selected.type].race;
+    if (ownRace && ownRace !== 'humans') {
+      // Other factions keep the selected tower's choices; орки and нежить choose once more
+      sound.playMerge();
+      this.spawnRing((selected.x + 0.5) * CONFIG.grid.cellSize, (selected.y + 0.5) * CONFIG.grid.cellSize, '#f4c06a');
+      this.addFloatingText('СЛИЯНИЕ!', (selected.x + 0.5) * CONFIG.grid.cellSize, (selected.y + 0.5) * CONFIG.grid.cellSize - 16, '#f4c06a');
+      this.askSpecIfNeeded(selected);
+      this.notifyState();
+      return true;
+    }
     // Level 3 keeps every specialization of the three towers (repeats add power)
     if (selected.level === 3) {
       // the binder in the place of the third tower repeats the selected tower's specialization, as a triple binder does
@@ -2585,7 +3356,11 @@ export class GameEngine {
   public setTowerSpecialization(towerId: string, specId: string, part: 'main' | 'second' = 'main') {
     const tower = this.towers.find((t) => t.id === towerId);
     if (!tower) return;
-    if (part === 'second' && tower.second) tower.second.specs = [specId];
+    const race = CONFIG.towers[tower.type].race;
+    if (race === 'orcs' || race === 'undead') {
+      // Each tempering / merge choice adds up
+      if (this.specPending(tower)) tower.specs = [...tower.specs, specId];
+    } else if (part === 'second' && tower.second) tower.second.specs = [specId];
     else tower.specs = [specId];
     this.askSpecIfNeeded(tower);
     this.notifyState();
@@ -2741,6 +3516,11 @@ export class GameEngine {
       isBinding: this.bindingFromId !== null,
       canMoveTowers: this.canMoveTowers(),
       rerollCost: this.rerollCost(),
+      race: this.race,
+      mergeNeed: this.mergeNeed(),
+      maxLevel: this.maxLevel(),
+      autoAbilities: this.autoAbilities,
+      selectedInfo: selected ? this.selectedInfo(selected) : null,
       zoomed: this.viewZoom > 1,
       selectedDamage: selected ? { wave: this.waveStats.dmg.get(selected.id) || 0, run: this.runStats.dmg.get(selected.id) || 0 } : null,
       selectedSide: this.selectedSideShown,
@@ -2756,6 +3536,31 @@ export class GameEngine {
           }
         : null,
     });
+  }
+
+  private selectedInfo(t: Tower): GameStateSnapshot['selectedInfo'] {
+    const def = CONFIG.towers[t.type];
+    if (!def.race || def.race === 'humans') return null;
+    const lines = [...this.towerMods(t).lines];
+    if (t.souls !== undefined) lines.push(`Души: ${t.souls} из ${CONFIG.raceMech.soulsMax}`);
+    if (t.critT !== undefined) lines.push(`Шанс крита сейчас: ${Math.round(Math.min(1, t.critT / CONFIG.raceMech.critFull) * 100)} %`);
+    const ab = def.ability;
+    const victim = t.type === 'dem_gate' ? this.sacrificeVictims(t)[0] : undefined;
+    return {
+      lines,
+      ability: ab
+        ? {
+            name: ab.name,
+            desc: ab.desc,
+            cost: ab.cost,
+            cooldown: Math.ceil(t.abilityCd ?? 0),
+            left: Math.ceil(t.abilityLeft ?? 0),
+            ready: this.abilityReady(t),
+            auto: !!t.auto,
+          }
+        : null,
+      sacrifice: victim ? CONFIG.raceMech.sacrificeMult * this.towerInvested(victim) : null,
+    };
   }
 
   // -------------------------------------------------------------
@@ -2870,7 +3675,7 @@ export class GameEngine {
       // Attack range circle of each part of the selected tower
       const parts: TowerPart[] = selectedTower.second ? [selectedTower, selectedTower.second] : [selectedTower];
       for (const part of parts) {
-        const rangePx = attackStats(part.type, part.level, part.specs).range * cellSize;
+        const rangePx = attackStats(part.type, part.level, part.specs).range * this.towerMods(selectedTower).range * cellSize;
         ctx.fillStyle = 'rgba(244, 192, 106, 0.09)';
         ctx.strokeStyle = part === selectedTower ? 'rgba(244, 192, 106, 0.45)' : 'rgba(62, 214, 196, 0.5)';
         ctx.lineWidth = 1.5;
@@ -2960,6 +3765,8 @@ export class GameEngine {
       ctx.stroke();
     }
 
+    if (this.race !== 'humans') this.renderRaceGround(ctx, cellSize, timeSec);
+
     // 7. Render Towers
     // Sorted by y so lower figures overlap the ones behind them; flyers on top
     // Binders, towers and the castle sprite share one depth order (castle and binders before towers of their row)
@@ -2977,6 +3784,8 @@ export class GameEngine {
     for (const e of enemiesByDepth) {
       this.renderEnemy(ctx, e, CONFIG.palettes[this.faction - 1].enemies, timeSec);
     }
+
+    if (this.race !== 'humans') this.renderRaceAir(ctx, cellSize, timeSec);
 
     // 9. Render Projectiles
     for (const p of this.projectiles) {
@@ -3251,8 +4060,52 @@ export class GameEngine {
   }
 
   // Each level has its own figure (public/sprites/tower_<type>_<level>.png)
+  // Towers of the playable factions use a unit of their faction for now (lore/faction-towers-table.md, part 4);
+  // a missing faction figure falls back to the common one tinted in the faction's color
   private towerSprite(type: TowerType, level: number): PreparedSprite | null {
+    const def = CONFIG.towers[type];
+    if (def.sprite) {
+      const own = sprites.get(def.sprite);
+      if (own) return own;
+      const base = def.sprite.replace(/_\d+$/, '');
+      return sprites.get(base, CONFIG.palettes[CONFIG.races[def.race!].faction - 1].enemies);
+    }
     return sprites.get(`tower_${type}_${level}`) ?? sprites.get(`tower_${type}_1`);
+  }
+
+  /** Field height of a faction tower's unit figure: a little taller each level; undefined keeps sprites.json */
+  private towerDrawH(type: TowerType, level: number): number | undefined {
+    return CONFIG.towers[type].sprite ? 46 + 7 * (Math.min(3, level) - 1) + 3 * Math.max(0, level - 3) : undefined;
+  }
+
+  // Stone pedestal under a faction tower so the unit figure reads as a tower, not as an enemy
+  private drawPedestal(ctx: CanvasRenderingContext2D, t: Tower, cx: number, footY: number, timeSec: number) {
+    const def = CONFIG.towers[t.type];
+    ctx.fillStyle = '#2a2632';
+    ctx.beginPath();
+    ctx.ellipse(cx, footY - 2, 21, 8, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = def.color;
+    ctx.globalAlpha = 0.85;
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+    if ((t.abilityLeft ?? 0) > 0) {
+      const pulse = 0.5 + 0.5 * Math.sin(timeSec * 10);
+      ctx.strokeStyle = '#ff7a3a';
+      ctx.globalAlpha = 0.5 + 0.5 * pulse;
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.ellipse(cx, footY - 2, 25, 10, 0, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+    } else if (t.abilityCd !== undefined && this.abilityReady(t) && this.gold >= (def.ability?.cost ?? 0)) {
+      // A ready ability: a small flame mark at the foot
+      ctx.fillStyle = '#ff7a3a';
+      ctx.beginPath();
+      ctx.arc(cx - 20, footY - 4, 3 + Math.sin(timeSec * 6), 0, Math.PI * 2);
+      ctx.fill();
+    }
   }
 
   private renderTower(ctx: CanvasRenderingContext2D, t: Tower, cellSize: number, timeSec: number) {
@@ -3382,6 +4235,13 @@ export class GameEngine {
         ctx.ellipse(cx, ringY, 31, 12, 0, from, to);
         ctx.stroke();
       }
+      // Нежить reaches Ур.5: a ring more for each level past 3
+      for (let l = 4; l <= t.level; l++) {
+        ctx.lineWidth = 1.2;
+        ctx.beginPath();
+        ctx.ellipse(cx, ringY, 31 + 4 * (l - 3), 12 + 2 * (l - 3), 0, from, to);
+        ctx.stroke();
+      }
     };
     rings(Math.PI, Math.PI * 2);
 
@@ -3400,8 +4260,10 @@ export class GameEngine {
       if (spr2) drawSprite(ctx, spr2, x2, y2, t.facing, undefined, this.towerPose(t, t.second, timeSec));
       this.drawBond(ctx, x1, y1, x2, y2, power, timeSec, 'front');
     } else {
+      if (baseDef.sprite) this.drawPedestal(ctx, t, cx, footY, timeSec);
       this.drawBaseRim(ctx, t.type, cx, footY, 1);
-      drawSprite(ctx, spr, cx, footY, t.facing, undefined, this.towerPose(t, t, timeSec));
+      drawSprite(ctx, spr, cx, footY, t.facing, this.towerDrawH(t.type, t.level), this.towerPose(t, t, timeSec));
+      if (t.souls) this.drawSpecBadge(ctx, `☠${t.souls}`, cx - 18, cy - 22, cx, cellSize);
     }
 
     // Front half of the rings over the pedestal
@@ -3670,6 +4532,7 @@ export class GameEngine {
       drawSprite(ctx, spr, e.x, footY, e.facing, h, pose);
       ctx.globalAlpha = 1;
       if (e.isReviving) return;
+      if ((e.stunTimer ?? 0) > 0) this.renderHeld(ctx, e, footY, h, timeSec);
       topY = footY - h - (pose.lift ?? 0);
     } else {
       if (!e.isReviving) this.renderStatusUnder(ctx, e, e.y + (isBoss ? 22 : 10), isBoss ? 26 : 13, timeSec);
@@ -3714,11 +4577,45 @@ export class GameEngine {
     }
   }
 
+  // Held by the hound: the hound at its side; frozen: an icy shell over the figure
+  private renderHeld(ctx: CanvasRenderingContext2D, e: Enemy, footY: number, h: number, timeSec: number) {
+    if ((e.heldTimer ?? 0) > 0) {
+      const hound = sprites.get('enemy_swarm_1') ?? sprites.get('enemy_swarm', '#8fa34a');
+      if (hound) drawSprite(ctx, hound, e.x - e.facing * 12, footY + 2, e.facing, 30, { tilt: Math.sin(timeSec * 14) * 0.12 });
+      return;
+    }
+    ctx.save();
+    ctx.globalAlpha = 0.45;
+    ctx.fillStyle = '#bfe8ff';
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 1.5;
+    const w = Math.min(36, h * 0.45);
+    ctx.beginPath();
+    ctx.moveTo(e.x, footY - h * 0.85);
+    ctx.lineTo(e.x + w / 2, footY - h * 0.45);
+    ctx.lineTo(e.x + w / 2.4, footY);
+    ctx.lineTo(e.x - w / 2.4, footY);
+    ctx.lineTo(e.x - w / 2, footY - h * 0.45);
+    ctx.closePath();
+    ctx.fill();
+    ctx.globalAlpha = 0.8;
+    ctx.stroke();
+    ctx.restore();
+  }
+
   // Under the feet: an icy ring while slowed, a violet one while cursed
   private renderStatusUnder(ctx: CanvasRenderingContext2D, e: Enemy, footY: number, rx: number, timeSec: number) {
-    if (e.slowPercent <= 0 && e.curseTimer <= 0) return;
+    const poisoned = (e.poisonTimer ?? 0) > 0;
+    if (e.slowPercent <= 0 && e.curseTimer <= 0 && !poisoned) return;
     ctx.save();
     ctx.lineWidth = 2;
+    if (poisoned) {
+      ctx.globalAlpha = 0.6;
+      ctx.fillStyle = 'rgba(143, 212, 90, 0.25)';
+      ctx.beginPath();
+      ctx.ellipse(e.x, footY - 1, rx * 0.8, rx * 0.28, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
     if (e.slowPercent > 0) {
       ctx.globalAlpha = 0.35 + 0.5 * Math.min(1, e.slowPercent / 0.5);
       ctx.strokeStyle = SLOW_COLOR;
@@ -3860,6 +4757,80 @@ export class GameEngine {
     return true;
   }
 
+  // Under the figures: megatower links, burning patches, the cell of a П between its legs
+  private renderRaceGround(ctx: CanvasRenderingContext2D, cs: number, timeSec: number) {
+    for (const f of this.fires) {
+      const a = Math.min(1, f.t / 0.6);
+      const g = ctx.createRadialGradient(f.x, f.y, 2, f.x, f.y, f.r);
+      g.addColorStop(0, `rgba(255, 140, 50, ${0.55 * a})`);
+      g.addColorStop(1, 'rgba(224, 69, 47, 0)');
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.arc(f.x, f.y, f.r, 0, Math.PI * 2);
+      ctx.fill();
+      if (Math.random() < 0.1) this.spawnSpark(f.x + (Math.random() - 0.5) * f.r, f.y + (Math.random() - 0.5) * f.r, '#ff8a3a');
+    }
+    const pulse = 0.55 + 0.45 * Math.sin(timeSec * 3);
+    for (const m of this.megas) {
+      const pts = m.ids.map((id) => this.towers.find((t) => t.id === id)).filter((t): t is Tower => !!t);
+      ctx.save();
+      ctx.strokeStyle = '#bfe8ff';
+      ctx.shadowColor = '#7fc8f0';
+      ctx.shadowBlur = 8;
+      ctx.globalAlpha = 0.45 + 0.35 * pulse;
+      ctx.lineWidth = 3;
+      for (const a of pts)
+        for (const b of pts)
+          if (a.id < b.id && Math.abs(a.x - b.x) + Math.abs(a.y - b.y) === 1) {
+            ctx.beginPath();
+            ctx.moveTo((a.x + 0.5) * cs, (a.y + 0.75) * cs);
+            ctx.lineTo((b.x + 0.5) * cs, (b.y + 0.75) * cs);
+            ctx.stroke();
+          }
+      if (m.shape === 'P') {
+        ctx.setLineDash([5, 4]);
+        ctx.strokeRect(m.center.x * cs + 6, m.center.y * cs + 6, cs - 12, cs - 12);
+        ctx.setLineDash([]);
+      } else if (m.shape === 'X') {
+        ctx.beginPath();
+        ctx.arc((m.center.x + 0.5) * cs, (m.center.y + 0.5) * cs, CONFIG.raceMech.megaXRadius * cs * (1 - m.timer / CONFIG.raceMech.megaXEvery), 0, Math.PI * 2);
+        ctx.stroke();
+      }
+      ctx.restore();
+      ctx.font = 'bold 11px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillStyle = '#d6f0ff';
+      const c = m.shape === 'P' ? pts[0] : (pts.find((t) => t.id === m.centerId) ?? pts[0]);
+      if (c) ctx.fillText(m.shape === 'X' ? 'Х' : m.shape === 'P' ? 'П' : 'Т', (c.x + 0.5) * cs, c.y * cs + 10);
+    }
+  }
+
+  // Over the enemies: imps of the abyss gate and the spheres about to burst
+  private renderRaceAir(ctx: CanvasRenderingContext2D, cs: number, timeSec: number) {
+    for (const b of this.blasts) {
+      const k = 1 - b.t / CONFIG.raceMech.sphereDelay;
+      ctx.strokeStyle = '#8f7aff';
+      ctx.fillStyle = `rgba(106, 90, 216, ${0.12 + 0.2 * k})`;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(b.x, b.y, b.r * (0.3 + 0.7 * k), 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+    }
+    const spr = sprites.get('enemy_imp') ?? sprites.get('enemy_scout', '#e0452f');
+    for (const imp of this.imps) {
+      ctx.globalAlpha = Math.min(1, imp.t / 0.4);
+      if (spr) drawSprite(ctx, spr, imp.x, imp.y + 10, imp.facing, 26, { lift: 4 + Math.sin(timeSec * 9 + imp.t) * 3 });
+      else {
+        ctx.fillStyle = '#e0452f';
+        ctx.beginPath();
+        ctx.arc(imp.x, imp.y, 6, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+    }
+  }
+
   private renderProjectile(ctx: CanvasRenderingContext2D, p: Projectile) {
     if (p.isRam) {
       // Piercing heavy bolt line
@@ -3902,8 +4873,33 @@ export class GameEngine {
       ctx.beginPath();
       ctx.arc(p.currentX, p.currentY, 3.5, 0, Math.PI * 2);
       ctx.fill();
+    } else {
+      // Towers of the playable factions: a dart in their color, a ball for magic, a stone for the trebuchet
+      const def = CONFIG.towers[p.towerType];
+      if (p.damageType === 'phys' && p.towerType !== 'orc_trebuchet') {
+        ctx.strokeStyle = def.color;
+        ctx.lineWidth = p.towerType === 'cul_spike' ? 3.5 : 2.2;
+        const dx = p.targetX - p.startX;
+        const dy = p.targetY - p.startY;
+        const len = Math.hypot(dx, dy) || 1;
+        ctx.beginPath();
+        ctx.moveTo(p.currentX - (dx / len) * 10, p.currentY - (dy / len) * 10);
+        ctx.lineTo(p.currentX, p.currentY);
+        ctx.stroke();
+      } else {
+        ctx.fillStyle = def.color;
+        ctx.beginPath();
+        ctx.arc(p.currentX, p.currentY, p.towerType === 'orc_trebuchet' ? 5.5 : 4, 0, Math.PI * 2);
+        ctx.fill();
+      }
     }
   }
+}
+
+// Shot sound of a tower: the playable factions' towers use one of the four
+function shotSound(type: TowerType): 'archer' | 'priest' | 'mage' | 'ballista' {
+  const def: TowerBaseDef = CONFIG.towers[type];
+  return def.sound ?? (type as 'archer' | 'priest' | 'mage' | 'ballista');
 }
 
 // Linear blend of two #rrggbb colors, t = 0..1 towards `to`

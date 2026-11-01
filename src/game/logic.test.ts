@@ -471,3 +471,42 @@ test('every faction has a palette; factions past the maps have no map of their o
   assert.equal(MAPS.length, CONFIG.levelCount);
   CONFIG.factions.forEach((f, i) => assert.equal(f.id, i + 1));
 });
+
+test('playable races: every race has four towers of its own and a valid faction', () => {
+  for (const id of Object.keys(CONFIG.races) as (keyof typeof CONFIG.races)[]) {
+    const r = CONFIG.races[id];
+    assert.equal(r.towers.length, 4, `${id}: four towers`);
+    assert.ok(CONFIG.factions[r.faction - 1], `${id}: faction ${r.faction}`);
+    for (const t of r.towers) {
+      const def = CONFIG.towers[t];
+      assert.ok(def, `${id}: tower ${t}`);
+      if (id !== 'humans') assert.equal(def.race, id, `${t} belongs to ${id}`);
+    }
+  }
+});
+
+test('sell refund and supply count the towers merged in by the race rule', () => {
+  // орки сливают по 4, нежить по 2
+  assert.equal(calculateSellRefund(50, 2, 0.7, 4), Math.floor(200 * 0.7));
+  assert.equal(calculateSellRefund(50, 3, 0.8, 2), Math.floor(200 * 0.8));
+  assert.equal(calculateSupplyPower([1, 2, 3], 0, 0, 4), 1 + 4 + 16);
+  assert.equal(calculateSupplyPower([1, 2, 5], 0, 0, 2), 1 + 2 + 16);
+  // люди — прежняя таблица 1/3/9
+  assert.equal(calculateSupplyPower([1, 2, 3], 0, 0), 1 + 3 + 9);
+});
+
+test('race tower stats: level growth, orc tempering, undead merge choice', () => {
+  const orcs = CONFIG.races.orcs;
+  const spear = CONFIG.towers.orc_spear;
+  const s2 = attackStats('orc_spear', 2, []);
+  assert.ok(Math.abs(s2.damage - spear.damage * orcs.levelDamage) < 1e-9);
+  const tempered = attackStats('orc_spear', 1, ['orc_dmg', 'orc_dmg']);
+  assert.ok(Math.abs(tempered.damage - spear.damage * (1 + 2 * CONFIG.raceMech.orcUpgrade.dmg)) < 1e-9);
+  const und = CONFIG.races.undead;
+  const archer = CONFIG.towers.und_archer;
+  const u = attackStats('und_archer', 3, ['und_dmg', 'und_speed']);
+  assert.ok(Math.abs(u.damage - archer.damage * und.levelDamage) < 1e-9);
+  assert.ok(Math.abs(u.cooldown - archer.cooldown / und.levelDamage) < 1e-9);
+  // особые башни без обычной атаки
+  assert.equal(attackStats('und_crypt', 1, []).normalAttack, false);
+});

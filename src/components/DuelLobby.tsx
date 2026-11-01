@@ -4,13 +4,16 @@
  */
 
 import React, { useEffect, useRef, useState } from 'react';
-import { CONFIG } from '../game/config';
+import { CONFIG, RaceId } from '../game/config';
+import { RacePicker } from './RacePicker';
 import { DuelLink, newRoomCode, openDuel } from '../duel';
 import { BOT_LEVELS, BotLevel, createBotLink } from '../duelBot';
 
 interface DuelLobbyProps {
   level: number; // the map picked first, when this player creates the room or plays the bot
   unlockedLevel: number; // maps open to pick
+  race: RaceId; // the player's own towers (each player picks their own, it does not go over the network)
+  onChangeRace: (race: RaceId) => void;
   onStart: (link: DuelLink, level: number, startAt: number, opponentArmy: number, myArmy: number) => void;
   onBack: () => void;
 }
@@ -24,7 +27,7 @@ type LobbyState =
 
 const JOIN_TIMEOUT_MS = 10000;
 
-export function DuelLobby({ level: firstLevel, unlockedLevel, onStart, onBack }: DuelLobbyProps) {
+export function DuelLobby({ level: firstLevel, unlockedLevel, race, onChangeRace, onStart, onBack }: DuelLobbyProps) {
   const [level, setLevel] = useState<number>(firstLevel); // the map for a room this player creates or a bot game
   const [state, setState] = useState<LobbyState>({ kind: 'choose' });
   const [codeInput, setCodeInput] = useState('');
@@ -158,6 +161,12 @@ export function DuelLobby({ level: firstLevel, unlockedLevel, onStart, onBack }:
               ))}
             </select>
           </label>
+        )}
+
+        {(state.kind === 'choose' || state.kind === 'joining' || state.kind === 'bot') && (
+          <div className="mb-3">
+            <RacePicker race={race} onChange={onChangeRace} compact />
+          </div>
         )}
 
         {/* The army: the faction of the enemies that attack the opponent (its trait and boss) */}

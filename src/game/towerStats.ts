@@ -36,6 +36,7 @@ export interface AttackStats {
 
 export function attackStats(type: TowerType, level: number, allSpecs: readonly string[]): AttackStats {
   const def = CONFIG.towers[type];
+  if (def.race && def.race !== 'humans') return raceAttackStats(type, level, allSpecs);
   const specs = specsOfType(type, allSpecs);
   const n = (id: string) => specPower(specs, id);
 
@@ -99,6 +100,41 @@ export function attackStats(type: TowerType, level: number, allSpecs: readonly s
   };
 }
 
+/** Towers of the playable factions: level growth of the faction, orc tempering, undead merge choices */
+function raceAttackStats(type: TowerType, level: number, allSpecs: readonly string[]): AttackStats {
+  const def = CONFIG.towers[type];
+  const race = CONFIG.races[def.race!];
+  const specs = specsOfType(type, allSpecs);
+  const n = (id: string) => specPower(specs, id);
+  const lv = Math.max(1, level) - 1;
+  let damage = def.damage;
+  let cooldown = def.cooldown;
+  let range = def.range * Math.pow(race.levelRange, lv);
+  if (race.id === 'undead') {
+    damage *= Math.pow(race.levelDamage, n('und_dmg'));
+    cooldown /= Math.pow(race.levelDamage, n('und_speed'));
+  } else {
+    damage *= Math.pow(race.levelDamage, lv);
+  }
+  if (race.id === 'orcs') {
+    const up = CONFIG.raceMech.orcUpgrade;
+    damage *= 1 + up.dmg * n('orc_dmg');
+    cooldown /= 1 + up.speed * n('orc_speed');
+    range += up.range * n('orc_range');
+  }
+  return {
+    damage,
+    cooldown,
+    range,
+    targets: 1,
+    chain: 0,
+    aoeRadius: def.aoe ?? 0,
+    pierce: false,
+    smiteDamage: 0,
+    normalAttack: !def.special,
+  };
+}
+
 /** Slow fraction for a base slow and power n: each extra copy slows the rest again. */
 export function stackedSlow(base: number, n: number): number {
   return 1 - Math.pow(1 - base, n);
@@ -138,6 +174,11 @@ const SPEC_CODE: Record<string, string> = {
   ram: 'Тр',
   siege: 'Ос',
   execute: 'Кз',
+  orc_dmg: 'Сл',
+  orc_speed: 'Бс',
+  orc_range: 'Зр',
+  und_dmg: 'Ур',
+  und_speed: 'Ск',
 };
 
 /** Badge text on the field: code of each specialization with its power, «Ог», «Ог×3», «Ог×2·Мр». */

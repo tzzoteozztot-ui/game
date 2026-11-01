@@ -4,11 +4,12 @@
  */
 
 import React from 'react';
-import { CONFIG } from '../game/config';
+import { RaceId, CONFIG } from '../game/config';
 
 interface LevelBriefingProps {
   level: number;
   faction: number; // whose enemies come: the map's own, or another one picked for endless mode
+  race?: RaceId; // the player's faction
   difficulty: 'easy' | 'normal' | 'hard';
   endless: boolean;
   onStartBattle: () => void;
@@ -18,6 +19,7 @@ interface LevelBriefingProps {
 export function LevelBriefing({
   level,
   faction: factionId,
+  race = 'humans',
   difficulty,
   endless,
   onStartBattle,
@@ -41,6 +43,9 @@ export function LevelBriefing({
           </h2>
           <div className="text-xs text-stone-400 mt-1">
             Фракция врагов: <strong className="text-stone-200">{faction.name}</strong>
+          </div>
+          <div className="text-xs text-stone-400 mt-0.5">
+            Ваши башни: <strong className="text-stone-200">{CONFIG.races[race].name}</strong>
           </div>
         </div>
 

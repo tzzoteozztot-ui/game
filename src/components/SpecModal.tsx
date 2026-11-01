@@ -9,11 +9,20 @@ import { TowerSpriteIcon } from './Icons';
 
 interface SpecModalProps {
   towerType: TowerType;
+  level?: number; // the level the tower has now
   onSelectSpec: (specId: string) => void;
 }
 
-export function SpecModal({ towerType, onSelectSpec }: SpecModalProps) {
+export function SpecModal({ towerType, level = 2, onSelectSpec }: SpecModalProps) {
   const baseDef = CONFIG.towers[towerType];
+  // Люди: specialization at Ур.2; орки: tempering on placing and every level; нежить: what the merged tower keeps
+  const title = baseDef.race === 'orcs' ? 'Закалка башни' : baseDef.race === 'undead' ? 'Слияние нежити' : 'Выберите специализацию';
+  const hint =
+    baseDef.race === 'orcs'
+      ? `${baseDef.name} Ур.${level}: выберите улучшение. Закалки складываются.`
+      : baseDef.race === 'undead'
+        ? `${baseDef.name} Ур.${level}: что усилить у объединённой башни?`
+        : `Башня ${baseDef.name} достигла Уровня 2. Выбор специализации необратим!`;
 
   return (
     <div className="fixed inset-0 bg-black/85 flex items-center justify-center p-4 z-50 animate-fade-in">
@@ -23,12 +32,8 @@ export function SpecModal({ towerType, onSelectSpec }: SpecModalProps) {
           <div className="w-12 h-12 mx-auto mb-2 flex items-center justify-center bg-[#13111a] rounded-lg border border-[#383347]">
             <TowerSpriteIcon type={towerType} size={40} color={baseDef.color} />
           </div>
-          <h2 className="text-xl font-black text-amber-300 tracking-wide">
-            Выберите специализацию
-          </h2>
-          <p className="text-xs text-stone-400 mt-1">
-            Башня {baseDef.name} достигла Уровня 2. Выбор специализации необратим!
-          </p>
+          <h2 className="text-xl font-black text-amber-300 tracking-wide">{title}</h2>
+          <p className="text-xs text-stone-400 mt-1">{hint}</p>
         </div>
 
         {/* 3 Specialization Options */}

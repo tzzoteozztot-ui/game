@@ -4,7 +4,7 @@
  */
 
 import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { CONFIG, Difficulty, TowerType } from './game/config';
+import { CONFIG, Difficulty, TowerType, RaceId } from './game/config';
 import { validateAllMaps } from './game/maps';
 import { sound, AudioSettings } from './game/audio';
 import { GameEngine, GameStateSnapshot, Tower } from './game/engine';
@@ -107,6 +107,23 @@ export default function App() {
   // Endless mode: enemies are picked apart from the map (Артур, 2026-10-31); 0 — the map's own faction
   const [endlessEnemies, setEndlessEnemies] = useState<number>(0);
   const enemyFaction = endless && endlessEnemies ? endlessEnemies : selectedLevel;
+  // The player's faction: whose towers the shop sells (выбор Артура 2026-11-01); remembered on this device
+  const [race, setRaceState] = useState<RaceId>(() => {
+    try {
+      const r = localStorage.getItem('dark_frontier_race') as RaceId | null;
+      return r && CONFIG.races[r] ? r : 'humans';
+    } catch {
+      return 'humans';
+    }
+  });
+  const setRace = (r: RaceId) => {
+    setRaceState(r);
+    try {
+      localStorage.setItem('dark_frontier_race', r);
+    } catch {
+      // private mode: the choice lives until the page is closed
+    }
+  };
   const [showHowToPlay, setShowHowToPlay] = useState<boolean>(false);
   const [showBestiary, setShowBestiary] = useState<boolean>(false);
   const [isPortrait, setIsPortrait] = useState<boolean>(false);
@@ -181,6 +198,11 @@ export default function App() {
     selectedDamage: null,
     selectedSide: null,
     castle: null,
+    race: 'humans',
+    mergeNeed: 3,
+    maxLevel: 3,
+    autoAbilities: false,
+    selectedInfo: null,
   });
 
   // Shop state (5 card slots)
@@ -198,9 +220,11 @@ export default function App() {
 
   // Generate 5 shop cards based on current tier
   const generateShopCards = useCallback((currentTier: number): (ShopCard | null)[] => {
-    const towerTypes: TowerType[] = ['archer', 'priest', 'mage', 'ballista'];
-    const tripletChance = CONFIG.shop.tripletChances[currentTier - 1] || 0;
-    const binderChance = CONFIG.shop.binderChances[currentTier - 1] || 0;
+    // The player's faction: its own towers (some only from a higher tier), binders and ★ cards where it has them
+    const raceDef = CONFIG.races[engineRef.current?.race ?? 'humans'];
+    const towerTypes: TowerType[] = raceDef.towers.filter((t) => (CONFIG.towers[t].minTier ?? 1) <= currentTier);
+    const tripletChance = raceDef.triplets ? CONFIG.shop.tripletChances[currentTier - 1] || 0 : 0;
+    const binderChance = raceDef.binders ? CONFIG.shop.binderChances[currentTier - 1] || 0 : 0;
     const cards: ShopCard[] = [];
 
     for (let i = 0; i < CONFIG.shop.slotsCount; i++) {
@@ -386,7 +410,7 @@ export default function App() {
     setTimeout(() => {
       if (canvasRef.current && engineRef.current) {
         engineRef.current.setCanvas(canvasRef.current);
-        engineRef.current.startDuel(level, startAt, army);
+        engineRef.current.startDuel(level, startAt, army, race);
         engineRef.current.onDuelSend = (enemies) => link.send({ t: 'send', enemies });
         setShopCards(generateShopCards(1));
       }
@@ -489,7 +513,7 @@ export default function App() {
     setTimeout(() => {
       if (canvasRef.current && engineRef.current) {
         engineRef.current.setCanvas(canvasRef.current);
-        engineRef.current.startLevel(selectedLevel, difficulty, endless, enemyFaction);
+        engineRef.current.startLevel(selectedLevel, difficulty, endless, enemyFaction, race);
         setShopCards(generateShopCards(1));
       }
     }, 50);
@@ -525,13 +549,13 @@ export default function App() {
 
     if (screen === 'playing' && canvasRef.current) {
       engine.setCanvas(canvasRef.current);
-      engine.startLevel(selectedLevel, difficulty, endless, enemyFaction);
+      engine.startLevel(selectedLevel, difficulty, endless, enemyFaction, race);
     } else {
       setScreen('playing');
       setTimeout(() => {
         if (canvasRef.current && engineRef.current) {
           engineRef.current.setCanvas(canvasRef.current);
-          engineRef.current.startLevel(selectedLevel, difficulty, endless, enemyFaction);
+          engineRef.current.startLevel(selectedLevel, difficulty, endless, enemyFaction, race);
         }
       }, 50);
     }
@@ -574,8 +598,8 @@ export default function App() {
       return;
     }
 
-    // A triplet first asks for its specialization; nothing is paid until it is chosen
-    if (card.isTriplet) {
+    // A triplet first asks for its specialization; nothing is paid until it is chosen (towers without them go straight in)
+    if (card.isTriplet && CONFIG.towers[card.type].specs.length > 0) {
       if (engine.gold < engine.towerPrice(card.type, true) || engine.overflowPending()) {
         engine.buyToBackpack('tower', card.type, true, null); // only reports why it cannot
         return;
@@ -591,7 +615,7 @@ export default function App() {
       return;
     }
 
-    if (engine.buyToBackpack('tower', card.type, false, null)) takeCard();
+    if (engine.buyToBackpack('tower', card.type, card.isTriplet, null)) takeCard();
   };
 
   // Specialization picked in modal
@@ -980,6 +1004,8 @@ export default function App() {
       }
     } else if (e.key === 'u' || e.key === 'U' || e.key === 'г' || e.key === 'Г') {
       if (screen === 'playing' && engine.canUpgradeSelectedTower()) handleUpgradeTower();
+    } else if (e.key === 'a' || e.key === 'A' || e.key === 'ф' || e.key === 'Ф') {
+      if (screen === 'playing' && engine.selectedTowerId) engine.castAbility(engine.selectedTowerId);
     } else if (e.key === 'Tab') {
       if (screen === 'playing' && engine.selectedTowerId) {
         e.preventDefault();
@@ -1042,6 +1068,24 @@ export default function App() {
       castle={gameState.castle}
       gold={gameState.gold}
       onUpgradeCastle={() => engineRef.current?.upgradeGuard()}
+      mergeNeed={gameState.mergeNeed}
+      maxLevel={gameState.maxLevel}
+      race={gameState.race}
+      info={gameState.selectedInfo}
+      onCastAbility={() => {
+        sound.init();
+        const engine = engineRef.current;
+        if (engine?.selectedTowerId) engine.castAbility(engine.selectedTowerId);
+      }}
+      onToggleAuto={() => {
+        const engine = engineRef.current;
+        if (engine?.selectedTowerId) engine.toggleTowerAuto(engine.selectedTowerId);
+      }}
+      onSacrifice={() => {
+        sound.init();
+        const engine = engineRef.current;
+        if (engine?.selectedTowerId) engine.sacrifice(engine.selectedTowerId);
+      }}
     />
   );
 
@@ -1068,6 +1112,11 @@ export default function App() {
           sfxVol={audioSettings.sfxVolume}
           isMuted={audioSettings.muted}
           selectedLevel={Math.min(selectedLevel, unlockedLevel)}
+          race={race}
+          onChangeRace={(r) => {
+            sound.init();
+            setRace(r);
+          }}
           endlessEnemies={endlessEnemies}
           onChangeEnemies={(f) => {
             sound.init();
@@ -1102,6 +1151,7 @@ export default function App() {
         <LevelBriefing
           level={selectedLevel}
           faction={enemyFaction}
+          race={race}
           difficulty={difficulty}
           endless={endless}
           onStartBattle={handleStartBattle}
@@ -1114,6 +1164,8 @@ export default function App() {
         <DuelLobby
           level={Math.min(selectedLevel, unlockedLevel)}
           unlockedLevel={unlockedLevel}
+          race={race}
+          onChangeRace={setRace}
           onStart={handleDuelStart}
           onBack={() => {
             setMenuPage('home');
@@ -1230,6 +1282,19 @@ export default function App() {
                 onToggleMute={handleToggleMute}
                 dropUp={layout === 'bottom'}
               />
+              {gameState.race === 'demons' && (
+                <button
+                  type="button"
+                  onClick={() => engineRef.current?.setAutoAbilities(!engineRef.current.autoAbilities)}
+                  aria-pressed={gameState.autoAbilities}
+                  title="Способности демонов срабатывают сами: при трёх врагах, тяжёлом или боссе в радиусе, если золота больше запаса 100"
+                  className={`shrink-0 mx-1.5 mt-1 h-[var(--h-line)] min-h-[24px] px-1 rounded border text-[length:var(--fs-sm)] font-bold cursor-pointer whitespace-nowrap overflow-hidden ${
+                    gameState.autoAbilities ? 'bg-orange-700/70 border-orange-300/60 text-white' : 'bg-[#221f2d] border-[#383347] text-stone-300 hover:bg-[#2c283a]'
+                  }`}
+                >
+                  Авто-способности: {gameState.autoAbilities ? 'вкл' : 'выкл'}
+                </button>
+              )}
               {gameState.isUpgrading && <WaitingHint text="Коснитесь башни: поднимется на уровень" onCancel={handleUpgradeWithBinder} />}
               {gameState.isBinding && <WaitingHint text="Коснитесь башни другого вида" onCancel={handleBind} />}
               <div className={layout === 'bottom' ? 'flex-1 min-w-0 h-full flex flex-row items-center gap-1' : 'flex-1 flex flex-col justify-center-safe'}>
@@ -1311,6 +1376,7 @@ export default function App() {
       {specModalTower && !gameState.isGameOver && !gameState.isVictory && (
         <SpecModal
           towerType={specModalTower.type}
+          level={engineRef.current?.towers.find((t) => t.id === specModalTower.id)?.level ?? 2}
           onSelectSpec={handleSelectSpec}
         />
       )}
@@ -1366,7 +1432,7 @@ export default function App() {
         <AccountModal user={user} syncState={syncState} onClose={() => setShowAccount(false)} />
       )}
 
-      {showBestiary && <Bestiary onClose={() => setShowBestiary(false)} initialFaction={screen === 'playing' ? gameState.faction : selectedLevel} />}
+      {showBestiary && <Bestiary onClose={() => setShowBestiary(false)} initialFaction={screen === 'playing' ? gameState.faction : selectedLevel} initialRace={race} />}
 
       {showHowToPlay && (
         <HowToPlayModal onClose={() => setShowHowToPlay(false)} />

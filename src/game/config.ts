@@ -2,7 +2,18 @@
  * Game Configuration & Constants for «Тёмный рубеж»
  */
 
-export type TowerType = 'archer' | 'priest' | 'mage' | 'ballista';
+export type HumanTowerType = 'archer' | 'priest' | 'mage' | 'ballista';
+// Towers of the playable factions (выбор Артура 2026-11-01, числа — прикидка из lore/faction-towers-table.md)
+export type RaceTowerType =
+  | 'orc_spear' | 'orc_totem' | 'orc_trebuchet' | 'orc_cage'
+  | 'und_archer' | 'und_digger' | 'und_cauldron' | 'und_crypt'
+  | 'cul_archer' | 'cul_altar' | 'cul_pillar' | 'cul_spike'
+  | 'dem_ember' | 'dem_warper' | 'dem_rift' | 'dem_gate'
+  | 'elf_archer' | 'elf_weaver' | 'elf_sphere' | 'elf_blade';
+export type TowerType = HumanTowerType | RaceTowerType;
+/** The player's faction: whose towers the shop sells */
+export type RaceId = 'humans' | 'orcs' | 'undead' | 'cultists' | 'demons' | 'elves';
+export const RACE_IDS: RaceId[] = ['humans', 'orcs', 'undead', 'cultists', 'demons', 'elves'];
 export type TargetPriority = 'first' | 'strongest' | 'closest';
 export type Difficulty = 'easy' | 'normal' | 'hard';
 export type EnemyType = 'infantry' | 'scout' | 'heavy' | 'flyer' | 'shaman' | 'swarm' | 'boss' | 'imp';
@@ -13,9 +24,25 @@ export interface TowerSpecDef {
   desc: string;
 }
 
+export interface AbilityDef {
+  name: string;
+  desc: string;
+  duration: number; // s
+  cooldown: number; // s
+  cost: number; // gold
+}
+
 export interface TowerBaseDef {
   type: TowerType;
+  race?: RaceId; // default humans
   name: string;
+  desc?: string; // what it does, one line (shop, card, bestiary)
+  sprite?: string; // field figure for a tower without its own tower_<type>_<level> sprite (a unit of its faction)
+  aoe?: number; // splash radius, cells
+  minTier?: number; // appears in the shop from this tier
+  special?: 'cage' | 'altar' | 'crypt' | 'gate'; // no plain shot: its own routine in the engine
+  ability?: AbilityDef; // demons: active ability
+  sound?: HumanTowerType; // which shot sound it uses
   cost: number;
   damage: number;
   damageType: 'phys' | 'mag';
@@ -62,6 +89,35 @@ export interface FactionDef {
   traitDesc: string;
   bossName: string;
   bossDesc: string;
+}
+
+// Орки: закалка при постановке и на каждом новом уровне (выбор Артура 2026-11-01)
+const ORC_SPECS: TowerSpecDef[] = [
+  { id: 'orc_dmg', name: 'Сила', desc: '+12 % урона' },
+  { id: 'orc_speed', name: 'Быстрота', desc: '+12 % скорости атаки' },
+  { id: 'orc_range', name: 'Зоркость', desc: '+0,3 клетки радиуса' },
+];
+// Нежить: при слиянии двух башен объединённая усиливает урон или скорость ×2,4
+const UNDEAD_SPECS: TowerSpecDef[] = [
+  { id: 'und_dmg', name: 'Урон', desc: 'Урон ×2,4' },
+  { id: 'und_speed', name: 'Скорость', desc: 'Скорость атаки ×2,4' },
+];
+
+export interface RaceDef {
+  id: RaceId;
+  name: string;
+  faction: number; // CONFIG.factions id: colors and unit sprites
+  towers: TowerType[];
+  merge: number; // towers of one kind and level that merge into the next level
+  maxLevel?: number; // default 3
+  levelDamage: number; // damage per level (нежить: the chosen stat)
+  levelRange: number;
+  binders: boolean; // «Связка» in the shop (люди)
+  triplets: boolean; // ★ cards (a ready Ур.2) in the shop
+  sellRatio?: number; // overrides the share paid back on sale (campaign and endless)
+  killGoldMult?: number;
+  supply?: { free: number; step: number; growth: number }; // overrides CONFIG.supply numbers
+  features: string[]; // what makes the faction different (menu, bestiary)
 }
 
 export const CONFIG = {
@@ -185,6 +241,120 @@ export const CONFIG = {
         { id: 'siege', name: 'Осада', desc: 'Урон ×0,9, период ×1,15, взрыв радиусом 1 клетка' },
         { id: 'execute', name: 'Казнь', desc: 'Цель с HP < 25% гибнет сразу; босс получает +50% урона' },
       ],
+    } as TowerBaseDef,
+
+    // ---------------- Орки: рост от 4 башен, закалка при постановке ----------------
+    orc_spear: {
+      type: 'orc_spear', race: 'orcs', name: 'Метатель копий', cost: 55, damage: 9, damageType: 'phys', cooldown: 0.8, range: 2.8,
+      shape: 'triangle', color: '#a9bf5a', sprite: 'enemy_scout_1', sound: 'archer', specs: ORC_SPECS,
+      desc: 'Копьё пробивает цель и бьёт ещё одного врага за ней (в 1 клетке).',
+    } as TowerBaseDef,
+    orc_totem: {
+      type: 'orc_totem', race: 'orcs', name: 'Тотем предков', cost: 60, damage: 3, damageType: 'mag', cooldown: 1.0, range: 2.5,
+      shape: 'circle', color: '#e0c26a', sprite: 'enemy_shaman_1', sound: 'priest', specs: ORC_SPECS,
+      desc: 'Ярость: орочьи башни в соседних клетках стреляют на 10 % быстрее (Ур.2 — 15 %, Ур.3 — 20 %).',
+    } as TowerBaseDef,
+    orc_trebuchet: {
+      type: 'orc_trebuchet', race: 'orcs', name: 'Требушет', cost: 90, damage: 36, damageType: 'phys', cooldown: 2.6, range: 4.0, aoe: 0.9,
+      shape: 'square', color: '#b98a52', sprite: 'enemy_heavy_1', sound: 'ballista', specs: ORC_SPECS,
+      desc: 'Медленный камень по области 0,9 клетки, далеко бьёт.',
+    } as TowerBaseDef,
+    orc_cage: {
+      type: 'orc_cage', race: 'orcs', name: 'Клетка зверя', cost: 100, damage: 6, damageType: 'phys', cooldown: 0.5, range: 2.0,
+      shape: 'rhombus', color: '#c96a3a', sprite: 'enemy_swarm_1', sound: 'archer', special: 'cage', specs: ORC_SPECS,
+      desc: 'Гончая кусает раз в 0,5 с и раз в 6 с держит врага на месте 3 с (босса — 1 с).',
+    } as TowerBaseDef,
+
+    // ---------------- Нежить: слияние двух, выбор «урон или скорость» ----------------
+    und_archer: {
+      type: 'und_archer', race: 'undead', name: 'Костяной лучник', cost: 40, damage: 9, damageType: 'phys', cooldown: 0.7, range: 2.7,
+      shape: 'triangle', color: '#c9d6b0', sprite: 'enemy_scout_2', sound: 'archer', specs: UNDEAD_SPECS,
+      desc: 'Дешёвый дальний стрелок.',
+    } as TowerBaseDef,
+    und_digger: {
+      type: 'und_digger', race: 'undead', name: 'Могильщик', cost: 55, damage: 5, damageType: 'mag', cooldown: 1.0, range: 2.5,
+      shape: 'circle', color: '#9fb88a', sprite: 'enemy_infantry_2', sound: 'priest', specs: UNDEAD_SPECS,
+      desc: 'Замедляет цель на 30 % на 3 с. Враг, убитый в его радиусе, становится призраком: соседи замедлены на 20 % на 1 с.',
+    } as TowerBaseDef,
+    und_cauldron: {
+      type: 'und_cauldron', race: 'undead', name: 'Чумной котёл', cost: 70, damage: 6, damageType: 'mag', cooldown: 1.4, range: 2.6, aoe: 0.9,
+      shape: 'rhombus', color: '#8fd45a', sprite: 'enemy_shaman_2', sound: 'mage', specs: UNDEAD_SPECS,
+      desc: 'Яд по области: 25 % урона в секунду 4 с; при гибели отравленного яд переходит на соседа.',
+    } as TowerBaseDef,
+    und_crypt: {
+      type: 'und_crypt', race: 'undead', name: 'Склеп', cost: 90, damage: 6, damageType: 'mag', cooldown: 8, range: 2.0, minTier: 2,
+      shape: 'square', color: '#7a8a6a', sprite: 'enemy_heavy_2', sound: 'mage', special: 'crypt', specs: UNDEAD_SPECS,
+      desc: 'Копит души убитых в радиусе (до 10); раз в 8 с залп по всем в радиусе: 6 урона за каждую душу. В лавке со 2-го яруса.',
+    } as TowerBaseDef,
+
+    // ---------------- Культисты: мегабашни из фигур Т, Х, П ----------------
+    cul_archer: {
+      type: 'cul_archer', race: 'cultists', name: 'Ледяной стрелок', cost: 55, damage: 12, damageType: 'phys', cooldown: 0.7, range: 2.8,
+      shape: 'triangle', color: '#9fd8f5', sprite: 'enemy_scout_3', sound: 'archer', specs: [],
+      desc: 'Каждое попадание добавляет 8 % замедления (до 40 %) на 2 с.',
+    } as TowerBaseDef,
+    cul_altar: {
+      type: 'cul_altar', race: 'cultists', name: 'Алтарь инея', cost: 80, damage: 0, damageType: 'mag', cooldown: 5, range: 1.6,
+      shape: 'circle', color: '#d6f0ff', sprite: 'enemy_shaman_3', sound: 'priest', special: 'altar', specs: [],
+      desc: 'Раз в 5 с замораживает всех врагов в радиусе на 1,5 с (босса — на 0,5 с).',
+    } as TowerBaseDef,
+    cul_pillar: {
+      type: 'cul_pillar', race: 'cultists', name: 'Ритуальный столп', cost: 40, damage: 8, damageType: 'mag', cooldown: 1.0, range: 2.2,
+      shape: 'rhombus', color: '#7fc8f0', sprite: 'enemy_infantry_3', sound: 'mage', specs: [],
+      desc: 'Дешёвый модуль мегабашни; один слаб.',
+    } as TowerBaseDef,
+    cul_spike: {
+      type: 'cul_spike', race: 'cultists', name: 'Ледяной шип', cost: 100, damage: 65, damageType: 'phys', cooldown: 2.2, range: 3.6,
+      shape: 'square', color: '#5d9fd0', sprite: 'enemy_heavy_3', sound: 'ballista', specs: [],
+      desc: 'Тяжёлый выстрел; по замедленным и замороженным ×1,3.',
+    } as TowerBaseDef,
+
+    // ---------------- Демоны: активные способности, больше золота ----------------
+    dem_ember: {
+      type: 'dem_ember', race: 'demons', name: 'Метатель углей', cost: 55, damage: 9, damageType: 'mag', cooldown: 0.8, range: 2.8,
+      shape: 'triangle', color: '#ff7a3a', sprite: 'enemy_scout_4', sound: 'archer', specs: [],
+      desc: 'Поджигает: 25 % урона в секунду 3 с.',
+      ability: { name: 'Огненный шторм', desc: 'Стреляет вдвое чаще, поджог ×1,5', duration: 5, cooldown: 30, cost: 20 },
+    } as TowerBaseDef,
+    dem_warper: {
+      type: 'dem_warper', race: 'demons', name: 'Искажатель', cost: 70, damage: 2, damageType: 'mag', cooldown: 1.0, range: 2.5,
+      shape: 'circle', color: '#e05a8a', sprite: 'enemy_shaman_4', sound: 'priest', specs: [],
+      desc: 'Цель и враги в 1 клетке от неё получают +30 % урона от всех башен 4 с.',
+      ability: { name: 'Разлом', desc: 'Враги в 2 клетках от башни получают +60 % урона', duration: 4, cooldown: 35, cost: 25 },
+    } as TowerBaseDef,
+    dem_rift: {
+      type: 'dem_rift', race: 'demons', name: 'Огненная трещина', cost: 85, damage: 12, damageType: 'mag', cooldown: 1.6, range: 2.6,
+      shape: 'rhombus', color: '#ff4a2f', sprite: 'enemy_infantry_4', sound: 'mage', specs: [],
+      desc: 'Оставляет горящее пятно на 4 с: 40 % урона в секунду всем в нём.',
+      ability: { name: 'Извержение', desc: 'Пятна втрое шире и бьют вдвое сильнее', duration: 5, cooldown: 40, cost: 30 },
+    } as TowerBaseDef,
+    dem_gate: {
+      type: 'dem_gate', race: 'demons', name: 'Врата бездны', cost: 120, damage: 20, damageType: 'mag', cooldown: 6, range: 2.5,
+      shape: 'square', color: '#b0302a', sprite: 'enemy_heavy_4', sound: 'ballista', special: 'gate', specs: [],
+      desc: 'Раз в 6 с зовёт беса на 5 с (20 урона в секунду). «Жертва»: башня рядом сгорает ради залпа ×4 её цены.',
+      ability: { name: 'Зов', desc: 'Сразу призывает двух бесов', duration: 5, cooldown: 20, cost: 40 },
+    } as TowerBaseDef,
+
+    // ---------------- Тёмные эльфы: крит копится 10 с ----------------
+    elf_archer: {
+      type: 'elf_archer', race: 'elves', name: 'Теневой лучник', cost: 55, damage: 6, damageType: 'phys', cooldown: 0.5, range: 2.7,
+      shape: 'triangle', color: '#3ed6c4', sprite: 'enemy_scout_5', sound: 'archer', specs: [],
+      desc: 'Быстрый дальний стрелок.',
+    } as TowerBaseDef,
+    elf_weaver: {
+      type: 'elf_weaver', race: 'elves', name: 'Ткачиха теней', cost: 65, damage: 3, damageType: 'mag', cooldown: 1.0, range: 2.5,
+      shape: 'circle', color: '#9a7ae0', sprite: 'enemy_shaman_5', sound: 'priest', specs: [],
+      desc: 'Паутина на цель и врагов в 1 клетке: замедление 25 % и −30 % урона по артефакту, 3 с.',
+    } as TowerBaseDef,
+    elf_sphere: {
+      type: 'elf_sphere', race: 'elves', name: 'Сумеречная сфера', cost: 80, damage: 12, damageType: 'mag', cooldown: 1.5, range: 2.6, aoe: 0.9,
+      shape: 'rhombus', color: '#6a5ad8', sprite: 'enemy_heavy_5', sound: 'mage', specs: [],
+      desc: 'Сфера взрывается через 0,5 с после падения, по области 0,9 клетки.',
+    } as TowerBaseDef,
+    elf_blade: {
+      type: 'elf_blade', race: 'elves', name: 'Клинок сумерек', cost: 60, damage: 7, damageType: 'phys', cooldown: 0.4, range: 1.3,
+      shape: 'square', color: '#e8c76a', sprite: 'enemy_infantry_5', sound: 'archer', specs: [],
+      desc: 'Ближний и быстрый. «Охота на отставших»: ×1,3 по врагу, который уже прошёл мимо двух других башен.',
     } as TowerBaseDef,
   },
 
@@ -385,6 +555,92 @@ export const CONFIG = {
     gateRadius: 3, // cells around the commander
     gateCount: 5, // allies carried besides the commander
     gateCells: 2, // how far along the road
+  },
+
+  // Играбельные фракции (выбор Артура 2026-11-01): у каждой свои башни и способ роста. Числа — прикидка,
+  // проверяются ботом (scripts/balance_sim.mjs --race=…). Культисты, демоны и эльфы растут слиянием трёх,
+  // как люди, но без свойств и связок (их особенности — мегабашни, способности, крит)
+  races: {
+    humans: {
+      id: 'humans', name: 'Люди', faction: 6, towers: ['archer', 'priest', 'mage', 'ballista'],
+      merge: 3, levelDamage: 3.3, levelRange: 1.1, binders: true, triplets: true,
+      features: ['Три одинаковые башни сливаются в следующий уровень; на Ур.2 — свойство на выбор, Ур.3 хранит три.', '«Связка» ставит две башни Ур.2–3 разных видов в одну клетку, тройная связка поднимает уровень.'],
+    },
+    orcs: {
+      id: 'orcs', name: 'Орки', faction: 1, towers: ['orc_spear', 'orc_totem', 'orc_trebuchet', 'orc_cage'],
+      merge: 4, levelDamage: 4.4, levelRange: 1.1, binders: false, triplets: false,
+      features: ['Каждая башня при постановке и на каждом новом уровне получает закалку на выбор: сила, быстрота или зоркость.', 'Уровень растёт от четырёх одинаковых башен (урон ×4,4).', 'Отряд: три орочьи башни разных видов в соседних клетках — +10 % урона каждой.'],
+    },
+    undead: {
+      id: 'undead', name: 'Нежить', faction: 2, towers: ['und_archer', 'und_digger', 'und_cauldron', 'und_crypt'],
+      merge: 2, maxLevel: 5, levelDamage: 2.4, levelRange: 1.05, binders: false, triplets: false, sellRatio: 0.8,
+      supply: { free: 30, step: 20, growth: 1.06 },
+      features: ['Две одинаковые башни сливаются в одну: на выбор урон или скорость ×2,4 (слияние выгоднее двух отдельных). Уровней пять.', 'Продажа возвращает 80 %, сила стола дорожает мягче (×1,06).', 'Слабое начало, сила к поздним волнам.'],
+    },
+    cultists: {
+      id: 'cultists', name: 'Культисты льда', faction: 3, towers: ['cul_archer', 'cul_altar', 'cul_pillar', 'cul_spike'],
+      merge: 3, levelDamage: 3.3, levelRange: 1.1, binders: false, triplets: true,
+      features: ['Мегабашни: башни культистов, поставленные фигурой, работают вместе.', 'Т (4 клетки): +30 % урона всем. Х (5 клеток, плюс): раз в 4 с взрыв холода у центра, урон ×3. П (5 клеток): +30 % радиуса и заморозка 1 с врагов между ножками.', 'Уровень — слиянием трёх, без свойств.'],
+    },
+    demons: {
+      id: 'demons', name: 'Демоны', faction: 4, towers: ['dem_ember', 'dem_warper', 'dem_rift', 'dem_gate'],
+      merge: 3, levelDamage: 3.3, levelRange: 1.1, binders: false, triplets: true, sellRatio: 0.7, killGoldMult: 1.25,
+      supply: { free: 24, step: 14, growth: 1.18 },
+      features: ['У каждой башни активная способность за золото (клавиша A), можно включить автоприменение.', 'Золота за убийства +25 %, но сила стола дорожает быстрее (×1,18 каждые 14 выше 24).', 'Продажа возвращает 70 %.'],
+    },
+    elves: {
+      id: 'elves', name: 'Тёмные эльфы', faction: 5, towers: ['elf_archer', 'elf_weaver', 'elf_sphere', 'elf_blade'],
+      merge: 3, levelDamage: 3.3, levelRange: 1.1, binders: false, triplets: true,
+      features: ['Крит: шанс каждого выстрела растёт от 0 до 100 % за 10 с, крит бьёт ×2,5 и сбрасывает счётчик.', 'Уровень — слиянием трёх, без свойств.'],
+    },
+  } as Record<RaceId, RaceDef>,
+
+  // Механики башен фракций (числа из lore/faction-towers-table.md)
+  raceMech: {
+    orcUpgrade: { dmg: 0.12, speed: 0.12, range: 0.3 },
+    orcSquad: 0.1, // +damage for three orc towers of different kinds side by side
+    totemAura: [0.1, 0.15, 0.2], // attack speed of orc towers next to a totem, by its level
+    spearPierce: 1.0, // cells behind the target the spear reaches
+    houndHold: 3, // s the hound holds an enemy
+    houndHoldEvery: 6,
+    bossHoldShare: 1 / 3, // bosses: holds and freezes last this share
+    diggerSlow: 0.3,
+    diggerTime: 3,
+    ghostSlow: 0.2,
+    ghostTime: 1,
+    poisonShare: 0.25, // of the hit per second
+    poisonTime: 4,
+    soulsMax: 10,
+    chillStep: 0.08,
+    chillMax: 0.4,
+    chillTime: 2,
+    freezeTime: 1.5,
+    spikeSlowedMult: 1.3,
+    megaT: 0.3,
+    megaXEvery: 4,
+    megaXRadius: 1.2,
+    megaXMult: 3,
+    megaPRange: 0.3,
+    megaPFreeze: 1,
+    burnShare: 0.25,
+    burnTime: 3,
+    warpBonus: 0.3,
+    warpTime: 4,
+    patchShare: 0.4,
+    patchTime: 4,
+    patchRadius: 0.7,
+    impTime: 5,
+    impSpeed: 3, // cells/s
+    sacrificeMult: 4, // volley = this × gold put into the sacrificed tower
+    autoReserve: 100, // auto abilities keep this much gold
+    critFull: 10, // s to a sure crit
+    critMult: 2.5,
+    weaverSlow: 0.25,
+    weaverWeaken: 0.3,
+    weaverTime: 3,
+    sphereDelay: 0.5,
+    huntMult: 1.3,
+    huntTowers: 2,
   },
 
   waves: [
