@@ -318,6 +318,8 @@ async function runInPage(job) {
       return new Set(strong.map((t) => t.type)).size >= 2 || engine.binders.length > 0 ? 2.5 : -1;
     }
     if (!allowed(c.type)) return -1;
+    // Особые башни (клетка, алтарь, склеп, врата) сами не стреляют: сначала три стреляющие
+    if (CONFIG.towers[c.type].special && engine.towers.filter((t) => !CONFIG.towers[t.type].special).length < 3) return -1;
     if (c.isTriplet) return 3 + group(c.type, 2).length;
     const n = group(c.type, 1).length;
     return 1 + (n === NEED - 1 ? 3 : n >= 1 ? 1 : 0) - (job.policy === 'mixed' ? 0.15 * engine.towers.filter((t) => t.type === c.type).length : 0);
