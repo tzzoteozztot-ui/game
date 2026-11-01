@@ -6,9 +6,10 @@
 import { useState } from 'react';
 import type { RunSummary } from '../game/engine';
 import { specSummary } from '../game/towerStats';
+import { CONFIG, TowerType } from '../game/config';
 
 const fmt = (n: number) => Math.round(n).toLocaleString('ru-RU');
-const TOWER_SHORT: Record<string, string> = { archer: 'Стрелок', priest: 'Жрец', mage: 'Маг', ballista: 'Баллиста' };
+const towerName = (type: string) => CONFIG.towers[type as TowerType]?.name ?? '';
 
 function fmtTime(sec: number): string {
   const m = Math.floor(sec / 60);
@@ -58,9 +59,9 @@ export function RunStats({ stats }: { stats: RunSummary | null }) {
                 <div className="leading-snug">
                   <span className={second ? 'text-teal-200' : ''}>
                     {second ? '+ ' : ''}
-                    <b className={second ? '' : 'text-stone-100'}>{TOWER_SHORT[type]}</b> Ур.{level}
+                    <b className={second ? '' : 'text-stone-100'}>{towerName(type)}</b> Ур.{level}
                   </span>
-                  <div className="text-[10px] text-amber-200/90 break-words">{specs.length > 0 ? specSummary(specs) : 'без свойств'}</div>
+                  {specs.length > 0 && <div className="text-[10px] text-amber-200/90 break-words">{specSummary(specs)}</div>}
                 </div>
               );
               return (
