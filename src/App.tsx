@@ -88,11 +88,17 @@ const BOTTOM_VARS = {
 type StageLayout = 'side' | 'bottom';
 
 // Which arrangement gives the bigger field on a stage of this size: the column at the side or the strip below
-/** «Потасовка»: whom the next wave comes from (просьба Артура 2026-11-01: видеть следующего соперника) */
-function brawlOpponentLabel(b: BrawlSnapshot): string {
-  const o = b.seats.find((s) => s.id === b.opponentId);
-  if (!o) return '—';
+/** «Потасовка»: the current opponent and the next one (просьба Артура 2026-11-01: видеть обоих) */
+function brawlOpponentName(b: BrawlSnapshot, id: string | null): string | null {
+  const o = b.seats.find((s) => s.id === id);
+  if (!o) return null;
   return o.id === b.ghostId ? `👻 ${o.name}` : o.name;
+}
+function brawlOpponentLabel(b: BrawlSnapshot): string {
+  const cur = brawlOpponentName(b, b.currentId);
+  const next = brawlOpponentName(b, b.opponentId);
+  if (!cur) return next ?? '—';
+  return next && b.opponentId !== b.currentId ? `${cur} · след. ${next}` : cur;
 }
 
 function pickLayout(w: number, h: number, bottomMinH: number): StageLayout {
@@ -1335,7 +1341,7 @@ export default function App() {
                       endless={gameState.endless}
                       supply={gameState.supplyActive ? { power: gameState.supplyPower, mult: gameState.supplyMult, next: gameState.supplyNext } : null}
                       opponent={gameState.duel ? opponent : undefined}
-                      opponentTitle={brawl ? 'След. соперник' : undefined}
+                      opponentTitle={brawl ? (brawl.currentId ? 'Сейчас' : 'След. соперник') : undefined}
                       opponentArmy={gameState.duel ? (brawl ? brawlOpponentLabel(brawl) : CONFIG.factions[opponentArmy - 1]?.name) : undefined}
                     />
                   </div>
