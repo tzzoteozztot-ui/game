@@ -4,7 +4,7 @@
  */
 
 import React from 'react';
-import { RaceId, CONFIG } from '../game/config';
+import { RaceId, CONFIG, stanceText } from '../game/config';
 
 interface LevelBriefingProps {
   level: number;
@@ -57,6 +57,7 @@ export function LevelBriefing({
             <span>Особенность фракции: {faction.traitName}</span>
           </div>
           <p className="text-xs text-stone-300 leading-relaxed">{faction.traitDesc}</p>
+          <p className="text-xs text-stone-400 leading-relaxed mt-1">{stanceText(faction)}</p>
         </div>
 
         {/* Boss info */}

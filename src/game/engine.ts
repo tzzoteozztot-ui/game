@@ -3,11 +3,12 @@
  */
 
 import { RunLog, LogTower } from './runLog';
-import { CONFIG, TowerType, TargetPriority, Difficulty, EnemyType, RaceId, TowerBaseDef, BOONS, BoonDef, pickBoons } from './config';
+import { CONFIG, TowerType, TargetPriority, Difficulty, EnemyType, RaceId, TowerBaseDef, BOONS, BoonDef, pickBoons, DamageType, DAMAGE_TYPES } from './config';
 import { MAPS, Point, MapDef, isHudCell } from './maps';
 import { generateMap } from './mapgen';
 import {
   calculateDamage,
+  calculateFactionDamageMult,
   calculateEffectiveSlow,
   calculateEnemyHp,
   waveDefinition,
@@ -31,7 +32,7 @@ import { TILESETS, loadTileset, bakeField, Tileset } from './tiles';
 
 // Light rim color (r, g, b) under the pedestal of the dark tower figures
 const TOWER_RIMS: Partial<Record<TowerType, string>> = { archer: '214, 236, 190', mage: '214, 200, 255' };
-import { attackStats, specBadge, specPower, specsOfType, stackedSlow } from './towerStats';
+import { attackStats, specBadge, specPower, specsOfType, stackedSlow, towerDamageType } from './towerStats';
 
 // -------------------------------------------------------------
 // Entity Interfaces
@@ -235,7 +236,7 @@ export interface Projectile {
   targetY: number;
   speed: number; // px/s
   damage: number;
-  damageType: 'phys' | 'mag';
+  damageType: DamageType;
   towerType: TowerType;
   specs: string[]; // specializations of this tower type
   isRam: boolean;
@@ -1535,10 +1536,10 @@ export class GameEngine {
         e.chillTimer -= dt;
         if (e.chillTimer <= 0) e.chill = 0;
       }
-      // Poison of the Чумной котёл (ignores resist, like burning)
+      // Poison of the Чумной котёл (ignores resist, like burning; the faction's stance to poison counts)
       if (e.poisonTimer && e.poisonTimer > 0) {
         e.poisonTimer -= dt;
-        const dmg = e.invulnerableTimer > 0 ? 0 : (e.poisonDps ?? 0) * dt;
+        const dmg = e.invulnerableTimer > 0 ? 0 : (e.poisonDps ?? 0) * dt * calculateFactionDamageMult('poison', e.faction);
         this.dmgSource = e.poisonSource ?? null;
         this.recordDamage(Math.min(e.hp, dmg));
         e.hp -= dmg;
@@ -1553,9 +1554,8 @@ export class GameEngine {
       // Burn tick
       if (e.burnTimer > 0) {
         e.burnTimer -= dt;
-        let burnDmg = e.burnDps * dt;
-        // Demon trait
-        if (e.faction === 4) burnDmg *= 0.5;
+        // Ignores resist; the faction's stance to fire counts (demons ×0,5)
+        let burnDmg = e.burnDps * dt * calculateFactionDamageMult('fire', e.faction);
         // The Shadow Queen's invulnerability covers burning too
         if (e.invulnerableTimer > 0) burnDmg = 0;
         this.dmgSource = e.burnSource ?? null;
@@ -1975,7 +1975,7 @@ export class GameEngine {
           targetY: target.y,
           speed: part.type === 'ballista' ? 520 : part.type === 'orc_trebuchet' ? 260 : 380,
           damage: rawDamage,
-          damageType: baseDef.damageType,
+          damageType: towerDamageType(part.type, specs),
           towerType: part.type,
           specs,
           towerId: tower.id,
@@ -2172,7 +2172,7 @@ export class GameEngine {
       this.spawnRing(tx, ty, '#c9d6b0', rangePx - 8);
       for (const e of inRange) {
         this.dmgSource = tower.id;
-        this.applyDamageToEnemy(e, stats.damage * mods.dmg * souls, 'mag', tower.type, []);
+        this.applyDamageToEnemy(e, stats.damage * mods.dmg * souls, 'poison', tower.type, []);
         this.spawnSpark(e.x, e.y, '#c9d6b0');
       }
     } else if (def.special === 'gate') {
@@ -2269,10 +2269,11 @@ export class GameEngine {
     }
   }
 
-  /** Damage that does not come from a shot (patches, imps): resist counts, a curse adds */
-  private directDamage(e: Enemy, amount: number, source: string) {
+  /** Damage that does not come from a shot (patches, imps): armor or resist and the faction's stance count, a curse adds */
+  private directDamage(e: Enemy, amount: number, source: string, type: DamageType) {
     if (e.invulnerableTimer > 0 || e.isReviving || amount <= 0) return;
-    let dmg = amount * (1 - Math.min(0.9, e.magicResist));
+    const cut = type === 'phys' ? e.armor : e.magicResist;
+    let dmg = amount * calculateFactionDamageMult(type, e.faction) * (1 - Math.min(0.9, cut));
     if (e.curseTimer > 0) dmg *= 1 + e.curseBonus;
     this.dmgSource = source;
     this.recordDamage(Math.min(e.hp, dmg));
@@ -2294,7 +2295,7 @@ export class GameEngine {
         this.fires.splice(i, 1);
         continue;
       }
-      for (const e of this.enemiesNear(f.x, f.y, f.r)) this.directDamage(e, f.dps * dt * (e.faction === 4 ? 0.5 : 1), f.towerId); // Пепельная кожа
+      for (const e of this.enemiesNear(f.x, f.y, f.r)) this.directDamage(e, f.dps * dt, f.towerId, 'fire');
     }
     for (let i = this.blasts.length - 1; i >= 0; i--) {
       const b = this.blasts[i];
@@ -2304,7 +2305,7 @@ export class GameEngine {
       this.spawnRing(b.x, b.y, '#6a5ad8', b.r);
       for (const e of this.enemiesNear(b.x, b.y, b.r)) {
         this.dmgSource = b.towerId;
-        this.applyDamageToEnemy(e, b.dmg, 'mag', 'elf_sphere', []);
+        this.applyDamageToEnemy(e, b.dmg, 'lightning', 'elf_sphere', []);
       }
     }
     for (let i = this.imps.length - 1; i >= 0; i--) {
@@ -2333,7 +2334,7 @@ export class GameEngine {
         imp.y += ((ty - imp.y) / d) * step;
         if (Math.abs(tx - imp.x) > 1) imp.facing = tx < imp.x ? -1 : 1;
       }
-      if (target && d < cs * 0.45) this.directDamage(target, imp.dps * dt, imp.towerId);
+      if (target && d < cs * 0.45) this.directDamage(target, imp.dps * dt, imp.towerId, 'phys');
     }
     for (const g of this.megas) {
       const cx = (g.center.x + 0.5) * cs;
@@ -2350,7 +2351,7 @@ export class GameEngine {
         this.spawnRing(cx, cy, '#d6f0ff', mech.megaXRadius * cs);
         for (const e of hit) {
           this.dmgSource = centre.id;
-          this.applyDamageToEnemy(e, dmg, 'mag', centre.type, []);
+          this.applyDamageToEnemy(e, dmg, 'ice', centre.type, []);
         }
       } else if (g.shape === 'P') {
         for (const e of this.enemiesNear(cx, cy, cs * 0.55)) {
@@ -2506,7 +2507,7 @@ export class GameEngine {
     sound.playBossSpawn();
     for (const e of hit) {
       this.dmgSource = gate.id;
-      this.applyDamageToEnemy(e, dmg, 'mag', gate.type, []);
+      this.applyDamageToEnemy(e, dmg, 'fire', gate.type, []);
       this.spawnSpark(e.x, e.y, '#ff4a2f');
     }
     this.notifyState();
@@ -2527,7 +2528,7 @@ export class GameEngine {
     for (const e of [...this.enemies]) {
       if (e.isReviving) continue;
       if (Math.hypot(e.x - towerPxX, e.y - towerPxY) <= rangePx) {
-        this.applyDamageToEnemy(e, stats.smiteDamage, 'mag', 'priest', ['smite']);
+        this.applyDamageToEnemy(e, stats.smiteDamage, 'lightning', 'priest', ['smite']);
         this.spawnSpark(e.x, e.y, '#f2f0e0');
       }
     }
@@ -2558,7 +2559,7 @@ export class GameEngine {
     let currentDmg = rawDamage;
     for (const target of chainTargets) {
       this.spawnSpark(target.x, target.y, '#8f6bff');
-      this.applyDamageToEnemy(target, currentDmg, 'mag', 'mage', specs);
+      this.applyDamageToEnemy(target, currentDmg, 'lightning', 'mage', specs);
       currentDmg *= 0.75;
     }
   }
@@ -2567,7 +2568,7 @@ export class GameEngine {
     this.dmgSource = p.towerId;
     sound.playHit();
     const def = CONFIG.towers[p.towerType];
-    this.spawnSpark(impactX, impactY, def.race ? def.color : p.damageType === 'mag' ? '#8f6bff' : '#d9b44a');
+    this.spawnSpark(impactX, impactY, def.race ? def.color : DAMAGE_TYPES[p.damageType].color);
     const mech = CONFIG.raceMech;
     const cs = CONFIG.grid.cellSize;
     if (p.towerType === 'elf_sphere') {
@@ -2626,7 +2627,7 @@ export class GameEngine {
   private applyDamageToEnemy(
     e: Enemy,
     rawDmg: number,
-    dmgType: 'phys' | 'mag',
+    dmgType: DamageType,
     towerType: TowerType,
     specs: string[]
   ) {
@@ -2651,7 +2652,6 @@ export class GameEngine {
       targetMagicResist: e.magicResist * pierce,
       isCursed: e.curseTimer > 0,
       curseBonus: e.curseBonus,
-      isFireSpec: n('fire') > 0,
       factionId: e.faction,
       isTargetHeavyOrBoss: e.type === 'heavy' || e.type === 'boss',
       isHunterSpec: n('hunter') > 0,
@@ -3211,7 +3211,7 @@ export class GameEngine {
     this.guardTimer = g.every;
     this.spawnBolt(cx, cy - 0.3 * CONFIG.grid.cellSize, target.x, target.y - 10, '#7fd6e0');
     this.dmgSource = null;
-    this.applyDamageToEnemy(target, g.damage[this.guardLevel - 1] * (1 + this.boon('ward')), 'mag', 'mage', []);
+    this.applyDamageToEnemy(target, g.damage[this.guardLevel - 1] * (1 + this.boon('ward')), 'lightning', 'mage', []);
   }
 
   public selectBinder(id: string | null) {

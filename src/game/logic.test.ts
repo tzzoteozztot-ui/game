@@ -4,7 +4,7 @@ import { MAPS, makePath, validateMap, validateAllMaps, MAX_ROAD_CELLS, MIN_FREE_
 import { CONFIG } from './config';
 import { generateMap, GEN_MAX_ROAD, GEN_MIN_ROAD } from './mapgen';
 import { endlessRecordKey } from '../progress';
-import { attackStats, specSummary, stackedSlow } from './towerStats';
+import { attackStats, specSummary, stackedSlow, towerDamageType } from './towerStats';
 import { emptyPairState, nextHost, pairRound, placesForFallen, type PairState } from '../brawl';
 
 test('all 5 maps meet the game rules', () => {
@@ -72,6 +72,7 @@ test('map constraints by level', () => {
 });
 
 import {
+  calculateFactionDamageMult,
   calculateStartingGold,
   calculateEnemyHp,
   calculateEnemyCount,
@@ -179,10 +180,10 @@ test('enemy scaling and damage formulas', () => {
   });
   assert.equal(res1.damage, 60);
 
-  // Magical damage with resist
+  // Elemental damage with magic resist (orcs have no stance to lightning)
   const res2 = calculateDamage({
     rawDamage: 100,
-    damageType: 'mag',
+    damageType: 'lightning',
     targetArmor: 0,
     targetMagicResist: 0.25,
     factionId: 1,
@@ -200,16 +201,20 @@ test('enemy scaling and damage formulas', () => {
   });
   assert.equal(resCurse.damage, 125);
 
-  // Demon fire resistance: x0.5
+  // Demon fire resistance
   const resFire = calculateDamage({
     rawDamage: 100,
-    damageType: 'mag',
+    damageType: 'fire',
     targetArmor: 0,
     targetMagicResist: 0,
     factionId: 4,
-    isFireSpec: true,
   });
-  assert.equal(resFire.damage, 50);
+  assert.equal(resFire.damage, 100 * CONFIG.damage.resistMult);
+  // …and weak to ice: ×1.25, before magic resist
+  assert.equal(calculateDamage({ rawDamage: 100, damageType: 'ice', targetArmor: 0, targetMagicResist: 0.2, factionId: 4 }).damage, 100);
+  // armor does not cut the elements, magic resist does not cut physical damage
+  assert.equal(calculateDamage({ rawDamage: 100, damageType: 'poison', targetArmor: 0.4, targetMagicResist: 0, factionId: 3 }).damage, 100);
+  assert.equal(calculateDamage({ rawDamage: 100, damageType: 'phys', targetArmor: 0, targetMagicResist: 0.3, factionId: 3 }).damage, 100);
 
   // Dark Elf evasion: 25% miss
   const resEvaded = calculateDamage({
@@ -251,6 +256,23 @@ test('enemy scaling and damage formulas', () => {
   // Ice cultists slow halved
   assert.equal(calculateEffectiveSlow(0.5, 3), 0.25);
   assert.equal(calculateEffectiveSlow(0.5, 1), 0.5);
+});
+
+test('five damage types: every faction has a stance, the Mage takes its type from its specializations', () => {
+  for (const f of CONFIG.factions) {
+    assert.ok(f.resist.length > 0 && f.weak.length > 0, f.name);
+    assert.ok(!f.resist.some((t) => f.weak.includes(t)), f.name);
+  }
+  assert.equal(calculateFactionDamageMult('fire', 4), CONFIG.damage.resistMult);
+  assert.equal(calculateFactionDamageMult('ice', 4), CONFIG.damage.weakMult);
+  assert.equal(calculateFactionDamageMult('phys', 4), 1);
+  assert.equal(towerDamageType('archer', []), 'phys');
+  assert.equal(towerDamageType('mage', []), 'lightning');
+  assert.equal(towerDamageType('mage', ['fire']), 'fire');
+  assert.equal(towerDamageType('mage', ['frost', 'fire', 'frost']), 'ice');
+  assert.equal(towerDamageType('mage', ['fire', 'frost', 'ward']), 'fire');
+  assert.equal(towerDamageType('mage', ['fire', 'lightning']), 'lightning');
+  assert.equal(towerDamageType('und_cauldron', []), 'poison');
 });
 
 test('one specialization keeps the single-spec numbers', () => {

@@ -4,7 +4,7 @@
  */
 
 import React, { useEffect, useState } from 'react';
-import { CONFIG, RACE_IDS, RaceId } from '../game/config';
+import { CONFIG, DAMAGE_TYPES, RACE_IDS, RaceId, stanceText } from '../game/config';
 import { BESTIARY, BestiaryCreature, KIND_LABELS, TOWER_LORE, RACE_TOWER_LORE } from '../bestiary';
 import { attackStats } from '../game/towerStats';
 import { TowerSpriteIcon } from './Icons';
@@ -52,7 +52,9 @@ function TowerSection({ race }: { race: RaceId }) {
               </div>
               <div className="p-3 flex-1 min-w-0">
                 <div className="text-[10px] uppercase font-bold tracking-wider text-amber-500">
-                  {t.damageType === 'phys' ? 'Физический урон' : 'Магический урон'}
+                  <span style={{ color: DAMAGE_TYPES[t.damageType].color }}>
+                    {DAMAGE_TYPES[t.damageType].icon} {type === 'mage' ? 'Урон: молния, со свойством — огонь или лёд' : `Урон: ${DAMAGE_TYPES[t.damageType].name.toLowerCase()}`}
+                  </span>
                   {t.minTier ? ` · с ${t.minTier}-го яруса лавки` : ''}
                 </div>
                 <h4 className="font-black text-stone-100 text-sm sm:text-base leading-tight">{t.name}</h4>
@@ -185,6 +187,7 @@ export function Bestiary({ onClose, initialFaction = 1 }: { onClose: () => void;
             {conf && (
               <div className="mt-2 pt-2 border-t border-[#262233] text-xs text-stone-400">
                 <b className="text-amber-400">{conf.traitName}.</b> {conf.traitDesc}
+                <div className="mt-1">{stanceText(conf)}</div>
               </div>
             )}
           </section>

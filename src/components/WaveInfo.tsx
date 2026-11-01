@@ -5,7 +5,7 @@
  */
 
 import React from 'react';
-import { CONFIG, EnemyType } from '../game/config';
+import { CONFIG, EnemyType, stanceText } from '../game/config';
 import { enemyName } from '../bestiary';
 import { EnemyIcon } from './EnemyIcon';
 import { HUD_LEFT_COLS } from '../game/maps';
@@ -55,7 +55,7 @@ export function WaveInfo({ nextWave, summary, faction, isWaveActive }: WaveInfoP
           <div
             className="pointer-events-auto grid grid-cols-3 grid-rows-2 rounded-[calc(var(--cell)*0.14)] bg-black/35 border border-white/15 backdrop-blur-[2px] px-[calc(var(--cell)*0.06)] py-[calc(var(--cell)*0.03)]"
             style={{ width: `calc(var(--cell) * ${MID_COLS - 1} - var(--cell) * 0.1)`, height: 'calc(var(--cell) * 0.84)' }}
-            title="Состав следующей волны"
+            title={`Состав следующей волны. ${CONFIG.factions[faction - 1] ? stanceText(CONFIG.factions[faction - 1]) : ''}`}
           >
             {nextWave!.map((g) => (
               <div key={g.type} className="flex items-center justify-center gap-[1px] min-w-0">

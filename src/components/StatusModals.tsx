@@ -481,6 +481,16 @@ export function HowToPlayModal({ onClose }: { onClose: () => void }) {
             </p>
           </section>
 
+          {/* Damage types */}
+          <section>
+            <h3 className="font-bold text-amber-200 text-sm mb-1">Типы урона</h3>
+            <p className="text-stone-300">
+              ⚔ физический, 🔥 огонь, ❄ лёд, ⚡ молния, ☠ яд — значок в углу карточки лавки и в карточке башни. Броня режет только
+              физический урон, сопротивление магии — четыре стихии. У каждой фракции одна стойкость (урон −25%) и одна уязвимость
+              (+25%): смотрите брифинг уровня и бестиарий.
+            </p>
+          </section>
+
           {/* Factions */}
           <section>
             <h3 className="font-bold text-amber-200 text-sm mb-1">Особенности фракций</h3>
@@ -488,7 +498,7 @@ export function HowToPlayModal({ onClose }: { onClose: () => void }) {
               <li><strong className="text-stone-100">Орки:</strong> при HP &lt; 50% бегут на 30% быстрее.</li>
               <li><strong className="text-stone-100">Нежить:</strong> пехотинцы и разведчики воскресают один раз через 1 с.</li>
               <li><strong className="text-stone-100">Культисты льда:</strong> все замедления ослаблены в 2 раза.</li>
-              <li><strong className="text-stone-100">Демоны:</strong> огнеупорная кожа (урон огня снижен на 50%).</li>
+              <li><strong className="text-stone-100">Демоны:</strong> пепельная кожа (любой урон огнём снижен на 25%).</li>
               <li><strong className="text-stone-100">Тёмные эльфы:</strong> 25% физических выстрелов летят мимо.</li>
             </ul>
           </section>

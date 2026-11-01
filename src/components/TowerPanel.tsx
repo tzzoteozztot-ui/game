@@ -9,7 +9,7 @@
 
 import React from 'react';
 import { Tower, TowerPart } from '../game/engine';
-import { CONFIG, RaceId } from '../game/config';
+import { CONFIG, DAMAGE_TYPES, RaceId } from '../game/config';
 import { calculateSellRefund } from '../game/rules';
 import { TowerSpriteIcon, BinderIcon, HeartCastleIcon } from './Icons';
 import type { GameStateSnapshot } from '../game/engine';
@@ -29,7 +29,7 @@ const PANEL_VARS = {
 } as React.CSSProperties;
 
 const glassBtn = 'rounded border border-white/15 bg-white/5 hover:bg-white/15 text-white/85 flex items-center justify-center leading-none cursor-pointer';
-import { attackStats, specSummary } from '../game/towerStats';
+import { attackStats, specSummary, towerDamageType } from '../game/towerStats';
 
 interface TowerPanelProps {
   sellRatio?: number; // share of the price paid back on sale
@@ -293,6 +293,9 @@ export function TowerPanel({
   const main = partStats(tower);
   const other = second ? partStats(second) : null;
   const pair = (a: string | number, b: string | number | undefined) => (b === undefined ? `${a}` : `${a} / ${b}`);
+  const dmgType = (p: TowerPart) => DAMAGE_TYPES[towerDamageType(p.type, p.specs)];
+  const typeIcon = pair(dmgType(tower).icon, second ? dmgType(second).icon : undefined);
+  const typeTitle = pair(dmgType(tower).name, second ? dmgType(second).name : undefined);
 
   let refund = calculateSellRefund(baseDef.cost, tower.level, sellRatio, mergeNeed);
   if (second && secondDef) {
@@ -341,7 +344,7 @@ export function TowerPanel({
         text:
           (part.type === 'priest'
             ? `метка: замедление ${Math.round(CONFIG.priestBase.slow * 100)}% и +${Math.round(CONFIG.priestBase.markBonus * 100)}% урона от всех башен на ${CONFIG.priestBase.time} с цели и врагам в ${CONFIG.priestSupport.radius} клетке. `
-            : `${def.damageType === 'phys' ? 'физический' : 'магический'} урон. `) +
+            : `урон: ${DAMAGE_TYPES[towerDamageType(part.type, part.specs)].name.toLowerCase()}. `) +
           `Свойства с Ур.2: ${def.specs.map((x) => x.name).join(', ')}`,
       });
     }
@@ -397,11 +400,11 @@ export function TowerPanel({
       {/* 2. Stats line: Damage, Period, Range */}
       <div className="grid grid-cols-3 gap-1 bg-black/30 shrink-0 px-1 py-0.5 rounded border border-white/10 text-center leading-none whitespace-nowrap tabular-nums">
         {[
-          { label: 'Урон', value: pair(main.damage, other?.damage), color: 'text-amber-200' },
+          { label: typeIcon, value: pair(main.damage, other?.damage), color: 'text-amber-200', title: `Урон: ${typeTitle}` },
           { label: 'Период', value: `${pair(main.period, other?.period)}с`, color: 'text-stone-200' },
           { label: 'Радиус', value: pair(main.range, other?.range), color: 'text-stone-200' },
         ].map((st) => (
-          <div key={st.label} className="flex items-baseline justify-center gap-1 min-w-0">
+          <div key={st.label} title={'title' in st ? st.title : undefined} className="flex items-baseline justify-center gap-1 min-w-0">
             <span className="text-[length:var(--fs-xs)] text-stone-400">{st.label}</span>
             <span className={`font-bold ${st.color} text-[length:var(--fs-md)]`}>{st.value}</span>
           </div>
