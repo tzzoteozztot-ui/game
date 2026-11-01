@@ -21,9 +21,18 @@ const rotateMask = (m: number) => ((m & L ? U : 0) | (m & U ? R : 0) | (m & R ? 
 // Как нарисован эталон каждого тайла
 const BASE: Record<string, number> = { end: L, straight: L | R, corner: L | D, t: L | R | U, cross: L | R | U | D };
 
-const sets = new Map<string, Promise<Map<TileName, HTMLImageElement> | null>>();
+// Мелкий декор по краям свободных клеток (решение Артура 2026-11-01): имя файла в decor/ и ширина в долях клетки.
+// Клетки остаются строительными, башня стоит поверх.
+const DECOR: [string, number][] = [
+  ['rock1', 0.3], ['rock2', 0.24], ['rock3', 0.28], ['rock4', 0.28],
+  ['tuft', 0.26], ['bush1', 0.36], ['bush2', 0.34], ['bush3', 0.36], ['stump', 0.34],
+];
+const DECOR_SHARE = 0.32; // доля свободных клеток с декором
 
-export function loadTileset(name: string): Promise<Map<TileName, HTMLImageElement> | null> {
+export type Tileset = Map<string, HTMLImageElement>;
+const sets = new Map<string, Promise<Tileset | null>>();
+
+export function loadTileset(name: string): Promise<Tileset | null> {
   let p = sets.get(name);
   if (!p) {
     const base = new URL(`tiles/${name}/`, document.baseURI);
@@ -37,7 +46,26 @@ export function loadTileset(name: string): Promise<Map<TileName, HTMLImageElemen
             img.src = new URL(`${n}.png`, base).href;
           })
       )
-    ).then((r) => (r.every(Boolean) ? new Map(r as [TileName, HTMLImageElement][]) : null));
+    ).then(async (r) => {
+      if (!r.every(Boolean)) return null;
+      const set: Tileset = new Map(r as [TileName, HTMLImageElement][]);
+      // Декор необязателен: не загрузился — поле просто без него
+      await Promise.all(
+        DECOR.map(
+          ([n]) =>
+            new Promise<void>((resolve) => {
+              const img = new Image();
+              img.onload = () => {
+                set.set(`decor/${n}`, img);
+                resolve();
+              };
+              img.onerror = () => resolve();
+              img.src = new URL(`decor/${n}.png`, base).href;
+            })
+        )
+      );
+      return set;
+    });
     sets.set(name, p);
   }
   return p;
@@ -83,7 +111,7 @@ function hash(x: number, y: number): number {
 
 /** Запекает всё поле в холст (res px на клетку) */
 export function bakeField(
-  tiles: Map<TileName, HTMLImageElement>,
+  tiles: Tileset,
   paths: Point[][],
   castle: Point[],
   cols: number,
@@ -116,6 +144,17 @@ export function bakeField(
         ctx.rotate((Math.floor(hash(x + 5, y + 3) * 4) * Math.PI) / 2);
         ctx.drawImage(grass, sx, sy, sz, sz, -res / 2, -res / 2, res, res);
         ctx.restore();
+        // Мелкий декор в одном из углов клетки
+        const decor = DECOR.filter(([n]) => tiles.has(`decor/${n}`));
+        if (decor.length && hash(x + 31, y + 7) < DECOR_SHARE) {
+          const [dn, wf] = decor[Math.floor(hash(x + 11, y + 53) * decor.length)];
+          const img = tiles.get(`decor/${dn}`)!;
+          const w = wf * 1.5 * res;
+          const h = (w * img.naturalHeight) / img.naturalWidth;
+          const cxn = hash(x + 3, y + 29) < 0.5 ? 0.24 : 0.76;
+          const cyn = hash(x + 41, y + 13) < 0.5 ? 0.3 : 0.74;
+          ctx.drawImage(img, dx + cxn * res - w / 2, dy + cyn * res - h / 2, w, h);
+        }
       } else {
         let name: TileName = 'end';
         let m = mask;

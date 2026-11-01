@@ -25,7 +25,7 @@ import {
 } from './rules';
 import { sound } from './audio';
 import { sprites, drawSprite, PreparedSprite, SpritePose, SpriteVariant } from './sprites';
-import { TILESETS, loadTileset, bakeField, TileName } from './tiles';
+import { TILESETS, loadTileset, bakeField, Tileset } from './tiles';
 
 // Light rim color (r, g, b) under the pedestal of the dark tower figures
 const TOWER_RIMS: Partial<Record<TowerType, string>> = { archer: '214, 236, 190', mage: '214, 200, 255' };
@@ -423,7 +423,7 @@ export class GameEngine {
   // Поле из тайлов (запечённый холст) для карт, у которых есть набор в tiles.ts; null — рисуем дорогу кодом
   private fieldBake: HTMLCanvasElement | null = null;
   private fieldBakeMap: MapDef | null = null;
-  private fieldTiles: Map<string, Map<TileName, HTMLImageElement> | null> = new Map();
+  private fieldTiles: Map<string, Tileset | null> = new Map();
 
   // Spawn state
   public isSpawning: boolean = false;
