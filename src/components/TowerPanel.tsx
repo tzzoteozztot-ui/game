@@ -200,6 +200,11 @@ export function TowerPanel({
             ))}
           </div>
         )}
+        {CONFIG.shop.tierLinksGuard ? (
+          <div className="text-[length:var(--fs-xs)] leading-tight text-[#7fd6e0]">
+            Защита растёт вместе с ярусом лавки{castle.level >= castle.maxLevel ? ' — на пределе' : ''}.
+          </div>
+        ) : (
         <button
           type="button"
           onClick={onUpgradeCastle}
@@ -214,6 +219,7 @@ export function TowerPanel({
           <span className="text-[length:var(--fs-btn4)]">{castle.cost === null ? 'Защита на пределе' : 'Усилить защиту'}</span>
           {castle.cost !== null && <span className="text-amber-300 text-[length:var(--fs-xs)] mt-0.5 tabular-nums">{castle.cost}</span>}
         </button>
+        )}
       </Card>
     );
   }

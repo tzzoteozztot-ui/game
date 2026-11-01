@@ -169,7 +169,6 @@ export const BOONS: BoonDef[] = [
   { id: 'sharp', name: 'Острые клинки', desc: '+10 % урона всех башен', value: 0.1, bot: { power: 0.1 } },
   { id: 'haste', name: 'Быстрые руки', desc: '+10 % скорости атаки всех башен', value: 0.1, bot: { power: 0.1 } },
   { id: 'sight', name: 'Дальний взор', desc: '+10 % радиуса всех башен', value: 0.1, bot: { power: 0.06 } },
-  { id: 'keen', name: 'Меткость', desc: 'Каждый выстрел: 10 % шанс крита ×2', value: 0.1, bot: { power: 0.1 } },
   { id: 'slayer', name: 'Гроза великанов', desc: '+25 % урона по тяжёлым и боссам', value: 0.25, bot: { power: 0.08 } },
   { id: 'bastion', name: 'Последний рубеж', desc: '+30 % урона по врагам у артефакта', value: 0.3, bot: { power: 0.08 } },
   { id: 'pierce', name: 'Бронебой', desc: 'Броня и сопротивление магии врагов −25 %', value: 0.25, bot: { power: 0.1 } },
@@ -238,8 +237,6 @@ export const CONFIG = {
     normal: { hpMult: 1.0, goldMult: 1.0, label: 'Обычная' },
     hard: { hpMult: 1.3, goldMult: 0.8, label: 'Тяжёлая' },
   },
-  // Hard difficulty: fewer enemies in the first waves (Артур, тест баланса: стена на волнах 1–3)
-  hardEarlyWaves: { upTo: 3, countMult: 0.8 },
 
   // Стойкость и уязвимость фракций к типам урона (вариант А, выбор Артура 2026-11-01)
   damage: { resistMult: 0.75, weakMult: 1.25 }, // ×0,5 ломал зеркальные бои (демоны против демонов: волна 21 → 3)
@@ -617,7 +614,7 @@ export const CONFIG = {
       id: 6,
       name: 'Люди',
       location: 'Любая карта', // своей карты нет
-      traitName: 'Полевой ремонт',
+      traitName: 'Полевое восстановление',
       traitDesc: 'Враг, которого 3 с никто не ранил, восстанавливает 2% здоровья в секунду.',
       bossName: 'Командор экспедиции',
       bossDesc: 'Раз в 12 с открывает врата: до 5 врагов в радиусе 3 кл. и он сам переносятся на 2 клетки вперёд.',
@@ -711,7 +708,6 @@ export const CONFIG = {
     impTime: 5,
     impSpeed: 3, // cells/s
     sacrificeMult: 4, // volley = this × gold put into the sacrificed tower
-    autoReserve: 100, // auto abilities keep this much gold
     critFull: 10, // s to a sure crit
     critMult: 2.5,
     weaverSlow: 0.25,
@@ -741,9 +737,13 @@ export const CONFIG = {
     slotsCount: 5,
     rerollCost: 10,
     rerollStep: 5, // each reroll within a wave costs 5 more (10, 15, 20…), back to 10 when a wave starts
-    tierUpgradeCosts: [30, 60, 100, 150], // for 1->2, 2->3, 3->4, 4->5
+    tierUpgradeCosts: [60, 150, 300, 500], // for 1->2, 2->3, 3->4, 4->5; with the defence (Артур, 2026-11-01, variant «В»; was 30/60/100/150 and the defence 240/420/660/960 apart)
     tripletChances: [0, 0.03, 0.06, 0.10, 0.15], // for tier 1..5
     binderChances: [0, 0, 0.06, 0.12, 0.18], // «Связка» card per slot, for tier 1..5
+    level3Chances: [0, 0, 0, 0, 0.04], // a ready Ур.3 tower per slot, for tier 1..5 (Артур, 2026-11-01: from tier 5; the number is a draft)
+    // Pseudo-random (Артур, 2026-11-01): chances stay, but at least one ready ★ / Ур.3 card comes within this many shop refreshes (0 — no guarantee), for tier 1..5
+    pity: [0, 0, 10, 5, 5],
+    tierLinksGuard: true, // true: raising the shop tier also raises the artifact's defence by a level (one purchase), the separate defence upgrade is gone
   },
 
   // «Связка»: rare figure that binds two towers of different types into one cell
@@ -773,6 +773,7 @@ export const CONFIG = {
     free: 30,
     step: 20,
     growth: 1.12,
+    maxMult: 1.5, // ceiling of the price multiplier of towers and binders (Артур, 2026-11-01: «потолок роста цен»; reached at power 110)
     sellRatio: 0.6,
     killDecay: 0.985,
     killFloor: 0.3,
@@ -806,7 +807,9 @@ export const CONFIG = {
     stateInterval: 2, // real seconds between state messages to the opponent
     peerTimeout: 30, // real seconds without a message from the opponent: the duel is won
     // Sending enemies to the opponent for gold (Артур: 3А 4А 5А 6Б)
-    sendPriceMult: 2, // price = 2 × kill gold, × the wave's HP multiplier
+    sendPriceMult: 2 / 1.5, // price = 4/3 × kill gold (was 2 ×; Артур 2026-11-01: «слишком дорого, уменьшим в 1,5 раза»), × the wave's HP multiplier
+    botWeightMult: 2, // the bots' wave weight is still counted in the old 2 × kill gold, so their balance did not move with the send price
+    sendWaveCap: 8, // ceiling of the wave HP multiplier in the send price (Артур, 2026-11-01); reached by wave ~19. Bots count the true weight
     sendIncomeShare: 0.2, // each send adds 1/5 of its price to the gold of every later round
     sentKillGoldShare: 0.5, // the defender gets half the kill gold for a sent enemy
     sendMaxPerType: 200, // a send message with more is cut down (a broken or forged message)

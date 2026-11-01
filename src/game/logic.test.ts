@@ -148,8 +148,8 @@ test('enemy scaling and damage formulas', () => {
   assert.equal(calculateEnemyCount(6, 1), 6);
   assert.equal(calculateEnemyCount(6, 2), 8); // 6 * 1.2 = 7.2 -> 8
   // Hard difficulty: waves 1–3 have 20% fewer enemies, later waves are unchanged
-  assert.equal(calculateEnemyCount(6, 1, 1, false, 'hard'), 5); // 6 * 0.8 = 4.8 -> 5
-  assert.equal(calculateEnemyCount(8, 1, 3, false, 'hard'), 7); // 6.4 -> 7
+  assert.equal(calculateEnemyCount(6, 1, 1, false, 'hard'), 6); // тяжёлая не меняет число врагов (убрано ×0,8, 2026-11-01)
+  assert.equal(calculateEnemyCount(8, 1, 3, false, 'hard'), 8);
   assert.equal(calculateEnemyCount(10, 1, 4, false, 'hard'), 10);
   assert.equal(calculateEnemyCount(6, 1, 1, false, 'normal'), 6);
   // Duel: half of the usual wave, rounded up; endless growth per cycle still applies
@@ -158,10 +158,10 @@ test('enemy scaling and damage formulas', () => {
   assert.equal(calculateEnemyCount(8, 1, 13, true, 'normal', true), 5); // 8 * 1.25 * 0.5 = 5
 
   // Duel send price: 2 × kill gold (a swarm group of 8), × the wave's HP growth
-  assert.equal(calculateSendPrice('infantry', 1, 1), 10);
-  assert.equal(calculateSendPrice('swarm', 1, 1), 16);
-  assert.equal(calculateSendPrice('heavy', 3, 1), 34); // 24 × 1.408 = 33.8 -> 34
-  assert.equal(calculateSendPrice('infantry', 1, 2), 12); // kill gold 6 on level 2
+  assert.equal(calculateSendPrice('infantry', 1, 1), 7); // 5 × 4/3 = 6,67
+  assert.equal(calculateSendPrice('swarm', 1, 1), 11);
+  assert.equal(calculateSendPrice('heavy', 3, 1), 23); // 12 × 4/3 × 1.408 = 22.5 -> 23
+  assert.equal(calculateSendPrice('infantry', 1, 2), 8); // kill gold 6 on level 2
   // Each send adds 1/5 of its price to every later round
   assert.equal(calculateSendIncome(60), 12);
   assert.equal(calculateSendIncome(34), 6);
@@ -449,7 +449,7 @@ test('supply: towers add up by level, prices grow ×1,12 per 20 power above 30, 
   assert.equal(calculateSupplyMult(30), 1);
   assert.equal(calculateSupplyMult(49), 1);
   assert.ok(Math.abs(calculateSupplyMult(50) - 1.12) < 1e-9);
-  assert.ok(Math.abs(calculateSupplyMult(110) - Math.pow(1.12, 4)) < 1e-9);
+  assert.ok(Math.abs(calculateSupplyMult(90) - Math.pow(1.12, 3)) < 1e-9);
   // The refund is paid from the base price: it does not depend on the supply, only on the ratio
   assert.equal(sellRefund(50, 1), 35);
   assert.equal(sellRefund(50, 1, CONFIG.supply.sellRatio), 30);
@@ -644,4 +644,33 @@ test('усиления: pickBoons даёт разные и реже берёт �
     if (ids.includes('sharp')) sharp++;
   }
   assert.ok(walls < sharp * 0.6, `walls ${walls}, sharp ${sharp}`);
+});
+
+test('потолок цен: башни ×1,5, армия — множитель волны не выше 8', () => {
+  assert.equal(calculateSupplyMult(1000), 1.5);
+  assert.ok(calculateSupplyMult(110) > 1.5 - 1e-9 || Math.abs(calculateSupplyMult(90) - Math.pow(1.12, 3)) < 1e-9);
+  assert.equal(calculateSendPrice('heavy', 40, 1), calculateSendPrice('heavy', 25, 1));
+  assert.ok(calculateSendPrice('heavy', 40, 1, false) > calculateSendPrice('heavy', 40, 1));
+});
+
+import { rollShop } from './shop';
+test('лавка: гарантия готовой башни — за 10 обновлений на 3-м ярусе, за 5 на 4-м', () => {
+  const types = ['archer', 'priest', 'mage', 'ballista'] as const;
+  // всегда «не повезло»: rnd = 0,99 — ни связок, ни ★
+  const unlucky = () => 0.99;
+  for (const [tier, limit] of [[3, 10], [4, 5], [5, 5]] as const) {
+    const pity = { since: 0 };
+    let first = 0;
+    for (let i = 1; i <= limit; i++) {
+      const cards = rollShop(tier, [...types], { triplets: true, binders: true }, pity, unlucky);
+      if (cards.some((c) => c.isTriplet || c.level3)) { first = i; break; }
+    }
+    assert.equal(first, limit);
+  }
+  // 1–2-й ярус: гарантии нет
+  const p = { since: 0 };
+  for (let i = 0; i < 30; i++) assert.ok(!rollShop(2, [...types], { triplets: true, binders: true }, p, unlucky).some((c) => c.isTriplet));
+  // башни Ур.3 только на 5-м ярусе
+  assert.ok(!rollShop(4, [...types], { triplets: true, binders: false }, { since: 0 }, () => 0.01).some((c) => c.level3));
+  assert.ok(rollShop(5, [...types], { triplets: true, binders: false }, { since: 0 }, () => 0.01).some((c) => c.level3));
 });

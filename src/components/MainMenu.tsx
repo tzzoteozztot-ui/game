@@ -11,6 +11,7 @@ import { RacePicker } from './RacePicker';
 import { endlessRecordKey } from '../progress';
 import { StarIcon, LockIcon, SoundIcon, FullscreenIcon } from './Icons';
 import { useFullscreen, isStandalone, HOME_SCREEN_HINT } from '../fullscreen';
+import { downloadRunLog, hasSavedRunLog } from '../game/runLog';
 
 export type GameMode = 'campaign' | 'endless' | 'duel';
 export type MenuPage = 'home' | 'campaign' | 'endless' | 'brawl' | 'settings';
@@ -543,6 +544,12 @@ function SettingsPage({
               Как играть
               <span className="block text-[11px] font-normal text-stone-400 mt-0.5">Правила, башни, клавиши</span>
             </button>
+            {hasSavedRunLog() && (
+              <button type="button" onClick={() => downloadRunLog()} className={`${BTN} w-full text-left`}>
+                Лог последней партии
+                <span className="block text-[11px] font-normal text-stone-400 mt-0.5">Скачать файл JSON для разбора баланса</span>
+              </button>
+            )}
             {!standalone && (
               <button
                 type="button"

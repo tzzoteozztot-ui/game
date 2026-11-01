@@ -31,8 +31,8 @@ export function ArmyPanel({ gold, prices, outgoing, outgoingCost, income, factio
         <span className="text-[length:var(--fs-sm)] uppercase font-semibold tracking-wider text-stone-400 whitespace-nowrap">
           Армия<span className="hidden @min-[150px]:inline"> сопернику</span>
         </span>
-        <span className="text-amber-400 font-bold text-[length:var(--fs-sm)] tabular-nums whitespace-nowrap" title="Золото в начале каждого раунда">
-          доход +{income}
+        <span className="text-amber-400 font-bold text-[length:var(--fs-sm)] tabular-nums whitespace-nowrap" title="Ваш доход: золото, которое приходит в начале каждого раунда. Растёт на 1/5 цены каждого врага, отправленного сопернику. Без отправок — 0.">
+          доход +{income}/раунд
         </span>
       </div>
 

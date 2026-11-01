@@ -37,5 +37,5 @@ cut_y, soft = 128, 22
 w = np.clip((np.arange(S) - (cut_y - soft / 2)) / soft, 0, 1)[:, None, None]
 tiles['t'] = Image.fromarray((cross * (1 - w) + straight * w).astype('uint8'))
 for k, t in tiles.items():
-    t.save(out + k + '.png', optimize=True)
+    t.save(out + k + '.jpg', quality=90, optimize=True)  # тайлы без прозрачности: JPEG вчетверо легче PNG, поле грузится быстрее
 print({k: t.size for k, t in tiles.items()})
