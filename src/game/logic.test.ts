@@ -157,10 +157,10 @@ test('enemy scaling and damage formulas', () => {
   assert.equal(calculateEnemyCount(8, 1, 13, true, 'normal', true), 5); // 8 * 1.25 * 0.5 = 5
 
   // Duel send price: 2 × kill gold (a swarm group of 8), × the wave's HP growth
-  assert.equal(calculateSendPrice('infantry', 1, 1), 10);
-  assert.equal(calculateSendPrice('swarm', 1, 1), 16);
-  assert.equal(calculateSendPrice('heavy', 3, 1), 34); // 24 × 1.408 = 33.8 -> 34
-  assert.equal(calculateSendPrice('infantry', 1, 2), 12); // kill gold 6 on level 2
+  assert.equal(calculateSendPrice('infantry', 1, 1), 7); // 5 × 4/3 = 6,67
+  assert.equal(calculateSendPrice('swarm', 1, 1), 11);
+  assert.equal(calculateSendPrice('heavy', 3, 1), 23); // 12 × 4/3 × 1.408 = 22.5 -> 23
+  assert.equal(calculateSendPrice('infantry', 1, 2), 8); // kill gold 6 on level 2
   // Each send adds 1/5 of its price to every later round
   assert.equal(calculateSendIncome(60), 12);
   assert.equal(calculateSendIncome(34), 6);

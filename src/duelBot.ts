@@ -44,7 +44,7 @@ export function waveWeight(round: number, level: number): number {
     if (!enemy) continue;
     const n = type === 'boss' ? 1 : calculateEnemyCount(Number(count), level, round, true, 'normal', true);
     const group = type === 'swarm' ? CONFIG.swarmGroupCount : 1;
-    weight += n * calculateKillGold(enemy.gold * group, level) * CONFIG.duel.sendPriceMult * enemyWaveMult(round);
+    weight += n * calculateKillGold(enemy.gold * group, level) * CONFIG.duel.botWeightMult * enemyWaveMult(round);
   }
   return weight;
 }
