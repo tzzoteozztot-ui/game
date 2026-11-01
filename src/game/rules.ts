@@ -100,11 +100,9 @@ export function calculateEnemyCount(
   duel = false
 ): number {
   const cycleMult = endless ? 1 + CONFIG.endless.countPerCycle * endlessCycle(wave) : 1;
-  const early = CONFIG.hardEarlyWaves;
-  const earlyMult = difficulty === 'hard' && wave <= early.upTo ? early.countMult : 1;
   // Duel: half of the usual wave, the opponent's sends come on top (Артур)
   const duelMult = duel ? CONFIG.duel.waveCountMult : 1;
-  return Math.ceil(tableCount * (1 + 0.2 * (level - 1)) * cycleMult * earlyMult * duelMult);
+  return Math.ceil(tableCount * (1 + 0.2 * (level - 1)) * cycleMult * duelMult);
 }
 
 /** Endless mode: finished cycles of 12 waves before this wave (waves 1–12 → 0, 13–24 → 1…) */

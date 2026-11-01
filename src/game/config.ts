@@ -149,7 +149,6 @@ export const BOONS: BoonDef[] = [
   { id: 'sharp', name: 'Острые клинки', desc: '+10 % урона всех башен', value: 0.1, bot: { power: 0.1 } },
   { id: 'haste', name: 'Быстрые руки', desc: '+10 % скорости атаки всех башен', value: 0.1, bot: { power: 0.1 } },
   { id: 'sight', name: 'Дальний взор', desc: '+10 % радиуса всех башен', value: 0.1, bot: { power: 0.06 } },
-  { id: 'keen', name: 'Меткость', desc: 'Каждый выстрел: 10 % шанс крита ×2', value: 0.1, bot: { power: 0.1 } },
   { id: 'slayer', name: 'Гроза великанов', desc: '+25 % урона по тяжёлым и боссам', value: 0.25, bot: { power: 0.08 } },
   { id: 'bastion', name: 'Последний рубеж', desc: '+30 % урона по врагам у артефакта', value: 0.3, bot: { power: 0.08 } },
   { id: 'pierce', name: 'Бронебой', desc: 'Броня и сопротивление магии врагов −25 %', value: 0.25, bot: { power: 0.1 } },
@@ -218,8 +217,6 @@ export const CONFIG = {
     normal: { hpMult: 1.0, goldMult: 1.0, label: 'Обычная' },
     hard: { hpMult: 1.3, goldMult: 0.8, label: 'Тяжёлая' },
   },
-  // Hard difficulty: fewer enemies in the first waves (Артур, тест баланса: стена на волнах 1–3)
-  hardEarlyWaves: { upTo: 3, countMult: 0.8 },
 
   towers: {
     archer: {
@@ -567,7 +564,7 @@ export const CONFIG = {
       name: 'Демоны',
       location: 'Выжженные земли',
       traitName: 'Пепельная кожа',
-      traitDesc: 'Урон специализации «Огонь» (удар и поджог) снижен на 50%.',
+      traitDesc: 'Огонь вдвое слабее: специализация «Огонь» (удар и поджог) и горящая земля наносят на 50% меньше. Остальной урон — обычный.',
       bossName: 'Владыка бездны Мал’кеш',
       bossDesc: 'Раз в 10 с призывает 3 бесов: скорость 1,6, здоровье — треть пехотинца той же волны.',
     },
@@ -584,7 +581,7 @@ export const CONFIG = {
       id: 6,
       name: 'Люди',
       location: 'Любая карта', // своей карты нет
-      traitName: 'Полевой ремонт',
+      traitName: 'Полевое восстановление',
       traitDesc: 'Враг, которого 3 с никто не ранил, восстанавливает 2% здоровья в секунду.',
       bossName: 'Командор экспедиции',
       bossDesc: 'Раз в 12 с открывает врата: до 5 врагов в радиусе 3 кл. и он сам переносятся на 2 клетки вперёд.',
@@ -676,7 +673,6 @@ export const CONFIG = {
     impTime: 5,
     impSpeed: 3, // cells/s
     sacrificeMult: 4, // volley = this × gold put into the sacrificed tower
-    autoReserve: 100, // auto abilities keep this much gold
     critFull: 10, // s to a sure crit
     critMult: 2.5,
     weaverSlow: 0.25,

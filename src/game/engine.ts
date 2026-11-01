@@ -221,6 +221,7 @@ const MAX_CORPSES = 30;
 // Status marks on enemies: slowed (frost, «Оберег», the default priest) and cursed («Проклятие»)
 const SLOW_COLOR = '#8fd4ff';
 const CURSE_COLOR = '#b07cff';
+const LICH_COLOR = '#a98be0'; // Лич: его воскрешение — фиолетовое, собственное «Возрождение» нежити — зелёно-серое
 
 export interface Projectile {
   id: string;
@@ -1690,7 +1691,8 @@ export class GameEngine {
         .sort((a, b) => Math.hypot(a.x - boss.x, a.y - boss.y) - Math.hypot(b.x - boss.x, b.y - boss.y)); // nearest to the Lich first
       if (eligible.length > 0) {
         sound.playBossSpawn();
-        this.addFloatingText('ВОСКРЕШЕНИЕ ЛИЧА!', boss.x, boss.y - 18, '#c9d6b0');
+        this.addFloatingText('ВОСКРЕШЕНИЕ ЛИЧА!', boss.x, boss.y - 18, LICH_COLOR);
+        this.spawnRing(boss.x, boss.y, LICH_COLOR, 3.0 * CONFIG.grid.cellSize); // the Lich's reach: its own, violet, wider than a plain revive
         const toRevive = eligible.slice(0, 3);
         // a body rises once: the risen leave the graveyard
         this.deadEnemiesGraveyard = this.deadEnemiesGraveyard.filter((g) => !toRevive.includes(g));
@@ -1705,7 +1707,7 @@ export class GameEngine {
           newSpawn.risen = true;
           newSpawn.hasRevived = true;
           newSpawn.gold = 0;
-          this.spawnRing(g.x, g.y, '#c9d6b0');
+          this.spawnRing(g.x, g.y, LICH_COLOR);
         }
       }
     }
@@ -1847,8 +1849,6 @@ export class GameEngine {
     const targets = inRange.slice(0, stats.targets);
     if (Math.abs(targets[0].x - towerPxX) > 2) tower.facing = targets[0].x < towerPxX ? -1 : 1;
     rawDamage *= this.rollCrit(tower);
-    const keen = this.boon('keen');
-    if (keen > 0 && Math.random() < keen) rawDamage *= 2;
 
     for (const target of targets) {
       sound.playShot(shotSound(part.type));
@@ -2302,7 +2302,7 @@ export class GameEngine {
     return !!CONFIG.towers[tower.type].ability && (tower.abilityCd ?? 0) <= 0 && (tower.abilityLeft ?? 0) <= 0;
   }
 
-  /** Casts the ability of the tower for gold; auto keeps a reserve of gold */
+  /** Casts the ability of the tower for gold */
   public castAbility(towerId: string, auto = false): boolean {
     const tower = this.towers.find((t) => t.id === towerId);
     const ab = tower ? CONFIG.towers[tower.type].ability : undefined;
@@ -2310,7 +2310,7 @@ export class GameEngine {
     const cs = CONFIG.grid.cellSize;
     const tx = (tower.x + 0.5) * cs;
     const ty = (tower.y + 0.5) * cs;
-    if (!this.abilityReady(tower) || this.gold < ab.cost + (auto ? CONFIG.raceMech.autoReserve : 0)) {
+    if (!this.abilityReady(tower) || this.gold < ab.cost) {
       if (!auto) {
         sound.playError();
         this.addFloatingText(this.abilityReady(tower) ? 'Не хватает золота!' : 'Ещё не готово', tx, ty - 20, '#e0452f');
@@ -4283,11 +4283,24 @@ export class GameEngine {
 
   private renderTower(ctx: CanvasRenderingContext2D, t: Tower, cellSize: number, timeSec: number) {
     const spr = this.towerSprite(t.type, t.level);
-    if (spr) {
-      this.renderTowerSprite(ctx, t, cellSize, spr, timeSec);
-      return;
-    }
-    this.renderTowerShape(ctx, t, cellSize);
+    if (spr) this.renderTowerSprite(ctx, t, cellSize, spr, timeSec);
+    else this.renderTowerShape(ctx, t, cellSize);
+    this.renderCritCharge(ctx, t, cellSize);
+  }
+
+  // Тёмные эльфы: тонкая полоска у основания башни — шанс крита растёт слева направо и обнуляется выстрелом-критом
+  private renderCritCharge(ctx: CanvasRenderingContext2D, t: Tower, cellSize: number) {
+    if (t.critT === undefined) return;
+    const k = Math.min(1, t.critT / CONFIG.raceMech.critFull);
+    const w = cellSize * 0.56;
+    const x = (t.x + 0.5) * cellSize - w / 2;
+    const y = (t.y + 1) * cellSize - 5;
+    ctx.save();
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.55)';
+    ctx.fillRect(x - 1, y - 1, w + 2, 5);
+    ctx.fillStyle = k >= 1 ? '#fff3b0' : '#3ed6c4';
+    ctx.fillRect(x, y, w * k, 3);
+    ctx.restore();
   }
 
   // Idle breathing plus a short squash and lean back after each shot
@@ -4797,6 +4810,16 @@ export class GameEngine {
       ctx.ellipse(e.x, footY - 1, rx, rx * 0.34, 0, 0, Math.PI * 2);
       ctx.fill();
       ctx.stroke();
+      if (e.faction === 3) {
+        // Культисты льда режут замедление вдвое: белое пунктирное кольцо поверх голубого — «лёд не берёт»
+        ctx.globalAlpha = 0.85;
+        ctx.strokeStyle = '#f2f8ff';
+        ctx.setLineDash([3, 3]);
+        ctx.beginPath();
+        ctx.ellipse(e.x, footY - 1, rx * 1.12, rx * 0.38, 0, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
     }
     if (e.curseTimer > 0) {
       ctx.globalAlpha = 0.7;
