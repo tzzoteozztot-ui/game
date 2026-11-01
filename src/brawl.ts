@@ -253,7 +253,7 @@ export class BrawlRoom implements DuelLink {
       const target = this.seat(to);
       const enemies = s.field!.buySends(w);
       if (!enemies || !target?.alive || fallen.includes(target)) continue;
-      if (target.kind === 'you') this.emit({ t: 'send', enemies });
+      if (target.kind === 'you') this.emit({ t: 'send', enemies, army: CONFIG.races[s.race].faction });
       else target.field?.receive(enemies, w);
     }
     if (fallen.length > 0) this.fall(fallen, before.length, livesBefore);
@@ -307,6 +307,12 @@ export class BrawlRoom implements DuelLink {
     for (const s of this.seats) s.shown = s.lives;
     const snap = this.snapshot();
     this.listeners.forEach((cb) => cb(snap));
+  }
+
+  /** Whose enemies wave w brings to you: the army of the one you face before it (просьба Артура 2026-11-01) */
+  factionForWave(w: number): number {
+    const foe = this.seat(this.prevOpp[w]?.[YOU] ?? this.opp[YOU]);
+    return foe ? CONFIG.races[foe.race].faction : this.level;
   }
 
   // ---- helpers ----

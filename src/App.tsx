@@ -211,6 +211,7 @@ export default function App() {
     backpack: [],
     backpackSlots: CONFIG.backpack.slots,
     faction: 1,
+    nextWaveFaction: 1,
     runSummary: null,
     waveSummary: null,
     nextWave: null,
@@ -220,6 +221,7 @@ export default function App() {
     bindPartnerCount: 0,
     isBinding: false,
     canMoveTowers: false,
+    moveCost: null,
     rerollCost: CONFIG.shop.rerollCost,
     zoomed: false,
     selectedDamage: null,
@@ -416,6 +418,7 @@ export default function App() {
   }, []);
 
   const [opponentArmy, setOpponentArmy] = useState(1);
+  const [myArmy, setMyArmy] = useState(1); // the army I send: its enemies' names in «Армия»
   const handleDuelStart = (link: DuelLink, level: number, startAt: number, army: number, myArmy: number, roundLength = CONFIG.duel.roundLength) => {
     duelLinkRef.current = link;
     duelSeenRef.current = performance.now();
@@ -424,12 +427,13 @@ export default function App() {
     setOpponent(null);
     setSideTab('towers');
     setOpponentArmy(army);
+    setMyArmy(myArmy);
     setSelectedLevel(level);
     link.onMessage((msg) => {
       duelSeenRef.current = performance.now();
       if (msg.t === 'hello' && link.role === 'host') link.send({ t: 'start', level, army: myArmy, inMs: 0 }); // the first answer was lost
       else if (msg.t === 'state') setOpponent({ lives: msg.lives, wave: msg.wave, income: msg.income ?? 0 });
-      else if (msg.t === 'send') engineRef.current?.receiveSend(msg.enemies ?? {});
+      else if (msg.t === 'send') engineRef.current?.receiveSend(msg.enemies ?? {}, msg.army);
       else if (msg.t === 'lost') finishDuel('won');
       else if (msg.t === 'leave') finishDuel('left');
     });
@@ -439,6 +443,7 @@ export default function App() {
         engineRef.current.setCanvas(canvasRef.current);
         engineRef.current.startDuel(level, startAt, army, race, roundLength);
         engineRef.current.onDuelSend = (enemies) => link.send({ t: 'send', enemies });
+        if (link instanceof BrawlRoom) engineRef.current.waveFactionFor = (w) => link.factionForWave(w);
         setShopCards(generateShopCards(1));
       }
     }, 50);
@@ -452,7 +457,9 @@ export default function App() {
     const room = new BrawlRoom(level, race, brawlBots(bots), startAt, () => engineRef.current?.lives ?? 0);
     room.onChange(setBrawl);
     setMode('duel');
-    handleDuelStart(room, level, startAt, level, level, CONFIG.brawl.roundLength);
+    // Every wave brings the opponent's own army: its race's enemies (просьба Артура 2026-11-01)
+    const own = CONFIG.races[race].faction;
+    handleDuelStart(room, level, startAt, room.factionForWave(1), own, CONFIG.brawl.roundLength);
   };
 
   // Duel: my state to the opponent every few seconds; silence for too long means they are gone
@@ -840,8 +847,8 @@ export default function App() {
     if (pointersRef.current.size === 1) {
       const cell = toCell(e.clientX, e.clientY);
       const tower = engine.towers.find((t) => t.x === cell.x && t.y === cell.y);
-      // Between waves a press on a tower can drag it to another cell
-      const towerId = tower && engine.placingSlot === null && !engine.bindingFromId && !engine.upgradingFromBinderId && engine.canMoveTowers() ? tower.id : null;
+      // A press on a tower can drag it to another cell: free between waves, for gold in a duel during a wave
+      const towerId = tower && engine.placingSlot === null && !engine.bindingFromId && !engine.upgradingFromBinderId && engine.moveCost() !== null ? tower.id : null;
       gestureRef.current = { x: e.clientX, y: e.clientY, mode: 'tap', towerId };
     } else if (pointersRef.current.size === 2) {
       if (gestureRef.current) gestureRef.current.mode = 'pinch';
@@ -908,7 +915,7 @@ export default function App() {
       handleCanvasTap(cell.x, cell.y);
     } else if (g.mode === 'tower' && engine.selectedTowerId === g.towerId) {
       const tower = engine.towers.find((t) => t.id === g.towerId);
-      if (tower && (tower.x !== cell.x || tower.y !== cell.y)) engine.moveSelectedTower(cell.x, cell.y);
+      if (tower && (tower.x !== cell.x || tower.y !== cell.y)) engine.moveSelectedTower(cell.x, cell.y, true);
     }
   };
 
@@ -1269,7 +1276,7 @@ export default function App() {
                 <WaveInfo
                   nextWave={gameState.nextWave}
                   summary={gameState.waveSummary}
-                  faction={gameState.faction}
+                  faction={gameState.nextWaveFaction}
                   isWaveActive={gameState.isWaveActive}
                 />
                 {/* Bottom corners: gold and lives on the left; the selected tower's card on the half away from it,
@@ -1374,7 +1381,7 @@ export default function App() {
                   outgoing={gameState.duelOutgoing}
                   outgoingCost={gameState.duelOutgoingCost}
                   income={gameState.duelIncome}
-                  faction={gameState.faction}
+                  faction={myArmy}
                   onBuy={(t) => {
                     sound.init();
                     engineRef.current?.buySend(t);
@@ -1391,7 +1398,8 @@ export default function App() {
                 placingTowerType={engineRef.current?.placingTowerType || null}
                 placingBinder={engineRef.current?.placingBinder || false}
                 isBinding={gameState.isBinding}
-                isMoving={gameState.canMoveTowers && gameState.selectedTower !== null && !gameState.isBinding}
+                isMoving={gameState.moveCost !== null && gameState.selectedTower !== null && !gameState.isBinding}
+                moveCost={gameState.moveCost ?? 0}
                 placingIsTriplet={engineRef.current?.placingIsTriplet || false}
                 onSelectCard={handleSelectShopCard}
                 onReroll={handleRerollShop}

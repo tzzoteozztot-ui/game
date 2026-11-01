@@ -731,6 +731,7 @@ export const CONFIG = {
     sendIncomeShare: 0.2, // each send adds 1/5 of its price to the gold of every later round
     sentKillGoldShare: 0.5, // the defender gets half the kill gold for a sent enemy
     sendMaxPerType: 200, // a send message with more is cut down (a broken or forged message)
+    moveCost: 10, // moving a tower while enemies are on the field (duel, brawl; Артур 2026-11-01: «10 монет условно»)
   },
 
   // «Потасовка» (Артур, 2026-11-01): eight on the duel's clock, the opponents change every wave

@@ -135,6 +135,7 @@ export interface Binder {
 export interface Enemy {
   id: string;
   type: EnemyType;
+  faction: number; // whose enemy it is (trait, boss, look); in a brawl each wave brings the opponent's own
   x: number; // world x in pixels
   y: number; // world y in pixels
   maxHp: number;
@@ -345,6 +346,7 @@ export interface GameStateSnapshot {
   backpack: { kind: 'tower' | 'binder'; type: TowerType | null; triplet: boolean; sell: number }[];
   backpackSlots: number;
   faction: number; // whose enemies come (boss picture)
+  nextWaveFaction: number; // whose enemies the coming wave brings (in a brawl, the current opponent's)
   runSummary: RunSummary | null; // totals of the whole run, once it is over
   waveSummary: WaveSummary | null; // totals of the last cleared wave
   nextWave: { type: EnemyType; count: number }[] | null; // what the coming wave brings while the timer runs
@@ -360,6 +362,7 @@ export interface GameStateSnapshot {
   castle: { hp: number; maxHp: number; level: number; maxLevel: number; damage: number; nextDamage: number | null; cost: number | null } | null;
   isBinding: boolean; // waiting for a tap on the second tower
   canMoveTowers: boolean; // between waves towers can be moved to a free cell
+  moveCost: number | null; // price of moving a tower now: 0 free, null not now
   rerollCost: number; // price of the next shop reroll
   race: RaceId; // the player's faction
   mergeNeed: number; // towers that merge into the next level
@@ -413,6 +416,8 @@ export class GameEngine {
   public duelOutgoingCost = 0;
   public duelIncome = 0; // gold added at the start of every round, grows with every send
   public onDuelSend?: (enemies: Partial<Record<SendType, number>>) => void;
+  // Brawl: whose enemies wave N brings (the faction of the opponent faced before it); null keeps `faction`
+  public waveFactionFor: ((wave: number) => number) | null = null;
 
   // Entities
   public towers: Tower[] = [];
@@ -432,7 +437,7 @@ export class GameEngine {
   public isSpawning: boolean = false;
   public waveInProgress: boolean = false;
   public wavesLaunched: number = 0; // how many of the 12 waves have been started
-  public spawnQueue: { type: EnemyType; entrance: number; sent?: boolean }[] = []; // sent: by the duel opponent
+  public spawnQueue: { type: EnemyType; entrance: number; sent?: boolean; faction?: number }[] = []; // sent: by the duel opponent
   private spawnTimer: number = 0;
   private currentEntranceIndex: number = 0;
 
@@ -600,6 +605,7 @@ export class GameEngine {
     this.autoAbilities = false;
     this.level = Math.max(1, Math.min(CONFIG.levelCount, level));
     this.faction = endless && faction ? Math.max(1, Math.min(CONFIG.factions.length, Math.floor(faction))) : this.level;
+    this.waveFactionFor = null;
     this.difficulty = diff;
     this.endless = endless;
     this.duelStart = null;
@@ -803,7 +809,8 @@ export class GameEngine {
   }
 
   /** Duel: enemies the opponent sent come out after the ones already waiting */
-  public receiveSend(enemies: Partial<Record<SendType, number>>) {
+  public receiveSend(enemies: Partial<Record<SendType, number>>, army?: number) {
+    const faction = army && army >= 1 && army <= CONFIG.factions.length ? Math.floor(army) : this.faction;
     if (this.duelStart === null || this.isGameOver || this.isVictory) return;
     const entrances = this.currentMap.entrances.length;
     let added = 0;
@@ -812,7 +819,7 @@ export class GameEngine {
       for (let i = 0; i < n; i++) {
         const entrance = this.currentEntranceIndex++ % entrances;
         const group = type === 'swarm' ? CONFIG.swarmGroupCount : 1;
-        for (let g = 0; g < group; g++) this.spawnQueue.push({ type, entrance, sent: true });
+        for (let g = 0; g < group; g++) this.spawnQueue.push({ type, entrance, sent: true, faction });
         added++;
       }
     }
@@ -948,6 +955,8 @@ export class GameEngine {
     this.rerollsThisWave = 0;
     if (duel) this.waveCountdown = Math.max(0, (this.duelNextWaveAt() - performance.now()) / 1000);
     const waveDef = waveDefinition(this.wave);
+    this.faction = this.factionOfWave(this.wave);
+    const faction = this.faction;
     // A duel wave joins the enemies still waiting to come out
     if (!duel) this.spawnQueue = [];
 
@@ -1004,17 +1013,17 @@ export class GameEngine {
         const swarmEnt = entIdx % entrancesCount;
         entIdx++;
         for (let s = 0; s < CONFIG.swarmGroupCount; s++) {
-          this.spawnQueue.push({ type: 'swarm', entrance: swarmEnt });
+          this.spawnQueue.push({ type: 'swarm', entrance: swarmEnt, faction });
         }
       } else {
-        this.spawnQueue.push({ type, entrance: entIdx % entrancesCount });
+        this.spawnQueue.push({ type, entrance: entIdx % entrancesCount, faction });
         entIdx++;
       }
     }
 
     if (hasBoss) {
       // Boss always comes out last at first entrance (index 0)
-      this.spawnQueue.push({ type: 'boss', entrance: 0 });
+      this.spawnQueue.push({ type: 'boss', entrance: 0, faction });
     }
 
     this.isSpawning = true;
@@ -1026,6 +1035,13 @@ export class GameEngine {
   }
 
   // What the coming wave brings (the numbers startNextWave will queue), shown while the timer runs
+  /** Whose enemies wave N brings: in a brawl the opponent's, elsewhere `faction` */
+  private factionOfWave(wave: number): number {
+    if (!this.waveFactionFor) return this.faction;
+    const f = Math.floor(this.waveFactionFor(wave));
+    return f >= 1 && f <= CONFIG.factions.length ? f : this.faction;
+  }
+
   private nextWaveComposition(): { type: EnemyType; count: number }[] | null {
     if (this.waveCountdown === null || this.isGameOver || this.isVictory) return null;
     const number = this.wavesLaunched + 1;
@@ -1135,7 +1151,7 @@ export class GameEngine {
     this.resetWaveStats();
   }
 
-  private spawnEnemy(type: EnemyType, entranceIdx: number, sent = false) {
+  private spawnEnemy(type: EnemyType, entranceIdx: number, sent = false, faction: number = this.faction) {
     const baseDef = CONFIG.enemies[type];
     const entrance = this.currentMap.entrances[entranceIdx];
     const path = this.currentMap.paths[entranceIdx];
@@ -1153,7 +1169,7 @@ export class GameEngine {
       totalLen = path.length * CONFIG.grid.cellSize;
     }
 
-    const hp = calculateEnemyHp(baseDef.hp, type, this.wave, this.level, this.difficulty, this.endless, this.faction);
+    const hp = calculateEnemyHp(baseDef.hp, type, this.wave, this.level, this.difficulty, this.endless, faction);
     const armorBonus = this.endless ? endlessArmorBonus(this.wave) : 0;
     const killGold = Math.round(calculateKillGold(baseDef.gold, this.level, this.wave, this.supplyActive()) * (CONFIG.races[this.race].killGoldMult ?? 1));
     const gold = sent ? Math.round(killGold * CONFIG.duel.sentKillGoldShare) : killGold;
@@ -1161,6 +1177,7 @@ export class GameEngine {
     const enemy: Enemy = {
       id: Math.random().toString(36).substring(2, 9),
       type,
+      faction,
       x: (entrance.x + 0.5) * CONFIG.grid.cellSize,
       y: (entrance.y + 0.5) * CONFIG.grid.cellSize,
       maxHp: hp,
@@ -1216,7 +1233,7 @@ export class GameEngine {
       if (this.spawnTimer <= 0) {
         if (this.spawnQueue.length > 0) {
           const next = this.spawnQueue.shift()!;
-          this.spawnEnemy(next.type, next.entrance, next.sent);
+          this.spawnEnemy(next.type, next.entrance, next.sent, next.faction);
           const interval = next.type === 'swarm' ? CONFIG.swarmInterval : CONFIG.spawnInterval;
           this.spawnTimer = interval;
         } else {
@@ -1399,7 +1416,7 @@ export class GameEngine {
         e.burnTimer -= dt;
         let burnDmg = e.burnDps * dt;
         // Demon trait
-        if (this.faction === 4) burnDmg *= 0.5;
+        if (e.faction === 4) burnDmg *= 0.5;
         // The Shadow Queen's invulnerability covers burning too
         if (e.invulnerableTimer > 0) burnDmg = 0;
         this.dmgSource = e.burnSource ?? null;
@@ -1428,7 +1445,7 @@ export class GameEngine {
       }
 
       // Люди trait: field repair - unhurt for repairDelay s, the enemy restores repairPerSec of max HP a second
-      if (this.faction === 6) {
+      if (e.faction === 6) {
         const hum = CONFIG.humans;
         if (e.repairHp !== undefined && e.hp < e.repairHp - 1e-6) e.repairCalm = 0;
         else e.repairCalm = (e.repairCalm ?? 0) + dt;
@@ -1449,7 +1466,7 @@ export class GameEngine {
       let speed = e.baseSpeed;
 
       // Orc trait: Rage (HP < 50% -> speed x1.3)
-      if (this.faction === 1 && e.hp < e.maxHp * 0.5) {
+      if (e.faction === 1 && e.hp < e.maxHp * 0.5) {
         speed *= 1.3;
         if (!e.rageTriggered) {
           e.rageTriggered = true;
@@ -1597,7 +1614,7 @@ export class GameEngine {
     if (boss.isReviving) return;
 
     // Level 1: Вождь (Warchief) - every 10s battle cry (+40% speed for 3s to allies in 2.5 cells)
-    if (this.faction === 1 && boss.bossAbilityTimer >= 10) {
+    if (boss.faction === 1 && boss.bossAbilityTimer >= 10) {
       boss.bossAbilityTimer = 0;
       sound.playBossSpawn();
       this.addFloatingText('БОЕВОЙ КЛИЧ!', boss.x, boss.y - 18, '#f4c06a');
@@ -1611,7 +1628,7 @@ export class GameEngine {
     }
 
     // Level 2: Лич (Lich) - every 12s resurrects up to 3 dead in radius 3 cells from last 10s with 30% HP
-    if (this.faction === 2 && boss.bossAbilityTimer >= 12) {
+    if (boss.faction === 2 && boss.bossAbilityTimer >= 12) {
       boss.bossAbilityTimer = 0;
       const reviveRadius = 3.0 * CONFIG.grid.cellSize;
       const eligible = this.deadEnemiesGraveyard
@@ -1624,7 +1641,7 @@ export class GameEngine {
         // a body rises once: the risen leave the graveyard
         this.deadEnemiesGraveyard = this.deadEnemiesGraveyard.filter((g) => !toRevive.includes(g));
         for (const g of toRevive) {
-          this.spawnEnemy(g.type, g.entranceIndex);
+          this.spawnEnemy(g.type, g.entranceIndex, false, boss.faction);
           const newSpawn = this.enemies[this.enemies.length - 1];
           newSpawn.x = g.x;
           newSpawn.y = g.y;
@@ -1640,7 +1657,7 @@ export class GameEngine {
     }
 
     // Level 3: Ледяной жрец (Ice Priest) - every 12s freezes closest tower for 4s
-    if (this.faction === 3 && boss.bossAbilityTimer >= 12) {
+    if (boss.faction === 3 && boss.bossAbilityTimer >= 12) {
       boss.bossAbilityTimer = 0;
       let closestTower: Tower | null = null;
       let minDist = Infinity;
@@ -1661,12 +1678,12 @@ export class GameEngine {
     }
 
     // Level 4: Владыка бездны (Abyss Lord) - every 10s summons 3 imps
-    if (this.faction === 4 && boss.bossAbilityTimer >= 10) {
+    if (boss.faction === 4 && boss.bossAbilityTimer >= 10) {
       boss.bossAbilityTimer = 0;
       sound.playBossSpawn();
       this.addFloatingText('ПРИЗЫВ БЕСОВ!', boss.x, boss.y - 18, '#e0452f');
       for (let i = 0; i < 3; i++) {
-        this.spawnEnemy('imp', boss.entranceIndex);
+        this.spawnEnemy('imp', boss.entranceIndex, false, boss.faction);
         const imp = this.enemies[this.enemies.length - 1];
         imp.x = boss.x + (Math.random() - 0.5) * 32;
         imp.y = boss.y + (Math.random() - 0.5) * 32;
@@ -1677,7 +1694,7 @@ export class GameEngine {
     }
 
     // Level 5: Королева теней (Shadow Queen) - every 15s invulnerable for 3s & dashes 3 cells along path
-    if (this.faction === 5 && boss.bossAbilityTimer >= 15) {
+    if (boss.faction === 5 && boss.bossAbilityTimer >= 15) {
       boss.bossAbilityTimer = 0;
       boss.invulnerableTimer = 3.0;
       sound.playBossSpawn();
@@ -1691,7 +1708,7 @@ export class GameEngine {
     // Люди: Командор экспедиции - every gateEvery s carries himself and up to gateCount allies nearby
     // gateCells along the road (the gate of the artifacts; approved by Артур 2026-10-31)
     const hum = CONFIG.humans;
-    if (this.faction === 6 && boss.bossAbilityTimer >= hum.gateEvery) {
+    if (boss.faction === 6 && boss.bossAbilityTimer >= hum.gateEvery) {
       boss.bossAbilityTimer = 0;
       sound.playBossSpawn();
       this.addFloatingText('ВРАТА!', boss.x, boss.y - 18, '#5b8fd8');
@@ -2037,7 +2054,7 @@ export class GameEngine {
     } else if (type === 'cul_archer') {
       e.chill = Math.min(mech.chillMax, (e.chill ?? 0) + mech.chillStep);
       e.chillTimer = mech.chillTime;
-      const eff = calculateEffectiveSlow(e.chill, this.faction);
+      const eff = calculateEffectiveSlow(e.chill, e.faction);
       if (eff >= e.slowPercent) {
         e.slowPercent = eff;
         e.slowTimer = Math.max(e.slowTimer, mech.chillTime);
@@ -2124,8 +2141,7 @@ export class GameEngine {
         this.fires.splice(i, 1);
         continue;
       }
-      const k = this.faction === 4 ? 0.5 : 1; // Пепельная кожа
-      for (const e of this.enemiesNear(f.x, f.y, f.r)) this.directDamage(e, f.dps * dt * k, f.towerId);
+      for (const e of this.enemiesNear(f.x, f.y, f.r)) this.directDamage(e, f.dps * dt * (e.faction === 4 ? 0.5 : 1), f.towerId); // Пепельная кожа
     }
     for (let i = this.blasts.length - 1; i >= 0; i--) {
       const b = this.blasts[i];
@@ -2479,7 +2495,7 @@ export class GameEngine {
       isCursed: e.curseTimer > 0,
       curseBonus: e.curseBonus,
       isFireSpec: n('fire') > 0,
-      factionId: this.faction,
+      factionId: e.faction,
       isTargetHeavyOrBoss: e.type === 'heavy' || e.type === 'boss',
       isHunterSpec: n('hunter') > 0,
       hunterPower: n('hunter'),
@@ -2565,7 +2581,7 @@ export class GameEngine {
   }
 
   private applySlow(e: Enemy, slow: number, duration: number) {
-    const effectiveSlow = calculateEffectiveSlow(slow, this.faction);
+    const effectiveSlow = calculateEffectiveSlow(slow, e.faction);
     if (effectiveSlow > e.slowPercent) {
       e.slowPercent = effectiveSlow;
       e.slowTimer = duration;
@@ -2574,7 +2590,7 @@ export class GameEngine {
 
   private killEnemy(e: Enemy, index: number) {
     // Undead trait: infantry and scout revive once after 1s with 30% HP
-    if (this.faction === 2 && !e.hasRevived && (e.type === 'infantry' || e.type === 'scout')) {
+    if (e.faction === 2 && !e.hasRevived && (e.type === 'infantry' || e.type === 'scout')) {
       e.hasRevived = true;
       e.isReviving = true;
       e.reviveTimer = 1.0;
@@ -2587,10 +2603,10 @@ export class GameEngine {
     this.enemies.splice(index, 1);
     sound.playDeath();
     this.addCorpse(e);
-    this.spawnPuff(e.x, e.y, CONFIG.palettes[this.faction - 1].enemies);
+    this.spawnPuff(e.x, e.y, CONFIG.palettes[e.faction - 1].enemies);
 
     // Save to graveyard for Lich boss
-    if (this.faction === 2 && e.type !== 'boss' && !e.risen) {
+    if (e.faction === 2 && e.type !== 'boss' && !e.risen) {
       this.deadEnemiesGraveyard.push({
         x: e.x,
         y: e.y,
@@ -2617,7 +2633,7 @@ export class GameEngine {
   /** How close to the artifact centre (px) the enemy stops to strike it: melee at the wall, ranged from 1–3 cells */
   private siegeReach(e: Enemy): number {
     const atk = CONFIG.siege.attack[e.type];
-    const ranged = atk.range > 0 && (e.type !== 'scout' || CONFIG.siege.rangedScoutFactions.includes(this.faction));
+    const ranged = atk.range > 0 && (e.type !== 'scout' || CONFIG.siege.rangedScoutFactions.includes(e.faction));
     const spread = (e.animSeed / (Math.PI * 2)) * 0.2; // a little scatter so the crowd does not stand in one point
     return ((ranged ? atk.range : CONFIG.siege.meleeReach) + spread) * CONFIG.grid.cellSize;
   }
@@ -2929,11 +2945,31 @@ export class GameEngine {
     return this.waveCountdown !== null && !this.isSpawning && this.enemies.length === 0 && !this.isGameOver;
   }
 
-  // Moves the selected tower to a free cell; it stays selected
-  public moveSelectedTower(cellX: number, cellY: number): boolean {
+  /**
+   * Price of moving a tower now: 0 between waves; in a duel and a brawl, where the field is rarely clear,
+   * CONFIG.duel.moveCost while enemies are on it (просьба Артура 2026-11-01); null — no moving now
+   */
+  public moveCost(): number | null {
+    if (this.canMoveTowers()) return 0;
+    if (this.duelStart !== null && !this.isGameOver && !this.isVictory) return CONFIG.duel.moveCost;
+    return null;
+  }
+
+  /** Moves the selected tower to a free cell; it stays selected. A paid move needs `paid` (a deliberate drag) */
+  public moveSelectedTower(cellX: number, cellY: number, paid = false): boolean {
     const tower = this.selectedTowerId ? this.towers.find((t) => t.id === this.selectedTowerId) : null;
-    if (!tower || !this.canMoveTowers() || !this.isCellFree(cellX, cellY)) return false;
+    const cost = this.moveCost();
+    if (!tower || cost === null || (cost > 0 && !paid) || !this.isCellFree(cellX, cellY)) return false;
     const cs = CONFIG.grid.cellSize;
+    if (cost > 0) {
+      if (this.gold < cost) {
+        sound.playError();
+        this.addFloatingText('Не хватает золота!', (cellX + 0.5) * cs, (cellY + 0.5) * cs, '#e0452f');
+        return false;
+      }
+      this.gold -= cost;
+      this.addFloatingText(`−${cost}`, (cellX + 0.5) * cs, (cellY + 0.2) * cs, '#f4c06a');
+    }
     this.spawnPuff((tower.x + 0.5) * cs, (tower.y + 0.5) * cs, '#f4c06a');
     tower.x = cellX;
     tower.y = cellY;
@@ -3512,6 +3548,7 @@ export class GameEngine {
       backpack: this.backpack.map((i) => ({ kind: i.kind, type: i.type, triplet: i.triplet, sell: i.paid })),
       backpackSlots: CONFIG.backpack.slots,
       faction: this.faction,
+      nextWaveFaction: this.factionOfWave(this.wavesLaunched + 1),
       runSummary: this.isGameOver || this.isVictory ? this.buildRunSummary() : null,
       waveSummary: this.lastSummary,
       nextWave: this.nextWaveComposition(),
@@ -3521,6 +3558,7 @@ export class GameEngine {
       bindPartnerCount,
       isBinding: this.bindingFromId !== null,
       canMoveTowers: this.canMoveTowers(),
+      moveCost: this.moveCost(),
       rerollCost: this.rerollCost(),
       race: this.race,
       mergeNeed: this.mergeNeed(),
@@ -3711,7 +3749,7 @@ export class GameEngine {
     }
 
     // Between waves the selected tower can move: free cells are marked, the hovered one shows the target
-    if (selectedTower && !this.bindingFromId && this.canMoveTowers()) {
+    if (selectedTower && !this.bindingFromId && this.moveCost() !== null) {
       ctx.fillStyle = 'rgba(244, 192, 106, 0.045)';
       for (let y = 0; y < CONFIG.grid.rows; y++) {
         for (let x = 0; x < CONFIG.grid.cols; x++) {
@@ -3796,7 +3834,7 @@ export class GameEngine {
     this.renderCorpses(ctx, timeSec);
     const enemiesByDepth = [...this.enemies].sort((a, b) => Number(a.isFlyer) - Number(b.isFlyer) || a.y - b.y);
     for (const e of enemiesByDepth) {
-      this.renderEnemy(ctx, e, CONFIG.palettes[this.faction - 1].enemies, timeSec);
+      this.renderEnemy(ctx, e, CONFIG.palettes[e.faction - 1].enemies, timeSec);
     }
 
     if (this.race !== 'humans') this.renderRaceAir(ctx, cellSize, timeSec);
@@ -4460,11 +4498,11 @@ export class GameEngine {
   private enemySprite(e: Enemy): { name: string; tint: string | null } {
     const isBoss = e.type === 'boss';
     const isImp = e.type === 'imp';
-    const factionName = `enemy_${e.type}_${this.faction}`;
+    const factionName = `enemy_${e.type}_${e.faction}`;
     const hasFaction = !isBoss && !isImp && sprites.has(factionName);
     const ownImp = isImp && sprites.has('enemy_imp');
-    const name = isBoss ? `boss_${this.faction}` : ownImp ? 'enemy_imp' : isImp ? 'enemy_scout' : hasFaction ? factionName : `enemy_${e.type}`;
-    const tint = isBoss || hasFaction || ownImp ? null : isImp ? '#e0452f' : CONFIG.palettes[this.faction - 1].enemies;
+    const name = isBoss ? `boss_${e.faction}` : ownImp ? 'enemy_imp' : isImp ? 'enemy_scout' : hasFaction ? factionName : `enemy_${e.type}`;
+    const tint = isBoss || hasFaction || ownImp ? null : isImp ? '#e0452f' : CONFIG.palettes[e.faction - 1].enemies;
     return { name, tint };
   }
 
