@@ -25,8 +25,10 @@ import { DuelLobby } from './components/DuelLobby';
 import { ArmyPanel } from './components/ArmyPanel';
 import { SEND_TYPES } from './game/rules';
 import { DuelLink, duelAvailable } from './duel';
+import { BrawlRoom, BrawlSnapshot, brawlBots } from './brawl';
+import { BrawlBoard } from './components/BrawlBoard';
 import { LevelBriefing } from './components/LevelBriefing';
-import { PauseModal, VictoryModal, DefeatModal, HowToPlayModal, DuelResultModal, DuelOutcome } from './components/StatusModals';
+import { PauseModal, VictoryModal, DefeatModal, HowToPlayModal, DuelResultModal, BrawlResultModal, DuelOutcome } from './components/StatusModals';
 import { OrientationWarning } from './components/OrientationWarning';
 import { fullscreenSupported, toggleFullscreen } from './fullscreen';
 import { AccountModal, SyncState } from './components/AccountModal';
@@ -83,6 +85,13 @@ const BOTTOM_VARS = {
 type StageLayout = 'side' | 'bottom';
 
 // Which arrangement gives the bigger field on a stage of this size: the column at the side or the strip below
+/** «Потасовка»: who you face now, for the opponent's line under your gold */
+function brawlOpponentLabel(b: BrawlSnapshot): string {
+  const o = b.seats.find((s) => s.id === b.opponentId);
+  if (!o) return '—';
+  return o.id === b.ghostId ? `👻 ${o.name}` : o.name;
+}
+
 function pickLayout(w: number, h: number, bottomMinH: number): StageLayout {
   const ratio = CONFIG.grid.cols / CONFIG.grid.rows;
   const side = Math.min(w - Math.max(132, 0.12 * w), h * ratio);
@@ -417,6 +426,17 @@ export default function App() {
     }, 50);
   };
 
+  // «Потасовка»: a room of eight run here, driven like a duel (src/brawl.ts); its board for the overlay
+  const [brawl, setBrawl] = useState<BrawlSnapshot | null>(null);
+  const handleBrawlStart = (level: number, bots: Difficulty) => {
+    sound.init();
+    const startAt = performance.now();
+    const room = new BrawlRoom(level, race, brawlBots(bots), startAt, () => engineRef.current?.lives ?? 0);
+    room.onChange(setBrawl);
+    setMode('duel');
+    handleDuelStart(room, level, startAt, level, level);
+  };
+
   // Duel: my state to the opponent every few seconds; silence for too long means they are gone
   useEffect(() => {
     if (screen !== 'playing' || !gameState.duel) return;
@@ -565,6 +585,7 @@ export default function App() {
   const handleToMenu = () => {
     sound.init();
     closeDuel();
+    setBrawl(null);
     setSpecModalTower(null);
     if (engineRef.current) {
       engineRef.current.stopLoop();
@@ -1136,6 +1157,7 @@ export default function App() {
             setMode('duel');
             setScreen('duelLobby');
           }}
+          onStartBrawl={handleBrawlStart}
           onOpenHowToPlay={() => setShowHowToPlay(true)}
           onOpenBestiary={() => setShowBestiary(true)}
           accountLabel={cloudEnabled ? (user ? 'Аккаунт ✓' : 'Войти') : null}
@@ -1219,6 +1241,7 @@ export default function App() {
                   autoStart={gameState.autoStart}
                   onToggleAutoStart={() => engineRef.current?.setAutoStart(!engineRef.current.autoStart)}
                 />
+                {brawl && <BrawlBoard snap={brawl} />}
                 <WaveInfo
                   nextWave={gameState.nextWave}
                   summary={gameState.waveSummary}
@@ -1238,7 +1261,7 @@ export default function App() {
                       endless={gameState.endless}
                       supply={gameState.supplyActive ? { power: gameState.supplyPower, mult: gameState.supplyMult, next: gameState.supplyNext } : null}
                       opponent={gameState.duel ? opponent : undefined}
-                      opponentArmy={gameState.duel ? CONFIG.factions[opponentArmy - 1]?.name : undefined}
+                      opponentArmy={gameState.duel ? (brawl ? brawlOpponentLabel(brawl) : CONFIG.factions[opponentArmy - 1]?.name) : undefined}
                     />
                   </div>
                   <div className="absolute right-1.5 bottom-1.5 flex flex-col items-end gap-1.5">
@@ -1399,7 +1422,10 @@ export default function App() {
       )}
 
       {/* 7. Victory Modal */}
-      {screen === 'playing' && gameState.duel && duelOutcome && (gameState.isVictory || gameState.isGameOver) && (
+      {screen === 'playing' && brawl && duelOutcome && (gameState.isVictory || gameState.isGameOver) && (
+        <BrawlResultModal snap={brawl} wave={gameState.wave} stats={gameState.runSummary} onToMenu={handleToMenu} />
+      )}
+      {screen === 'playing' && !brawl && gameState.duel && duelOutcome && (gameState.isVictory || gameState.isGameOver) && (
         <DuelResultModal outcome={duelOutcome} wave={gameState.wave} stats={gameState.runSummary} onToMenu={handleToMenu} />
       )}
 

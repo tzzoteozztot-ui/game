@@ -150,7 +150,6 @@ export class BrawlRoom implements DuelLink {
   private handler: (msg: DuelMessage, from: string) => void = () => {};
   private listeners: ((s: BrawlSnapshot) => void)[] = [];
   private timer: number | null = null;
-  private lastState = 0;
   private stopped = false;
 
   constructor(
@@ -225,11 +224,9 @@ export class BrawlRoom implements DuelLink {
     // A bot's loss drains on the board over a few seconds
     const step = (CONFIG.lives.start / CONFIG.brawl.hpDrain) * 0.5;
     for (const s of this.seats) if (s.kind !== 'you' && s.shown > s.lives) s.shown = Math.max(s.lives, s.shown - Math.max(step, (s.shown - s.lives) / 6));
-    if (elapsed - this.lastState >= CONFIG.duel.stateInterval) {
-      this.lastState = elapsed;
-      const o = this.seat(this.opp[YOU]);
-      this.emit({ t: 'state', lives: Math.round(o?.shown ?? 0), wave: Math.max(1, this.wave), income: o?.field?.income ?? 0 });
-    }
+    // The opponent's line under your gold, live (it is also the duel's sign of life)
+    const o = this.seat(this.opp[YOU]);
+    this.emit({ t: 'state', lives: Math.round(o?.shown ?? 0), wave: Math.max(1, this.wave), income: o?.field?.income ?? 0 });
     const snap = this.snapshot();
     this.listeners.forEach((cb) => cb(snap));
   }

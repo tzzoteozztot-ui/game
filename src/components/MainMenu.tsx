@@ -13,7 +13,7 @@ import { StarIcon, LockIcon, SoundIcon, FullscreenIcon } from './Icons';
 import { useFullscreen, isStandalone, HOME_SCREEN_HINT } from '../fullscreen';
 
 export type GameMode = 'campaign' | 'endless' | 'duel';
-export type MenuPage = 'home' | 'campaign' | 'endless' | 'settings';
+export type MenuPage = 'home' | 'campaign' | 'endless' | 'brawl' | 'settings';
 
 interface MainMenuProps {
   page: MenuPage;
@@ -34,6 +34,7 @@ interface MainMenuProps {
   onSelectLevel: (lvl: number) => void; // highlights the card; the game starts with onPlay
   onPlay: () => void;
   onOpenDuel: () => void;
+  onStartBrawl: (level: number, bots: Difficulty) => void;
   onChangeDifficulty: (diff: Difficulty) => void;
   onOpenHowToPlay: () => void;
   onOpenBestiary: () => void;
@@ -81,6 +82,7 @@ export function MainMenu(props: MainMenuProps) {
       <div className="my-auto w-full flex flex-col items-center">
         {page === 'home' && <HomePage {...props} />}
         {(page === 'campaign' || page === 'endless') && <LevelPage {...props} endless={page === 'endless'} onBack={home} />}
+        {page === 'brawl' && <BrawlPage {...props} onBack={home} />}
         {page === 'settings' && <SettingsPage {...props} onBack={home} />}
       </div>
     </div>
@@ -103,6 +105,7 @@ function HomePage({ onChangePage, onOpenDuel, duelAvailable, unlockedLevel, acco
       main: true,
     },
     { key: 'endless', title: 'Бесконечный режим', hint: 'Волны без конца, рекорд волны', onClick: () => onChangePage('endless') },
+    { key: 'brawl', title: 'Потасовка', hint: 'Восемь рубежей, соперник меняется каждую волну', onClick: () => onChangePage('brawl') },
     ...(duelAvailable
       ? [{ key: 'duel', title: 'Дуэль', hint: 'С игроком по коду комнаты или с ботом', onClick: onOpenDuel }]
       : []),
@@ -170,6 +173,77 @@ function HomePage({ onChangePage, onOpenDuel, duelAvailable, unlockedLevel, acco
       >
         По вопросам сотрудничества: Telegram @popataras
       </a>
+    </div>
+  );
+}
+
+// -------------------------------------------------------------
+// Brawl: eight players (you and seven bots), the map, your race, the bots' strength
+// -------------------------------------------------------------
+const BRAWL_BOTS: { id: Difficulty; label: string }[] = [
+  { id: 'easy', label: 'Слабые' },
+  { id: 'normal', label: 'Средние' },
+  { id: 'hard', label: 'Сильные' },
+];
+
+function BrawlPage({ onBack, unlockedLevel, selectedLevel, onSelectLevel, race, onChangeRace, onStartBrawl }: MainMenuProps & { onBack: () => void }) {
+  const [bots, setBots] = useState<Difficulty>('normal');
+  const level = Math.min(selectedLevel, Math.max(1, unlockedLevel));
+  return (
+    <div className="w-full max-w-md short:max-w-3xl flex flex-col items-center">
+      <PageHeader title="Потасовка" onBack={onBack} />
+      <div className="w-full flex flex-col gap-2 short:grid short:grid-cols-2 short:gap-1.5 short:items-start">
+        <div className={`${PANEL} w-full p-2.5 short:p-2 text-xs text-stone-300 leading-relaxed`}>
+          Восемь игроков, у каждого свой рубеж. Волны выходят у всех разом, каждые {CONFIG.duel.roundLength} с, и с каждой
+          волной соперник меняется: купленные во вкладке «Армия» враги уходят ему, его враги — вам. Кого покинул артефакт, тот
+          выбыл; при нечётном числе оставшихся поле выбывшего остаётся «призраком», и с ним по очереди играют все, от слабого к
+          сильному. Побеждает последний устоявший. Остальные семеро — боты.
+        </div>
+        <div className="w-full flex flex-col gap-2 short:gap-1.5">
+          <label className={`${PANEL} w-full flex items-center justify-between gap-2 p-1`}>
+            <span className="text-xs font-semibold text-stone-400 pl-3 short:pl-2">Карта:</span>
+            <select
+              value={level}
+              onChange={(e) => onSelectLevel(Number(e.target.value))}
+              className="min-h-[36px] short:min-h-[34px] flex-1 max-w-[220px] rounded bg-[#221f2d] border border-[#383347] px-2 text-xs font-bold text-stone-200 cursor-pointer"
+            >
+              {CONFIG.factions.slice(0, Math.min(CONFIG.levelCount, Math.max(1, unlockedLevel))).map((f, i) => (
+                <option key={f.id} value={i + 1}>
+                  {f.location}
+                </option>
+              ))}
+            </select>
+          </label>
+          <div className={`${PANEL} w-full p-1.5`}>
+            <RacePicker race={race} onChange={onChangeRace} compact />
+          </div>
+          <div className={`${PANEL} w-full flex items-center justify-between p-1`}>
+            <span className="text-xs font-semibold text-stone-400 pl-3 short:pl-2 pr-1">Боты:</span>
+            <div className="flex items-center gap-1 short:gap-0.5">
+              {BRAWL_BOTS.map((b) => (
+                <button
+                  key={b.id}
+                  type="button"
+                  onClick={() => setBots(b.id)}
+                  aria-pressed={bots === b.id}
+                  className={`px-3 short:px-1.5 py-1.5 min-h-[36px] short:min-h-[34px] rounded text-xs font-bold transition-colors cursor-pointer ${
+                    bots === b.id ? 'bg-amber-600 text-stone-950 font-black' : 'text-stone-400 hover:text-stone-200 hover:bg-[#221f2d]'
+                  }`}
+                >
+                  {b.label}
+                </button>
+              ))}
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => onStartBrawl(level, bots)}
+            className="w-full min-h-[48px] short:min-h-[42px] py-2 px-4 rounded bg-amber-500 hover:bg-amber-400 text-stone-950 font-black text-sm short:text-xs tracking-wider uppercase transition-all shadow-lg shadow-amber-950/50 cursor-pointer active:translate-y-0.5"
+          >
+            В бой: {CONFIG.factions[level - 1].location}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

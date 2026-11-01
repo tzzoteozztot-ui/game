@@ -4,6 +4,7 @@
 
 import { RunStats } from './RunStats';
 import type { RunSummary } from '../game/engine';
+import type { BrawlSnapshot } from '../brawl';
 import React, { useState } from 'react';
 import { StarIcon } from './Icons';
 import { sound } from '../game/audio';
@@ -182,6 +183,55 @@ export function DuelResultModal({ outcome, wave, stats, onToMenu }: { outcome: D
         >
           В меню
         </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** «Потасовка»: your place and the table of all eight */
+export function BrawlResultModal({ snap, wave, stats, onToMenu }: { snap: BrawlSnapshot; wave: number; stats?: RunSummary | null; onToMenu: () => void }) {
+  const place = snap.yourPlace ?? 1;
+  const top = place <= Math.ceil(snap.seats.length / 2);
+  const table = [...snap.seats].sort((a, b) => (a.place ?? 1) - (b.place ?? 1));
+  return (
+    <div className="fixed inset-0 bg-black/85 flex items-center justify-center p-4 z-50">
+      <div
+        className={`bg-[#171520] border-2 ${top ? 'border-amber-500/70' : 'border-red-800/70'} rounded-xl p-4 short:p-3 max-w-sm w-full max-h-[94vh] flex flex-col overflow-hidden shadow-2xl text-center text-[#f4f2e6]`}
+      >
+        <div className="min-h-0 flex-1 overflow-y-auto pr-1 -mr-1">
+          <h2 className={`text-2xl font-black tracking-wider mb-1 ${top ? 'text-amber-300' : 'text-red-400'}`}>
+            {place === 1 ? 'ПОБЕДА В ПОТАСОВКЕ' : `${place}-Е МЕСТО`}
+          </h2>
+          <p className="text-xs text-stone-300 mb-2">
+            {place === 1 ? 'Ваш артефакт выстоял последним.' : `Артефакт пал на волне ${wave}.`}
+          </p>
+          <ol className="mb-3 bg-[#121118] rounded border border-[#2d2938] text-left text-xs">
+            {table.map((s) => (
+              <li
+                key={s.id}
+                className={`flex items-center gap-2 px-2 py-1 border-b border-[#221f2d] last:border-b-0 ${s.kind === 'you' ? 'text-amber-300 font-black' : 'text-stone-300'}`}
+              >
+                <span className="w-7 tabular-nums font-bold">{s.place ?? '—'}</span>
+                <span
+                  className="inline-block w-2 h-2 rounded-full shrink-0"
+                  style={{ backgroundColor: CONFIG.palettes[CONFIG.races[s.race].faction - 1].enemies }}
+                />
+                <span className="flex-1 truncate">{s.name}</span>
+                <span className="text-stone-500">{CONFIG.races[s.race].name}</span>
+              </li>
+            ))}
+          </ol>
+          <RunStats stats={stats ?? null} />
+        </div>
+        <div className="shrink-0 pt-2">
+          <button
+            type="button"
+            onClick={onToMenu}
+            className="w-full min-h-[44px] py-2 px-4 rounded bg-amber-600 hover:bg-amber-500 text-stone-950 font-bold text-sm tracking-wide cursor-pointer"
+          >
+            В меню
+          </button>
         </div>
       </div>
     </div>

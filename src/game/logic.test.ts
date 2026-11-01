@@ -4,7 +4,7 @@ import { MAPS, makePath, validateMap, validateAllMaps, MAX_ROAD_CELLS, MIN_FREE_
 import { CONFIG } from './config';
 import { endlessRecordKey } from '../progress';
 import { attackStats, specSummary, stackedSlow } from './towerStats';
-import { emptyPairState, pairRound, placesForFallen } from '../brawl';
+import { emptyPairState, pairRound, placesForFallen, type PairState } from '../brawl';
 
 test('all 5 maps meet the game rules', () => {
   for (const m of MAPS) {
@@ -539,7 +539,7 @@ test('brawl: with an odd count the ghost goes from the weakest to the strongest,
     { id: 'd', lives: 200 },
     { id: 'e', lives: 10 },
   ];
-  let st = { ...emptyPairState(), ghost: 'x' };
+  let st: PairState = { ...emptyPairState(), ghost: 'x' };
   const order: string[] = [];
   for (let i = 0; i < 6; i++) {
     const res = pairRound(alive, st);
