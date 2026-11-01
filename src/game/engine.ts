@@ -25,6 +25,7 @@ import {
 } from './rules';
 import { sound } from './audio';
 import { sprites, drawSprite, PreparedSprite, SpritePose, SpriteVariant } from './sprites';
+import { TILESETS, loadTileset, bakeField, Tileset } from './tiles';
 
 // Light rim color (r, g, b) under the pedestal of the dark tower figures
 const TOWER_RIMS: Partial<Record<TowerType, string>> = { archer: '214, 236, 190', mage: '214, 200, 255' };
@@ -419,6 +420,10 @@ export class GameEngine {
   private particles: Particle[] = [];
   private corpses: Corpse[] = [];
   private grassBlades: GrassBlade[] = [];
+  // Поле из тайлов (запечённый холст) для карт, у которых есть набор в tiles.ts; null — рисуем дорогу кодом
+  private fieldBake: HTMLCanvasElement | null = null;
+  private fieldBakeMap: MapDef | null = null;
+  private fieldTiles: Map<string, Tileset | null> = new Map();
 
   // Spawn state
   public isSpawning: boolean = false;
@@ -3571,14 +3576,20 @@ export class GameEngine {
   private renderField(ctx: CanvasRenderingContext2D) {
     const palette = CONFIG.palettes[this.level - 1];
     const cellSize = CONFIG.grid.cellSize;
+    const baked = this.tiledField();
+    if (baked) {
+      ctx.drawImage(baked, 0, 0, CONFIG.grid.totalWidth, CONFIG.grid.totalHeight);
+    }
 
     // 1. Background / Ground cells
     // Alternating between 2 tones (2nd tone 4% lighter)
-    ctx.fillStyle = palette.ground;
-    ctx.fillRect(0, 0, CONFIG.grid.totalWidth, CONFIG.grid.totalHeight);
+    if (!baked) {
+      ctx.fillStyle = palette.ground;
+      ctx.fillRect(0, 0, CONFIG.grid.totalWidth, CONFIG.grid.totalHeight);
+    }
 
     // Render checkerboard ground pattern with 4% lightness difference
-    for (let cy = 0; cy < CONFIG.grid.rows; cy++) {
+    for (let cy = 0; !baked && cy < CONFIG.grid.rows; cy++) {
       for (let cx = 0; cx < CONFIG.grid.cols; cx++) {
         if ((cx + cy) % 2 === 1) {
           ctx.fillStyle = 'rgba(255, 255, 255, 0.04)';
@@ -3591,9 +3602,11 @@ export class GameEngine {
     const outline = mixColor(palette.ground, '#000000', 0.6);
     const rim = mixColor(palette.road, '#ffffff', 0.32);
     const fill = mixColor(palette.road, '#ffffff', 0.14);
-    this.strokeRoad(ctx, outline, cellSize * 0.94);
-    this.strokeRoad(ctx, rim, cellSize * 0.8);
-    this.strokeRoad(ctx, fill, cellSize * 0.7);
+    if (!baked) {
+      this.strokeRoad(ctx, outline, cellSize * 0.94);
+      this.strokeRoad(ctx, rim, cellSize * 0.8);
+      this.strokeRoad(ctx, fill, cellSize * 0.7);
+    }
 
     const timeSec = performance.now() / 1000;
     const spacing = cellSize / 2;
@@ -3602,7 +3615,7 @@ export class GameEngine {
     ctx.lineWidth = 2.5;
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
-    for (const st of this.roadSteps) {
+    for (const st of baked ? [] : this.roadSteps) {
       const ax = st.a.x * cellSize;
       const ay = st.a.y * cellSize;
       const dx = st.b.x * cellSize - ax;
@@ -3632,7 +3645,7 @@ export class GameEngine {
     // 4. Grass blades (swaying gently)
     ctx.strokeStyle = 'rgba(255, 255, 255, 0.07)';
     ctx.lineWidth = 1.5;
-    for (const g of this.grassBlades) {
+    for (const g of baked ? [] : this.grassBlades) {
       const sway = Math.sin(timeSec * 2.5 + g.phase) * 3 + g.bendOffset;
       ctx.beginPath();
       ctx.moveTo(g.x, g.y);
@@ -3817,6 +3830,27 @@ export class GameEngine {
       ctx.fillText(ft.text, ft.x, ft.y);
       ctx.globalAlpha = 1;
     }
+  }
+
+  /** Запечённое поле из тайлов для текущей карты; null, пока тайлы грузятся или набора нет */
+  private tiledField(): HTMLCanvasElement | null {
+    const set = TILESETS[this.currentMap.level];
+    if (!set) return null;
+    if (this.fieldBakeMap === this.currentMap && this.fieldBake) return this.fieldBake;
+    const tiles = this.fieldTiles.get(set);
+    if (tiles === undefined) {
+      this.fieldTiles.set(set, null);
+      loadTileset(set).then((t) => {
+        this.fieldTiles.set(set, t);
+        this.fieldBake = null;
+        this.fieldBakeMap = null;
+      });
+      return null;
+    }
+    if (!tiles) return null;
+    this.fieldBake = bakeField(tiles, this.currentMap.paths, CONFIG.grid.castleCells, CONFIG.grid.cols, CONFIG.grid.rows);
+    this.fieldBakeMap = this.currentMap;
+    return this.fieldBake;
   }
 
   private strokeRoad(ctx: CanvasRenderingContext2D, color: string, width: number) {
