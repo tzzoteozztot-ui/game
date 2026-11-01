@@ -1,6 +1,7 @@
 /**
  * «Потасовка»: the eight players' artifact HP, live, in the top right corner of the field.
- * The current opponent is marked ⚔, the ghost (the fallen field that plays the odd one out) 👻.
+ * The current opponent (whom the next wave comes from) is marked ⚔, the ghost (the fallen field that plays the odd one out) 👻;
+ * in a network game the other players are light blue, the bots white.
  * Only the header takes taps (it folds the list); the cells under it stay playable.
  * Same cell unit as FieldHud: one cell is 100cqw / CONFIG.grid.cols.
  */
@@ -29,6 +30,11 @@ export function BrawlBoard({ snap }: { snap: BrawlSnapshot }) {
           <span>Игроки {snap.alive}/{snap.seats.length}</span>
           <span className="text-stone-400">{open ? '▴' : '▾'}</span>
         </button>
+        {open && snap.opponentId && (
+          <div className="px-[0.5em] pb-[0.3em] text-[0.9em] text-red-300 truncate" title="Его враги придут к вам со следующей волной, ваши посылки уйдут ему">
+            ⚔ след. соперник: <b>{snap.seats.find((s) => s.id === snap.opponentId)?.name}</b>
+          </div>
+        )}
         {open && (
           <ul className="flex flex-col gap-[0.25em] px-[0.5em] pb-[0.4em]">
             {snap.seats.map((s) => {
@@ -38,7 +44,7 @@ export function BrawlBoard({ snap }: { snap: BrawlSnapshot }) {
               return (
                 <li
                   key={s.id}
-                  className={`flex flex-col gap-[0.15em] ${s.out ? 'opacity-45' : ''} ${isOpp ? 'text-red-300' : s.kind === 'you' ? 'text-amber-200' : ''}`}
+                  className={`flex flex-col gap-[0.15em] ${s.out ? 'opacity-45' : ''} ${isOpp ? 'text-red-300' : s.kind === 'you' ? 'text-amber-200' : s.kind === 'net' ? 'text-sky-200' : ''}`}
                   title={`${s.name} — ${CONFIG.races[s.race].name}`}
                 >
                   <div className="flex items-center gap-[0.3em]">

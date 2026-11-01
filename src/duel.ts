@@ -16,7 +16,7 @@ export type DuelMessage =
   | { t: 'hello'; army: number } // guest → host: I am in the room, with this army (faction id)
   | { t: 'start'; level: number; army: number; inMs: number } // host → guest: the map, the host's army, start in inMs
   | { t: 'state'; lives: number; wave: number; income: number } // both, every few seconds; also a sign of life
-  | { t: 'send'; enemies: Partial<Record<SendType, number>>; army?: number } // enemies bought for the opponent, at a round start; army: whose (brawl)
+  | { t: 'send'; enemies: Partial<Record<SendType, number>>; army?: number; wave?: number } // enemies bought for the opponent, at a round start; army: whose (brawl); wave: the wave they leave with
   | { t: 'lost'; wave: number } // my castle fell
   | { t: 'leave' } // I left the duel
   | { t: 'full' }; // host → a third player: the room already has a duel
@@ -46,11 +46,6 @@ function isLocalDuel(): boolean {
 /** Four digits, the room's name */
 export function newRoomCode(): string {
   return String(Math.floor(1000 + Math.random() * 9000));
-}
-
-/** Opens the room's channel; rejects with a Russian text when there is no connection */
-export async function openDuel(code: string, role: DuelRole): Promise<DuelLink> {
-  return isLocalDuel() ? openLocal(code, role) : openRealtime(code, role);
 }
 
 /**
@@ -87,11 +82,26 @@ function pairedLink(
   };
 }
 
-async function openRealtime(code: string, role: DuelRole): Promise<DuelLink> {
+/** A broadcast channel: everyone on it hears everyone (Supabase Realtime, or BroadcastChannel with ?duel=local) */
+interface Channel {
+  post(env: unknown): void;
+  listen(cb: (env: unknown) => void): void;
+  close(): void;
+}
+
+async function openChannel(topic: string): Promise<Channel> {
+  if (isLocalDuel()) {
+    const bc = new BroadcastChannel(`dark_frontier_${topic}`);
+    return {
+      post: (env) => bc.postMessage(env),
+      listen: (cb) => (bc.onmessage = (e) => cb(e.data)),
+      close: () => bc.close(),
+    };
+  }
   const supabase = await client();
-  let handler: (env: Envelope) => void = () => {};
-  const channel: RealtimeChannel = supabase.channel(`duel-${code}`, { config: { broadcast: { self: false } } });
-  channel.on('broadcast', { event: EVENT }, ({ payload }) => handler(payload as Envelope));
+  let handler: (env: unknown) => void = () => {};
+  const channel: RealtimeChannel = supabase.channel(topic, { config: { broadcast: { self: false } } });
+  channel.on('broadcast', { event: EVENT }, ({ payload }) => handler(payload));
   await new Promise<void>((resolve, reject) => {
     const timer = setTimeout(() => reject(new Error('Нет связи с сервером. Проверьте интернет.')), 10000);
     channel.subscribe((status) => {
@@ -104,22 +114,48 @@ async function openRealtime(code: string, role: DuelRole): Promise<DuelLink> {
       }
     });
   });
-  return pairedLink(
-    role,
-    code,
-    (env) => void channel.send({ type: 'broadcast', event: EVENT, payload: env }),
-    (cb) => (handler = cb),
-    () => void supabase.removeChannel(channel)
-  );
+  return {
+    post: (env) => void channel.send({ type: 'broadcast', event: EVENT, payload: env }),
+    listen: (cb) => (handler = cb),
+    close: () => void supabase.removeChannel(channel),
+  };
 }
 
-function openLocal(code: string, role: DuelRole): DuelLink {
-  const bc = new BroadcastChannel(`dark_frontier_duel_${code}`);
-  return pairedLink(
-    role,
+/** Opens the room's channel; rejects with a Russian text when there is no connection */
+export async function openDuel(code: string, role: DuelRole): Promise<DuelLink> {
+  const ch = await openChannel(`duel-${code}`);
+  return pairedLink(role, code, (env) => ch.post(env), (cb) => ch.listen((env) => cb(env as Envelope)), () => ch.close());
+}
+
+/**
+ * A room of many (the brawl, src/brawl.ts): every message carries its sender's random id and, when it
+ * is meant for one player, the addressee's. No pairing: the room's host keeps the list of players.
+ */
+export interface RoomLink<M extends { t: string }> {
+  me: string;
+  code: string;
+  send(msg: M, to?: string): void;
+  onMessage(cb: (msg: M, from: string) => void): void;
+  close(): void;
+}
+
+export async function openRoom<M extends { t: string }>(code: string): Promise<RoomLink<M>> {
+  const ch = await openChannel(`brawl-${code}`);
+  const me = Math.random().toString(36).slice(2, 10);
+  let handler: (msg: M, from: string) => void = () => {};
+  ch.listen((raw) => {
+    const env = raw as (M & { from?: unknown; to?: unknown }) | null;
+    if (!env || typeof env !== 'object' || typeof env.from !== 'string' || env.from === me) return;
+    if (env.to !== undefined && env.to !== me) return;
+    if (typeof env.t !== 'string') return;
+    const { from, to: _to, ...msg } = env;
+    handler(msg as unknown as M, from as string);
+  });
+  return {
+    me,
     code,
-    (env) => bc.postMessage(env),
-    (cb) => (bc.onmessage = (e) => cb(e.data as Envelope)),
-    () => bc.close()
-  );
+    send: (msg, to) => ch.post({ ...msg, from: me, ...(to !== undefined ? { to } : {}) }),
+    onMessage: (cb) => (handler = cb),
+    close: () => ch.close(),
+  };
 }
