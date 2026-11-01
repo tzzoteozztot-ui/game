@@ -221,6 +221,7 @@ const MAX_CORPSES = 30;
 // Status marks on enemies: slowed (frost, «Оберег», the default priest) and cursed («Проклятие»)
 const SLOW_COLOR = '#8fd4ff';
 const CURSE_COLOR = '#b07cff';
+const LICH_COLOR = '#a98be0'; // Лич: его воскрешение — фиолетовое, собственное «Возрождение» нежити — зелёно-серое
 
 export interface Projectile {
   id: string;
@@ -1690,7 +1691,8 @@ export class GameEngine {
         .sort((a, b) => Math.hypot(a.x - boss.x, a.y - boss.y) - Math.hypot(b.x - boss.x, b.y - boss.y)); // nearest to the Lich first
       if (eligible.length > 0) {
         sound.playBossSpawn();
-        this.addFloatingText('ВОСКРЕШЕНИЕ ЛИЧА!', boss.x, boss.y - 18, '#c9d6b0');
+        this.addFloatingText('ВОСКРЕШЕНИЕ ЛИЧА!', boss.x, boss.y - 18, LICH_COLOR);
+        this.spawnRing(boss.x, boss.y, LICH_COLOR, 3.0 * CONFIG.grid.cellSize); // the Lich's reach: its own, violet, wider than a plain revive
         const toRevive = eligible.slice(0, 3);
         // a body rises once: the risen leave the graveyard
         this.deadEnemiesGraveyard = this.deadEnemiesGraveyard.filter((g) => !toRevive.includes(g));
@@ -1705,7 +1707,7 @@ export class GameEngine {
           newSpawn.risen = true;
           newSpawn.hasRevived = true;
           newSpawn.gold = 0;
-          this.spawnRing(g.x, g.y, '#c9d6b0');
+          this.spawnRing(g.x, g.y, LICH_COLOR);
         }
       }
     }
