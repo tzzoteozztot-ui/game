@@ -3965,7 +3965,8 @@ export class GameEngine {
     if (tiles === undefined) {
       this.fieldTiles.set(set, null);
       loadTileset(set).then((t) => {
-        this.fieldTiles.set(set, t);
+        if (t) this.fieldTiles.set(set, t);
+        else this.fieldTiles.delete(set); // следующий запуск карты попробует загрузить снова
         this.fieldBake = null;
         this.fieldBakeMap = null;
       });
