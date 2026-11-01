@@ -261,7 +261,7 @@ export interface GameStateSnapshot {
   speed: number;
   selectedTower: Tower | null;
   eligibleMergeCount: number;
-  mergeUsesBinder: boolean; // two towers and a binder stand in for the third: a plain one for Ур.1, a triple one for Ур.2
+  mergeUsesBinder: boolean; // two towers and a binder stand in for the third: a plain one, for Ур.1
   selectedBinder: boolean;
   binderCount: number; // plain binders on the field
   selectedBinderTriple: boolean;
@@ -2518,11 +2518,11 @@ export class GameEngine {
     );
   }
 
-  // The binder that can take the place of the third tower: a plain one for two equal Ур.1 towers,
-  // a triple one for two equal Ур.2 towers (the nearest of its kind)
+  // The plain binder that can take the place of the third tower of two equal Ур.1 towers (the nearest one).
+  // Ур.2 has no stand-in: a triple binder raises one tower by itself («Усилить» / «Уровень!»), which is strictly cheaper
   public mergeStandIn(selected: Tower): Binder | null {
-    if (selected.second || selected.level >= 3) return null;
-    const candidates = this.binders.filter((b) => (selected.level === 1 ? !b.triple : !!b.triple));
+    if (selected.second || selected.level !== 1) return null;
+    const candidates = this.binders.filter((b) => !b.triple);
     return this.nearest(candidates, selected)[0] ?? null;
   }
 

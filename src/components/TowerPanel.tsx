@@ -408,7 +408,7 @@ export function TowerPanel({
               ? 'bg-amber-500 hover:bg-amber-400 text-stone-950 border border-amber-300 shadow-md shadow-amber-950/40 animate-pulse cursor-pointer'
               : 'bg-black/30 text-stone-500 border border-white/10 cursor-not-allowed'
           }`}
-          title="Слить 3 башни в одну (M); связка заменяет третью: обычная для Ур.1, тройная для Ур.2"
+          title="Слить 3 башни в одну (M); обычная связка заменяет третью башню Ур.1"
         >
           <span className="text-[length:var(--fs-btn4)]">Слить</span>
           <span className="text-[length:var(--fs-xs)] tabular-nums mt-0.5">
