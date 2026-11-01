@@ -142,7 +142,7 @@ export const BOONS: BoonDef[] = [
   { id: 'loot', name: 'Мародёр', desc: '+15 % золота за убийство', value: 0.15, bot: { power: 0.05 } },
   { id: 'tithe', name: 'Подать', desc: '+20 золота в начале каждого раунда', value: 20, bot: { power: 0.05 } },
   { id: 'walls', name: 'Крепкие стены', desc: '+40 к прочности артефакта (и к её пределу)', value: 40, bot: { lives: 40 } },
-  { id: 'mend', name: 'Каменщики', desc: 'Артефакт чинится на 3 в начале каждого раунда', value: 3, bot: { mend: 3 } },
+  { id: 'mend', name: 'Каменщики', desc: 'Артефакт чинится на 5 раз в 3 раунда', value: 5, bot: { mend: 5 } }, // слабее и реже — выбор Артура 2026-11-01
   { id: 'ward', name: 'Страж', desc: 'Защита артефакта бьёт вдвое сильнее', value: 1, bot: { power: 0.03 } },
   { id: 'trade', name: 'Торговый пост', desc: 'Башни и связки в лавке на 10 % дешевле', value: 0.1, bot: { power: 0.05 } },
   { id: 'scout', name: 'Разведка', desc: 'Первое обновление лавки в каждом раунде бесплатно', value: 1, bot: { power: 0.03 } },
@@ -783,6 +783,7 @@ export const CONFIG = {
     // Усиления артефакта (просьба Артура 2026-11-01): после каждой 3-й волны — одно на выбор из трёх, каждое один раз;
     // числа — черновик, ждут выбора Артура
     boonEvery: 3,
+    mendEvery: 3, // «Каменщики» чинят раз в столько раундов
     boonOffer: 3,
     boons: BOONS,
     botBoonScale: 1, // bots' boons ×this (power, sends, HP); 1 — as the player's

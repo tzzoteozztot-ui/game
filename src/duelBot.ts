@@ -91,7 +91,7 @@ export class BotField {
     const k = CONFIG.brawl.botBoonScale;
     const max = CONFIG.lives.start + Math.round(k * b.reduce((n, d) => n + (d.bot.lives ?? 0), 0));
     const mend = Math.round(k * b.reduce((n, d) => n + (d.bot.mend ?? 0), 0));
-    if (mend > 0 && this.lives > 0) this.lives = Math.min(max, this.lives + mend);
+    if (mend > 0 && this.lives > 0 && round % CONFIG.brawl.mendEvery === 0) this.lives = Math.min(max, this.lives + mend);
     if (round % CONFIG.brawl.boonEvery !== 0) return;
     const pool = BOONS.filter((d) => !this.boons.includes(d.id));
     if (pool.length === 0) return;
