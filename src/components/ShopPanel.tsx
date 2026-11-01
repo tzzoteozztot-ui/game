@@ -5,7 +5,7 @@
  */
 
 import React from 'react';
-import { CONFIG, TowerType } from '../game/config';
+import { CONFIG, DAMAGE_TYPES, TowerType } from '../game/config';
 import { TowerSpriteIcon, GoldIcon, BinderIcon } from './Icons';
 
 export interface ShopCard {
@@ -149,7 +149,7 @@ export function ShopPanel({
               key={card.id}
               type="button"
               onClick={() => onSelectCard(idx)}
-              title={`${baseDef.name}${card.isTriplet ? ' ★ (сразу Ур.2)' : ''} — ${cost} золота (${idx + 1})${baseDef.desc ? '. ' + baseDef.desc : ''}`}
+              title={`${baseDef.name}${card.isTriplet ? ' ★ (сразу Ур.2)' : ''} — ${cost} золота (${idx + 1}), урон: ${DAMAGE_TYPES[baseDef.damageType].name.toLowerCase()}${baseDef.desc ? '. ' + baseDef.desc : ''}`}
               className={`h-[var(--h-card)] rounded border flex flex-col items-center justify-center relative transition-all cursor-pointer select-none shrink-0 ${
                 isSelected
                   ? 'border-amber-400 bg-amber-950/40 ring-1 ring-amber-400 shadow-sm'
@@ -167,6 +167,14 @@ export function ShopPanel({
                   ★
                 </span>
               )}
+
+              {/* Damage type */}
+              <span
+                className="absolute top-0.5 left-1 text-[length:var(--fs-xs)] leading-none opacity-90"
+                title={`Урон: ${DAMAGE_TYPES[baseDef.damageType].name}`}
+              >
+                {DAMAGE_TYPES[baseDef.damageType].icon}
+              </span>
 
               {/* Tower Shape & Color Icon */}
               <div className="w-full h-[calc(var(--h-card)-var(--fs-md)-10px)] flex items-center justify-center shrink-0">

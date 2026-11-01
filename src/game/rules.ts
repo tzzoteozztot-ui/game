@@ -2,7 +2,7 @@
  * Core Game Rules & Formulas for «Тёмный рубеж»
  */
 
-import { CONFIG, TowerType, Difficulty, EnemyType, WaveDef } from './config';
+import { CONFIG, TowerType, Difficulty, EnemyType, WaveDef, DamageType } from './config';
 
 export function calculateStartingGold(level: number, difficulty: Difficulty): number {
   const diffMult = CONFIG.difficulty[difficulty].goldMult;
@@ -152,14 +152,22 @@ export function calculateStars(remainingHp: number, maxHp: number = CONFIG.lives
   return 1;
 }
 
+/** Faction resistance (×0.5) or weakness (×1.25) to a damage type; 1 when neither */
+export function calculateFactionDamageMult(type: DamageType, factionId: number): number {
+  const f = CONFIG.factions[factionId - 1];
+  if (!f) return 1;
+  if (f.resist.includes(type)) return CONFIG.damage.resistMult;
+  if (f.weak.includes(type)) return CONFIG.damage.weakMult;
+  return 1;
+}
+
 export interface DamageCalculationParams {
   rawDamage: number;
-  damageType: 'phys' | 'mag';
+  damageType: DamageType;
   targetArmor: number;
   targetMagicResist: number;
   isCursed?: boolean;
   curseBonus?: number; // extra damage while cursed, default 0.25
-  isFireSpec?: boolean;
   factionId: number; // 1: Orcs, 2: Undead, 3: Ice Cultists, 4: Demons, 5: Dark Elves
   isTargetHeavyOrBoss?: boolean;
   isHunterSpec?: boolean;
@@ -213,12 +221,10 @@ export function calculateDamage(params: DamageCalculationParams): DamageCalculat
     }
   }
 
-  // Demons (faction 4): Fire specialization damage (shot & burn) x0.5
-  if (params.isFireSpec && params.factionId === 4) {
-    baseDmg *= 0.5;
-  }
+  // Faction resistance / weakness to this damage type (Demons: fire ×0.5, …)
+  baseDmg *= calculateFactionDamageMult(params.damageType, params.factionId);
 
-  // Armor and Magic Resist reduction
+  // Armor cuts physical damage, magic resist cuts the four elements
   let finalDmg = 0;
   if (params.damageType === 'phys') {
     finalDmg = baseDmg * (1 - Math.min(0.9, params.targetArmor));

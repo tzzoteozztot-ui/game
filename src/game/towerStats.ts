@@ -8,7 +8,7 @@
  * With n = 1 every number matches the single-specialization rules.
  */
 
-import { CONFIG, TowerType } from './config';
+import { CONFIG, DamageType, TowerType } from './config';
 
 export function specPower(specs: readonly string[], id: string): number {
   let n = 0;
@@ -20,6 +20,20 @@ export function specPower(specs: readonly string[], id: string): number {
 export function specsOfType(type: TowerType, specs: readonly string[]): string[] {
   const own = new Set(CONFIG.towers[type].specs.map((s) => s.id));
   return specs.filter((s) => own.has(s));
+}
+
+/**
+ * Damage type of a tower's shot. The Mage takes it from its specializations: «Молния» — lightning
+ * (the chain), «Огонь» — fire, «Мороз» — ice (more copies win, a tie goes to the first); without any — lightning.
+ */
+export function towerDamageType(type: TowerType, specs: readonly string[]): DamageType {
+  if (type !== 'mage') return CONFIG.towers[type].damageType;
+  const own = specsOfType('mage', specs);
+  if (own.includes('lightning')) return 'lightning';
+  const fire = specPower(own, 'fire');
+  const frost = specPower(own, 'frost');
+  if (fire === frost) return fire === 0 ? 'lightning' : own.find((s) => s === 'fire' || s === 'frost') === 'fire' ? 'fire' : 'ice';
+  return fire > frost ? 'fire' : 'ice';
 }
 
 export interface AttackStats {

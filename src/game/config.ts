@@ -45,7 +45,7 @@ export interface TowerBaseDef {
   sound?: HumanTowerType; // which shot sound it uses
   cost: number;
   damage: number;
-  damageType: 'phys' | 'mag';
+  damageType: DamageType;
   cooldown: number; // in seconds
   range: number; // in grid cells (64px each)
   shape: 'triangle' | 'circle' | 'rhombus' | 'square';
@@ -89,7 +89,26 @@ export interface FactionDef {
   traitDesc: string;
   bossName: string;
   bossDesc: string;
+  resist: DamageType[]; // damage of these types ×CONFIG.damage.resistMult
+  weak: DamageType[]; // damage of these types ×CONFIG.damage.weakMult
 }
+
+// Пять типов урона (просьба Артура 2026-11-01, вариант А): броня режет физический, сопротивление магии —
+// все четыре стихии; поверх — стойкость и уязвимость фракции (`FactionDef.resist`, `weak`)
+export type DamageType = 'phys' | 'fire' | 'ice' | 'lightning' | 'poison';
+/** «Стойкость: ☠ яд · Уязвимость: ❄ лёд» — a faction's stance to damage types, for the menus */
+export function stanceText(f: { resist: DamageType[]; weak: DamageType[] }): string {
+  const list = (ts: DamageType[]) => ts.map((t) => `${DAMAGE_TYPES[t].icon} ${DAMAGE_TYPES[t].short}`).join(', ');
+  return `Стойкость: ${list(f.resist)} (−50%) · Уязвимость: ${list(f.weak)} (+25%)`;
+}
+
+export const DAMAGE_TYPES: Record<DamageType, { name: string; short: string; icon: string; color: string }> = {
+  phys: { name: 'Физический', short: 'физ.', icon: '⚔', color: '#d9b44a' },
+  fire: { name: 'Огонь', short: 'огонь', icon: '🔥', color: '#ff6a2f' },
+  ice: { name: 'Лёд', short: 'лёд', icon: '❄', color: '#7fc8f0' },
+  lightning: { name: 'Молния', short: 'молния', icon: '⚡', color: '#ffe066' },
+  poison: { name: 'Яд', short: 'яд', icon: '☠', color: '#8fd45a' },
+};
 
 // Орки: закалка при постановке и на каждом новом уровне (выбор Артура 2026-11-01)
 const ORC_SPECS: TowerSpecDef[] = [
@@ -221,6 +240,9 @@ export const CONFIG = {
   // Hard difficulty: fewer enemies in the first waves (Артур, тест баланса: стена на волнах 1–3)
   hardEarlyWaves: { upTo: 3, countMult: 0.8 },
 
+  // Стойкость и уязвимость фракций к типам урона (вариант А, выбор Артура 2026-11-01)
+  damage: { resistMult: 0.5, weakMult: 1.25 },
+
   towers: {
     archer: {
       type: 'archer',
@@ -243,7 +265,7 @@ export const CONFIG = {
       name: 'Жрец',
       cost: 60,
       damage: 3,
-      damageType: 'mag',
+      damageType: 'lightning',
       cooldown: 1.0,
       range: 2.5,
       shape: 'circle',
@@ -259,7 +281,7 @@ export const CONFIG = {
       name: 'Маг',
       cost: 75,
       damage: 14,
-      damageType: 'mag',
+      damageType: 'lightning',
       cooldown: 1.4,
       range: 2.6,
       shape: 'rhombus',
@@ -294,7 +316,7 @@ export const CONFIG = {
       desc: 'Копьё пробивает цель и бьёт ещё одного врага за ней (в 1 клетке).',
     } as TowerBaseDef,
     orc_totem: {
-      type: 'orc_totem', race: 'orcs', name: 'Тотем предков', cost: 60, damage: 3, damageType: 'mag', cooldown: 1.0, range: 2.5,
+      type: 'orc_totem', race: 'orcs', name: 'Тотем предков', cost: 60, damage: 3, damageType: 'lightning', cooldown: 1.0, range: 2.5,
       shape: 'circle', color: '#e0c26a', sprite: 'enemy_shaman_1', sound: 'priest', specs: ORC_SPECS,
       desc: 'Ярость: орочьи башни в соседних клетках стреляют на 10 % быстрее (Ур.2 — 15 %, Ур.3 — 20 %).',
     } as TowerBaseDef,
@@ -316,17 +338,17 @@ export const CONFIG = {
       desc: 'Дешёвый дальний стрелок.',
     } as TowerBaseDef,
     und_digger: {
-      type: 'und_digger', race: 'undead', name: 'Могильщик', cost: 55, damage: 5, damageType: 'mag', cooldown: 1.0, range: 2.5,
+      type: 'und_digger', race: 'undead', name: 'Могильщик', cost: 55, damage: 5, damageType: 'ice', cooldown: 1.0, range: 2.5,
       shape: 'circle', color: '#9fb88a', sprite: 'enemy_infantry_2', sound: 'priest', specs: UNDEAD_SPECS,
       desc: 'Замедляет цель на 30 % на 3 с. Враг, убитый в его радиусе, становится призраком: соседи замедлены на 20 % на 1 с.',
     } as TowerBaseDef,
     und_cauldron: {
-      type: 'und_cauldron', race: 'undead', name: 'Чумной котёл', cost: 70, damage: 6, damageType: 'mag', cooldown: 1.4, range: 2.6, aoe: 0.9,
+      type: 'und_cauldron', race: 'undead', name: 'Чумной котёл', cost: 70, damage: 6, damageType: 'poison', cooldown: 1.4, range: 2.6, aoe: 0.9,
       shape: 'rhombus', color: '#8fd45a', sprite: 'enemy_shaman_2', sound: 'mage', specs: UNDEAD_SPECS,
       desc: 'Яд по области: 25 % урона в секунду 4 с; при гибели отравленного яд переходит на соседа.',
     } as TowerBaseDef,
     und_crypt: {
-      type: 'und_crypt', race: 'undead', name: 'Склеп', cost: 90, damage: 6, damageType: 'mag', cooldown: 8, range: 2.0, minTier: 2,
+      type: 'und_crypt', race: 'undead', name: 'Склеп', cost: 90, damage: 6, damageType: 'poison', cooldown: 8, range: 2.0, minTier: 2,
       shape: 'square', color: '#7a8a6a', sprite: 'enemy_heavy_2', sound: 'mage', special: 'crypt', specs: UNDEAD_SPECS,
       desc: 'Копит души убитых в радиусе (до 10); раз в 8 с залп по всем в радиусе: 6 урона за каждую душу. В лавке со 2-го яруса.',
     } as TowerBaseDef,
@@ -338,42 +360,42 @@ export const CONFIG = {
       desc: 'Каждое попадание добавляет 8 % замедления (до 40 %) на 2 с.',
     } as TowerBaseDef,
     cul_altar: {
-      type: 'cul_altar', race: 'cultists', name: 'Алтарь инея', cost: 80, damage: 0, damageType: 'mag', cooldown: 5, range: 1.6,
+      type: 'cul_altar', race: 'cultists', name: 'Алтарь инея', cost: 80, damage: 0, damageType: 'ice', cooldown: 5, range: 1.6,
       shape: 'circle', color: '#d6f0ff', sprite: 'enemy_shaman_3', sound: 'priest', special: 'altar', specs: [],
       desc: 'Раз в 5 с замораживает всех врагов в радиусе на 1,5 с (босса — на 0,5 с).',
     } as TowerBaseDef,
     cul_pillar: {
-      type: 'cul_pillar', race: 'cultists', name: 'Ритуальный столп', cost: 40, damage: 8, damageType: 'mag', cooldown: 1.0, range: 2.2,
+      type: 'cul_pillar', race: 'cultists', name: 'Ритуальный столп', cost: 40, damage: 8, damageType: 'ice', cooldown: 1.0, range: 2.2,
       shape: 'rhombus', color: '#7fc8f0', sprite: 'enemy_infantry_3', sound: 'mage', specs: [],
       desc: 'Дешёвый модуль мегабашни; один слаб.',
     } as TowerBaseDef,
     cul_spike: {
-      type: 'cul_spike', race: 'cultists', name: 'Ледяной шип', cost: 100, damage: 65, damageType: 'phys', cooldown: 2.2, range: 3.6,
+      type: 'cul_spike', race: 'cultists', name: 'Ледяной шип', cost: 100, damage: 65, damageType: 'ice', cooldown: 2.2, range: 3.6,
       shape: 'square', color: '#5d9fd0', sprite: 'enemy_heavy_3', sound: 'ballista', specs: [],
       desc: 'Тяжёлый выстрел; по замедленным и замороженным ×1,3.',
     } as TowerBaseDef,
 
     // ---------------- Демоны: активные способности, больше золота ----------------
     dem_ember: {
-      type: 'dem_ember', race: 'demons', name: 'Метатель углей', cost: 55, damage: 9, damageType: 'mag', cooldown: 0.8, range: 2.8,
+      type: 'dem_ember', race: 'demons', name: 'Метатель углей', cost: 55, damage: 9, damageType: 'fire', cooldown: 0.8, range: 2.8,
       shape: 'triangle', color: '#ff7a3a', sprite: 'enemy_scout_4', sound: 'archer', specs: [],
       desc: 'Поджигает: 25 % урона в секунду 3 с.',
       ability: { name: 'Огненный шторм', desc: 'Стреляет вдвое чаще, поджог ×1,5', duration: 5, cooldown: 30, cost: 4 },
     } as TowerBaseDef,
     dem_warper: {
-      type: 'dem_warper', race: 'demons', name: 'Искажатель', cost: 70, damage: 2, damageType: 'mag', cooldown: 1.0, range: 2.5,
+      type: 'dem_warper', race: 'demons', name: 'Искажатель', cost: 70, damage: 2, damageType: 'lightning', cooldown: 1.0, range: 2.5,
       shape: 'circle', color: '#e05a8a', sprite: 'enemy_shaman_4', sound: 'priest', specs: [],
       desc: 'Цель и враги в 1 клетке от неё получают +30 % урона от всех башен 4 с.',
       ability: { name: 'Разлом', desc: 'Враги в 2 клетках от башни получают +60 % урона', duration: 4, cooldown: 35, cost: 5 },
     } as TowerBaseDef,
     dem_rift: {
-      type: 'dem_rift', race: 'demons', name: 'Огненная трещина', cost: 85, damage: 12, damageType: 'mag', cooldown: 1.6, range: 2.6,
+      type: 'dem_rift', race: 'demons', name: 'Огненная трещина', cost: 85, damage: 12, damageType: 'fire', cooldown: 1.6, range: 2.6,
       shape: 'rhombus', color: '#ff4a2f', sprite: 'enemy_infantry_4', sound: 'mage', specs: [],
       desc: 'Оставляет горящее пятно на 4 с: 40 % урона в секунду всем в нём.',
       ability: { name: 'Извержение', desc: 'Пятна втрое шире и бьют вдвое сильнее', duration: 5, cooldown: 40, cost: 6 },
     } as TowerBaseDef,
     dem_gate: {
-      type: 'dem_gate', race: 'demons', name: 'Врата бездны', cost: 120, damage: 20, damageType: 'mag', cooldown: 6, range: 2.5,
+      type: 'dem_gate', race: 'demons', name: 'Врата бездны', cost: 120, damage: 20, damageType: 'phys', cooldown: 6, range: 2.5,
       shape: 'square', color: '#b0302a', sprite: 'enemy_heavy_4', sound: 'ballista', special: 'gate', specs: [],
       desc: 'Раз в 6 с зовёт беса на 5 с (20 урона в секунду). «Жертва»: башня рядом сгорает ради залпа ×4 её цены.',
       ability: { name: 'Зов', desc: 'Сразу призывает двух бесов', duration: 5, cooldown: 20, cost: 8 },
@@ -386,12 +408,12 @@ export const CONFIG = {
       desc: 'Быстрый дальний стрелок.',
     } as TowerBaseDef,
     elf_weaver: {
-      type: 'elf_weaver', race: 'elves', name: 'Ткачиха теней', cost: 65, damage: 3, damageType: 'mag', cooldown: 1.0, range: 2.5,
+      type: 'elf_weaver', race: 'elves', name: 'Ткачиха теней', cost: 65, damage: 3, damageType: 'poison', cooldown: 1.0, range: 2.5,
       shape: 'circle', color: '#9a7ae0', sprite: 'enemy_shaman_5', sound: 'priest', specs: [],
       desc: 'Паутина на цель и врагов в 1 клетке: замедление 25 % и −30 % урона по артефакту, 3 с.',
     } as TowerBaseDef,
     elf_sphere: {
-      type: 'elf_sphere', race: 'elves', name: 'Сумеречная сфера', cost: 80, damage: 12, damageType: 'mag', cooldown: 1.5, range: 2.6, aoe: 0.9,
+      type: 'elf_sphere', race: 'elves', name: 'Сумеречная сфера', cost: 80, damage: 12, damageType: 'lightning', cooldown: 1.5, range: 2.6, aoe: 0.9,
       shape: 'rhombus', color: '#6a5ad8', sprite: 'enemy_heavy_5', sound: 'mage', specs: [],
       desc: 'Сфера взрывается через 0,5 с после падения, по области 0,9 клетки.',
     } as TowerBaseDef,
@@ -543,6 +565,8 @@ export const CONFIG = {
       traitDesc: 'При здоровье ниже 50% скорость врагов увеличивается на 30%.',
       bossName: 'Вождь Ургаш',
       bossDesc: 'Раз в 10 с издаёт боевой клич: враги в радиусе 2,5 кл. бегут на 40% быстрее 3 с.',
+      resist: ['poison'],
+      weak: ['ice'],
     },
     {
       id: 2,
@@ -552,6 +576,8 @@ export const CONFIG = {
       traitDesc: 'Пехотинец и разведчик один раз встают через 1 с с 30% здоровья.',
       bossName: 'Лич Ксаар',
       bossDesc: 'Раз в 12 с воскрешает до 3 павших врагов за последние 10 с в радиусе 3 кл. с 30% HP.',
+      resist: ['poison', 'ice'],
+      weak: ['fire'],
     },
     {
       id: 3,
@@ -561,24 +587,30 @@ export const CONFIG = {
       traitDesc: 'Все замедления слабее вдвое.',
       bossName: 'Ледяной жрец Хельдрим',
       bossDesc: 'Раз в 12 с замораживает ближайшую башню на 4 с.',
+      resist: ['ice'],
+      weak: ['fire'],
     },
     {
       id: 4,
       name: 'Демоны',
       location: 'Выжженные земли',
       traitName: 'Пепельная кожа',
-      traitDesc: 'Урон специализации «Огонь» (удар и поджог) снижен на 50%.',
+      traitDesc: 'Стойкость к огню: любой урон огнём (удар, поджог, горящие пятна) снижен на 50%.',
       bossName: 'Владыка бездны Мал’кеш',
       bossDesc: 'Раз в 10 с призывает 3 бесов: скорость 1,6, здоровье — треть пехотинца той же волны.',
+      resist: ['fire'],
+      weak: ['ice'],
     },
     {
       id: 5,
       name: 'Тёмные эльфы',
       location: 'Цитадель сумерек',
       traitName: 'Уклонение',
-      traitDesc: '25% физических попаданий (стрелок, баллиста) летят мимо.',
+      traitDesc: '25% физических попаданий летят мимо.',
       bossName: 'Королева теней Сайрит',
       bossDesc: 'Раз в 15 с становится неуязвима на 3 с и совершает рывок на 3 клетки вперёд.',
+      resist: ['poison'],
+      weak: ['lightning'],
     },
     {
       id: 6,
@@ -588,6 +620,8 @@ export const CONFIG = {
       traitDesc: 'Враг, которого 3 с никто не ранил, восстанавливает 2% здоровья в секунду.',
       bossName: 'Командор экспедиции',
       bossDesc: 'Раз в 12 с открывает врата: до 5 врагов в радиусе 3 кл. и он сам переносятся на 2 клетки вперёд.',
+      resist: ['lightning'],
+      weak: ['poison'],
     },
   ] as FactionDef[],
 
