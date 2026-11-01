@@ -45,6 +45,11 @@ function loadImage(url: string): Promise<HTMLImageElement | null> {
   });
 }
 
+/** Начинает загрузку наборов тайлов всех карт сразу при запуске игры, до начала партии */
+export function preloadTilesets() {
+  for (const name of new Set(Object.values(TILESETS))) void loadTileset(name);
+}
+
 export function loadTileset(name: string): Promise<Tileset | null> {
   let p = sets.get(name);
   if (!p) {
@@ -53,7 +58,7 @@ export function loadTileset(name: string): Promise<Tileset | null> {
       NAMES.map(
         (n) =>
           new Promise<[TileName, HTMLImageElement] | null>((resolve) => {
-            loadImage(new URL(`${n}.png`, base).href).then((img) => resolve(img ? [n, img] : null));
+            loadImage(new URL(`${n}.jpg`, base).href).then((img) => resolve(img ? [n, img] : null));
           })
       )
     ).then(async (r) => {
