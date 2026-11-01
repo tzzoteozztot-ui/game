@@ -81,7 +81,15 @@ export function MainMenu(props: MainMenuProps) {
   const { page, onChangePage } = props;
   const home = () => onChangePage('home');
   return (
-    <div className="fixed inset-0 z-30 bg-[#121118] text-[#f4f2e6] flex flex-col items-center p-2 sm:p-3 overflow-y-auto select-none">
+    <div
+      className="fixed inset-0 z-30 bg-[#121118] text-[#f4f2e6] flex flex-col items-center p-2 sm:p-3 overflow-y-auto select-none"
+      // Фон меню — арт GPT (дороги всех рас к артефакту, 2026-11-01), притемнён, чтобы кнопки и текст читались
+      style={{
+        backgroundImage: "linear-gradient(rgba(18, 17, 24, 0.6), rgba(18, 17, 24, 0.8)), url('art/menu-bg.jpg')",
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+      }}
+    >
       {/* my-auto centres the page and lets a screen that is still too low scroll to its top */}
       <div className="my-auto w-full flex flex-col items-center">
         {page === 'home' && <HomePage {...props} />}
