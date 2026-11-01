@@ -675,7 +675,6 @@ export const CONFIG = {
     impTime: 5,
     impSpeed: 3, // cells/s
     sacrificeMult: 4, // volley = this × gold put into the sacrificed tower
-    autoReserve: 100, // auto abilities keep this much gold
     critFull: 10, // s to a sure crit
     critMult: 2.5,
     weaverSlow: 0.25,

@@ -2302,7 +2302,7 @@ export class GameEngine {
     return !!CONFIG.towers[tower.type].ability && (tower.abilityCd ?? 0) <= 0 && (tower.abilityLeft ?? 0) <= 0;
   }
 
-  /** Casts the ability of the tower for gold; auto keeps a reserve of gold */
+  /** Casts the ability of the tower for gold */
   public castAbility(towerId: string, auto = false): boolean {
     const tower = this.towers.find((t) => t.id === towerId);
     const ab = tower ? CONFIG.towers[tower.type].ability : undefined;
@@ -2310,7 +2310,7 @@ export class GameEngine {
     const cs = CONFIG.grid.cellSize;
     const tx = (tower.x + 0.5) * cs;
     const ty = (tower.y + 0.5) * cs;
-    if (!this.abilityReady(tower) || this.gold < ab.cost + (auto ? CONFIG.raceMech.autoReserve : 0)) {
+    if (!this.abilityReady(tower) || this.gold < ab.cost) {
       if (!auto) {
         sound.playError();
         this.addFloatingText(this.abilityReady(tower) ? 'Не хватает золота!' : 'Ещё не готово', tx, ty - 20, '#e0452f');
