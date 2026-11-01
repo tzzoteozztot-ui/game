@@ -892,7 +892,8 @@ export class GameEngine {
   private duelRoundStart() {
     const tithe = this.boon('tithe');
     if (tithe > 0) this.gold += tithe;
-    const mend = Math.min(this.boon('mend'), Math.max(0, this.livesMax() - this.lives));
+    const mendRound = this.wavesLaunched % CONFIG.brawl.mendEvery === 0; // wavesLaunched: this round's wave not counted yet
+    const mend = mendRound ? Math.min(this.boon('mend'), Math.max(0, this.livesMax() - this.lives)) : 0;
     if (mend > 0) this.lives += mend;
     if (this.duelIncome > 0) {
       this.gold += this.duelIncome;

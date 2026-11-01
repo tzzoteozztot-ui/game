@@ -142,7 +142,7 @@ export const BOONS: BoonDef[] = [
   { id: 'loot', name: 'Мародёр', desc: '+15 % золота за убийство', value: 0.15, bot: { power: 0.05 } },
   { id: 'tithe', name: 'Подать', desc: '+20 золота в начале каждого раунда', value: 20, bot: { power: 0.05 } },
   { id: 'walls', name: 'Крепкие стены', desc: '+40 к прочности артефакта (и к её пределу)', value: 40, bot: { lives: 40 } },
-  { id: 'mend', name: 'Каменщики', desc: 'Артефакт чинится на 3 в начале каждого раунда', value: 3, bot: { mend: 3 } },
+  { id: 'mend', name: 'Каменщики', desc: 'Артефакт чинится на 5 раз в 3 раунда', value: 5, bot: { mend: 5 } }, // слабее и реже — выбор Артура 2026-11-01
   { id: 'ward', name: 'Страж', desc: 'Защита артефакта бьёт вдвое сильнее', value: 1, bot: { power: 0.03 } },
   { id: 'trade', name: 'Торговый пост', desc: 'Башни и связки в лавке на 10 % дешевле', value: 0.1, bot: { power: 0.05 } },
   { id: 'scout', name: 'Разведка', desc: 'Первое обновление лавки в каждом раунде бесплатно', value: 1, bot: { power: 0.03 } },
@@ -343,25 +343,25 @@ export const CONFIG = {
       type: 'dem_ember', race: 'demons', name: 'Метатель углей', cost: 55, damage: 9, damageType: 'mag', cooldown: 0.8, range: 2.8,
       shape: 'triangle', color: '#ff7a3a', sprite: 'enemy_scout_4', sound: 'archer', specs: [],
       desc: 'Поджигает: 25 % урона в секунду 3 с.',
-      ability: { name: 'Огненный шторм', desc: 'Стреляет вдвое чаще, поджог ×1,5', duration: 5, cooldown: 30, cost: 20 },
+      ability: { name: 'Огненный шторм', desc: 'Стреляет вдвое чаще, поджог ×1,5', duration: 5, cooldown: 30, cost: 4 },
     } as TowerBaseDef,
     dem_warper: {
       type: 'dem_warper', race: 'demons', name: 'Искажатель', cost: 70, damage: 2, damageType: 'mag', cooldown: 1.0, range: 2.5,
       shape: 'circle', color: '#e05a8a', sprite: 'enemy_shaman_4', sound: 'priest', specs: [],
       desc: 'Цель и враги в 1 клетке от неё получают +30 % урона от всех башен 4 с.',
-      ability: { name: 'Разлом', desc: 'Враги в 2 клетках от башни получают +60 % урона', duration: 4, cooldown: 35, cost: 25 },
+      ability: { name: 'Разлом', desc: 'Враги в 2 клетках от башни получают +60 % урона', duration: 4, cooldown: 35, cost: 5 },
     } as TowerBaseDef,
     dem_rift: {
       type: 'dem_rift', race: 'demons', name: 'Огненная трещина', cost: 85, damage: 12, damageType: 'mag', cooldown: 1.6, range: 2.6,
       shape: 'rhombus', color: '#ff4a2f', sprite: 'enemy_infantry_4', sound: 'mage', specs: [],
       desc: 'Оставляет горящее пятно на 4 с: 40 % урона в секунду всем в нём.',
-      ability: { name: 'Извержение', desc: 'Пятна втрое шире и бьют вдвое сильнее', duration: 5, cooldown: 40, cost: 30 },
+      ability: { name: 'Извержение', desc: 'Пятна втрое шире и бьют вдвое сильнее', duration: 5, cooldown: 40, cost: 6 },
     } as TowerBaseDef,
     dem_gate: {
       type: 'dem_gate', race: 'demons', name: 'Врата бездны', cost: 120, damage: 20, damageType: 'mag', cooldown: 6, range: 2.5,
       shape: 'square', color: '#b0302a', sprite: 'enemy_heavy_4', sound: 'ballista', special: 'gate', specs: [],
       desc: 'Раз в 6 с зовёт беса на 5 с (20 урона в секунду). «Жертва»: башня рядом сгорает ради залпа ×4 её цены.',
-      ability: { name: 'Зов', desc: 'Сразу призывает двух бесов', duration: 5, cooldown: 20, cost: 40 },
+      ability: { name: 'Зов', desc: 'Сразу призывает двух бесов', duration: 5, cooldown: 20, cost: 8 },
     } as TowerBaseDef,
 
     // ---------------- Тёмные эльфы: крит копится 10 с ----------------
@@ -783,6 +783,7 @@ export const CONFIG = {
     // Усиления артефакта (просьба Артура 2026-11-01): после каждой 3-й волны — одно на выбор из трёх, каждое один раз;
     // числа — черновик, ждут выбора Артура
     boonEvery: 3,
+    mendEvery: 3, // «Каменщики» чинят раз в столько раундов
     boonOffer: 3,
     boons: BOONS,
     botBoonScale: 1, // bots' boons ×this (power, sends, HP); 1 — as the player's
