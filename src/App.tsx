@@ -28,6 +28,7 @@ import { SEND_TYPES } from './game/rules';
 import { DuelLink, duelAvailable } from './duel';
 import { BrawlRoom, BrawlSnapshot, brawlBots } from './brawl';
 import { BrawlBoard } from './components/BrawlBoard';
+import { BoonPicker } from './components/BoonPicker';
 import { LevelBriefing } from './components/LevelBriefing';
 import { PauseModal, VictoryModal, DefeatModal, HowToPlayModal, DuelResultModal, BrawlResultModal, DuelOutcome } from './components/StatusModals';
 import { OrientationWarning } from './components/OrientationWarning';
@@ -221,6 +222,8 @@ export default function App() {
     bindPartnerCount: 0,
     isBinding: false,
     canMoveTowers: false,
+    boons: [],
+    boonOffer: null,
     moveCost: null,
     rerollCost: CONFIG.shop.rerollCost,
     zoomed: false,
@@ -443,7 +446,10 @@ export default function App() {
         engineRef.current.setCanvas(canvasRef.current);
         engineRef.current.startDuel(level, startAt, army, race, roundLength);
         engineRef.current.onDuelSend = (enemies) => link.send({ t: 'send', enemies });
-        if (link instanceof BrawlRoom) engineRef.current.waveFactionFor = (w) => link.factionForWave(w);
+        if (link instanceof BrawlRoom) {
+          engineRef.current.waveFactionFor = (w) => link.factionForWave(w);
+          engineRef.current.boonsOn = true;
+        }
         setShopCards(generateShopCards(1));
       }
     }, 50);
@@ -1113,6 +1119,7 @@ export default function App() {
       details={towerDetails}
       onToggleDetails={() => setTowerDetails((d) => !d)}
       castle={gameState.castle}
+      boons={gameState.boons}
       gold={gameState.gold}
       onUpgradeCastle={() => engineRef.current?.upgradeGuard()}
       mergeNeed={gameState.mergeNeed}
@@ -1273,6 +1280,9 @@ export default function App() {
                   onToggleAutoStart={() => engineRef.current?.setAutoStart(!engineRef.current.autoStart)}
                 />
                 {brawl && <BrawlBoard snap={brawl} />}
+                {gameState.boonOffer && !gameState.isGameOver && (
+                  <BoonPicker offer={gameState.boonOffer} onChoose={(id) => engineRef.current?.chooseBoon(id)} />
+                )}
                 <WaveInfo
                   nextWave={gameState.nextWave}
                   summary={gameState.waveSummary}

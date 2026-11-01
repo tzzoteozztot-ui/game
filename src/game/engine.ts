@@ -2,7 +2,7 @@
  * 60 FPS Game Engine & Canvas Renderer for «Тёмный рубеж»
  */
 
-import { CONFIG, TowerType, TargetPriority, Difficulty, EnemyType, RaceId, TowerBaseDef } from './config';
+import { CONFIG, TowerType, TargetPriority, Difficulty, EnemyType, RaceId, TowerBaseDef, BOONS, BoonDef } from './config';
 import { MAPS, Point, MapDef, isHudCell } from './maps';
 import { generateMap } from './mapgen';
 import {
@@ -363,6 +363,8 @@ export interface GameStateSnapshot {
   isBinding: boolean; // waiting for a tap on the second tower
   canMoveTowers: boolean; // between waves towers can be moved to a free cell
   moveCost: number | null; // price of moving a tower now: 0 free, null not now
+  boons: BoonDef[]; // brawl: the artifact's boons taken
+  boonOffer: BoonDef[] | null; // brawl: three to choose one from, while an offer waits
   rerollCost: number; // price of the next shop reroll
   race: RaceId; // the player's faction
   mergeNeed: number; // towers that merge into the next level
@@ -469,6 +471,10 @@ export class GameEngine {
   public selectedBinderId: string | null = null;
   public castleSelected = false; // the artifact's card is open
   public guardLevel = 1; // level of the artifact's own defence (CONFIG.siege.guard)
+  // Brawl: the artifact's boons (CONFIG.brawl.boons) — one of three after every 3rd wave (просьба Артура 2026-11-01)
+  public boonsOn = false;
+  public boons: string[] = [];
+  private boonOffers: string[][] = []; // offers not chosen yet, oldest first
   private guardTimer = 0;
   public bindingFromId: string | null = null; // tower waiting for its partner
   public upgradingFromBinderId: string | null = null; // triple binder waiting for the tower to raise
@@ -606,6 +612,9 @@ export class GameEngine {
     this.level = Math.max(1, Math.min(CONFIG.levelCount, level));
     this.faction = endless && faction ? Math.max(1, Math.min(CONFIG.factions.length, Math.floor(faction))) : this.level;
     this.waveFactionFor = null;
+    this.boonsOn = false;
+    this.boons = [];
+    this.boonOffers = [];
     this.difficulty = diff;
     this.endless = endless;
     this.duelStart = null;
@@ -779,7 +788,7 @@ export class GameEngine {
 
   /** Duel: price of one more enemy of this type for the opponent, on the wave it will join */
   public sendPrice(type: SendType): number {
-    return calculateSendPrice(type, this.wavesLaunched + 1, this.level);
+    return Math.round(calculateSendPrice(type, this.wavesLaunched + 1, this.level) * (1 - this.boon('envoy')));
   }
 
   /** Duel: buy an enemy for the opponent; it leaves with the next wave */
@@ -840,7 +849,51 @@ export class GameEngine {
     return this.duelStart !== null ? Math.max(1, this.wavesLaunched) : this.wave;
   }
 
+  /** Величина усиления артефакта, 0 — если его не брали */
+  public boon(id: string): number {
+    return this.boons.includes(id) ? (BOONS.find((b) => b.id === id)?.value ?? 0) : 0;
+  }
+
+  /** Three boons not taken and not on offer yet; nothing once the pool runs dry */
+  private offerBoons() {
+    const busy = new Set([...this.boons, ...this.boonOffers.flat()]);
+    const pool = BOONS.filter((b) => !busy.has(b.id)).map((b) => b.id);
+    for (let i = pool.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [pool[i], pool[j]] = [pool[j], pool[i]];
+    }
+    const offer = pool.slice(0, CONFIG.brawl.boonOffer);
+    if (offer.length === 0) return;
+    this.boonOffers.push(offer);
+    sound.playBuy();
+  }
+
+  /** Takes a boon from the oldest offer */
+  public chooseBoon(id: string): boolean {
+    const offer = this.boonOffers[0];
+    if (!offer || !offer.includes(id) || this.isGameOver) return false;
+    this.boonOffers.shift();
+    this.boons.push(id);
+    if (id === 'walls') this.lives += this.boon('walls');
+    this.markModsDirty();
+    const c = CONFIG.grid.castleTarget;
+    this.spawnRing(c.x * CONFIG.grid.cellSize, c.y * CONFIG.grid.cellSize, '#c9a2ff');
+    this.addFloatingText(BOONS.find((b) => b.id === id)?.name ?? '', c.x * CONFIG.grid.cellSize, (c.y - 0.8) * CONFIG.grid.cellSize, '#c9a2ff');
+    sound.playBuy();
+    this.notifyState();
+    return true;
+  }
+
+  /** The artifact's top HP: CONFIG.lives.start, more with «Крепкие стены» */
+  public livesMax(): number {
+    return CONFIG.lives.start + this.boon('walls');
+  }
+
   private duelRoundStart() {
+    const tithe = this.boon('tithe');
+    if (tithe > 0) this.gold += tithe;
+    const mend = Math.min(this.boon('mend'), Math.max(0, this.livesMax() - this.lives));
+    if (mend > 0) this.lives += mend;
     if (this.duelIncome > 0) {
       this.gold += this.duelIncome;
       this.addFloatingText(`+${this.duelIncome} золота дохода`, CONFIG.grid.totalWidth / 2, 40, '#f4c06a');
@@ -953,6 +1006,7 @@ export class GameEngine {
     this.wave = this.wavesLaunched + 1;
     this.wavesLaunched++;
     this.rerollsThisWave = 0;
+    if (this.boonsOn && this.wavesLaunched % CONFIG.brawl.boonEvery === 0) this.offerBoons();
     if (duel) this.waveCountdown = Math.max(0, (this.duelNextWaveAt() - performance.now()) / 1000);
     const waveDef = waveDefinition(this.wave);
     this.faction = this.factionOfWave(this.wave);
@@ -1171,7 +1225,7 @@ export class GameEngine {
 
     const hp = calculateEnemyHp(baseDef.hp, type, this.wave, this.level, this.difficulty, this.endless, faction);
     const armorBonus = this.endless ? endlessArmorBonus(this.wave) : 0;
-    const killGold = Math.round(calculateKillGold(baseDef.gold, this.level, this.wave, this.supplyActive()) * (CONFIG.races[this.race].killGoldMult ?? 1));
+    const killGold = Math.round(calculateKillGold(baseDef.gold, this.level, this.wave, this.supplyActive()) * (CONFIG.races[this.race].killGoldMult ?? 1) * (1 + this.boon('loot')));
     const gold = sent ? Math.round(killGold * CONFIG.duel.sentKillGoldShare) : killGold;
 
     const enemy: Enemy = {
@@ -1463,7 +1517,7 @@ export class GameEngine {
       }
 
       // Calculate effective speed
-      let speed = e.baseSpeed;
+      let speed = e.baseSpeed * (1 - this.boon('mire'));
 
       // Orc trait: Rage (HP < 50% -> speed x1.3)
       if (e.faction === 1 && e.hp < e.maxHp * 0.5) {
@@ -1793,6 +1847,8 @@ export class GameEngine {
     const targets = inRange.slice(0, stats.targets);
     if (Math.abs(targets[0].x - towerPxX) > 2) tower.facing = targets[0].x < towerPxX ? -1 : 1;
     rawDamage *= this.rollCrit(tower);
+    const keen = this.boon('keen');
+    if (keen > 0 && Math.random() < keen) rawDamage *= 2;
 
     for (const target of targets) {
       sound.playShot(shotSound(part.type));
@@ -1914,6 +1970,18 @@ export class GameEngine {
         } else {
           m.lines.push(`Мегабашня Х: взрыв холода раз в ${mech.megaXEvery} с`);
         }
+      }
+    }
+    // Усиления артефакта (потасовка): every tower
+    const dmg = this.boon('sharp');
+    const haste = this.boon('haste');
+    const sight = this.boon('sight');
+    if (dmg > 0 || haste > 0 || sight > 0) {
+      for (const t of this.towers) {
+        const m = get(t);
+        m.dmg *= 1 + dmg;
+        m.cd /= 1 + haste;
+        m.range *= 1 + sight;
       }
     }
   }
@@ -2486,12 +2554,16 @@ export class GameEngine {
       const others = e.seen.size - (this.dmgSource && e.seen.has(this.dmgSource) ? 1 : 0);
       if (others >= mech.huntTowers) rawDmg *= mech.huntMult;
     }
+    // Усиления артефакта (потасовка)
+    if (e.type === 'heavy' || e.type === 'boss') rawDmg *= 1 + this.boon('slayer');
+    if (e.sieging) rawDmg *= 1 + this.boon('bastion');
+    const pierce = 1 - this.boon('pierce');
 
     const res = calculateDamage({
       rawDamage: rawDmg,
       damageType: dmgType,
-      targetArmor: e.armor,
-      targetMagicResist: e.magicResist,
+      targetArmor: e.armor * pierce,
+      targetMagicResist: e.magicResist * pierce,
       isCursed: e.curseTimer > 0,
       curseBonus: e.curseBonus,
       isFireSpec: n('fire') > 0,
@@ -2692,6 +2764,7 @@ export class GameEngine {
   // Shop & Tower Placement & Merging
   // -------------------------------------------------------------
   public rerollCost(): number {
+    if (this.rerollsThisWave === 0 && this.boon('scout') > 0) return 0;
     return calculateRerollCost(this.rerollsThisWave);
   }
 
@@ -2758,11 +2831,11 @@ export class GameEngine {
 
   // Shop price of a tower (a triplet is three) or a binder at the current supply
   public towerPrice(type: TowerType, triplet = false): number {
-    return Math.round(CONFIG.towers[type].cost * (triplet ? this.mergeNeed() : 1) * this.supplyMult());
+    return Math.round(CONFIG.towers[type].cost * (triplet ? this.mergeNeed() : 1) * this.supplyMult() * (1 - this.boon('trade')));
   }
 
   public binderPrice(): number {
-    return Math.round(CONFIG.binder.cost * this.supplyMult());
+    return Math.round(CONFIG.binder.cost * this.supplyMult() * (1 - this.boon('trade')));
   }
 
   public placeTower(cellX: number, cellY: number): boolean {
@@ -3032,7 +3105,7 @@ export class GameEngine {
     this.guardTimer = g.every;
     this.spawnBolt(cx, cy - 0.3 * CONFIG.grid.cellSize, target.x, target.y - 10, '#7fd6e0');
     this.dmgSource = null;
-    this.applyDamageToEnemy(target, g.damage[this.guardLevel - 1], 'mag', 'mage', []);
+    this.applyDamageToEnemy(target, g.damage[this.guardLevel - 1] * (1 + this.boon('ward')), 'mag', 'mage', []);
   }
 
   public selectBinder(id: string | null) {
@@ -3559,6 +3632,8 @@ export class GameEngine {
       isBinding: this.bindingFromId !== null,
       canMoveTowers: this.canMoveTowers(),
       moveCost: this.moveCost(),
+      boons: this.boons.map((id) => BOONS.find((b) => b.id === id)!).filter(Boolean),
+      boonOffer: this.boonOffers[0]?.map((id) => BOONS.find((b) => b.id === id)!).filter(Boolean) ?? null,
       rerollCost: this.rerollCost(),
       race: this.race,
       mergeNeed: this.mergeNeed(),
@@ -3571,11 +3646,11 @@ export class GameEngine {
       castle: this.castleSelected
         ? {
             hp: this.lives,
-            maxHp: CONFIG.lives.start,
+            maxHp: this.livesMax(),
             level: this.guardLevel,
             maxLevel: CONFIG.siege.guard.damage.length,
-            damage: CONFIG.siege.guard.damage[this.guardLevel - 1],
-            nextDamage: CONFIG.siege.guard.damage[this.guardLevel] ?? null,
+            damage: CONFIG.siege.guard.damage[this.guardLevel - 1] * (1 + this.boon('ward')),
+            nextDamage: CONFIG.siege.guard.damage[this.guardLevel] !== undefined ? CONFIG.siege.guard.damage[this.guardLevel] * (1 + this.boon('ward')) : null,
             cost: this.guardUpgradeCost(),
           }
         : null,
@@ -4054,6 +4129,30 @@ export class GameEngine {
     const c = CONFIG.grid.castleCells[0];
     const breath = Math.sin(timeSec * 1.6) * 0.008;
     drawSprite(ctx, spr, (c.x + 0.5) * cellSize, (c.y + 0.5) * cellSize + 30, 1, undefined, { sy: 1 + breath });
+    this.renderBoonOrbs(ctx, cellSize, timeSec);
+  }
+
+  /** Усиления артефакта: a violet orb per boon circles the artifact */
+  private renderBoonOrbs(ctx: CanvasRenderingContext2D, cellSize: number, timeSec: number) {
+    const n = this.boons.length;
+    if (n === 0) return;
+    const c = CONFIG.grid.castleCells[0];
+    const cx = (c.x + 0.5) * cellSize;
+    const cy = (c.y + 0.5) * cellSize;
+    for (let i = 0; i < n; i++) {
+      const a = timeSec * 0.8 + (i / n) * Math.PI * 2;
+      const x = cx + Math.cos(a) * cellSize * 0.62;
+      const y = cy + Math.sin(a) * cellSize * 0.26;
+      const r = 3.2 + 0.6 * Math.sin(timeSec * 3 + i);
+      const g = ctx.createRadialGradient(x, y, 0, x, y, r * 2.4);
+      g.addColorStop(0, 'rgba(232, 214, 255, 0.95)');
+      g.addColorStop(0.4, 'rgba(178, 120, 255, 0.7)');
+      g.addColorStop(1, 'rgba(120, 60, 220, 0)');
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.arc(x, y, r * 2.4, 0, Math.PI * 2);
+      ctx.fill();
+    }
   }
 
   // -------------------------------------------------------------

@@ -37,6 +37,8 @@ const LEVELS = opt('levels', '1,2,3,4,5').split(',').map(Number);
 const RANDOM_MAP = args.includes('--random-map');
 // Раса игрока (чьи башни в лавке): humans, orcs, undead, cultists, demons, elves или all — все по очереди
 const RACE_OPT = opt('race', 'humans');
+// --boons=0: потасовка без усилений артефакта (по умолчанию бот берёт случайное из трёх)
+const BOONS = opt('boons', '1') !== '0';
 const RACES = RACE_OPT === 'all' ? ['humans', 'orcs', 'undead', 'cultists', 'demons', 'elves'] : RACE_OPT.split(',');
 // Пробные числа без правки config.ts: --set=siege.attack.shaman.range=2,lives.start=300
 const SET = opt('set', '')
@@ -104,10 +106,12 @@ async function runInPage(job) {
     engine.startDuel(job.level, 0, job.level, job.race || 'humans', CONFIG.brawl.roundLength);
     room = new BrawlRoom(job.level, engine.race, brawlBots(job.difficulty), 0, () => engine.lives);
     room.emit = (msg) => {
-      if (msg.t === 'send') engine.receiveSend(msg.enemies);
+      if (msg.t === 'send') engine.receiveSend(msg.enemies, msg.army);
       else if (msg.t === 'lost') brawlWon = true;
     };
     engine.onDuelSend = (enemies) => room.send({ t: 'send', enemies });
+    engine.waveFactionFor = (w) => room.factionForWave(w);
+    engine.boonsOn = BOONS;
   } else engine.startLevel(job.level, job.difficulty, endless, job.faction || undefined, job.race || 'humans', job.mapSeed ?? null);
   const raceDef = CONFIG.races[engine.race];
   const NEED = raceDef.merge;
@@ -440,6 +444,8 @@ async function runInPage(job) {
         lastTick = clock;
         if (engine.wavesLaunched !== stats.waves.length) stats.waves.push({ wave: engine.wavesLaunched, lives: engine.lives, gold: engine.gold, towers: engine.towers.length, enemies: engine.enemies.length + engine.spawnQueue.length });
         room.tick();
+        const offer = engine.boonOffers[0];
+        if (offer) engine.chooseBoon(offer[Math.floor(Math.random() * offer.length)]);
         think();
       }
       if (steps % 200 === 0) {
