@@ -167,7 +167,7 @@ export class BrawlRoom implements DuelLink {
         name: names[i % names.length],
         race: RACE_IDS[Math.floor(Math.random() * RACE_IDS.length)],
         kind: 'bot',
-        field: new BotField(level, lvl),
+        field: new BotField(level, lvl, 'brawl'),
         lives: CONFIG.lives.start,
         shown: CONFIG.lives.start,
         alive: true,
@@ -181,7 +181,7 @@ export class BrawlRoom implements DuelLink {
   send(msg: DuelMessage) {
     if (msg.t === 'send') {
       // Sends leave at a wave start; they go to whom you faced before it
-      const w = Math.round((performance.now() - this.startAt) / 1000 / CONFIG.duel.roundLength);
+      const w = Math.round((performance.now() - this.startAt) / 1000 / CONFIG.brawl.roundLength);
       const target = this.seat(this.prevOpp[w]?.[YOU] ?? this.opp[YOU]);
       if (target?.alive && target.field) target.field.receive(msg.enemies, w - 1); // bought at wave w's price
     } else if (msg.t === 'lost') this.youFell();
@@ -218,7 +218,7 @@ export class BrawlRoom implements DuelLink {
     const you = this.seat(YOU)!;
     if (you.alive) you.lives = you.shown = Math.max(0, this.yourLives());
     const elapsed = (performance.now() - this.startAt) / 1000;
-    while (!this.stopped && you.alive && this.aliveSeats().length > 1 && elapsed >= (this.wave + 1) * CONFIG.duel.roundLength) {
+    while (!this.stopped && you.alive && this.aliveSeats().length > 1 && elapsed >= (this.wave + 1) * CONFIG.brawl.roundLength) {
       this.playWave();
     }
     // A bot's loss drains on the board over a few seconds

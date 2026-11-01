@@ -98,7 +98,7 @@ async function runInPage(job) {
   if (brawlJob) {
     // «Потасовка»: часы дуэли от 0, комната тикает вручную, её сообщения — сразу
     const { BrawlRoom, brawlBots } = await import('/src/brawl.ts');
-    engine.startDuel(job.level, 0, job.level, job.race || 'humans');
+    engine.startDuel(job.level, 0, job.level, job.race || 'humans', CONFIG.brawl.roundLength);
     room = new BrawlRoom(job.level, engine.race, brawlBots(job.difficulty), 0, () => engine.lives);
     room.emit = (msg) => {
       if (msg.t === 'send') engine.receiveSend(msg.enemies);
@@ -435,6 +435,7 @@ async function runInPage(job) {
       steps++;
       if (clock - lastTick >= 0.5) {
         lastTick = clock;
+        if (engine.wavesLaunched !== stats.waves.length) stats.waves.push({ wave: engine.wavesLaunched, lives: engine.lives, gold: engine.gold, towers: engine.towers.length, enemies: engine.enemies.length + engine.spawnQueue.length });
         room.tick();
         think();
       }
@@ -453,6 +454,7 @@ async function runInPage(job) {
       lives: engine.lives,
       gameTime: Math.round(clock),
       table: snap.seats.map((x) => ({ name: x.name, kind: x.kind, place: x.place })),
+      waves: stats.waves,
     };
   }
 

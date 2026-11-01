@@ -736,6 +736,13 @@ export const CONFIG = {
   // «Потасовка» (Артур, 2026-11-01): eight on the duel's clock, the opponents change every wave
   brawl: {
     players: 8,
+    roundLength: 40, // real seconds per round (Артур, 2026-11-01: короче дуэли)
+    // Bot defence in the brawl: skill × its wave's weight on this map × e^(−wave / fade), ×0,8 on a boss wave —
+    // a bot fits any map and falls behind with time, like a player (Артур, 2026-11-01: «боты под карту»)
+    botSkill: { easy: 1.6, normal: 2.1, hard: 3.4 },
+    botFade: 25,
+    botBossFactor: 0.8,
+    botFormSpread: 0.2, // each bot's skill ×0,8–1,2 for the whole game
     hpDrain: 8, // real seconds for a bot's whole HP to drain on the board (only the look)
     // The seven bots' strengths (duelBot.ts BOT_LEVELS) by the difficulty picked in the menu
     bots: {

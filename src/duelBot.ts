@@ -63,11 +63,17 @@ export class BotField {
   income = 0;
   received = 0; // weight of enemies sent to it, waiting for its next wave
 
-  constructor(public level: number, public difficulty: BotLevel) {}
+  /** model: 'duel' — the duel bot's strength; 'brawl' — fitted to the map's waves (brawlBotStrength) */
+  form = 1; // brawl: each bot's own lasting form, so bots of one strength do not all fall on one wave
+
+  constructor(public level: number, public difficulty: BotLevel, public model: 'duel' | 'brawl' = 'duel') {
+    if (model === 'brawl') this.form = 1 - CONFIG.brawl.botFormSpread + Math.random() * 2 * CONFIG.brawl.botFormSpread;
+  }
 
   /** Wave `round` hits: what it was sent joins the wave; an overload costs HP. Returns true when the artifact fell */
   defend(round: number): boolean {
-    const strength = botStrength(this.difficulty, round) * (0.9 + Math.random() * 0.2);
+    const base = this.model === 'brawl' ? brawlBotStrength(this.difficulty, round, this.level) * this.form : botStrength(this.difficulty, round);
+    const strength = base * (0.9 + Math.random() * 0.2);
     const weight = waveWeight(round, this.level) + this.received;
     this.received = 0;
     const overload = weight / strength - 1;
@@ -107,6 +113,15 @@ export class BotField {
       this.received += n * calculateSendPrice(type, round + 1, this.level);
     }
   }
+}
+
+/**
+ * Brawl bot's defence: its own wave on this map × skill, fading with time (it falls behind like a player);
+ * a boss wave is a little harder. So a bot fits any map: it does not all fall on a boss wave nor live forever.
+ */
+export function brawlBotStrength(difficulty: BotLevel, round: number, level: number): number {
+  const boss = round % 12 === 0 ? CONFIG.brawl.botBossFactor : 1;
+  return CONFIG.brawl.botSkill[difficulty] * waveWeight(round, level) * Math.exp(-round / CONFIG.brawl.botFade) * boss;
 }
 
 export function createBotLink(level: number, difficulty: BotLevel): DuelLink {

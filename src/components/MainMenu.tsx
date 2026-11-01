@@ -194,7 +194,7 @@ function BrawlPage({ onBack, unlockedLevel, selectedLevel, onSelectLevel, race, 
       <PageHeader title="Потасовка" onBack={onBack} />
       <div className="w-full flex flex-col gap-2 short:grid short:grid-cols-2 short:gap-1.5 short:items-start">
         <div className={`${PANEL} w-full p-2.5 short:p-2 text-xs text-stone-300 leading-relaxed`}>
-          Восемь игроков, у каждого свой рубеж. Волны выходят у всех разом, каждые {CONFIG.duel.roundLength} с, и с каждой
+          Восемь игроков, у каждого свой рубеж. Волны выходят у всех разом, каждые {CONFIG.brawl.roundLength} с, и с каждой
           волной соперник меняется: купленные во вкладке «Армия» враги уходят ему, его враги — вам. Кого покинул артефакт, тот
           выбыл; при нечётном числе оставшихся поле выбывшего остаётся «призраком», и с ним по очереди играют все, от слабого к
           сильному. Побеждает последний устоявший. Остальные семеро — боты.
