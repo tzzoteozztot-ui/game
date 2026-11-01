@@ -62,7 +62,7 @@ export function FieldStats({ gold, lives, wave, maxWaves, endless, supply, oppon
               <span>
                 в. <span className="text-amber-200">{opponent.wave}</span>
               </span>
-              <span className="text-amber-300">+{opponent.income}</span>
+              <span className="text-amber-300" title="Доход соперника за раунд — от его отправок врагам. Вам он золота не даёт.">доход +{opponent.income}/р.</span>
             </>
           ) : (
             <span>ждём связи…</span>

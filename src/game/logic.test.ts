@@ -427,7 +427,7 @@ test('supply: towers add up by level, prices grow ×1,12 per 20 power above 30, 
   assert.equal(calculateSupplyMult(30), 1);
   assert.equal(calculateSupplyMult(49), 1);
   assert.ok(Math.abs(calculateSupplyMult(50) - 1.12) < 1e-9);
-  assert.ok(Math.abs(calculateSupplyMult(110) - Math.pow(1.12, 4)) < 1e-9);
+  assert.ok(Math.abs(calculateSupplyMult(90) - Math.pow(1.12, 3)) < 1e-9);
   // The refund is paid from the base price: it does not depend on the supply, only on the ratio
   assert.equal(sellRefund(50, 1), 35);
   assert.equal(sellRefund(50, 1, CONFIG.supply.sellRatio), 30);
@@ -622,4 +622,11 @@ test('усиления: pickBoons даёт разные и реже берёт �
     if (ids.includes('sharp')) sharp++;
   }
   assert.ok(walls < sharp * 0.6, `walls ${walls}, sharp ${sharp}`);
+});
+
+test('потолок цен: башни ×1,5, армия — множитель волны не выше 8', () => {
+  assert.equal(calculateSupplyMult(1000), 1.5);
+  assert.ok(calculateSupplyMult(110) > 1.5 - 1e-9 || Math.abs(calculateSupplyMult(90) - Math.pow(1.12, 3)) < 1e-9);
+  assert.equal(calculateSendPrice('heavy', 40, 1), calculateSendPrice('heavy', 25, 1));
+  assert.ok(calculateSendPrice('heavy', 40, 1, false) > calculateSendPrice('heavy', 40, 1));
 });
