@@ -149,7 +149,6 @@ export const BOONS: BoonDef[] = [
   { id: 'sharp', name: 'Острые клинки', desc: '+10 % урона всех башен', value: 0.1, bot: { power: 0.1 } },
   { id: 'haste', name: 'Быстрые руки', desc: '+10 % скорости атаки всех башен', value: 0.1, bot: { power: 0.1 } },
   { id: 'sight', name: 'Дальний взор', desc: '+10 % радиуса всех башен', value: 0.1, bot: { power: 0.06 } },
-  { id: 'keen', name: 'Меткость', desc: 'Каждый выстрел: 10 % шанс крита ×2', value: 0.1, bot: { power: 0.1 } },
   { id: 'slayer', name: 'Гроза великанов', desc: '+25 % урона по тяжёлым и боссам', value: 0.25, bot: { power: 0.08 } },
   { id: 'bastion', name: 'Последний рубеж', desc: '+30 % урона по врагам у артефакта', value: 0.3, bot: { power: 0.08 } },
   { id: 'pierce', name: 'Бронебой', desc: 'Броня и сопротивление магии врагов −25 %', value: 0.25, bot: { power: 0.1 } },

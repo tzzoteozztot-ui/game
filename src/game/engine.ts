@@ -1849,8 +1849,6 @@ export class GameEngine {
     const targets = inRange.slice(0, stats.targets);
     if (Math.abs(targets[0].x - towerPxX) > 2) tower.facing = targets[0].x < towerPxX ? -1 : 1;
     rawDamage *= this.rollCrit(tower);
-    const keen = this.boon('keen');
-    if (keen > 0 && Math.random() < keen) rawDamage *= 2;
 
     for (const target of targets) {
       sound.playShot(shotSound(part.type));
