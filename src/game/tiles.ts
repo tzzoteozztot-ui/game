@@ -39,6 +39,10 @@ const DECOR: Record<string, [string, number][]> = {
     ['rock1', 0.3], ['rock2', 0.3], ['crystal1', 0.26], ['crystal2', 0.28], ['shard', 0.26], ['bush', 0.34],
     ['stump', 0.32], ['tuft', 0.26], ['rune', 0.24], ['drift', 0.32],
   ],
+  scorched: [
+    ['rock1', 0.28], ['rock2', 0.28], ['stump', 0.34], ['bush', 0.32], ['bones', 0.34], // сера ('sulfur') похожа на кучку золота — не ставим
+    ['ember', 0.26], ['horn', 0.36], ['tuft', 0.28], ['ash', 0.32],
+  ],
 };
 const DECOR_SHARE = 0.32; // доля свободных клеток с декором
 
