@@ -359,6 +359,7 @@ export interface GameStateSnapshot {
   castle: { hp: number; maxHp: number; level: number; maxLevel: number; damage: number; nextDamage: number | null; cost: number | null } | null;
   isBinding: boolean; // waiting for a tap on the second tower
   canMoveTowers: boolean; // between waves towers can be moved to a free cell
+  moveCost: number | null; // price of moving a tower now: 0 free, null not now
   rerollCost: number; // price of the next shop reroll
   race: RaceId; // the player's faction
   mergeNeed: number; // towers that merge into the next level
@@ -2935,11 +2936,31 @@ export class GameEngine {
     return this.waveCountdown !== null && !this.isSpawning && this.enemies.length === 0 && !this.isGameOver;
   }
 
-  // Moves the selected tower to a free cell; it stays selected
-  public moveSelectedTower(cellX: number, cellY: number): boolean {
+  /**
+   * Price of moving a tower now: 0 between waves; in a duel and a brawl, where the field is rarely clear,
+   * CONFIG.duel.moveCost while enemies are on it (просьба Артура 2026-11-01); null — no moving now
+   */
+  public moveCost(): number | null {
+    if (this.canMoveTowers()) return 0;
+    if (this.duelStart !== null && !this.isGameOver && !this.isVictory) return CONFIG.duel.moveCost;
+    return null;
+  }
+
+  /** Moves the selected tower to a free cell; it stays selected. A paid move needs `paid` (a deliberate drag) */
+  public moveSelectedTower(cellX: number, cellY: number, paid = false): boolean {
     const tower = this.selectedTowerId ? this.towers.find((t) => t.id === this.selectedTowerId) : null;
-    if (!tower || !this.canMoveTowers() || !this.isCellFree(cellX, cellY)) return false;
+    const cost = this.moveCost();
+    if (!tower || cost === null || (cost > 0 && !paid) || !this.isCellFree(cellX, cellY)) return false;
     const cs = CONFIG.grid.cellSize;
+    if (cost > 0) {
+      if (this.gold < cost) {
+        sound.playError();
+        this.addFloatingText('Не хватает золота!', (cellX + 0.5) * cs, (cellY + 0.5) * cs, '#e0452f');
+        return false;
+      }
+      this.gold -= cost;
+      this.addFloatingText(`−${cost}`, (cellX + 0.5) * cs, (cellY + 0.2) * cs, '#f4c06a');
+    }
     this.spawnPuff((tower.x + 0.5) * cs, (tower.y + 0.5) * cs, '#f4c06a');
     tower.x = cellX;
     tower.y = cellY;
@@ -3527,6 +3548,7 @@ export class GameEngine {
       bindPartnerCount,
       isBinding: this.bindingFromId !== null,
       canMoveTowers: this.canMoveTowers(),
+      moveCost: this.moveCost(),
       rerollCost: this.rerollCost(),
       race: this.race,
       mergeNeed: this.mergeNeed(),
@@ -3717,7 +3739,7 @@ export class GameEngine {
     }
 
     // Between waves the selected tower can move: free cells are marked, the hovered one shows the target
-    if (selectedTower && !this.bindingFromId && this.canMoveTowers()) {
+    if (selectedTower && !this.bindingFromId && this.moveCost() !== null) {
       ctx.fillStyle = 'rgba(244, 192, 106, 0.045)';
       for (let y = 0; y < CONFIG.grid.rows; y++) {
         for (let x = 0; x < CONFIG.grid.cols; x++) {

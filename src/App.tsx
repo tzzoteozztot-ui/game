@@ -203,6 +203,7 @@ export default function App() {
     bindPartnerCount: 0,
     isBinding: false,
     canMoveTowers: false,
+    moveCost: null,
     rerollCost: CONFIG.shop.rerollCost,
     zoomed: false,
     selectedDamage: null,
@@ -827,8 +828,8 @@ export default function App() {
     if (pointersRef.current.size === 1) {
       const cell = toCell(e.clientX, e.clientY);
       const tower = engine.towers.find((t) => t.x === cell.x && t.y === cell.y);
-      // Between waves a press on a tower can drag it to another cell
-      const towerId = tower && engine.placingSlot === null && !engine.bindingFromId && !engine.upgradingFromBinderId && engine.canMoveTowers() ? tower.id : null;
+      // A press on a tower can drag it to another cell: free between waves, for gold in a duel during a wave
+      const towerId = tower && engine.placingSlot === null && !engine.bindingFromId && !engine.upgradingFromBinderId && engine.moveCost() !== null ? tower.id : null;
       gestureRef.current = { x: e.clientX, y: e.clientY, mode: 'tap', towerId };
     } else if (pointersRef.current.size === 2) {
       if (gestureRef.current) gestureRef.current.mode = 'pinch';
@@ -895,7 +896,7 @@ export default function App() {
       handleCanvasTap(cell.x, cell.y);
     } else if (g.mode === 'tower' && engine.selectedTowerId === g.towerId) {
       const tower = engine.towers.find((t) => t.id === g.towerId);
-      if (tower && (tower.x !== cell.x || tower.y !== cell.y)) engine.moveSelectedTower(cell.x, cell.y);
+      if (tower && (tower.x !== cell.x || tower.y !== cell.y)) engine.moveSelectedTower(cell.x, cell.y, true);
     }
   };
 
@@ -1373,7 +1374,8 @@ export default function App() {
                 placingTowerType={engineRef.current?.placingTowerType || null}
                 placingBinder={engineRef.current?.placingBinder || false}
                 isBinding={gameState.isBinding}
-                isMoving={gameState.canMoveTowers && gameState.selectedTower !== null && !gameState.isBinding}
+                isMoving={gameState.moveCost !== null && gameState.selectedTower !== null && !gameState.isBinding}
+                moveCost={gameState.moveCost ?? 0}
                 placingIsTriplet={engineRef.current?.placingIsTriplet || false}
                 onSelectCard={handleSelectShopCard}
                 onReroll={handleRerollShop}

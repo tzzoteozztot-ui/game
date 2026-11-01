@@ -23,7 +23,8 @@ interface ShopPanelProps {
   placingTowerType: TowerType | null;
   placingBinder: boolean;
   isBinding: boolean;
-  isMoving: boolean; // a tower is selected in the pause between waves
+  isMoving: boolean; // a tower is selected and can be moved now
+  moveCost: number; // 0 — free (between waves), otherwise gold for a move by drag
   placingIsTriplet: boolean;
   onSelectCard: (index: number) => void;
   onReroll: () => void;
@@ -40,6 +41,7 @@ export function ShopPanel({
   placingBinder,
   isBinding,
   isMoving,
+  moveCost,
   placingIsTriplet,
   onSelectCard,
   onReroll,
@@ -67,8 +69,8 @@ export function ShopPanel({
           </>
         ) : isMoving && !inHandDef && !placingBinder ? (
           <>
-            <span className="text-amber-300 font-bold truncate">Перестановка</span>
-            <span className="hidden @min-[240px]:inline text-[length:var(--fs-sm)] text-stone-400 shrink-0">тапните клетку</span>
+            <span className="text-amber-300 font-bold truncate">{moveCost > 0 ? `Перестановка · ${moveCost}` : 'Перестановка'}</span>
+            <span className="hidden @min-[240px]:inline text-[length:var(--fs-sm)] text-stone-400 shrink-0">{moveCost > 0 ? 'перетащите башню' : 'тапните клетку'}</span>
           </>
         ) : inHandDef ? (
           <>
