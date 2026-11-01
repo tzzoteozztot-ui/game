@@ -4799,6 +4799,16 @@ export class GameEngine {
       ctx.ellipse(e.x, footY - 1, rx, rx * 0.34, 0, 0, Math.PI * 2);
       ctx.fill();
       ctx.stroke();
+      if (e.faction === 3) {
+        // Культисты льда режут замедление вдвое: белое пунктирное кольцо поверх голубого — «лёд не берёт»
+        ctx.globalAlpha = 0.85;
+        ctx.strokeStyle = '#f2f8ff';
+        ctx.setLineDash([3, 3]);
+        ctx.beginPath();
+        ctx.ellipse(e.x, footY - 1, rx * 1.12, rx * 0.38, 0, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
     }
     if (e.curseTimer > 0) {
       ctx.globalAlpha = 0.7;
