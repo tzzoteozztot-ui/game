@@ -7,7 +7,7 @@
 import type { Point } from './maps';
 
 /** Какие карты уже имеют набор тайлов: уровень → папка */
-export const TILESETS: Record<number, string> = { 1: 'frontier', 2: 'swamp', 3: 'ice', 4: 'scorched' };
+export const TILESETS: Record<number, string> = { 1: 'frontier', 2: 'swamp', 3: 'ice', 4: 'scorched', 5: 'citadel' };
 /** Карты без тайлов, но со своим мелким декором (листы Gemini 2026-11-01): уровень → папка */
 export const DECOR_ONLY: Record<number, string> = {};
 
