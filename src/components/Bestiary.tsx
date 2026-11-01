@@ -4,8 +4,88 @@
  */
 
 import React, { useEffect, useState } from 'react';
-import { CONFIG } from '../game/config';
-import { BESTIARY, BestiaryCreature, KIND_LABELS } from '../bestiary';
+import { CONFIG, RACE_IDS, RaceId } from '../game/config';
+import { BESTIARY, BestiaryCreature, KIND_LABELS, TOWER_LORE, RACE_TOWER_LORE } from '../bestiary';
+import { attackStats } from '../game/towerStats';
+import { TowerSpriteIcon } from './Icons';
+
+const num = (n: number) => String(Math.round(n * 10) / 10).replace('.', ',');
+
+/** Towers of one playable faction: how it grows, then a card per tower with its Ур.1 numbers, mechanic and lore */
+function TowerSection({ race }: { race: RaceId }) {
+  const def = CONFIG.races[race];
+  const palette = CONFIG.palettes[def.faction - 1];
+  return (
+    <div className="max-w-5xl mx-auto flex flex-col gap-3">
+      <section className="rounded-lg border border-[#3d384d] bg-[#1a1724] p-3 sm:p-4">
+        <h3 className="text-lg font-black text-amber-300">Башни: {def.name}</h3>
+        <div className="mt-2 space-y-2 text-[13px] leading-relaxed text-stone-300">
+          {(RACE_TOWER_LORE[race] ?? []).map((p, i) => (
+            <p key={i}>{p}</p>
+          ))}
+        </div>
+        <ul className="mt-2 pt-2 border-t border-[#262233] text-xs text-stone-400 space-y-1 list-disc pl-4">
+          {def.features.map((f) => (
+            <li key={f}>{f}</li>
+          ))}
+        </ul>
+      </section>
+      <div className="grid grid-cols-1 min-[520px]:grid-cols-2 gap-2 sm:gap-3">
+        {def.towers.map((type) => {
+          const t = CONFIG.towers[type];
+          const st = attackStats(type, 1, []);
+          const stats: [string, string][] = [
+            ['Цена', String(t.cost)],
+            [t.special === 'gate' ? 'Урон беса в с' : t.special === 'crypt' ? 'За душу' : 'Урон', t.damage ? num(st.damage) : '—'],
+            ['Период', `${num(st.cooldown)} с`],
+            ['Радиус', num(st.range)],
+          ];
+          return (
+            <article key={type} className="rounded-lg border border-[#3d384d] bg-[#1a1724] overflow-hidden flex">
+              <div
+                className="shrink-0 w-28 sm:w-32 flex items-end justify-center p-2"
+                style={{ background: `radial-gradient(circle at 50% 70%, ${palette.enemies}33, transparent 70%)` }}
+              >
+                <div className="h-24 w-full flex items-end justify-center">
+                  <TowerSpriteIcon type={type} size="100%" color={t.color} />
+                </div>
+              </div>
+              <div className="p-3 flex-1 min-w-0">
+                <div className="text-[10px] uppercase font-bold tracking-wider text-amber-500">
+                  {t.damageType === 'phys' ? 'Физический урон' : 'Магический урон'}
+                  {t.minTier ? ` · с ${t.minTier}-го яруса лавки` : ''}
+                </div>
+                <h4 className="font-black text-stone-100 text-sm sm:text-base leading-tight">{t.name}</h4>
+                <div className="mt-1 grid grid-cols-4 gap-1 text-[11px] tabular-nums">
+                  {stats.map(([k, v]) => (
+                    <div key={k} className="rounded bg-black/30 border border-white/10 px-1 py-0.5 text-center leading-tight">
+                      <div className="text-stone-500 text-[10px]">{k}</div>
+                      <div className="font-bold text-amber-200">{v}</div>
+                    </div>
+                  ))}
+                </div>
+                {t.desc && <p className="mt-1.5 text-xs text-stone-300 leading-snug">{t.desc}</p>}
+                {t.ability && (
+                  <p className="mt-1 text-xs text-orange-300 leading-snug">
+                    <b>{t.ability.name}</b> ({t.ability.cost} золота, {t.ability.duration} с, перезарядка {t.ability.cooldown} с): {t.ability.desc}.
+                  </p>
+                )}
+                {race === 'humans' && t.specs.length > 0 && (
+                  <p className="mt-1 text-xs text-stone-400 leading-snug">Свойства с Ур.2: {t.specs.map((x) => x.name).join(', ')}.</p>
+                )}
+                <div className="mt-1.5 space-y-1 text-[12px] leading-relaxed text-stone-400 italic">
+                  {(TOWER_LORE[type] ?? []).map((p, i) => (
+                    <p key={i}>{p}</p>
+                  ))}
+                </div>
+              </div>
+            </article>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 
 /** Картинка существа: спрайт своей фракции, иначе общий; если нет и его — пустое место */
 function BeastImage({ creature, factionId }: { creature: BestiaryCreature; factionId: number }) {
@@ -29,8 +109,10 @@ function BeastImage({ creature, factionId }: { creature: BestiaryCreature; facti
   );
 }
 
-export function Bestiary({ onClose, initialFaction = 1 }: { onClose: () => void; initialFaction?: number }) {
+export function Bestiary({ onClose, initialFaction = 1, initialRace = 'humans' }: { onClose: () => void; initialFaction?: number; initialRace?: RaceId }) {
   const [factionId, setFactionId] = useState(initialFaction);
+  const [mode, setMode] = useState<'enemies' | 'towers'>('enemies');
+  const [race, setRace] = useState<RaceId>(initialRace);
   const faction = BESTIARY.find((f) => f.id === factionId) ?? BESTIARY[0];
   const conf = CONFIG.factions.find((f) => f.id === faction.id);
   const palette = CONFIG.palettes[faction.id - 1];
@@ -58,10 +140,41 @@ export function Bestiary({ onClose, initialFaction = 1 }: { onClose: () => void;
           ← Назад
         </button>
         <h2 className="text-base sm:text-xl font-black text-amber-300 tracking-widest uppercase">Бестиарий</h2>
+        <div className="ml-auto short:ml-2 flex gap-1" role="tablist">
+          {(['enemies', 'towers'] as const).map((m) => (
+            <button
+              key={m}
+              type="button"
+              role="tab"
+              aria-selected={mode === m}
+              onClick={() => setMode(m)}
+              className={`min-h-[36px] px-3 rounded text-xs font-bold cursor-pointer ${
+                mode === m ? 'bg-amber-600 text-stone-950' : 'bg-[#221f2d] text-stone-300 hover:bg-[#2c283a] border border-[#383347]'
+              }`}
+            >
+              {m === 'enemies' ? 'Враги' : 'Башни'}
+            </button>
+          ))}
+        </div>
       </div>
 
       <div className="flex gap-1 overflow-x-auto px-2 sm:px-4 py-2 short:py-1 min-w-0" role="tablist">
-        {BESTIARY.map((f) => (
+        {mode === 'towers' && RACE_IDS.map((id) => (
+          <button
+            key={id}
+            type="button"
+            role="tab"
+            aria-selected={race === id}
+            onClick={() => setRace(id)}
+            className={`shrink-0 min-h-[38px] px-3 rounded text-xs font-bold cursor-pointer flex items-center gap-1.5 ${
+              race === id ? 'bg-amber-600 text-stone-950' : 'bg-[#221f2d] text-stone-300 hover:bg-[#2c283a] border border-[#383347]'
+            }`}
+          >
+            <span className="w-2 h-2 rounded-full border border-black/40" style={{ backgroundColor: CONFIG.palettes[CONFIG.races[id].faction - 1].enemies }} />
+            {CONFIG.races[id].name}
+          </button>
+        ))}
+        {mode === 'enemies' && BESTIARY.map((f) => (
           <button
             key={f.id}
             type="button"
@@ -85,6 +198,7 @@ export function Bestiary({ onClose, initialFaction = 1 }: { onClose: () => void;
       </div>
 
       <div className="flex-1 min-h-0 overflow-y-auto px-2 sm:px-4 pb-4">
+        {mode === 'towers' ? <TowerSection race={race} /> : (
         <div className="max-w-5xl mx-auto flex flex-col gap-3">
           <section className="rounded-lg border border-[#3d384d] bg-[#1a1724] p-3 sm:p-4">
             <div className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5">
@@ -143,6 +257,7 @@ export function Bestiary({ onClose, initialFaction = 1 }: { onClose: () => void;
             })}
           </div>
         </div>
+        )}
       </div>
     </div>
   );

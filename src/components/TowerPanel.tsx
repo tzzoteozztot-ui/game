@@ -103,7 +103,7 @@ function Card({ children, wide = false }: { children: React.ReactNode; wide?: bo
 // Live stats of one part: a part whose only specialization is «Кара» shows its pulse
 function partStats(part: TowerPart) {
   const stats = attackStats(part.type, part.level, part.specs);
-  const smiteOnly = !stats.normalAttack;
+  const smiteOnly = !stats.normalAttack && !CONFIG.towers[part.type].special;
   return {
     damage: Math.round((smiteOnly ? stats.smiteDamage : stats.damage) * 10) / 10,
     period: (smiteOnly ? 2.5 : stats.cooldown).toFixed(1),
@@ -347,7 +347,7 @@ export function TowerPanel({
           <TowerSpriteIcon type={tower.type} size="85%" color={baseDef.color} />
         </div>
         <div className="min-w-0 flex-1 flex items-baseline justify-between gap-1 leading-none">
-          <div className={`font-bold text-stone-200 text-[length:var(--fs-md)] shrink-0`}>
+          <div className={`font-bold text-stone-200 text-[length:var(--fs-md)] truncate min-w-0`}>
             {baseDef.name}{' '}
             <span className="text-amber-400 text-[length:var(--fs-md)] font-bold">{second ? tower.level : `Ур.${tower.level}`}</span>
             {second && secondDef && (

@@ -1432,7 +1432,7 @@ export default function App() {
         <AccountModal user={user} syncState={syncState} onClose={() => setShowAccount(false)} />
       )}
 
-      {showBestiary && <Bestiary onClose={() => setShowBestiary(false)} initialFaction={screen === 'playing' ? gameState.faction : selectedLevel} />}
+      {showBestiary && <Bestiary onClose={() => setShowBestiary(false)} initialFaction={screen === 'playing' ? gameState.faction : selectedLevel} initialRace={race} />}
 
       {showHowToPlay && (
         <HowToPlayModal onClose={() => setShowHowToPlay(false)} />
