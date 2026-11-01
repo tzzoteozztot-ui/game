@@ -28,7 +28,7 @@ import {
 } from './rules';
 import { sound } from './audio';
 import { sprites, drawSprite, PreparedSprite, SpritePose, SpriteVariant } from './sprites';
-import { TILESETS, loadTileset, bakeField, Tileset } from './tiles';
+import { TILESETS, DECOR_ONLY, loadTileset, loadDecor, bakeField, bakeDecor, Tileset } from './tiles';
 
 // Light rim color (r, g, b) under the pedestal of the dark tower figures
 const TOWER_RIMS: Partial<Record<TowerType, string>> = { archer: '214, 236, 190', mage: '214, 200, 255' };
@@ -437,6 +437,10 @@ export class GameEngine {
   // Поле из тайлов (запечённый холст) для карт, у которых есть набор в tiles.ts; null — рисуем дорогу кодом
   private fieldBake: HTMLCanvasElement | null = null;
   private fieldBakeMap: MapDef | null = null;
+  // Декор для карт без тайлов (DECOR_ONLY): загруженные наборы и запечённый слой текущей карты
+  private decorSets = new Map<string, Tileset | null>();
+  private decorBake: HTMLCanvasElement | null = null;
+  private decorBakeMap: MapDef | null = null;
   private tilesRetryAt = 0; // после неудачной загрузки до этого времени рисуем дорогу кодом, потом пробуем снова
   private tilesPending = false; // тайлы карты ещё грузятся: вместо дороги кодом рисуем заставку
   private fieldTiles: Map<string, Tileset | null> = new Map();
@@ -3842,6 +3846,10 @@ export class GameEngine {
       }
     }
 
+    // Мелкий декор карты без тайлов — под дорогой, на свободных клетках
+    const decor = !baked && !waiting ? this.decorLayer() : null;
+    if (decor) ctx.drawImage(decor, 0, 0, CONFIG.grid.totalWidth, CONFIG.grid.totalHeight);
+
     // 2. Roads: solid ribbon with a dark outline, rounded turns and running chevrons
     const outline = mixColor(palette.ground, '#000000', 0.6);
     const rim = mixColor(palette.road, '#ffffff', 0.32);
@@ -4102,9 +4110,26 @@ export class GameEngine {
       this.tilesPending = true;
       return null;
     }
-    this.fieldBake = bakeField(tiles, this.currentMap.paths, CONFIG.grid.castleCells, CONFIG.grid.cols, CONFIG.grid.rows);
+    this.fieldBake = bakeField(set, tiles, this.currentMap.paths, CONFIG.grid.castleCells, CONFIG.grid.cols, CONFIG.grid.rows);
     this.fieldBakeMap = this.currentMap;
     return this.fieldBake;
+  }
+
+  /** Слой мелкого декора для карты без тайлов; null, пока грузится или набора нет */
+  private decorLayer(): HTMLCanvasElement | null {
+    const set = DECOR_ONLY[this.currentMap.level];
+    if (!set) return null;
+    if (this.decorBakeMap === this.currentMap && this.decorBake) return this.decorBake;
+    const imgs = this.decorSets.get(set);
+    if (imgs === undefined) {
+      this.decorSets.set(set, null);
+      loadDecor(set).then((t) => this.decorSets.set(set, t));
+      return null;
+    }
+    if (!imgs) return null;
+    this.decorBake = bakeDecor(set, imgs, this.currentMap.paths, CONFIG.grid.castleCells, CONFIG.grid.cols, CONFIG.grid.rows);
+    this.decorBakeMap = this.currentMap;
+    return this.decorBake;
   }
 
   private strokeRoad(ctx: CanvasRenderingContext2D, color: string, width: number) {

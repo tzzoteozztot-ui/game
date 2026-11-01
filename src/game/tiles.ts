@@ -2,11 +2,14 @@
  * Тайлы поля (public/tiles/<набор>/): трава, земля и дорога из пяти тайлов (тупик, прямая, поворот, Т, перекрёсток).
  * Поле запекается один раз на карту в отдельный холст; пока тайлы не загрузились (или файла нет) движок рисует прежнюю
  * дорогу кодом. Пока набор есть только у Пограничья (карта 1) — остальные карты рисуются по-старому.
+ * Картам без тайлов можно дать только мелкий декор (`DECOR_ONLY`): он ложится поверх поля, нарисованного кодом.
  */
 import type { Point } from './maps';
 
 /** Какие карты уже имеют набор тайлов: уровень → папка */
 export const TILESETS: Record<number, string> = { 1: 'frontier' };
+/** Карты без тайлов, но со своим мелким декором (листы Gemini 2026-11-01): уровень → папка */
+export const DECOR_ONLY: Record<number, string> = { 2: 'swamp', 3: 'ice' };
 
 const NAMES = ['end', 'straight', 'corner', 't', 'cross', 'grass', 'dirt'] as const;
 export type TileName = (typeof NAMES)[number];
@@ -21,12 +24,22 @@ const rotateMask = (m: number) => ((m & L ? U : 0) | (m & U ? R : 0) | (m & R ? 
 // Как нарисован эталон каждого тайла
 const BASE: Record<string, number> = { end: L, straight: L | R, corner: L | D, t: L | R | U, cross: L | R | U | D };
 
-// Мелкий декор по краям свободных клеток (решение Артура 2026-11-01): имя файла в decor/ и ширина в долях клетки.
+// Мелкий декор по краям свободных клеток (решение Артура 2026-11-01): набор → имя файла в decor/ и ширина в долях клетки.
 // Клетки остаются строительными, башня стоит поверх.
-const DECOR: [string, number][] = [
-  ['rock1', 0.3], ['rock2', 0.24], ['rock3', 0.28], ['rock4', 0.28],
-  ['tuft', 0.26], ['bush1', 0.36], ['bush2', 0.34], ['bush3', 0.36], ['stump', 0.34],
-];
+const DECOR: Record<string, [string, number][]> = {
+  frontier: [
+    ['rock1', 0.3], ['rock2', 0.24], ['rock3', 0.28], ['rock4', 0.28],
+    ['tuft', 0.26], ['bush1', 0.36], ['bush2', 0.34], ['bush3', 0.36], ['stump', 0.34],
+  ],
+  swamp: [
+    ['rock1', 0.28], ['rock2', 0.28], ['grave1', 0.26], ['grave2', 0.32], ['bones', 0.3], ['shrooms', 0.26],
+    ['log', 0.38], ['snag', 0.38], ['reeds', 0.24], ['bush', 0.32], ['tuft', 0.28],
+  ],
+  ice: [
+    ['rock1', 0.3], ['rock2', 0.3], ['crystal1', 0.26], ['crystal2', 0.28], ['shard', 0.26], ['bush', 0.34],
+    ['stump', 0.32], ['tuft', 0.26], ['rune', 0.24], ['drift', 0.32],
+  ],
+};
 const DECOR_SHARE = 0.32; // доля свободных клеток с декором
 
 export type Tileset = Map<string, HTMLImageElement>;
@@ -68,17 +81,37 @@ export function loadTileset(name: string): Promise<Tileset | null> {
       }
       const set: Tileset = new Map(r as [TileName, HTMLImageElement][]);
       // Декор необязателен: не загрузился — поле просто без него
-      await Promise.all(
-        DECOR.map(
-          ([n]) =>
-            loadImage(new URL(`decor/${n}.png`, base).href).then((img) => {
-              if (img) set.set(`decor/${n}`, img);
-            })
-        )
-      );
+      for (const [k, img] of await loadDecor(name)) set.set(k, img);
       return set;
     });
     sets.set(name, p);
+  }
+  return p;
+}
+
+const decorSets = new Map<string, Promise<Tileset>>();
+
+/** Мелкий декор набора: что загрузилось (файла нет — предмета просто нет) */
+export function loadDecor(name: string): Promise<Tileset> {
+  let p = decorSets.get(name);
+  if (!p) {
+    const base = new URL(`tiles/${name}/decor/`, document.baseURI);
+    const set: Tileset = new Map();
+    p = Promise.all(
+      (DECOR[name] ?? []).map(
+        ([n]) =>
+          new Promise<void>((resolve) => {
+            const img = new Image();
+            img.onload = () => {
+              set.set(`decor/${n}`, img);
+              resolve();
+            };
+            img.onerror = () => resolve();
+            img.src = new URL(`${n}.png`, base).href;
+          })
+      )
+    ).then(() => set);
+    decorSets.set(name, p);
   }
   return p;
 }
@@ -121,8 +154,46 @@ function hash(x: number, y: number): number {
   return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
 }
 
+/** Мелкий декор в одном из углов клетки (x, y); клетка выбирается по хэшу, доля — DECOR_SHARE */
+function placeDecor(ctx: CanvasRenderingContext2D, name: string, imgs: Tileset, x: number, y: number, res: number) {
+  const decor = (DECOR[name] ?? []).filter(([n]) => imgs.has(`decor/${n}`));
+  if (!decor.length || hash(x + 31, y + 7) >= DECOR_SHARE) return;
+  const [dn, wf] = decor[Math.floor(hash(x + 11, y + 53) * decor.length)];
+  const img = imgs.get(`decor/${dn}`)!;
+  const w = wf * 1.5 * res;
+  const h = (w * img.naturalHeight) / img.naturalWidth;
+  const cxn = hash(x + 3, y + 29) < 0.5 ? 0.24 : 0.76;
+  const cyn = hash(x + 41, y + 13) < 0.5 ? 0.3 : 0.74;
+  ctx.drawImage(img, x * res + cxn * res - w / 2, y * res + cyn * res - h / 2, w, h);
+}
+
+/** Только декор на прозрачном холсте (res px на клетку): для карт, где земля и дорога рисуются кодом */
+export function bakeDecor(
+  name: string,
+  imgs: Tileset,
+  paths: Point[][],
+  castle: Point[],
+  cols: number,
+  rows: number,
+  res = 128
+): HTMLCanvasElement {
+  const cv = document.createElement('canvas');
+  cv.width = cols * res;
+  cv.height = rows * res;
+  const ctx = cv.getContext('2d')!;
+  const conn = connections(paths, castle, cols, rows);
+  const castleSet = new Set(castle.map((c) => `${c.x},${c.y}`));
+  for (let y = 0; y < rows; y++)
+    for (let x = 0; x < cols; x++) {
+      const key = `${x},${y}`;
+      if (!conn.get(key) && !castleSet.has(key)) placeDecor(ctx, name, imgs, x, y, res);
+    }
+  return cv;
+}
+
 /** Запекает всё поле в холст (res px на клетку) */
 export function bakeField(
+  name: string,
   tiles: Tileset,
   paths: Point[][],
   castle: Point[],
@@ -156,31 +227,21 @@ export function bakeField(
         ctx.rotate((Math.floor(hash(x + 5, y + 3) * 4) * Math.PI) / 2);
         ctx.drawImage(grass, sx, sy, sz, sz, -res / 2, -res / 2, res, res);
         ctx.restore();
-        // Мелкий декор в одном из углов клетки
-        const decor = DECOR.filter(([n]) => tiles.has(`decor/${n}`));
-        if (decor.length && hash(x + 31, y + 7) < DECOR_SHARE) {
-          const [dn, wf] = decor[Math.floor(hash(x + 11, y + 53) * decor.length)];
-          const img = tiles.get(`decor/${dn}`)!;
-          const w = wf * 1.5 * res;
-          const h = (w * img.naturalHeight) / img.naturalWidth;
-          const cxn = hash(x + 3, y + 29) < 0.5 ? 0.24 : 0.76;
-          const cyn = hash(x + 41, y + 13) < 0.5 ? 0.3 : 0.74;
-          ctx.drawImage(img, dx + cxn * res - w / 2, dy + cyn * res - h / 2, w, h);
-        }
+        placeDecor(ctx, name, tiles, x, y, res);
       } else {
-        let name: TileName = 'end';
+        let tile: TileName = 'end';
         let m = mask;
         const n = [L, R, U, D].filter((b) => mask & b).length;
-        if (n === 4) name = 'cross';
-        else if (n === 3) name = 't';
-        else if (n === 2) name = mask === (L | R) || mask === (U | D) ? 'straight' : 'corner';
+        if (n === 4) tile = 'cross';
+        else if (n === 3) tile = 't';
+        else if (n === 2) tile = mask === (L | R) || mask === (U | D) ? 'straight' : 'corner';
         let rot = 0;
-        const base = BASE[name];
+        const base = BASE[tile];
         for (m = base; rot < 4 && m !== mask; rot++) m = rotateMask(m);
         ctx.save();
         ctx.translate(dx + res / 2, dy + res / 2);
         ctx.rotate((rot * Math.PI) / 2);
-        ctx.drawImage(tiles.get(name)!, -res / 2, -res / 2, res, res);
+        ctx.drawImage(tiles.get(tile)!, -res / 2, -res / 2, res, res);
         ctx.restore();
       }
     }
