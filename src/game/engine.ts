@@ -996,7 +996,11 @@ export class GameEngine {
       sound.playBuy();
     }
     if (!duel) this.waveCountdown = null;
-    else this.duelRoundStart();
+    else {
+      // Duel and brawl: waves overlap and the field is rarely empty, so the totals close with each round
+      if (this.wavesLaunched > 0) this.publishWaveSummary();
+      this.duelRoundStart();
+    }
 
     // An early start launches the next wave, not the current one again
     this.wave = this.wavesLaunched + 1;
@@ -1190,7 +1194,7 @@ export class GameEngine {
     towers.sort((a, b) => b.damage - a.damage);
     this.lastSummary = {
       id: ++this.summarySeq,
-      wave: this.wave,
+      wave: this.duelStart !== null ? this.wavesLaunched : this.wave, // a duel round: the wave launched last
       killed: st.killed,
       leaked: st.leaked,
       gold: st.gold,
@@ -1300,7 +1304,7 @@ export class GameEngine {
         const reward = calculateWaveClearReward(this.wave);
         this.gold += reward;
         this.statGold(reward);
-        this.publishWaveSummary();
+        if (this.duelStart === null) this.publishWaveSummary(); // a duel closes them on the clock
         this.addFloatingText(`Волна ${this.wave} зачищена! +${reward} золота`, CONFIG.grid.totalWidth / 2, 80, '#f4c06a');
         sound.playBuy();
 
