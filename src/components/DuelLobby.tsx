@@ -9,7 +9,8 @@ import { DuelLink, newRoomCode, openDuel } from '../duel';
 import { BOT_LEVELS, BotLevel, createBotLink } from '../duelBot';
 
 interface DuelLobbyProps {
-  level: number; // the map, when this player creates the room
+  level: number; // the map picked first, when this player creates the room or plays the bot
+  unlockedLevel: number; // maps open to pick
   onStart: (link: DuelLink, level: number, startAt: number, opponentArmy: number, myArmy: number) => void;
   onBack: () => void;
 }
@@ -23,11 +24,12 @@ type LobbyState =
 
 const JOIN_TIMEOUT_MS = 10000;
 
-export function DuelLobby({ level, onStart, onBack }: DuelLobbyProps) {
+export function DuelLobby({ level: firstLevel, unlockedLevel, onStart, onBack }: DuelLobbyProps) {
+  const [level, setLevel] = useState<number>(firstLevel); // the map for a room this player creates or a bot game
   const [state, setState] = useState<LobbyState>({ kind: 'choose' });
   const [codeInput, setCodeInput] = useState('');
   const [error, setError] = useState<string | null>(null);
-  const [army, setArmy] = useState<number>(level); // faction id of the enemies this player sends
+  const [army, setArmy] = useState<number>(firstLevel); // faction id of the enemies this player sends
   const linkRef = useRef<DuelLink | null>(null);
   const startedRef = useRef(false);
   const timersRef = useRef<number[]>([]);
@@ -139,6 +141,24 @@ export function DuelLobby({ level, onStart, onBack }: DuelLobbyProps) {
             первым потеряет замок, тот проиграл.
           </p>
         </div>
+
+        {/* The map: a room this player creates, or a game with the bot (a guest plays the host's map) */}
+        {(state.kind === 'choose' || state.kind === 'bot') && (
+          <label className="mb-3 flex items-center justify-between gap-2">
+            <span className="text-xs text-stone-400">Карта:</span>
+            <select
+              value={level}
+              onChange={(e) => setLevel(Number(e.target.value))}
+              className="min-h-[36px] flex-1 max-w-[220px] rounded bg-[#221f2d] border border-[#383347] px-2 text-xs font-bold text-stone-200 cursor-pointer"
+            >
+              {CONFIG.factions.slice(0, Math.min(CONFIG.levelCount, Math.max(1, unlockedLevel))).map((f, i) => (
+                <option key={f.id} value={i + 1}>
+                  {f.location}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
 
         {/* The army: the faction of the enemies that attack the opponent (its trait and boss) */}
         {(state.kind === 'choose' || state.kind === 'joining' || state.kind === 'bot') && (

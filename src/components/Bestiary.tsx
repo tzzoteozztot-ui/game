@@ -47,7 +47,7 @@ export function Bestiary({ onClose, initialFaction = 1 }: { onClose: () => void;
   }, [onClose]);
 
   return (
-    <div className="fixed inset-0 z-40 bg-[#121118] text-[#f4f2e6] flex flex-col select-none">
+    <div className="fixed inset-0 z-[60] bg-[#121118] text-[#f4f2e6] flex flex-col select-none">
       <div className="shrink-0 flex flex-col short:flex-row short:items-center short:border-b short:border-[#2d2938]">
       <div className="flex items-center gap-2 px-2 sm:px-4 py-2 border-b border-[#2d2938] short:border-b-0 short:pr-0 shrink-0">
         <button
