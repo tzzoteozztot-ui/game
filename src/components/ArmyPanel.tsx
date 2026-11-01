@@ -8,6 +8,7 @@ import { CONFIG } from '../game/config';
 import { SEND_TYPES, SendType, calculateSendIncome } from '../game/rules';
 import { GoldIcon } from './Icons';
 import { enemyName } from '../bestiary';
+import { EnemyIcon } from './EnemyIcon';
 
 interface ArmyPanelProps {
   gold: number;
@@ -67,10 +68,10 @@ export function ArmyPanel({ gold, prices, outgoing, outgoingCost, income, factio
                 </span>
               )}
               <div className="w-full h-[calc(var(--h-card)-var(--fs-md)-10px)] flex items-center justify-center shrink-0">
-                <img
-                  src={`sprites/enemy_${type}.png`}
+                <EnemyIcon
+                  type={type}
+                  faction={faction}
                   alt={label}
-                  draggable={false}
                   style={{ height: '100%', width: 'auto', maxWidth: '100%', objectFit: 'contain' }}
                 />
               </div>
