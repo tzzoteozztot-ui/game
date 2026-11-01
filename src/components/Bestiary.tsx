@@ -109,13 +109,14 @@ function BeastImage({ creature, factionId }: { creature: BestiaryCreature; facti
   );
 }
 
-export function Bestiary({ onClose, initialFaction = 1, initialRace = 'humans' }: { onClose: () => void; initialFaction?: number; initialRace?: RaceId }) {
+export function Bestiary({ onClose, initialFaction = 1 }: { onClose: () => void; initialFaction?: number }) {
   const [factionId, setFactionId] = useState(initialFaction);
+  // Inside a faction: its creatures or its towers (every faction is also a playable race)
   const [mode, setMode] = useState<'enemies' | 'towers'>('enemies');
-  const [race, setRace] = useState<RaceId>(initialRace);
   const faction = BESTIARY.find((f) => f.id === factionId) ?? BESTIARY[0];
   const conf = CONFIG.factions.find((f) => f.id === faction.id);
   const palette = CONFIG.palettes[faction.id - 1];
+  const race = RACE_IDS.find((id) => CONFIG.races[id].faction === faction.id);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -140,41 +141,10 @@ export function Bestiary({ onClose, initialFaction = 1, initialRace = 'humans' }
           ← Назад
         </button>
         <h2 className="text-base sm:text-xl font-black text-amber-300 tracking-widest uppercase">Бестиарий</h2>
-        <div className="ml-auto short:ml-2 flex gap-1" role="tablist">
-          {(['enemies', 'towers'] as const).map((m) => (
-            <button
-              key={m}
-              type="button"
-              role="tab"
-              aria-selected={mode === m}
-              onClick={() => setMode(m)}
-              className={`min-h-[36px] px-3 rounded text-xs font-bold cursor-pointer ${
-                mode === m ? 'bg-amber-600 text-stone-950' : 'bg-[#221f2d] text-stone-300 hover:bg-[#2c283a] border border-[#383347]'
-              }`}
-            >
-              {m === 'enemies' ? 'Враги' : 'Башни'}
-            </button>
-          ))}
-        </div>
       </div>
 
       <div className="flex gap-1 overflow-x-auto px-2 sm:px-4 py-2 short:py-1 min-w-0" role="tablist">
-        {mode === 'towers' && RACE_IDS.map((id) => (
-          <button
-            key={id}
-            type="button"
-            role="tab"
-            aria-selected={race === id}
-            onClick={() => setRace(id)}
-            className={`shrink-0 min-h-[38px] px-3 rounded text-xs font-bold cursor-pointer flex items-center gap-1.5 ${
-              race === id ? 'bg-amber-600 text-stone-950' : 'bg-[#221f2d] text-stone-300 hover:bg-[#2c283a] border border-[#383347]'
-            }`}
-          >
-            <span className="w-2 h-2 rounded-full border border-black/40" style={{ backgroundColor: CONFIG.palettes[CONFIG.races[id].faction - 1].enemies }} />
-            {CONFIG.races[id].name}
-          </button>
-        ))}
-        {mode === 'enemies' && BESTIARY.map((f) => (
+        {BESTIARY.map((f) => (
           <button
             key={f.id}
             type="button"
@@ -198,7 +168,23 @@ export function Bestiary({ onClose, initialFaction = 1, initialRace = 'humans' }
       </div>
 
       <div className="flex-1 min-h-0 overflow-y-auto px-2 sm:px-4 pb-4">
-        {mode === 'towers' ? <TowerSection race={race} /> : (
+        <div className="max-w-5xl mx-auto flex gap-1 pb-2" role="tablist">
+          {(['enemies', 'towers'] as const).map((m) => (
+            <button
+              key={m}
+              type="button"
+              role="tab"
+              aria-selected={mode === m}
+              onClick={() => setMode(m)}
+              className={`min-h-[34px] px-3 rounded text-xs font-bold cursor-pointer ${
+                mode === m ? 'bg-amber-500/90 text-stone-950' : 'bg-[#1a1724] text-stone-300 hover:bg-[#2c283a] border border-[#383347]'
+              }`}
+            >
+              {m === 'enemies' ? 'Враги и босс' : 'Башни'}
+            </button>
+          ))}
+        </div>
+        {mode === 'towers' && race ? <TowerSection race={race} /> : (
         <div className="max-w-5xl mx-auto flex flex-col gap-3">
           <section className="rounded-lg border border-[#3d384d] bg-[#1a1724] p-3 sm:p-4">
             <div className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5">
