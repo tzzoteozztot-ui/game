@@ -162,8 +162,9 @@ export function DuelResultModal({ outcome, wave, stats, onToMenu }: { outcome: D
   return (
     <div className="fixed inset-0 bg-black/85 flex items-center justify-center p-4 z-50">
       <div
-        className={`bg-[#171520] border-2 ${won ? 'border-amber-500/70' : 'border-red-800/70'} rounded-xl p-4 short:p-3 max-w-sm w-full max-h-[94vh] overflow-y-auto shadow-2xl text-center text-[#f4f2e6]`}
+        className={`bg-[#171520] border-2 ${won ? 'border-amber-500/70' : 'border-red-800/70'} rounded-xl p-4 short:p-3 max-w-sm w-full max-h-[94vh] flex flex-col overflow-hidden shadow-2xl text-center text-[#f4f2e6]`}
       >
+        <div className="min-h-0 flex-1 overflow-y-auto pr-1 -mr-1">
         <h2 className={`text-2xl font-black tracking-wider mb-2 ${won ? 'text-amber-300' : 'text-red-400'}`}>
           {won ? 'ПОБЕДА В ДУЭЛИ' : 'ПОРАЖЕНИЕ'}
         </h2>
@@ -172,6 +173,8 @@ export function DuelResultModal({ outcome, wave, stats, onToMenu }: { outcome: D
           Волна {wave}
         </p>
         <RunStats stats={stats ?? null} />
+        </div>
+        <div className="shrink-0 pt-2">
         <button
           type="button"
           onClick={onToMenu}
@@ -179,6 +182,7 @@ export function DuelResultModal({ outcome, wave, stats, onToMenu }: { outcome: D
         >
           В меню
         </button>
+        </div>
       </div>
     </div>
   );
@@ -210,7 +214,8 @@ export function VictoryModal({
 
   return (
     <div className="fixed inset-0 bg-black/85 flex items-center justify-center p-4 z-50">
-      <div className="bg-[#171520] border-2 border-amber-500/70 rounded-xl p-4 short:p-3 max-w-sm w-full max-h-[94vh] overflow-y-auto shadow-2xl text-center text-[#f4f2e6]">
+      <div className="bg-[#171520] border-2 border-amber-500/70 rounded-xl p-4 short:p-3 max-w-sm w-full max-h-[94vh] flex flex-col overflow-hidden shadow-2xl text-center text-[#f4f2e6]">
+        <div className="min-h-0 flex-1 overflow-y-auto pr-1 -mr-1">
         <h2 className="text-2xl font-black text-amber-300 tracking-wider mb-1">
           {isFinal ? 'ВЕЛИКАЯ ПОБЕДА!' : 'РУБЕЖ УДЕРЖАН!'}
         </h2>
@@ -232,13 +237,14 @@ export function VictoryModal({
         </div>
         <RunStats stats={stats ?? null} />
 
+        </div>
         {/* Actions */}
-        <div className="flex flex-col gap-2">
+        <div className="grid grid-cols-2 gap-2 shrink-0 pt-2">
           {!isFinal && (
             <button
               type="button"
               onClick={onNext}
-              className="w-full min-h-[44px] py-2 px-4 rounded bg-amber-500 hover:bg-amber-400 text-stone-950 font-black text-sm tracking-wide transition-colors cursor-pointer"
+              className="col-span-2 w-full min-h-[44px] py-2 px-4 rounded bg-amber-500 hover:bg-amber-400 text-stone-950 font-black text-sm tracking-wide transition-colors cursor-pointer"
             >
               Далее →
             </button>
@@ -280,7 +286,8 @@ export function DefeatModal({ stats, wave, endless, best, onRestart, onToMenu }:
   const [prevBest] = useState(best);
   return (
     <div className="fixed inset-0 bg-black/85 flex items-center justify-center p-4 z-50">
-      <div className="bg-[#171520] border-2 border-red-800/70 rounded-xl p-4 short:p-3 max-w-sm w-full max-h-[94vh] overflow-y-auto shadow-2xl text-center text-[#f4f2e6]">
+      <div className="bg-[#171520] border-2 border-red-800/70 rounded-xl p-4 short:p-3 max-w-sm w-full max-h-[94vh] flex flex-col overflow-hidden shadow-2xl text-center text-[#f4f2e6]">
+        <div className="min-h-0 flex-1 overflow-y-auto pr-1 -mr-1">
         <h2 className="text-2xl font-black text-red-400 tracking-wider mb-2">
           РУБЕЖ ПАЛ
         </h2>
@@ -297,8 +304,9 @@ export function DefeatModal({ stats, wave, endless, best, onRestart, onToMenu }:
         </p>
         <RunStats stats={stats ?? null} />
 
+        </div>
         {/* Actions */}
-        <div className="flex flex-col gap-2">
+        <div className="grid grid-cols-2 gap-2 shrink-0 pt-2">
           <button
             type="button"
             onClick={onRestart}
