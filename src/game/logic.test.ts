@@ -4,6 +4,7 @@ import { MAPS, makePath, validateMap, validateAllMaps, MAX_ROAD_CELLS, MIN_FREE_
 import { CONFIG } from './config';
 import { endlessRecordKey } from '../progress';
 import { attackStats, specSummary, stackedSlow } from './towerStats';
+import { emptyPairState, pairRound, placesForFallen } from '../brawl';
 
 test('all 5 maps meet the game rules', () => {
   for (const m of MAPS) {
@@ -509,4 +510,62 @@ test('race tower stats: level growth, orc tempering, undead merge choice', () =>
   assert.ok(Math.abs(u.cooldown - archer.cooldown / und.levelDamage) < 1e-9);
   // особые башни без обычной атаки
   assert.equal(attackStats('und_crypt', 1, []).normalAttack, false);
+});
+
+// «Потасовка»: pairs every wave, the ghost for the odd one out
+
+test('brawl: eight players pair up, avoiding last wave\'s opponent', () => {
+  const alive = Array.from({ length: 8 }, (_, i) => ({ id: `p${i}`, lives: 200 }));
+  let st = emptyPairState();
+  for (let wave = 0; wave < 30; wave++) {
+    const prev = { ...st.lastOpp };
+    const res = pairRound(alive, st);
+    assert.equal(res.ghostFoe, null);
+    for (const p of alive) {
+      const o = res.opp[p.id];
+      assert.ok(o && o !== p.id, `${p.id} has an opponent`);
+      assert.equal(res.opp[o], p.id, 'pairs are mutual');
+      if (wave > 0) assert.notEqual(o, prev[p.id], 'not the same opponent twice in a row');
+    }
+    st = res.state;
+  }
+});
+
+test('brawl: with an odd count the ghost goes from the weakest to the strongest, never twice in a row', () => {
+  const alive = [
+    { id: 'a', lives: 50 },
+    { id: 'b', lives: 120 },
+    { id: 'c', lives: 90 },
+    { id: 'd', lives: 200 },
+    { id: 'e', lives: 10 },
+  ];
+  let st = { ...emptyPairState(), ghost: 'x' };
+  const order: string[] = [];
+  for (let i = 0; i < 6; i++) {
+    const res = pairRound(alive, st);
+    assert.ok(res.ghostFoe);
+    assert.equal(res.opp[res.ghostFoe!], 'x');
+    for (const p of alive) if (p.id !== res.ghostFoe) assert.equal(res.opp[res.opp[p.id]], p.id);
+    order.push(res.ghostFoe!);
+    st = res.state;
+  }
+  assert.deepEqual(order.slice(0, 5), ['e', 'a', 'c', 'b', 'd']);
+  assert.notEqual(order[5], order[4], 'a new turn order does not start with the last one');
+  assert.equal(order[5], 'e');
+
+  // Equal HP: random, but never the same one twice in a row
+  const tied = [{ id: 'a', lives: 100 }, { id: 'b', lives: 100 }, { id: 'c', lives: 100 }];
+  st = { ...emptyPairState(), ghost: 'x' };
+  let last = '';
+  for (let i = 0; i < 20; i++) {
+    const res = pairRound(tied, st);
+    assert.notEqual(res.ghostFoe, last);
+    last = res.ghostFoe!;
+    st = res.state;
+  }
+});
+
+test('brawl: players who fall on one wave take the last places, more HP before it places higher', () => {
+  const places = placesForFallen([{ id: 'a', livesBefore: 30 }, { id: 'b', livesBefore: 80 }], 6);
+  assert.deepEqual(places, { b: 5, a: 6 });
 });

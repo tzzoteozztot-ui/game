@@ -733,6 +733,18 @@ export const CONFIG = {
     sendMaxPerType: 200, // a send message with more is cut down (a broken or forged message)
   },
 
+  // «Потасовка» (Артур, 2026-11-01): eight on the duel's clock, the opponents change every wave
+  brawl: {
+    players: 8,
+    hpDrain: 8, // real seconds for a bot's whole HP to drain on the board (only the look)
+    // The seven bots' strengths (duelBot.ts BOT_LEVELS) by the difficulty picked in the menu
+    bots: {
+      easy: ['easy', 'easy', 'easy', 'easy', 'normal', 'normal', 'normal'],
+      normal: ['easy', 'easy', 'normal', 'normal', 'normal', 'hard', 'hard'],
+      hard: ['normal', 'normal', 'normal', 'hard', 'hard', 'hard', 'hard'],
+    },
+  },
+
   spawnInterval: 0.8, // seconds between spawns
   swarmInterval: 0.25, // seconds between swarm individuals
   swarmGroupCount: 8, // individuals per swarm group
