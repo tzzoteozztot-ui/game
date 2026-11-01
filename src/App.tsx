@@ -193,6 +193,7 @@ export default function App() {
     backpack: [],
     backpackSlots: CONFIG.backpack.slots,
     faction: 1,
+    nextWaveFaction: 1,
     runSummary: null,
     waveSummary: null,
     nextWave: null,
@@ -398,6 +399,7 @@ export default function App() {
   }, []);
 
   const [opponentArmy, setOpponentArmy] = useState(1);
+  const [myArmy, setMyArmy] = useState(1); // the army I send: its enemies' names in «Армия»
   const handleDuelStart = (link: DuelLink, level: number, startAt: number, army: number, myArmy: number, roundLength = CONFIG.duel.roundLength) => {
     duelLinkRef.current = link;
     duelSeenRef.current = performance.now();
@@ -406,12 +408,13 @@ export default function App() {
     setOpponent(null);
     setSideTab('towers');
     setOpponentArmy(army);
+    setMyArmy(myArmy);
     setSelectedLevel(level);
     link.onMessage((msg) => {
       duelSeenRef.current = performance.now();
       if (msg.t === 'hello' && link.role === 'host') link.send({ t: 'start', level, army: myArmy, inMs: 0 }); // the first answer was lost
       else if (msg.t === 'state') setOpponent({ lives: msg.lives, wave: msg.wave, income: msg.income ?? 0 });
-      else if (msg.t === 'send') engineRef.current?.receiveSend(msg.enemies ?? {});
+      else if (msg.t === 'send') engineRef.current?.receiveSend(msg.enemies ?? {}, msg.army);
       else if (msg.t === 'lost') finishDuel('won');
       else if (msg.t === 'leave') finishDuel('left');
     });
@@ -421,6 +424,7 @@ export default function App() {
         engineRef.current.setCanvas(canvasRef.current);
         engineRef.current.startDuel(level, startAt, army, race, roundLength);
         engineRef.current.onDuelSend = (enemies) => link.send({ t: 'send', enemies });
+        if (link instanceof BrawlRoom) engineRef.current.waveFactionFor = (w) => link.factionForWave(w);
         setShopCards(generateShopCards(1));
       }
     }, 50);
@@ -434,7 +438,9 @@ export default function App() {
     const room = new BrawlRoom(level, race, brawlBots(bots), startAt, () => engineRef.current?.lives ?? 0);
     room.onChange(setBrawl);
     setMode('duel');
-    handleDuelStart(room, level, startAt, level, level, CONFIG.brawl.roundLength);
+    // Every wave brings the opponent's own army: its race's enemies (просьба Артура 2026-11-01)
+    const own = CONFIG.races[race].faction;
+    handleDuelStart(room, level, startAt, room.factionForWave(1), own, CONFIG.brawl.roundLength);
   };
 
   // Duel: my state to the opponent every few seconds; silence for too long means they are gone
@@ -1245,7 +1251,7 @@ export default function App() {
                 <WaveInfo
                   nextWave={gameState.nextWave}
                   summary={gameState.waveSummary}
-                  faction={gameState.faction}
+                  faction={gameState.nextWaveFaction}
                   isWaveActive={gameState.isWaveActive}
                 />
                 {/* Bottom corners: gold and lives on the left; the selected tower's card on the half away from it,
@@ -1350,7 +1356,7 @@ export default function App() {
                   outgoing={gameState.duelOutgoing}
                   outgoingCost={gameState.duelOutgoingCost}
                   income={gameState.duelIncome}
-                  faction={gameState.faction}
+                  faction={myArmy}
                   onBuy={(t) => {
                     sound.init();
                     engineRef.current?.buySend(t);
