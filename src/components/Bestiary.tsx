@@ -111,8 +111,6 @@ function BeastImage({ creature, factionId }: { creature: BestiaryCreature; facti
 
 export function Bestiary({ onClose, initialFaction = 1 }: { onClose: () => void; initialFaction?: number }) {
   const [factionId, setFactionId] = useState(initialFaction);
-  // Inside a faction: its creatures or its towers (every faction is also a playable race)
-  const [mode, setMode] = useState<'enemies' | 'towers'>('enemies');
   const faction = BESTIARY.find((f) => f.id === factionId) ?? BESTIARY[0];
   const conf = CONFIG.factions.find((f) => f.id === faction.id);
   const palette = CONFIG.palettes[faction.id - 1];
@@ -168,24 +166,7 @@ export function Bestiary({ onClose, initialFaction = 1 }: { onClose: () => void;
       </div>
 
       <div className="flex-1 min-h-0 overflow-y-auto px-2 sm:px-4 pb-4">
-        <div className="max-w-5xl mx-auto flex gap-1 pb-2" role="tablist">
-          {(['enemies', 'towers'] as const).map((m) => (
-            <button
-              key={m}
-              type="button"
-              role="tab"
-              aria-selected={mode === m}
-              onClick={() => setMode(m)}
-              className={`min-h-[34px] px-3 rounded text-xs font-bold cursor-pointer ${
-                mode === m ? 'bg-amber-500/90 text-stone-950' : 'bg-[#1a1724] text-stone-300 hover:bg-[#2c283a] border border-[#383347]'
-              }`}
-            >
-              {m === 'enemies' ? 'Враги и босс' : 'Башни'}
-            </button>
-          ))}
-        </div>
-        {mode === 'towers' && race ? <TowerSection race={race} /> : (
-        <div className="max-w-5xl mx-auto flex flex-col gap-3">
+        <div className="max-w-5xl mx-auto flex flex-col gap-3 pt-1">
           <section className="rounded-lg border border-[#3d384d] bg-[#1a1724] p-3 sm:p-4">
             <div className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5">
               <h3 className="text-lg font-black text-amber-300">{faction.name}</h3>
@@ -243,6 +224,11 @@ export function Bestiary({ onClose, initialFaction = 1 }: { onClose: () => void;
             })}
           </div>
         </div>
+        {/* The same faction as a playable race: its towers right below its creatures */}
+        {race && (
+          <div className="mt-4">
+            <TowerSection race={race} />
+          </div>
         )}
       </div>
     </div>
