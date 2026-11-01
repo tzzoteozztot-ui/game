@@ -3,6 +3,7 @@
  * waves, kills, leaks, gold, lives lost, game time and the damage of every tower.
  */
 
+import { useState } from 'react';
 import type { RunSummary } from '../game/engine';
 import { specSummary } from '../game/towerStats';
 
@@ -16,6 +17,7 @@ function fmtTime(sec: number): string {
 }
 
 export function RunStats({ stats }: { stats: RunSummary | null }) {
+  const [open, setOpen] = useState(false);
   if (!stats) return null;
   const top = stats.towers.slice(0, 6);
   const restTowers = stats.towers.slice(6);
@@ -41,8 +43,16 @@ export function RunStats({ stats }: { stats: RunSummary | null }) {
       </div>
       {(stats.towers.length > 0 || rest > 0) && (
         <div className="pt-1.5 border-t border-[#2d2938]">
-          <div className="text-[10px] text-stone-400 mb-1">Урон башен</div>
-          <div className="flex flex-col gap-1.5 tabular-nums">
+          <button
+            type="button"
+            onClick={() => setOpen((v) => !v)}
+            aria-expanded={open}
+            className="w-full min-h-[36px] flex items-center justify-between text-[11px] text-stone-300 cursor-pointer"
+          >
+            <span>Урон башен · {stats.towers.length} шт.</span>
+            <span className="text-stone-400">{open ? 'Свернуть ▲' : 'Развернуть ▼'}</span>
+          </button>
+          {open && <div className="flex flex-col gap-1.5 tabular-nums mt-1">
             {top.map((t, i) => {
               const name = (type: string, level: number, specs: string[], second = false) => (
                 <div className="leading-snug">
@@ -77,7 +87,7 @@ export function RunStats({ stats }: { stats: RunSummary | null }) {
                 <span>{fmt(rest)}</span>
               </div>
             )}
-          </div>
+          </div>}
         </div>
       )}
     </div>

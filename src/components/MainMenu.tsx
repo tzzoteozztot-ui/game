@@ -148,7 +148,7 @@ function HomePage({ onChangePage, onOpenDuel, duelAvailable, unlockedLevel, acco
             key={it.key}
             type="button"
             onClick={it.onClick}
-            className={`w-full min-h-[60px] short:min-h-[56px] px-4 py-2 rounded-lg border text-left transition-all cursor-pointer active:translate-y-0.5 shadow-md ${
+            className={`w-full min-h-[60px] short:min-h-[56px] px-4 py-2 rounded-lg border text-center transition-all cursor-pointer active:translate-y-0.5 shadow-md ${
               it.main
                 ? 'bg-amber-500 hover:bg-amber-400 border-amber-300 text-stone-950 shadow-amber-950/50'
                 : 'bg-[#1a1724] hover:bg-[#252033] border-[#3d384d] hover:border-amber-400 text-stone-100'
