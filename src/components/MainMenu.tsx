@@ -6,7 +6,8 @@
  */
 
 import React, { useState } from 'react';
-import { CONFIG, Difficulty } from '../game/config';
+import { CONFIG, Difficulty, RaceId } from '../game/config';
+import { RacePicker } from './RacePicker';
 import { endlessRecordKey } from '../progress';
 import { StarIcon, LockIcon, SoundIcon, FullscreenIcon } from './Icons';
 import { useFullscreen, isStandalone, HOME_SCREEN_HINT } from '../fullscreen';
@@ -22,6 +23,8 @@ interface MainMenuProps {
   selectedDifficulty: Difficulty;
   duelAvailable: boolean; // duel needs the server (or ?duel=local)
   endlessBest: Record<number, number>; // endlessRecordKey(level, faction) -> best wave reached in endless mode
+  race: RaceId; // the player's faction
+  onChangeRace: (race: RaceId) => void;
   endlessEnemies: number; // endless mode: whose enemies come, 0 — the map's own faction
   onChangeEnemies: (faction: number) => void;
   musicVol: number;
@@ -187,6 +190,8 @@ function LevelPage({
   onPlay,
   selectedDifficulty,
   onChangeDifficulty,
+  race,
+  onChangeRace,
 }: MainMenuProps & { endless: boolean; onBack: () => void }) {
   return (
     <div className="w-full max-w-2xl short:max-w-3xl flex flex-col items-center">
@@ -255,6 +260,10 @@ function LevelPage({
               );
             })}
           </div>
+        </div>
+
+        <div className={`${PANEL} w-full p-1.5`}>
+          <RacePicker race={race} onChange={onChangeRace} />
         </div>
 
         {/* Enemies (endless), difficulty and the start */}
@@ -404,7 +413,7 @@ function SettingsPage({
           <div className="flex flex-col gap-2">
             <button type="button" onClick={onOpenBestiary} className={`${BTN} w-full text-left`}>
               Бестиарий
-              <span className="block text-[11px] font-normal text-stone-400 mt-0.5">Враги и боссы всех фракций</span>
+              <span className="block text-[11px] font-normal text-stone-400 mt-0.5">Враги, боссы и башни</span>
             </button>
             <button type="button" onClick={onOpenHowToPlay} className={`${BTN} w-full text-left`}>
               Как играть

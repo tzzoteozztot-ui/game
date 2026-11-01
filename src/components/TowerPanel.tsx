@@ -9,7 +9,7 @@
 
 import React from 'react';
 import { Tower, TowerPart } from '../game/engine';
-import { CONFIG } from '../game/config';
+import { CONFIG, RaceId } from '../game/config';
 import { calculateSellRefund } from '../game/rules';
 import { TowerSpriteIcon, BinderIcon, HeartCastleIcon } from './Icons';
 import type { GameStateSnapshot } from '../game/engine';
@@ -60,6 +60,12 @@ interface TowerPanelProps {
   castle?: GameStateSnapshot['castle']; // the artifact's card: HP and its defence
   gold?: number;
   onUpgradeCastle?: () => void;
+  mergeNeed?: number; // towers that merge into the next level
+  race?: RaceId;
+  info?: GameStateSnapshot['selectedInfo']; // faction bonuses, souls, crit, ability of the selected tower
+  onCastAbility?: () => void;
+  onToggleAuto?: () => void;
+  onSacrifice?: () => void;
 }
 
 // Waiting for a tap on a target (raise with a triple binder, bind): the hint with «Отмена» stands outside the field
@@ -133,6 +139,12 @@ export function TowerPanel({
   castle = null,
   gold = 0,
   onUpgradeCastle,
+  mergeNeed = 3,
+  race = 'humans',
+  info = null,
+  onCastAbility,
+  onToggleAuto,
+  onSacrifice,
 }: TowerPanelProps) {
   const closeBtn = (
     <button type="button" onClick={onClose} title="Закрыть (Esc)" className={`${glassBtn} w-[var(--h-head)] h-[var(--h-head)] text-[length:var(--fs-lg)] shrink-0`}>
@@ -252,7 +264,9 @@ export function TowerPanel({
   if (isBinding) return null;
 
   const baseDef = CONFIG.towers[tower.type];
-  const canMerge = eligibleMergeCount >= 3 && tower.level < 3;
+  const canMerge = eligibleMergeCount >= mergeNeed && tower.level < 3;
+  const humans = race === 'humans';
+  const ability = info?.ability ?? null;
 
   const second = tower.second;
   const secondDef = second ? CONFIG.towers[second.type] : null;
@@ -260,7 +274,7 @@ export function TowerPanel({
   const other = second ? partStats(second) : null;
   const pair = (a: string | number, b: string | number | undefined) => (b === undefined ? `${a}` : `${a} / ${b}`);
 
-  let refund = calculateSellRefund(baseDef.cost, tower.level, sellRatio);
+  let refund = calculateSellRefund(baseDef.cost, tower.level, sellRatio, mergeNeed);
   if (second && secondDef) {
     refund += calculateSellRefund(secondDef.cost, second.level, sellRatio);
     refund += Math.floor(CONFIG.binder.cost * sellRatio);
@@ -297,6 +311,10 @@ export function TowerPanel({
           : `${spec.desc} (прибавка ×${n})`;
       notes.push({ title: n > 1 ? `${spec.name} ×${n}` : spec.name, text });
     }
+    if (def.race && def.race !== 'humans') {
+      if (def.desc) notes.unshift({ title: def.name, text: def.desc });
+      continue;
+    }
     if (seen.length === 0) {
       notes.push({
         title: def.name,
@@ -320,7 +338,7 @@ export function TowerPanel({
       : 'Ближний';
 
   return (
-    <Card wide={canUpgrade}>
+    <Card wide={(humans && canUpgrade) || tower.type === 'dem_gate'}>
       {/* 1. Header: Name, level, specialization; details and close */}
       <div className="flex items-center gap-1.5 h-[var(--h-head)] shrink-0">
         <div className="w-[var(--h-head)] h-[var(--h-head)] flex items-center justify-center bg-black/30 rounded border border-white/10 shrink-0 overflow-hidden">
@@ -370,9 +388,34 @@ export function TowerPanel({
         ))}
       </div>
 
+      {/* Faction: an ability with its auto switch, bonuses from where the tower stands */}
+      {ability && (
+        <button
+          type="button"
+          onClick={onToggleAuto}
+          aria-pressed={ability.auto}
+          title={`${ability.name}: ${ability.desc}. Авто — само, когда рядом трое врагов, тяжёлый или босс`}
+          className={`${glassBtn} h-[calc(var(--h-btn)*0.6)] px-1 text-[length:var(--fs-xs)] gap-1 shrink-0 ${ability.auto ? '!bg-orange-700/60 !border-orange-300/50 !text-white' : ''}`}
+        >
+          <span className="font-bold">{ability.name}</span>
+          <span className="truncate text-stone-300">— {ability.desc}</span>
+          <span className="ml-auto font-bold whitespace-nowrap">авто: {ability.auto ? 'вкл' : 'выкл'}</span>
+        </button>
+      )}
+      {info && info.lines.length > 0 && !details && (
+        <div className="text-[length:var(--fs-xs)] leading-tight text-[#bfe8ff] truncate" title={info.lines.join('; ')}>
+          {info.lines.join(' · ')}
+        </div>
+      )}
+
       {/* Details: what each specialization does and the damage dealt */}
       {details && (
         <div className="flex flex-col gap-y-0.5 text-[length:var(--fs-xs)] leading-snug text-stone-300">
+          {info?.lines.map((l) => (
+            <div key={l} className="text-[#bfe8ff]">
+              {l}
+            </div>
+          ))}
           {notes.map((n) => (
             <div key={n.title}>
               <span className="text-amber-300 font-semibold">{n.title}</span> — {n.text}
@@ -388,7 +431,11 @@ export function TowerPanel({
       )}
 
       {/* 3. Target priority, merge, bind and sell: one row */}
-      <div className={`grid gap-1 h-[var(--h-btn)] shrink-0 ${canUpgrade ? 'grid-cols-5' : 'grid-cols-4'}`}>
+      <div
+        className={`grid gap-1 h-[var(--h-btn)] shrink-0 ${
+          humans ? (canUpgrade ? 'grid-cols-5' : 'grid-cols-4') : ability ? (info?.sacrifice !== undefined && tower.type === 'dem_gate' ? 'grid-cols-5' : 'grid-cols-4') : 'grid-cols-3'
+        }`}
+      >
         <button
           type="button"
           onClick={onCyclePriority}
@@ -408,15 +455,51 @@ export function TowerPanel({
               ? 'bg-amber-500 hover:bg-amber-400 text-stone-950 border border-amber-300 shadow-md shadow-amber-950/40 animate-pulse cursor-pointer'
               : 'bg-black/30 text-stone-500 border border-white/10 cursor-not-allowed'
           }`}
-          title="Слить 3 башни в одну (M); обычная связка заменяет третью башню Ур.1"
+          title={humans ? 'Слить 3 башни в одну (M); обычная связка заменяет третью башню Ур.1' : `Слить ${mergeNeed} одинаковые башни в одну (M)`}
         >
           <span className="text-[length:var(--fs-btn4)]">Слить</span>
           <span className="text-[length:var(--fs-xs)] tabular-nums mt-0.5">
-            {second ? '—' : tower.level >= 3 ? 'макс' : mergeUsesBinder ? '2+связка' : `${eligibleMergeCount}/3`}
+            {second ? '—' : tower.level >= 3 ? 'макс' : mergeUsesBinder ? '2+связка' : `${eligibleMergeCount}/${mergeNeed}`}
           </span>
         </button>
 
-        {canUpgrade && (
+        {ability && (
+          <button
+            type="button"
+            onClick={onCastAbility}
+            disabled={!ability.ready || gold < ability.cost}
+            className={`h-[var(--h-btn)] px-0.5 rounded font-bold flex flex-col items-center justify-center leading-none transition-all ${
+              ability.left > 0
+                ? 'bg-orange-500 text-stone-950 border border-orange-200'
+                : ability.ready && gold >= ability.cost
+                  ? 'bg-orange-950/60 hover:bg-orange-900/60 text-orange-300 border border-orange-400/60 cursor-pointer'
+                  : 'bg-black/30 text-stone-500 border border-white/10 cursor-not-allowed'
+            }`}
+            title={`${ability.name}: ${ability.desc} (A)`}
+          >
+            <span className="text-[length:var(--fs-btn4)] truncate max-w-full">{ability.name}</span>
+            <span className="text-[length:var(--fs-xs)] mt-0.5 tabular-nums whitespace-nowrap">
+              {ability.left > 0 ? `${ability.left} с` : ability.cooldown > 0 ? `через ${ability.cooldown} с` : `${ability.cost} зол.`}
+            </span>
+          </button>
+        )}
+
+        {tower.type === 'dem_gate' && (
+          <button
+            type="button"
+            onClick={onSacrifice}
+            disabled={!info?.sacrifice}
+            className={`h-[var(--h-btn)] px-0.5 rounded font-bold flex flex-col items-center justify-center leading-none transition-all ${
+              info?.sacrifice ? 'bg-red-950/60 hover:bg-red-900/60 text-red-300 border border-red-500/60 cursor-pointer' : 'bg-black/30 text-stone-500 border border-white/10 cursor-not-allowed'
+            }`}
+            title="Жертва: самая дешёвая башня рядом сгорает, залп по всем врагам в радиусе"
+          >
+            <span className="text-[length:var(--fs-btn4)]">Жертва</span>
+            <span className="text-[length:var(--fs-xs)] mt-0.5 tabular-nums whitespace-nowrap">{info?.sacrifice ? `урон ${info.sacrifice}` : 'нет башни'}</span>
+          </button>
+        )}
+
+        {humans && canUpgrade && (
           <button
             type="button"
             onClick={onUpgradeTower}
@@ -428,6 +511,7 @@ export function TowerPanel({
           </button>
         )}
 
+        {humans && (
         <button
           type="button"
           onClick={onBind}
@@ -444,6 +528,7 @@ export function TowerPanel({
           <span className="text-[length:var(--fs-btn4)]">Связать</span>
           <span className="text-[length:var(--fs-xs)] mt-0.5 whitespace-nowrap">{bindLabel}</span>
         </button>
+        )}
 
         <button
           type="button"

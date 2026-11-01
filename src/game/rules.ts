@@ -51,16 +51,20 @@ export function endlessArmorBonus(wave: number): number {
 }
 
 /** Value of one tower or binder on the table: a bought Ур.1 is 1, merged Ур.2 is 3, Ур.3 is 9 */
-export function calculateSupplyPower(towerLevels: number[], binders: number, tripleBinders: number): number {
+export function calculateSupplyPower(towerLevels: number[], binders: number, tripleBinders: number, merge = 3): number {
   const s = CONFIG.supply;
   let power = binders * s.binderPower + tripleBinders * s.tripleBinderPower;
-  for (const level of towerLevels) power += s.towerPower[Math.min(3, Math.max(1, level)) - 1];
+  // Люди: 1/3/9; other factions count the towers merged into one: merge^(level−1)
+  for (const level of towerLevels) {
+    const l = Math.min(3, Math.max(1, level));
+    power += merge === 3 ? s.towerPower[l - 1] : Math.pow(merge, l - 1);
+  }
   return power;
 }
 
 /** Price multiplier of buying towers and binders at this supply: ×growth for every full step above `free` */
-export function calculateSupplyMult(power: number): number {
-  const s = CONFIG.supply;
+export function calculateSupplyMult(power: number, own?: { free: number; step: number; growth: number }): number {
+  const s = own ?? CONFIG.supply;
   return Math.pow(s.growth, Math.floor(Math.max(0, power - s.free) / s.step));
 }
 
@@ -133,11 +137,9 @@ export function canBindLevels(levelA: number, levelB: number): boolean {
   return levelA >= CONFIG.binder.minLevel && levelB >= CONFIG.binder.minLevel;
 }
 
-export function calculateSellRefund(baseCost: number, level: number, ratio = CONFIG.upgrade.sellRatio): number {
-  // Lvl 1: 1 tower invested
-  // Lvl 2: 3 towers invested (merged or bought as triplet)
-  // Lvl 3: 9 towers invested (3 lvl2 towers)
-  const count = level === 1 ? 1 : level === 2 ? 3 : 9;
+export function calculateSellRefund(baseCost: number, level: number, ratio = CONFIG.upgrade.sellRatio, merge = 3): number {
+  // Towers invested: merge^(level−1) — люди 1/3/9, орки 1/4/16, нежить 1/2/4
+  const count = Math.pow(merge, Math.min(3, Math.max(1, level)) - 1);
   const totalInvested = baseCost * count;
   return Math.floor(totalInvested * ratio);
 }

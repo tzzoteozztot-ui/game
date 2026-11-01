@@ -4,13 +4,22 @@
  */
 
 import React from 'react';
-import { TowerType } from '../game/config';
+import { TowerType, CONFIG } from '../game/config';
 
 /** Tower picture from public/sprites. A failed load (a hiccup of the network or of a deploy) is retried a few times;
  *  the shape icon stands in meanwhile and stays only if the file is really missing. */
 export function TowerSpriteIcon({ type, size = 24, color }: { type: TowerType; size?: number | string; color?: string }) {
+  // Faction towers show their unit figure for now; a missing faction figure falls back to the common one
+  const def = CONFIG.towers[type];
+  const sources = def.sprite ? [def.sprite, def.sprite.replace(/_\d+$/, '')] : [`tower_${type}_1`];
+  const [step, setStep] = React.useState(0);
   const [tries, setTries] = React.useState(0);
   const [failed, setFailed] = React.useState(false);
+  React.useEffect(() => {
+    setStep(0);
+    setTries(0);
+    setFailed(false);
+  }, [type]);
   React.useEffect(() => {
     if (!failed || tries >= 3) return;
     const id = setTimeout(() => {
@@ -22,17 +31,19 @@ export function TowerSpriteIcon({ type, size = 24, color }: { type: TowerType; s
   if (failed) return <TowerShapeIcon type={type} size={size} color={color} />;
   return (
     <img
-      src={`sprites/tower_${type}_1.png${tries ? `?retry=${tries}` : ''}`}
+      src={`sprites/${sources[step]}.png${tries ? `?retry=${tries}` : ''}`}
       alt=""
       draggable={false}
-      onError={() => setFailed(true)}
+      onError={() => (step + 1 < sources.length ? setStep(step + 1) : setFailed(true))}
       style={{ height: size, width: 'auto', maxWidth: typeof size === 'number' ? size * 1.1 : '100%', objectFit: 'contain' }}
     />
   );
 }
 
 export function TowerShapeIcon({ type, size = 24, color }: { type: TowerType; size?: number | string; color?: string }) {
-  if (type === 'archer') {
+  const shape = CONFIG.towers[type].shape;
+  color = color ?? CONFIG.towers[type].color;
+  if (shape === 'triangle') {
     // Triangle
     return (
       <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
@@ -40,7 +51,7 @@ export function TowerShapeIcon({ type, size = 24, color }: { type: TowerType; si
       </svg>
     );
   }
-  if (type === 'mage') {
+  if (shape === 'rhombus') {
     // Rhombus
     return (
       <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
@@ -48,7 +59,7 @@ export function TowerShapeIcon({ type, size = 24, color }: { type: TowerType; si
       </svg>
     );
   }
-  if (type === 'ballista') {
+  if (shape === 'square') {
     // Square with plank
     return (
       <svg width={size} height={size} viewBox="0 0 24 24" fill="none">

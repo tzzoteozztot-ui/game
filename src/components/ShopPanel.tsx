@@ -147,7 +147,7 @@ export function ShopPanel({
               key={card.id}
               type="button"
               onClick={() => onSelectCard(idx)}
-              title={`${baseDef.name}${card.isTriplet ? ' ★ (Триплет)' : ''} — ${cost} золота (${idx + 1})`}
+              title={`${baseDef.name}${card.isTriplet ? ' ★ (сразу Ур.2)' : ''} — ${cost} золота (${idx + 1})${baseDef.desc ? '. ' + baseDef.desc : ''}`}
               className={`h-[var(--h-card)] rounded border flex flex-col items-center justify-center relative transition-all cursor-pointer select-none shrink-0 ${
                 isSelected
                   ? 'border-amber-400 bg-amber-950/40 ring-1 ring-amber-400 shadow-sm'
