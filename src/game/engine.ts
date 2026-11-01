@@ -212,7 +212,7 @@ export interface WaveSummary {
   leaked: number;
   gold: number; // earned since the last summary: kills, clear reward, early start
   lives: number; // lives lost
-  towers: { type: TowerType; second: TowerType | null; level: number; x: number; y: number; damage: number }[];
+  towers: { type: TowerType; second: TowerType | null; level: number; secondLevel: number; specs: string[]; secondSpecs: string[]; x: number; y: number; damage: number }[];
   other: number; // damage of towers sold during the wave and of unattributed sources
 }
 
@@ -976,7 +976,7 @@ export class GameEngine {
     const towers: RunSummary['towers'] = [];
     for (const [id, damage] of st.dmg) {
       const t = this.towers.find((x) => x.id === id);
-      if (t) towers.push({ type: t.type, second: t.second ? t.second.type : null, level: t.level, x: t.x, y: t.y, damage: Math.round(damage) });
+      if (t) towers.push({ type: t.type, second: t.second ? t.second.type : null, level: t.level, secondLevel: t.second ? t.second.level : 0, specs: [...t.specs], secondSpecs: t.second ? [...t.second.specs] : [], x: t.x, y: t.y, damage: Math.round(damage) });
       else other += damage;
     }
     towers.sort((a, b) => b.damage - a.damage);
@@ -999,7 +999,7 @@ export class GameEngine {
     const towers: WaveSummary['towers'] = [];
     for (const [id, damage] of st.dmg) {
       const t = this.towers.find((x) => x.id === id);
-      if (t) towers.push({ type: t.type, second: t.second ? t.second.type : null, level: t.level, x: t.x, y: t.y, damage: Math.round(damage) });
+      if (t) towers.push({ type: t.type, second: t.second ? t.second.type : null, level: t.level, secondLevel: t.second ? t.second.level : 0, specs: [...t.specs], secondSpecs: t.second ? [...t.second.specs] : [], x: t.x, y: t.y, damage: Math.round(damage) });
       else other += damage;
     }
     towers.sort((a, b) => b.damage - a.damage);
