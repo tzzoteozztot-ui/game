@@ -5,7 +5,7 @@ import { CONFIG } from './config';
 import { generateMap, GEN_MAX_ROAD, GEN_MIN_ROAD } from './mapgen';
 import { endlessRecordKey } from '../progress';
 import { attackStats, specSummary, stackedSlow } from './towerStats';
-import { emptyPairState, pairRound, placesForFallen, type PairState } from '../brawl';
+import { emptyPairState, nextHost, pairRound, placesForFallen, type PairState } from '../brawl';
 
 test('all 5 maps meet the game rules', () => {
   for (const m of MAPS) {
@@ -597,4 +597,15 @@ test('brawl: with an odd count the ghost goes from the weakest to the strongest,
 test('brawl: players who fall on one wave take the last places, more HP before it places higher', () => {
   const places = placesForFallen([{ id: 'a', livesBefore: 30 }, { id: 'b', livesBefore: 80 }], 6);
   assert.deepEqual(places, { b: 5, a: 6 });
+});
+
+test('brawl online: the next host is the first player still online in the lobby order', () => {
+  const seats = [
+    { id: 'h', human: true, online: true },
+    { id: 'bot1', human: false, online: false },
+    { id: 'a', human: true, online: false },
+    { id: 'b', human: true, online: true },
+  ];
+  assert.equal(nextHost(seats, new Set(['h'])), 'b');
+  assert.equal(nextHost(seats, new Set(['h', 'b'])), null);
 });

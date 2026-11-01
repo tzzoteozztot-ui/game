@@ -17,11 +17,12 @@ interface FieldStatsProps {
   supply?: { power: number; mult: number; next: number } | null; // endless mode: the table's value and the price multiplier
   opponent?: { lives: number; wave: number; income: number } | null; // duel: the opponent's last known state
   opponentArmy?: string; // duel: the faction the opponent sends
+  opponentTitle?: string; // brawl: «След. соперник» (the one the next wave comes from)
 }
 
 const CELL = `calc(100cqw / ${CONFIG.grid.cols})`;
 
-export function FieldStats({ gold, lives, wave, maxWaves, endless, supply, opponent, opponentArmy }: FieldStatsProps) {
+export function FieldStats({ gold, lives, wave, maxWaves, endless, supply, opponent, opponentArmy, opponentTitle = 'Соперник' }: FieldStatsProps) {
   return (
     <div
       className="pointer-events-none flex flex-col gap-[2px] rounded-md bg-black/45 border border-white/10 backdrop-blur-[2px] px-[calc(var(--cell)*0.14)] py-[calc(var(--cell)*0.06)] text-white/90 tabular-nums leading-none select-none [text-shadow:0_1px_2px_rgba(0,0,0,0.8)]"
@@ -51,7 +52,7 @@ export function FieldStats({ gold, lives, wave, maxWaves, endless, supply, oppon
       )}
       {opponent !== undefined && (
         <div className="flex items-center gap-[0.6em] text-[0.85em] text-stone-300">
-          <span className="truncate max-w-[12em]">Соперник{opponentArmy && ` · ${opponentArmy}`}</span>
+          <span className="truncate max-w-[14em]">{opponentTitle}{opponentArmy && ` · ${opponentArmy}`}</span>
           {opponent ? (
             <>
               <span className="flex items-center gap-0.5 font-bold text-red-300">

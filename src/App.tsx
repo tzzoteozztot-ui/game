@@ -26,7 +26,8 @@ import { DuelLobby } from './components/DuelLobby';
 import { ArmyPanel } from './components/ArmyPanel';
 import { SEND_TYPES } from './game/rules';
 import { DuelLink, duelAvailable } from './duel';
-import { BrawlRoom, BrawlSnapshot, brawlBots } from './brawl';
+import { BrawlNetSetup, BrawlRoom, BrawlSnapshot, brawlBots } from './brawl';
+import { BrawlLobby } from './components/BrawlLobby';
 import { BrawlBoard } from './components/BrawlBoard';
 import { BoonPicker } from './components/BoonPicker';
 import { LevelBriefing } from './components/LevelBriefing';
@@ -38,7 +39,7 @@ import { Progress, EMPTY_PROGRESS, readLocalProgress, writeLocalProgress, mergeP
 import { cloudEnabled, onUserChange, loadCloudProgress, saveCloudProgress } from './cloud';
 import type { User } from '@supabase/supabase-js';
 
-type ScreenState = 'menu' | 'briefing' | 'duelLobby' | 'playing';
+type ScreenState = 'menu' | 'briefing' | 'duelLobby' | 'brawlLobby' | 'playing';
 
 // The side column is never narrower than this (a phone minimum, an eighth of a wide screen): the field gives way to it
 const SIDE_MIN_W = 'max(132px, 12cqw)';
@@ -87,7 +88,7 @@ const BOTTOM_VARS = {
 type StageLayout = 'side' | 'bottom';
 
 // Which arrangement gives the bigger field on a stage of this size: the column at the side or the strip below
-/** «Потасовка»: who you face now, for the opponent's line under your gold */
+/** «Потасовка»: whom the next wave comes from (просьба Артура 2026-11-01: видеть следующего соперника) */
 function brawlOpponentLabel(b: BrawlSnapshot): string {
   const o = b.seats.find((s) => s.id === b.opponentId);
   if (!o) return '—';
@@ -445,7 +446,8 @@ export default function App() {
       if (canvasRef.current && engineRef.current) {
         engineRef.current.setCanvas(canvasRef.current);
         engineRef.current.startDuel(level, startAt, army, race, roundLength);
-        engineRef.current.onDuelSend = (enemies) => link.send({ t: 'send', enemies });
+        const eng = engineRef.current;
+        eng.onDuelSend = (enemies) => link.send({ t: 'send', enemies, wave: eng.wavesLaunched + 1 });
         if (link instanceof BrawlRoom) {
           engineRef.current.waveFactionFor = (w) => link.factionForWave(w);
           engineRef.current.boonsOn = true;
@@ -466,6 +468,15 @@ export default function App() {
     // Every wave brings the opponent's own army: its race's enemies (просьба Артура 2026-11-01)
     const own = CONFIG.races[race].faction;
     handleDuelStart(room, level, startAt, room.factionForWave(1), own, CONFIG.brawl.roundLength);
+  };
+  // Network brawl from its lobby (BrawlLobby.tsx): the same room, its seats are the lobby's players
+  const [brawlLobby, setBrawlLobby] = useState<{ mode: 'host' | 'join'; level: number; bots: Difficulty } | null>(null);
+  const handleBrawlNetStart = (setup: BrawlNetSetup, level: number, bots: Difficulty, startAt: number) => {
+    sound.init();
+    const room = new BrawlRoom(level, race, brawlBots(bots), startAt, () => engineRef.current?.lives ?? 0, setup);
+    room.onChange(setBrawl);
+    setMode('duel');
+    handleDuelStart(room, level, startAt, room.factionForWave(1), CONFIG.races[race].faction, CONFIG.brawl.roundLength);
   };
 
   // Duel: my state to the opponent every few seconds; silence for too long means they are gone
@@ -1196,6 +1207,11 @@ export default function App() {
             setScreen('duelLobby');
           }}
           onStartBrawl={handleBrawlStart}
+          onOpenBrawlLobby={(m, level, bots) => {
+            sound.init();
+            setBrawlLobby({ mode: m, level, bots });
+            setScreen('brawlLobby');
+          }}
           onOpenHowToPlay={() => setShowHowToPlay(true)}
           onOpenBestiary={() => setShowBestiary(true)}
           accountLabel={cloudEnabled ? (user ? 'Аккаунт ✓' : 'Войти') : null}
@@ -1216,6 +1232,23 @@ export default function App() {
           endless={endless}
           onStartBattle={handleStartBattle}
           onBack={() => setScreen('menu')}
+        />
+      )}
+
+      {/* 3a. Brawl lobby: one of the eight creates it, the others join by its code */}
+      {screen === 'brawlLobby' && brawlLobby && (
+        <BrawlLobby
+          mode={brawlLobby.mode}
+          level={brawlLobby.level}
+          bots={brawlLobby.bots}
+          unlockedLevel={unlockedLevel}
+          race={race}
+          onChangeRace={setRace}
+          onStart={handleBrawlNetStart}
+          onBack={() => {
+            setMenuPage('brawl');
+            setScreen('menu');
+          }}
         />
       )}
 
@@ -1302,6 +1335,7 @@ export default function App() {
                       endless={gameState.endless}
                       supply={gameState.supplyActive ? { power: gameState.supplyPower, mult: gameState.supplyMult, next: gameState.supplyNext } : null}
                       opponent={gameState.duel ? opponent : undefined}
+                      opponentTitle={brawl ? 'След. соперник' : undefined}
                       opponentArmy={gameState.duel ? (brawl ? brawlOpponentLabel(brawl) : CONFIG.factions[opponentArmy - 1]?.name) : undefined}
                     />
                   </div>

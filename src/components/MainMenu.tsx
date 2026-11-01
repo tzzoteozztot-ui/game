@@ -37,6 +37,7 @@ interface MainMenuProps {
   onPlay: () => void;
   onOpenDuel: () => void;
   onStartBrawl: (level: number, bots: Difficulty) => void;
+  onOpenBrawlLobby: (mode: 'host' | 'join', level: number, bots: Difficulty) => void; // network brawl (needs the server)
   onChangeDifficulty: (diff: Difficulty) => void;
   onOpenHowToPlay: () => void;
   onOpenBestiary: () => void;
@@ -188,7 +189,7 @@ const BRAWL_BOTS: { id: Difficulty; label: string }[] = [
   { id: 'hard', label: 'Сильные' },
 ];
 
-function BrawlPage({ onBack, unlockedLevel, selectedLevel, onSelectLevel, race, onChangeRace, onStartBrawl }: MainMenuProps & { onBack: () => void }) {
+function BrawlPage({ onBack, unlockedLevel, selectedLevel, onSelectLevel, race, onChangeRace, onStartBrawl, onOpenBrawlLobby, duelAvailable }: MainMenuProps & { onBack: () => void }) {
   const [bots, setBots] = useState<Difficulty>('normal');
   const level = Math.min(selectedLevel, Math.max(1, unlockedLevel));
   return (
@@ -199,7 +200,8 @@ function BrawlPage({ onBack, unlockedLevel, selectedLevel, onSelectLevel, race, 
           Восемь игроков, у каждого свой рубеж. Волны выходят у всех разом, каждые {CONFIG.brawl.roundLength} с, и с каждой
           волной соперник меняется: купленные во вкладке «Армия» враги уходят ему, его враги — вам. Кого покинул артефакт, тот
           выбыл; при нечётном числе оставшихся поле выбывшего остаётся «призраком», и с ним по очереди играют все, от слабого к
-          сильному. Побеждает последний устоявший. Остальные семеро — боты.
+          сильному. Побеждает последний устоявший. Играйте с семью ботами или соберите своё лобби: создайте его и скажите
+          игрокам код, свободные места займут боты.
         </div>
         <div className="w-full flex flex-col gap-2 short:gap-1.5">
           <label className={`${PANEL} w-full flex items-center justify-between gap-2 p-1`}>
@@ -242,8 +244,26 @@ function BrawlPage({ onBack, unlockedLevel, selectedLevel, onSelectLevel, race, 
             onClick={() => onStartBrawl(level, bots)}
             className="w-full min-h-[48px] short:min-h-[42px] py-2 px-4 rounded bg-amber-500 hover:bg-amber-400 text-stone-950 font-black text-sm short:text-xs tracking-wider uppercase transition-all shadow-lg shadow-amber-950/50 cursor-pointer active:translate-y-0.5"
           >
-            В бой: {CONFIG.factions[level - 1].location}
+            С ботами: {CONFIG.factions[level - 1].location}
           </button>
+          {duelAvailable && (
+            <div className="w-full grid grid-cols-2 gap-2 short:gap-1.5">
+              <button
+                type="button"
+                onClick={() => onOpenBrawlLobby('host', level, bots)}
+                className="min-h-[44px] short:min-h-[40px] py-2 px-2 rounded bg-[#221f2d] hover:bg-[#2c283a] text-amber-200 border border-[#383347] font-bold text-xs cursor-pointer"
+              >
+                Создать лобби
+              </button>
+              <button
+                type="button"
+                onClick={() => onOpenBrawlLobby('join', level, bots)}
+                className="min-h-[44px] short:min-h-[40px] py-2 px-2 rounded bg-[#221f2d] hover:bg-[#2c283a] text-stone-200 border border-[#383347] font-bold text-xs cursor-pointer"
+              >
+                Войти по коду
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </div>
