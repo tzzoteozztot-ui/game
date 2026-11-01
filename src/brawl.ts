@@ -34,7 +34,8 @@ export interface BrawlSeatView {
 export interface BrawlSnapshot {
   wave: number; // waves already out
   seats: BrawlSeatView[]; // the alive by HP, then the fallen by place
-  opponentId: string | null; // whom you face now: your sends go there, its sends come to you
+  opponentId: string | null; // the next opponent: the next wave brings its enemies, your sends go there
+  currentId: string | null; // the current opponent: whose enemies the last wave brought (просьба Артура 2026-11-01)
   ghostId: string | null; // the fallen field that plays for the odd one out
   ghostFoeId: string | null; // who faces the ghost now
   alive: number;
@@ -388,8 +389,9 @@ export class BrawlRoom implements DuelLink {
     if (this.stopped) return;
     // The opponent's line under your gold, live (it is also the duel's sign of life)
     const snap = this.snapshot();
-    const o = snap.seats.find((s) => s.id === snap.opponentId);
-    const field = this.seat(snap.opponentId)?.field;
+    const oppId = snap.currentId ?? snap.opponentId;
+    const o = snap.seats.find((s) => s.id === oppId);
+    const field = this.seat(oppId)?.field;
     this.emit({ t: 'state', lives: o?.lives ?? 0, wave: Math.max(1, this.wave), income: field?.income ?? 0 });
     this.listeners.forEach((cb) => cb(snap));
   }
@@ -715,17 +717,20 @@ export class BrawlRoom implements DuelLink {
     type Row = { id: string; name: string; race: RaceId; human: boolean; took: boolean; shown: number; alive: boolean; place: number | null };
     let rows: Row[];
     let opp: Record<string, string>;
+    let cur: Record<string, string>;
     let ghost: string | null;
     let ghostFoe: string | null;
     if (this.hosting || !this.board) {
       rows = this.seats.map((s) => ({ ...s }));
       opp = this.opp;
+      cur = this.prevOpp[this.wave] ?? {};
       ghost = this.pairState.ghost;
       ghostFoe = this.ghostFoe;
     } else {
       const b = this.board;
       rows = b.seats.map((s) => ({ id: s.id, name: cleanName(s.name), race: cleanRace(s.race), human: !!s.human, took: !!s.took, shown: Number(s.shown) || 0, alive: !!s.alive, place: s.place ?? null }));
       opp = b.opp ?? {};
+      cur = b.prev ?? {};
       ghost = b.pair?.ghost ?? null;
       ghostFoe = b.ghostFoe ?? null;
     }
@@ -754,6 +759,7 @@ export class BrawlRoom implements DuelLink {
       wave: this.wave,
       seats,
       opponentId: youAlive ? (opp[me] ?? null) : null,
+      currentId: youAlive ? (cur[me] ?? null) : null,
       ghostId: alive.length % 2 === 1 && alive.length > 1 ? ghost : null,
       ghostFoeId: ghostFoe,
       alive: alive.length,

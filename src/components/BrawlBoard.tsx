@@ -1,6 +1,6 @@
 /**
  * «Потасовка»: the eight players' artifact HP, live, in the top right corner of the field.
- * The current opponent (whom the next wave comes from) is marked ⚔, the ghost (the fallen field that plays the odd one out) 👻;
+ * The current opponent (whose enemies the last wave brought) is marked 🗡, the next one (whom the next wave comes from) ⚔, the ghost (the fallen field that plays the odd one out) 👻;
  * in a network game the other players are light blue, the bots white.
  * Only the header takes taps (it folds the list); the cells under it stay playable.
  * Same cell unit as FieldHud: one cell is 100cqw / CONFIG.grid.cols.
@@ -30,27 +30,35 @@ export function BrawlBoard({ snap }: { snap: BrawlSnapshot }) {
           <span>Игроки {snap.alive}/{snap.seats.length}</span>
           <span className="text-stone-400">{open ? '▴' : '▾'}</span>
         </button>
+        {open && snap.currentId && (
+          <div className="px-[0.5em] pb-[0.15em] text-[0.9em] text-orange-300 truncate" title="Его враги сейчас на вашем поле">
+            🗡 сейчас: <b>{snap.seats.find((s) => s.id === snap.currentId)?.name}</b>
+          </div>
+        )}
         {open && snap.opponentId && (
           <div className="px-[0.5em] pb-[0.3em] text-[0.9em] text-red-300 truncate" title="Его враги придут к вам со следующей волной, ваши посылки уйдут ему">
-            ⚔ след. соперник: <b>{snap.seats.find((s) => s.id === snap.opponentId)?.name}</b>
+            ⚔ след.: <b>{snap.seats.find((s) => s.id === snap.opponentId)?.name}</b>
           </div>
         )}
         {open && (
           <ul className="flex flex-col gap-[0.25em] px-[0.5em] pb-[0.4em]">
             {snap.seats.map((s) => {
               const isOpp = s.id === snap.opponentId;
+              const isCur = s.id === snap.currentId;
               const isGhost = s.id === snap.ghostId;
               const color = CONFIG.palettes[CONFIG.races[s.race].faction - 1].enemies;
               return (
                 <li
                   key={s.id}
-                  className={`flex flex-col gap-[0.15em] ${s.out ? 'opacity-45' : ''} ${isOpp ? 'text-red-300' : s.kind === 'you' ? 'text-amber-200' : s.kind === 'net' ? 'text-sky-200' : ''}`}
+                  className={`flex flex-col gap-[0.15em] ${s.out ? 'opacity-45' : ''} ${isOpp ? 'text-red-300' : isCur ? 'text-orange-300' : s.kind === 'you' ? 'text-amber-200' : s.kind === 'net' ? 'text-sky-200' : ''}`}
                   title={`${s.name} — ${CONFIG.races[s.race].name}`}
                 >
                   <div className="flex items-center gap-[0.3em]">
                     <span className="inline-block w-[0.6em] h-[0.6em] rounded-full shrink-0" style={{ backgroundColor: color }} />
                     <span className={`flex-1 min-w-0 truncate ${s.kind === 'you' ? 'font-black' : 'font-semibold'}`}>
-                      {isOpp && '⚔ '}
+                      {isCur && '🗡'}
+                      {isOpp && '⚔'}
+                      {(isCur || isOpp) && ' '}
                       {isGhost && '👻 '}
                       {s.name}
                     </span>
