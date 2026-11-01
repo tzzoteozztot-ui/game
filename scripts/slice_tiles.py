@@ -1,5 +1,5 @@
 """Нарезка листа тайлов поля: art/concepts/tiles-<набор>.jpg -> public/tiles/<набор>/*.jpg (256x256).
-Запуск: python3 scripts/slice_tiles.py [frontier|swamp|ice]  (без аргумента — frontier)
+Запуск: python3 scripts/slice_tiles.py [frontier|swamp|ice|scorched]  (без аргумента — frontier)
 Лист: ряд 1 — тупик, прямая, поворот, перекрёсток; ряд 2 — перекрёсток, трава, земля.
 Т-развилки на листе нет: собирается из перекрёстка (верхняя половина) и прямой (нижняя) с мягким швом.
 Ориентация эталонов: тупик/прямая — влево/вправо; поворот — влево+вниз; Т — влево+вправо+вверх."""
@@ -12,9 +12,12 @@ SHEETS = {
     'frontier': ([(27, 348), (420, 729)], [(29, 341), (364, 677), (699, 1012), (1035, 1347)]),
     'swamp': ([(19, 259), (313, 544)], [(21, 254), (271, 504), (520, 753), (770, 1003)]),
     'ice': ([(17, 261), (311, 545)], [(21, 255), (269, 505), (519, 755), (769, 1003)]),
+    'scorched': ([(18, 261), (311, 544)], [(21, 255), (270, 505), (520, 753), (770, 1003)]),
 }
 name = sys.argv[1] if len(sys.argv) > 1 else 'frontier'
 out = f'public/tiles/{name}/'
+import os
+os.makedirs(out, exist_ok=True)
 im = Image.open(f'art/concepts/tiles-{name}.jpg').convert('RGB')
 ROWS, COLS = SHEETS[name]
 S = 256
@@ -44,7 +47,7 @@ w = np.clip((np.arange(S) - (cut_y - soft / 2)) / soft, 0, 1)[:, None, None]
 tiles['t'] = Image.fromarray((cross * (1 - w) + straight * w).astype('uint8'))
 # Поправки набора: яркость (снег Gemini слишком светлый — поле не должно спорить с врагами и надписями)
 # и выравнивание крупных пятен на «траве», чтобы на поле не проступала сетка клеток
-TONE = {'ice': {'gain': 0.74, 'flatten': True}}
+TONE = {'ice': {'gain': 0.74, 'flatten': True}, 'scorched': {'flatten': True}}
 from PIL import ImageFilter
 opt = TONE.get(name, {})
 if opt.get('flatten'):
