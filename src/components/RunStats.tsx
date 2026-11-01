@@ -4,6 +4,7 @@
  */
 
 import type { RunSummary } from '../game/engine';
+import { specSummary } from '../game/towerStats';
 
 const fmt = (n: number) => Math.round(n).toLocaleString('ru-RU');
 const TOWER_SHORT: Record<string, string> = { archer: 'Стрелок', priest: 'Жрец', mage: 'Маг', ballista: 'Баллиста' };
@@ -18,6 +19,8 @@ export function RunStats({ stats }: { stats: RunSummary | null }) {
   if (!stats) return null;
   const top = stats.towers.slice(0, 6);
   const restTowers = stats.towers.slice(6);
+  const total = Math.max(1, stats.towers.reduce((n, t) => n + t.damage, 0) + stats.other);
+  const maxDmg = Math.max(1, stats.towers[0]?.damage ?? 1);
   const rest = restTowers.reduce((s, t) => s + t.damage, 0) + stats.other;
   const cell = (label: string, value: string, bad = false) => (
     <div className="flex flex-col items-center leading-tight">
@@ -36,22 +39,41 @@ export function RunStats({ stats }: { stats: RunSummary | null }) {
         {cell('урон артефакту', fmt(stats.lives), stats.lives > 0)}
         {cell('время', fmtTime(stats.seconds))}
       </div>
-      {(top.length > 0 || rest > 0) && (
+      {(stats.towers.length > 0 || rest > 0) && (
         <div className="pt-1.5 border-t border-[#2d2938]">
-          <div className="text-[10px] text-stone-400 mb-0.5">Урон башен</div>
-          <div className="grid grid-cols-2 gap-x-3 tabular-nums">
-            {top.map((t, i) => (
-              <div key={i} className="flex justify-between gap-1">
-                <span className="truncate">
-                  {TOWER_SHORT[t.type]}
-                  {t.second ? `+${TOWER_SHORT[t.second]}` : ''} {t.level}
-                </span>
-                <span>{fmt(t.damage)}</span>
-              </div>
-            ))}
+          <div className="text-[10px] text-stone-400 mb-1">Урон башен</div>
+          <div className="flex flex-col gap-1.5 tabular-nums">
+            {top.map((t, i) => {
+              const name = (type: string, level: number, specs: string[], second = false) => (
+                <div className="leading-snug">
+                  <span className={second ? 'text-teal-200' : ''}>
+                    {second ? '+ ' : ''}
+                    <b className={second ? '' : 'text-stone-100'}>{TOWER_SHORT[type]}</b> Ур.{level}
+                  </span>
+                  <div className="text-[10px] text-amber-200/90 break-words">{specs.length > 0 ? specSummary(specs) : 'без свойств'}</div>
+                </div>
+              );
+              return (
+                <div key={i}>
+                  <div className="flex justify-between items-baseline gap-2">
+                    <div className="min-w-0 flex flex-col gap-0.5">
+                      {name(t.type, t.level, t.specs)}
+                      {t.second && name(t.second, t.secondLevel, t.secondSpecs, true)}
+                    </div>
+                    <div className="text-right shrink-0">
+                      <div className="font-bold text-stone-100">{fmt(t.damage)}</div>
+                      <div className="text-[10px] text-stone-400">{Math.round((t.damage / total) * 100)}%</div>
+                    </div>
+                  </div>
+                  <div className="h-1 mt-0.5 rounded bg-[#2d2938] overflow-hidden">
+                    <div className="h-full bg-red-400/70" style={{ width: `${Math.max(2, (t.damage / maxDmg) * 100)}%` }} />
+                  </div>
+                </div>
+              );
+            })}
             {rest > 0 && (
               <div className="flex justify-between gap-1 text-stone-400">
-                <span>остальные</span>
+                <span>остальные башни и прочее</span>
                 <span>{fmt(rest)}</span>
               </div>
             )}
