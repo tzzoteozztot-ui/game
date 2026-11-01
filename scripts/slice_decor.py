@@ -38,6 +38,10 @@ SETS = {
 
 from scipy import ndimage as ndi
 
+# Поправки цвета отдельных предметов: (набор, имя) → доля обесцвечивания, яркость.
+# Сера слишком похожа на кучку золота (просьба Артура 2026-11-01: «сделай её серее»)
+GREY = {('scorched', 'sulfur'): (0.65, 0.8)}
+
 
 def slice_set(name):
     src, key, items = SETS[name]
@@ -66,6 +70,11 @@ def slice_set(name):
             edge = set(np.unique(np.concatenate([lab[0], lab[-1], lab[:, 0], lab[:, -1]]))) - {0, int(sizes.argmax())}
             for e in edge:
                 crop[lab == e, 3] = 0
+        if (name, item) in GREY:
+            k, v = GREY[(name, item)]
+            rgb = crop[..., :3].astype(float)
+            lum = rgb @ np.array([0.299, 0.587, 0.114])
+            crop[..., :3] = np.clip((rgb * (1 - k) + lum[..., None] * k) * v, 0, 255).astype('uint8')
         t = Image.fromarray(crop, 'RGBA')
         bbox = t.getchannel('A').getbbox()
         t = t.crop(bbox)
