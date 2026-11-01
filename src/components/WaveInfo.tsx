@@ -7,6 +7,7 @@
 import React from 'react';
 import { CONFIG, EnemyType } from '../game/config';
 import { enemyName } from '../bestiary';
+import { EnemyIcon } from './EnemyIcon';
 import { HUD_LEFT_COLS } from '../game/maps';
 import type { WaveSummary } from '../game/engine';
 
@@ -22,11 +23,7 @@ const MID_COLS = CONFIG.grid.cols - HUD_LEFT_COLS * 2;
 
 const fmt = (n: number) => Math.round(n).toLocaleString('ru-RU');
 
-const TOWER_SHORT: Record<string, string> = { archer: 'Стрелок', priest: 'Жрец', mage: 'Маг', ballista: 'Баллиста' };
-
-function enemyIcon(type: EnemyType, faction: number): string {
-  return type === 'boss' ? `sprites/boss_${faction}.png` : `sprites/enemy_${type}.png`;
-}
+const towerName = (type: string) => CONFIG.towers[type as keyof typeof CONFIG.towers]?.name ?? '';
 
 export function WaveInfo({ nextWave, summary, faction, isWaveActive }: WaveInfoProps) {
   const [open, setOpen] = React.useState(false);
@@ -62,12 +59,12 @@ export function WaveInfo({ nextWave, summary, faction, isWaveActive }: WaveInfoP
           >
             {nextWave!.map((g) => (
               <div key={g.type} className="flex items-center justify-center gap-[1px] min-w-0">
-                <img
-                  src={enemyIcon(g.type, faction)}
+                <EnemyIcon
+                  type={g.type}
+                  faction={faction}
                   alt={enemyName(g.type, faction, CONFIG.enemies[g.type].name)}
                   title={enemyName(g.type, faction, CONFIG.enemies[g.type].name)}
                   className="h-[calc(var(--cell)*0.36)] w-[calc(var(--cell)*0.36)] object-contain shrink-0"
-                  draggable={false}
                 />
                 <span className="text-white/90 font-bold tabular-nums leading-none text-[max(9px,calc(var(--cell)*0.27))]">×{g.count}</span>
               </div>
@@ -115,8 +112,8 @@ export function WaveInfo({ nextWave, summary, faction, isWaveActive }: WaveInfoP
               {summary.towers.slice(0, 6).map((t, i) => (
                 <div key={i} className="flex justify-between gap-1 tabular-nums">
                   <span className="truncate">
-                    {TOWER_SHORT[t.type]}
-                    {t.second ? `+${TOWER_SHORT[t.second]}` : ''} {t.level}
+                    {towerName(t.type)}
+                    {t.second ? `+${towerName(t.second)}` : ''} {t.level}
                   </span>
                   <span>{fmt(t.damage)}</span>
                 </div>
