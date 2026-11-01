@@ -1,4 +1,5 @@
-"""Нарезка листа тайлов поля (Пограничье): art/concepts/tiles-frontier.jpg -> public/tiles/frontier/*.png (256x256).
+"""Нарезка листа тайлов поля: art/concepts/tiles-<набор>.jpg -> public/tiles/<набор>/*.jpg (256x256).
+Запуск: python3 scripts/slice_tiles.py [frontier|swamp]  (без аргумента — frontier)
 Лист: ряд 1 — тупик, прямая, поворот, перекрёсток; ряд 2 — перекрёсток, трава, земля.
 Т-развилки на листе нет: собирается из перекрёстка (верхняя половина) и прямой (нижняя) с мягким швом.
 Ориентация эталонов: тупик/прямая — влево/вправо; поворот — влево+вниз; Т — влево+вправо+вверх."""
@@ -6,11 +7,15 @@ import sys
 from PIL import Image
 import numpy as np
 
-src = sys.argv[1] if len(sys.argv) > 1 else 'art/concepts/tiles-frontier.jpg'
-out = 'public/tiles/frontier/'
-im = Image.open(src).convert('RGB')
-ROWS = [(27, 348), (420, 729)]
-COLS = [(29, 341), (364, 677), (699, 1012), (1035, 1347)]
+# Рамки тайлов на листе: ряды (y0, y1) и столбцы (x0, x1). Листы swamp и следующие — перекраска листа Пограничья в Gemini
+SHEETS = {
+    'frontier': ([(27, 348), (420, 729)], [(29, 341), (364, 677), (699, 1012), (1035, 1347)]),
+    'swamp': ([(19, 259), (313, 544)], [(21, 254), (271, 504), (520, 753), (770, 1003)]),
+}
+name = sys.argv[1] if len(sys.argv) > 1 else 'frontier'
+out = f'public/tiles/{name}/'
+im = Image.open(f'art/concepts/tiles-{name}.jpg').convert('RGB')
+ROWS, COLS = SHEETS[name]
 S = 256
 INSET = 2
 
