@@ -2,6 +2,7 @@
  * 60 FPS Game Engine & Canvas Renderer for «Тёмный рубеж»
  */
 
+import { RunLog, LogTower } from './runLog';
 import { CONFIG, TowerType, TargetPriority, Difficulty, EnemyType, RaceId, TowerBaseDef, BOONS, BoonDef, pickBoons } from './config';
 import { MAPS, Point, MapDef, isHudCell } from './maps';
 import { generateMap } from './mapgen';
@@ -474,6 +475,10 @@ export class GameEngine {
   public guardLevel = 1; // level of the artifact's own defence (CONFIG.siege.guard)
   // Brawl: the artifact's boons (CONFIG.brawl.boons) — one of three after every 3rd wave (просьба Артура 2026-11-01)
   public boonsOn = false;
+  /** Лог партии (runLog.ts): пишется всегда, скачивается с экрана итогов */
+  public runLog: RunLog | null = null;
+  /** Данные вне движка для среза волны (доска Потасовки) — задаёт App */
+  public logExtra: (() => unknown) | null = null;
   public boons: string[] = [];
   private boonOffers: string[][] = []; // offers not chosen yet, oldest first
   private guardTimer = 0;
@@ -665,6 +670,8 @@ export class GameEngine {
     this.resetWaveStats();
     this.runStats = { killed: 0, leaked: 0, gold: 0, lives: 0, time: 0, dmg: new Map(), other: 0 };
     this.lastSummary = null;
+    this.runLog = new RunLog({ mode: 'campaign', map: this.level, mapSeed, difficulty: diff, race: this.race, faction: this.faction });
+    this.runLog.data.mode = endless ? 'endless' : 'campaign';
     this.selectedBinderId = null;
     this.bindingFromId = null;
     this.upgradingFromBinderId = null;
@@ -775,6 +782,7 @@ export class GameEngine {
     this.duelRoundLength = roundLength;
     this.faction = Math.max(1, Math.min(CONFIG.factions.length, Math.floor(opponentArmy) || level));
     this.duelStart = startAt;
+    if (this.runLog) this.runLog.data.mode = 'duel';
     this.waveCountdown = this.duelNextWaveAt() / 1000 - performance.now() / 1000;
     this.notifyState();
   }
@@ -804,6 +812,7 @@ export class GameEngine {
     this.gold -= price;
     this.duelOutgoing[type] = (this.duelOutgoing[type] ?? 0) + 1;
     this.duelOutgoingCost += price;
+    this.logEv('send', { type, price, gold: Math.round(this.gold) });
     sound.playBuy();
     this.notifyState();
     return true;
@@ -868,6 +877,8 @@ export class GameEngine {
   public chooseBoon(id: string): boolean {
     const offer = this.boonOffers[0];
     if (!offer || !offer.includes(id) || this.isGameOver) return false;
+    this.logEv('boon', { id, offered: offer });
+    this.runLog?.data.boons.push({ id, wave: this.wavesLaunched, t: Math.round(this.runStats.time) });
     this.boonOffers.shift();
     this.boons.push(id);
     if (id === 'walls') this.lives += this.boon('walls');
@@ -1014,6 +1025,7 @@ export class GameEngine {
     const faction = this.faction;
     // A duel wave joins the enemies still waiting to come out
     if (!duel) this.spawnQueue = [];
+    const queued0 = this.spawnQueue.length;
 
     // Helper to calculate count
     const getCount = (count?: number) =>
@@ -1081,6 +1093,7 @@ export class GameEngine {
       this.spawnQueue.push({ type: 'boss', entrance: 0, faction });
     }
 
+    this.logWaveStart(queued0);
     this.isSpawning = true;
     this.waveInProgress = true;
     this.spawnTimer = 0;
@@ -1116,6 +1129,66 @@ export class GameEngine {
     add('swarm', count(def.swarm) * CONFIG.swarmGroupCount);
     if (def.boss) add('boss', 1);
     return out;
+  }
+
+  // ---- Лог партии (runLog.ts): только запись, на игру не влияет ----
+  private logEv(kind: string, fields: Record<string, unknown> = {}) {
+    this.runLog?.event(this.runStats.time, this.wavesLaunched, kind, fields);
+  }
+
+  private logTowers(): LogTower[] {
+    return this.towers.map((t) => ({
+      id: t.id,
+      x: t.x,
+      y: t.y,
+      main: { type: t.type, level: t.level, specs: [...t.specs] },
+      second: t.second ? { type: t.second.type, level: t.second.level, specs: [...t.second.specs] } : null,
+      damage: Math.round(this.runStats.dmg.get(t.id) || 0),
+    }));
+  }
+
+  private logWaveStart(queued0: number) {
+    const log = this.runLog;
+    if (!log) return;
+    const composition: Record<string, number> = {};
+    for (let i = queued0; i < this.spawnQueue.length; i++) {
+      const q = this.spawnQueue[i];
+      const key = `${q.faction}:${q.type}`;
+      composition[key] = (composition[key] || 0) + 1;
+    }
+    let other = this.runStats.other;
+    for (const [id, d] of this.runStats.dmg) if (!this.towers.some((t) => t.id === id)) other += d;
+    let brawl: unknown;
+    try {
+      brawl = this.logExtra?.();
+    } catch {
+      brawl = undefined;
+    }
+    log.wave({
+      wave: this.wavesLaunched,
+      t: Math.round(this.runStats.time * 10) / 10,
+      gold: Math.round(this.gold),
+      lives: Math.round(this.lives),
+      supplyPower: this.supplyPower(),
+      killed: this.runStats.killed,
+      leaked: this.runStats.leaked,
+      goldEarned: this.runStats.gold,
+      livesLost: Math.round(this.runStats.lives),
+      enemiesOnField: this.enemies.length,
+      queued: queued0,
+      composition,
+      towers: this.logTowers(),
+      damageOther: Math.round(other),
+      boons: [...this.boons],
+      brawl,
+    });
+  }
+
+  private logEnd() {
+    const log = this.runLog;
+    if (!log || log.data.result !== 'running') return;
+    log.event(this.runStats.time, this.wavesLaunched, 'final', { gold: Math.round(this.gold), lives: Math.round(this.lives), towers: this.logTowers(), damageOther: Math.round(this.runStats.other) });
+    log.finish(this.isVictory ? 'victory' : 'defeat', this.wavesLaunched, this.runStats.time);
   }
 
   private resetWaveStats() {
@@ -1229,6 +1302,12 @@ export class GameEngine {
     const killGold = Math.round(calculateKillGold(baseDef.gold, this.level, this.wave, this.supplyActive()) * (CONFIG.races[this.race].killGoldMult ?? 1) * (1 + this.boon('loot')));
     const gold = sent ? Math.round(killGold * CONFIG.duel.sentKillGoldShare) : killGold;
 
+    if (this.runLog) {
+      const st = this.runLog.enemy(`${faction}:${type}`);
+      st.spawned++;
+      if (sent) st.sent++;
+      (st.hpByWave ??= {})[this.wave] = Math.round(hp);
+    }
     const enemy: Enemy = {
       id: Math.random().toString(36).substring(2, 9),
       type,
@@ -1559,6 +1638,7 @@ export class GameEngine {
           e.siegeX = castlePxX + Math.cos(ang) * toCastle;
           e.siegeY = castlePxY + Math.sin(ang) * toCastle;
           this.statLeak();
+          if (this.runLog) this.runLog.enemy(`${e.faction}:${e.type}`).leaked++;
         }
         if (e.siegeX !== undefined && e.siegeY !== undefined) {
           const sx = e.siegeX - e.x;
@@ -2692,6 +2772,7 @@ export class GameEngine {
 
     if (this.race !== 'humans') this.onEnemyDeath(e);
     this.statKill();
+    if (this.runLog) this.runLog.enemy(`${e.faction}:${e.type}`).killed++;
     // Reward gold
     if (e.gold > 0) {
       this.gold += e.gold;
@@ -2718,6 +2799,7 @@ export class GameEngine {
     if (e.weakTimer && e.weakTimer > 0) dmg = Math.max(1, Math.round(dmg * (1 - CONFIG.raceMech.weaverWeaken)));
     const lost = Math.min(this.lives, dmg);
     this.statCastleDamage(lost);
+    if (this.runLog) this.runLog.enemy(`${e.faction}:${e.type}`).castleDamage += lost;
     this.lives = Math.max(0, this.lives - dmg);
     e.attackAnim = 0.22;
     const cx = CONFIG.grid.castleTarget.x * CONFIG.grid.cellSize;
@@ -2774,6 +2856,7 @@ export class GameEngine {
     if (this.gold < cost) return false;
     this.gold -= cost;
     this.rerollsThisWave++;
+    this.logEv('reroll', { paid: cost });
     return true;
   }
 
@@ -2786,6 +2869,7 @@ export class GameEngine {
     }
     this.gold -= cost;
     this.tier++;
+    this.logEv('tier', { tier: this.tier, paid: cost });
     sound.playBuy();
     this.notifyState();
     return true;
@@ -2881,6 +2965,7 @@ export class GameEngine {
     }
 
     this.towers.push(newTower);
+    this.logEv('tower', { id: newTower.id, type: newTower.type, level: newTower.level, specs: [...newTower.specs], x: cellX, y: cellY, paid: cost, gold: Math.round(this.gold), fromBackpack });
     this.markModsDirty();
     sound.playBuy();
     this.spawnRing((cellX + 0.5) * CONFIG.grid.cellSize, (cellY + 0.5) * CONFIG.grid.cellSize, '#d9b44a');
@@ -2956,6 +3041,7 @@ export class GameEngine {
     }
     this.gold -= price;
     this.backpack.push({ id: Math.random().toString(36).substring(2, 9), kind, type, triplet, spec, paid: price });
+    this.logEv('buy', { kind, type, triplet, spec, paid: price });
     sound.playBuy();
     this.takeInHand(this.backpack.length - 1);
     return true;
@@ -3043,6 +3129,7 @@ export class GameEngine {
       this.gold -= cost;
       this.addFloatingText(`−${cost}`, (cellX + 0.5) * cs, (cellY + 0.2) * cs, '#f4c06a');
     }
+    this.logEv('move', { id: tower.id, type: tower.type, fromX: tower.x, fromY: tower.y, x: cellX, y: cellY, paid: cost });
     this.spawnPuff((tower.x + 0.5) * cs, (tower.y + 0.5) * cs, '#f4c06a');
     tower.x = cellX;
     tower.y = cellY;
@@ -3073,6 +3160,7 @@ export class GameEngine {
     }
     this.gold -= cost;
     this.guardLevel++;
+    this.logEv('guard', { level: this.guardLevel, paid: cost });
     const c = CONFIG.grid.castleTarget;
     this.spawnRing(c.x * CONFIG.grid.cellSize, c.y * CONFIG.grid.cellSize, '#7fd6e0');
     this.addFloatingText(`Защита ${this.guardLevel}`, c.x * CONFIG.grid.cellSize, (c.y - 0.8) * CONFIG.grid.cellSize, '#7fd6e0');
@@ -3125,6 +3213,7 @@ export class GameEngine {
     this.gold -= price;
     const binder: Binder = { id: Math.random().toString(36).substring(2, 9), x: cellX, y: cellY };
     this.binders.push(binder);
+    this.logEv('binder', { x: cellX, y: cellY, paid: price });
     sound.playBuy();
     this.spawnRing((cellX + 0.5) * CONFIG.grid.cellSize, (cellY + 0.5) * CONFIG.grid.cellSize, CONFIG.binder.color);
     if (this.placingSlot !== null) this.backpack.splice(this.placingSlot, 1);
@@ -3195,6 +3284,7 @@ export class GameEngine {
       return false;
     }
     const binder = this.nearest(this.plainBinders(), tower)[0];
+    this.logEv('bind', { id: tower.id, type: tower.type, level: tower.level, partner: partner.type, partnerLevel: partner.level, x: tower.x, y: tower.y });
     this.binders.splice(this.binders.indexOf(binder), 1);
     this.towers.splice(this.towers.indexOf(partner), 1);
     tower.second = {
@@ -3306,6 +3396,7 @@ export class GameEngine {
       this.notifyState();
       return false;
     }
+    this.logEv('upgrade', { id: tower.id, type: tower.type, level: tower.level, x: tower.x, y: tower.y });
     this.binders.splice(this.binders.indexOf(binder), 1);
     for (const part of tower.second ? [tower, tower.second] : [tower]) {
       if (part.level >= 3) continue;
@@ -3364,6 +3455,7 @@ export class GameEngine {
     }
 
     this.gold += refund;
+    this.logEv('sell', { id: tower.id, type: tower.type, level: tower.level, second: tower.second ? tower.second.type : null, x: tower.x, y: tower.y, refund, damage: Math.round(this.runStats.dmg.get(tower.id) || 0) });
     this.towers.splice(idx, 1);
     this.markModsDirty();
     this.selectedTowerId = null;
@@ -3419,6 +3511,7 @@ export class GameEngine {
     });
 
     const mergePair = standIn ? others : others.slice(0, need - 1);
+    this.logEv('merge', { id: selected.id, type: selected.type, from: selected.level, to: selected.level + 1, consumed: mergePair.map((m) => m.id), binder: !!standIn, x: selected.x, y: selected.y });
 
     if (standIn) {
       this.binders.splice(this.binders.indexOf(standIn), 1);
@@ -3476,6 +3569,7 @@ export class GameEngine {
       if (this.specPending(tower)) tower.specs = [...tower.specs, specId];
     } else if (part === 'second' && tower.second) tower.second.specs = [specId];
     else tower.specs = [specId];
+    this.logEv('spec', { id: tower.id, type: tower.type, level: tower.level, part, spec: specId, x: tower.x, y: tower.y });
     this.askSpecIfNeeded(tower);
     this.notifyState();
   }
@@ -3571,6 +3665,7 @@ export class GameEngine {
   }
 
   public notifyState() {
+    if (this.isGameOver || this.isVictory) this.logEnd();
     if (!this.onStateChange) return;
     const selected = this.selectedTowerId ? this.towers.find((t) => t.id === this.selectedTowerId) || null : null;
     this.selectedDamageDirty = false;

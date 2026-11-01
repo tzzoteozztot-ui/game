@@ -457,6 +457,11 @@ export default function App() {
         if (link instanceof BrawlRoom) {
           engineRef.current.waveFactionFor = (w) => link.factionForWave(w);
           engineRef.current.boonsOn = true;
+          if (eng.runLog) eng.runLog.data.mode = 'brawl';
+          eng.logExtra = () => {
+            const b = link.snapshot();
+            return { currentId: b.currentId, opponentId: b.opponentId, ghostId: b.ghostId, ghostFoeId: b.ghostFoeId, alive: b.alive, seats: b.seats.map((s) => ({ id: s.id, name: s.name, race: s.race, kind: s.kind, lives: Math.round(s.lives), out: s.out, place: s.place })) };
+          };
         }
         setShopCards(generateShopCards(1));
       }

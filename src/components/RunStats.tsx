@@ -7,6 +7,7 @@ import { useState } from 'react';
 import type { RunSummary } from '../game/engine';
 import { specSummary } from '../game/towerStats';
 import { CONFIG, TowerType } from '../game/config';
+import { downloadRunLog, hasSavedRunLog } from '../game/runLog';
 
 const fmt = (n: number) => Math.round(n).toLocaleString('ru-RU');
 const towerName = (type: string) => CONFIG.towers[type as TowerType]?.name ?? '';
@@ -90,6 +91,15 @@ export function RunStats({ stats }: { stats: RunSummary | null }) {
             )}
           </div>}
         </div>
+      )}
+      {hasSavedRunLog() && (
+        <button
+          type="button"
+          onClick={() => downloadRunLog()}
+          className="w-full min-h-[36px] mt-1.5 pt-1.5 border-t border-[#2d2938] text-[11px] text-amber-200 cursor-pointer"
+        >
+          Скачать лог партии (JSON)
+        </button>
       )}
     </div>
   );
