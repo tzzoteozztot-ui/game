@@ -75,6 +75,7 @@ async function runInPage(job) {
   const { GameEngine } = await import('/src/game/engine.ts');
   const { CONFIG } = await import('/src/game/config.ts');
   const { calculateKillGold } = await import('/src/game/rules.ts');
+  const { rollShop } = await import('/src/game/shop.ts');
   for (const [path, value] of job.set ?? []) {
     const keys = path.split('.');
     let o = CONFIG;
@@ -237,19 +238,10 @@ async function runInPage(job) {
 
   // --- shop, as in App.tsx
   let cards = [];
+  const pity = { since: 0 };
   const genCards = () => {
-    const triplet = raceDef.triplets ? CONFIG.shop.tripletChances[engine.tier - 1] || 0 : 0;
-    const binder = raceDef.binders ? CONFIG.shop.binderChances[engine.tier - 1] || 0 : 0;
     const shopTypes = types.filter((t) => (CONFIG.towers[t].minTier ?? 1) <= engine.tier);
-    cards = [];
-    for (let i = 0; i < CONFIG.shop.slotsCount; i++) {
-      if (Math.random() < binder) {
-        cards.push({ type: 'binder', isTriplet: false });
-        continue;
-      }
-      const type = shopTypes[Math.floor(Math.random() * shopTypes.length)];
-      cards.push({ type, isTriplet: Math.random() < triplet });
-    }
+    cards = rollShop(engine.tier, shopTypes, { triplets: !!raceDef.triplets, binders: !!raceDef.binders }, pity);
   };
   genCards();
   engine.onWaveStarted = genCards;
@@ -343,11 +335,12 @@ async function runInPage(job) {
     if (!allowed(c.type)) return -1;
     // Особые башни (клетка, алтарь, склеп, врата) сами не стреляют: сначала три стреляющие
     if (CONFIG.towers[c.type].special && engine.towers.filter((t) => !CONFIG.towers[t.type].special).length < 3) return -1;
+    if (c.level3) return 6;
     if (c.isTriplet) return 3 + group(c.type, 2).length;
     const n = group(c.type, 1).length;
     return 1 + (n === NEED - 1 ? 3 : n >= 1 ? 1 : 0) - (job.policy === 'mixed' ? 0.15 * engine.towers.filter((t) => t.type === c.type).length : 0);
   };
-  const cost = (c) => (c.type === 'binder' ? engine.binderPrice() : engine.towerPrice(c.type, c.isTriplet));
+  const cost = (c) => (c.type === 'binder' ? engine.binderPrice() : engine.towerPrice(c.type, c.level3 ? 3 : c.isTriplet ? 2 : 1));
 
   const buyCard = (i) => {
     const c = cards[i];
@@ -363,11 +356,12 @@ async function runInPage(job) {
       const cell = bestCell(c.type);
       if (!cell) return false;
       engine.placingTowerType = c.type;
-      engine.placingIsTriplet = c.isTriplet;
-      engine.pendingTripletSpec = c.isTriplet && CONFIG.towers[c.type].specs.length ? pickSpec(c.type) : null;
+      engine.placingIsTriplet = c.isTriplet || c.level3;
+      engine.placingStartLevel = c.level3 ? 3 : c.isTriplet ? 2 : 1;
+      engine.pendingTripletSpec = (c.isTriplet || c.level3) && CONFIG.towers[c.type].specs.length ? pickSpec(c.type) : null;
       if (!engine.placeTower(cell.x, cell.y)) return false;
       resolveSpecs();
-      if (c.isTriplet) stats.triplets++;
+      if (c.isTriplet || c.level3) stats.triplets++;
       stats.spend[c.type] += g0 - engine.gold;
     }
     cards[i] = null;

@@ -630,3 +630,25 @@ test('потолок цен: башни ×1,5, армия — множитель
   assert.equal(calculateSendPrice('heavy', 40, 1), calculateSendPrice('heavy', 25, 1));
   assert.ok(calculateSendPrice('heavy', 40, 1, false) > calculateSendPrice('heavy', 40, 1));
 });
+
+import { rollShop } from './shop';
+test('лавка: гарантия готовой башни — за 10 обновлений на 3-м ярусе, за 5 на 4-м', () => {
+  const types = ['archer', 'priest', 'mage', 'ballista'] as const;
+  // всегда «не повезло»: rnd = 0,99 — ни связок, ни ★
+  const unlucky = () => 0.99;
+  for (const [tier, limit] of [[3, 10], [4, 5], [5, 5]] as const) {
+    const pity = { since: 0 };
+    let first = 0;
+    for (let i = 1; i <= limit; i++) {
+      const cards = rollShop(tier, [...types], { triplets: true, binders: true }, pity, unlucky);
+      if (cards.some((c) => c.isTriplet || c.level3)) { first = i; break; }
+    }
+    assert.equal(first, limit);
+  }
+  // 1–2-й ярус: гарантии нет
+  const p = { since: 0 };
+  for (let i = 0; i < 30; i++) assert.ok(!rollShop(2, [...types], { triplets: true, binders: true }, p, unlucky).some((c) => c.isTriplet));
+  // башни Ур.3 только на 5-м ярусе
+  assert.ok(!rollShop(4, [...types], { triplets: true, binders: false }, { since: 0 }, () => 0.01).some((c) => c.level3));
+  assert.ok(rollShop(5, [...types], { triplets: true, binders: false }, { since: 0 }, () => 0.01).some((c) => c.level3));
+});

@@ -7,7 +7,7 @@ import { CONFIG, TowerType } from '../game/config';
 import { TowerSpriteIcon, BinderIcon } from './Icons';
 
 interface BackpackProps {
-  items: { kind: 'tower' | 'binder'; type: TowerType | null; triplet: boolean; sell: number }[];
+  items: { kind: 'tower' | 'binder'; type: TowerType | null; triplet: boolean; startLevel: number; sell: number }[];
   slots: number;
   placingSlot: number | null;
   onSelect: (slot: number) => void;
@@ -60,12 +60,12 @@ export function Backpack({ items, slots, placingSlot, onSelect, onSell }: Backpa
             key={i}
             type="button"
             onClick={() => onSelect(i)}
-            title={item.kind === 'binder' ? CONFIG.binder.name : `${CONFIG.towers[item.type!].name}${item.triplet ? ' ★' : ''}`}
+            title={item.kind === 'binder' ? CONFIG.binder.name : `${CONFIG.towers[item.type!].name}${item.startLevel === 3 ? ' ★★' : item.triplet ? ' ★' : ''}`}
             className={`h-[var(--h-pack,clamp(20px,5.2cqh,44px))] rounded border relative flex items-center justify-center cursor-pointer ${
               picked ? 'border-amber-400 bg-amber-950/40 ring-1 ring-amber-400' : 'border-[#383347] bg-[#221f2d] hover:bg-[#2c283a]'
             }`}
           >
-            {item.triplet && <span className="absolute top-0 right-1 text-amber-400 font-black text-[length:var(--fs-md)] leading-none">★</span>}
+            {item.triplet && <span className="absolute top-0 right-1 text-amber-400 font-black text-[length:var(--fs-md)] leading-none">{item.startLevel === 3 ? '★★' : '★'}</span>}
             <div className="h-[85%] aspect-square">
               {item.kind === 'binder' ? <BinderIcon size="100%" /> : <TowerSpriteIcon type={item.type!} size="100%" color={color} />}
             </div>

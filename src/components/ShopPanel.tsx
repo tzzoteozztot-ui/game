@@ -12,6 +12,7 @@ export interface ShopCard {
   id: string;
   type: TowerType | 'binder'; // 'binder' is the rare «Связка» card
   isTriplet: boolean;
+  level3: boolean; // a ready Ур.3 tower (tier 5)
 }
 
 interface ShopPanelProps {
@@ -19,6 +20,7 @@ interface ShopPanelProps {
   tier: number;
   gold: number;
   rerollCost: number; // grows with each reroll during a wave
+  mergeNeed?: number; // towers that merge into the next level: a ready tower costs this many
   priceMult?: number; // supply: buying towers and binders is this much dearer (endless mode)
   placingTowerType: TowerType | null;
   placingBinder: boolean;
@@ -37,6 +39,7 @@ export function ShopPanel({
   gold,
   rerollCost,
   priceMult = 1,
+  mergeNeed = 3,
   placingTowerType,
   placingBinder,
   isBinding,
@@ -140,7 +143,7 @@ export function ShopPanel({
           }
 
           const baseDef = CONFIG.towers[card.type];
-          const cost = Math.round((card.isTriplet ? baseDef.cost * 3 : baseDef.cost) * priceMult);
+          const cost = Math.round(baseDef.cost * (card.level3 ? mergeNeed * mergeNeed : card.isTriplet ? mergeNeed : 1) * priceMult);
           const canAfford = gold >= cost;
           const isSelected = false;
 
@@ -149,7 +152,7 @@ export function ShopPanel({
               key={card.id}
               type="button"
               onClick={() => onSelectCard(idx)}
-              title={`${baseDef.name}${card.isTriplet ? ' ★ (сразу Ур.2)' : ''} — ${cost} золота (${idx + 1})${baseDef.desc ? '. ' + baseDef.desc : ''}`}
+              title={`${baseDef.name}${card.level3 ? ' ★★ (сразу Ур.3)' : card.isTriplet ? ' ★ (сразу Ур.2)' : ''} — ${cost} золота (${idx + 1})${baseDef.desc ? '. ' + baseDef.desc : ''}`}
               className={`h-[var(--h-card)] rounded border flex flex-col items-center justify-center relative transition-all cursor-pointer select-none shrink-0 ${
                 isSelected
                   ? 'border-amber-400 bg-amber-950/40 ring-1 ring-amber-400 shadow-sm'
@@ -159,12 +162,12 @@ export function ShopPanel({
               }`}
             >
               {/* Triplet Star Badge */}
-              {card.isTriplet && (
+              {(card.isTriplet || card.level3) && (
                 <span
                   className="absolute top-0.5 right-1 text-amber-400 text-[length:var(--fs-lg)] font-black leading-none drop-shadow"
-                  title="Триплет (Ур.2)"
+                  title={card.level3 ? 'Готовая башня Ур.3' : 'Триплет (Ур.2)'}
                 >
-                  ★
+                  {card.level3 ? '★★' : '★'}
                 </span>
               )}
 

@@ -304,6 +304,7 @@ export interface BackpackItem {
   kind: 'tower' | 'binder';
   type: TowerType | null;
   triplet: boolean;
+  startLevel: number; // 1 plain, 2 ★ (triplet), 3 a ready Ур.3 tower
   spec: string | null;
   paid: number;
 }
@@ -345,7 +346,7 @@ export interface GameStateSnapshot {
   supplyMult: number; // price multiplier of buying towers and binders, 1 outside endless mode
   supplyActive: boolean;
   sellRatio: number;
-  backpack: { kind: 'tower' | 'binder'; type: TowerType | null; triplet: boolean; sell: number }[];
+  backpack: { kind: 'tower' | 'binder'; type: TowerType | null; triplet: boolean; startLevel: number; sell: number }[];
   backpackSlots: number;
   faction: number; // whose enemies come (boss picture)
   nextWaveFaction: number; // whose enemies the coming wave brings (in a brawl, the current opponent's)
@@ -462,6 +463,7 @@ export class GameEngine {
   public selectedTowerId: string | null = null;
   public placingTowerType: TowerType | null = null;
   public placingIsTriplet: boolean = false;
+  public placingStartLevel: number = 1;
   public pendingTripletSpec: string | null = null;
   public placingBinder: boolean = false;
   public backpack: BackpackItem[] = [];
@@ -665,6 +667,7 @@ export class GameEngine {
     this.selectedTowerId = null;
     this.placingTowerType = null;
     this.placingIsTriplet = false;
+    this.placingStartLevel = 1;
     this.pendingTripletSpec = null;
     this.placingBinder = false;
     this.backpack = [];
@@ -2871,6 +2874,7 @@ export class GameEngine {
     }
     this.gold -= cost;
     this.tier++;
+    if (CONFIG.shop.tierLinksGuard) this.raiseGuard();
     this.logEv('tier', { tier: this.tier, paid: cost });
     sound.playBuy();
     this.notifyState();
@@ -2916,8 +2920,9 @@ export class GameEngine {
   }
 
   // Shop price of a tower (a triplet is three) or a binder at the current supply
-  public towerPrice(type: TowerType, triplet = false): number {
-    return Math.round(CONFIG.towers[type].cost * (triplet ? this.mergeNeed() : 1) * this.supplyMult() * (1 - this.boon('trade')));
+  public towerPrice(type: TowerType, startLevel: boolean | number = false): number {
+    const lvl = startLevel === true ? 2 : startLevel === false ? 1 : startLevel; // a ready tower costs as much as the towers it would merge from
+    return Math.round(CONFIG.towers[type].cost * Math.pow(this.mergeNeed(), lvl - 1) * this.supplyMult() * (1 - this.boon('trade')));
   }
 
   public binderPrice(): number {
@@ -2935,7 +2940,7 @@ export class GameEngine {
 
     // A tower from the backpack is already paid for
     const fromBackpack = this.placingSlot !== null;
-    const cost = fromBackpack ? 0 : this.towerPrice(this.placingTowerType, this.placingIsTriplet);
+    const cost = fromBackpack ? 0 : this.towerPrice(this.placingTowerType, this.placingStartLevel);
     if (this.gold < cost) {
       sound.playError();
       return false;
@@ -2947,8 +2952,11 @@ export class GameEngine {
       x: cellX,
       y: cellY,
       type: this.placingTowerType,
-      level: this.placingIsTriplet ? 2 : 1,
-      specs: this.placingIsTriplet && this.pendingTripletSpec ? [this.pendingTripletSpec] : [],
+      level: this.placingStartLevel,
+      // A ready Ур.3: the chosen property in as many parts as the level keeps (people: three Ур.2 towers' worth)
+      specs: this.placingStartLevel >= 2 && this.pendingTripletSpec
+        ? Array(this.placingStartLevel === 2 ? 1 : this.race === 'humans' ? 3 : 2).fill(this.pendingTripletSpec)
+        : [],
       priority: 'first',
       cooldownTimer: 0,
       frozenTimer: 0,
@@ -3013,6 +3021,7 @@ export class GameEngine {
     this.placingSlot = null;
     this.placingTowerType = null;
     this.placingIsTriplet = false;
+    this.placingStartLevel = 1;
     this.pendingTripletSpec = null;
     this.placingBinder = false;
   }
@@ -3029,21 +3038,21 @@ export class GameEngine {
   }
 
   // Pays at once and puts the purchase into the backpack, ready to be placed
-  public buyToBackpack(kind: 'tower' | 'binder', type: TowerType | null, triplet: boolean, spec: string | null): boolean {
+  public buyToBackpack(kind: 'tower' | 'binder', type: TowerType | null, triplet: boolean, spec: string | null, startLevel = triplet ? 2 : 1): boolean {
     if (this.overflowPending()) {
       sound.playError();
       this.addFloatingText('Сначала поставьте купленное!', CONFIG.grid.totalWidth - 120, 100, '#e0452f');
       return false;
     }
-    const price = kind === 'binder' ? this.binderPrice() : this.towerPrice(type!, triplet);
+    const price = kind === 'binder' ? this.binderPrice() : this.towerPrice(type!, startLevel);
     if (this.gold < price) {
       sound.playError();
       this.addFloatingText('Не хватает золота!', CONFIG.grid.totalWidth - 120, 100, '#e0452f');
       return false;
     }
     this.gold -= price;
-    this.backpack.push({ id: Math.random().toString(36).substring(2, 9), kind, type, triplet, spec, paid: price });
-    this.logEv('buy', { kind, type, triplet, spec, paid: price });
+    this.backpack.push({ id: Math.random().toString(36).substring(2, 9), kind, type, triplet: startLevel >= 2, startLevel, spec, paid: price });
+    this.logEv('buy', { kind, type, triplet: startLevel >= 2, startLevel, spec, paid: price });
     sound.playBuy();
     this.takeInHand(this.backpack.length - 1);
     return true;
@@ -3084,6 +3093,7 @@ export class GameEngine {
     } else {
       this.placingTowerType = item.type;
       this.placingIsTriplet = item.triplet;
+      this.placingStartLevel = item.startLevel;
       this.pendingTripletSpec = item.spec;
     }
     this.notifyState();
@@ -3150,7 +3160,16 @@ export class GameEngine {
     this.notifyState();
   }
 
+  private raiseGuard() {
+    if (this.guardLevel >= CONFIG.siege.guard.damage.length) return;
+    this.guardLevel++;
+    const c = CONFIG.grid.castleTarget;
+    this.spawnRing(c.x * CONFIG.grid.cellSize, c.y * CONFIG.grid.cellSize, '#7fd6e0');
+    this.addFloatingText(`Защита ${this.guardLevel}`, c.x * CONFIG.grid.cellSize, (c.y - 0.8) * CONFIG.grid.cellSize, '#7fd6e0');
+  }
+
   public guardUpgradeCost(): number | null {
+    if (CONFIG.shop.tierLinksGuard) return null; // the defence rises with the shop tier
     return CONFIG.siege.guard.upgradeCost[this.guardLevel - 1] ?? null;
   }
 
@@ -3161,11 +3180,8 @@ export class GameEngine {
       return false;
     }
     this.gold -= cost;
-    this.guardLevel++;
+    this.raiseGuard();
     this.logEv('guard', { level: this.guardLevel, paid: cost });
-    const c = CONFIG.grid.castleTarget;
-    this.spawnRing(c.x * CONFIG.grid.cellSize, c.y * CONFIG.grid.cellSize, '#7fd6e0');
-    this.addFloatingText(`Защита ${this.guardLevel}`, c.x * CONFIG.grid.cellSize, (c.y - 0.8) * CONFIG.grid.cellSize, '#7fd6e0');
     sound.playBuy();
     this.notifyState();
     return true;
@@ -3715,7 +3731,7 @@ export class GameEngine {
       supplyMult: this.supplyMult(),
       supplyActive: this.supplyActive(),
       sellRatio: this.sellRatio(),
-      backpack: this.backpack.map((i) => ({ kind: i.kind, type: i.type, triplet: i.triplet, sell: i.paid })),
+      backpack: this.backpack.map((i) => ({ kind: i.kind, type: i.type, triplet: i.triplet, startLevel: i.startLevel, sell: i.paid })),
       backpackSlots: CONFIG.backpack.slots,
       faction: this.faction,
       nextWaveFaction: this.factionOfWave(this.wavesLaunched + 1),
