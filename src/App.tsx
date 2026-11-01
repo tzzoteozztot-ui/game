@@ -398,7 +398,7 @@ export default function App() {
   }, []);
 
   const [opponentArmy, setOpponentArmy] = useState(1);
-  const handleDuelStart = (link: DuelLink, level: number, startAt: number, army: number, myArmy: number) => {
+  const handleDuelStart = (link: DuelLink, level: number, startAt: number, army: number, myArmy: number, roundLength = CONFIG.duel.roundLength) => {
     duelLinkRef.current = link;
     duelSeenRef.current = performance.now();
     duelOutcomeRef.current = null;
@@ -419,7 +419,7 @@ export default function App() {
     setTimeout(() => {
       if (canvasRef.current && engineRef.current) {
         engineRef.current.setCanvas(canvasRef.current);
-        engineRef.current.startDuel(level, startAt, army, race);
+        engineRef.current.startDuel(level, startAt, army, race, roundLength);
         engineRef.current.onDuelSend = (enemies) => link.send({ t: 'send', enemies });
         setShopCards(generateShopCards(1));
       }
@@ -434,7 +434,7 @@ export default function App() {
     const room = new BrawlRoom(level, race, brawlBots(bots), startAt, () => engineRef.current?.lives ?? 0);
     room.onChange(setBrawl);
     setMode('duel');
-    handleDuelStart(room, level, startAt, level, level);
+    handleDuelStart(room, level, startAt, level, level, CONFIG.brawl.roundLength);
   };
 
   // Duel: my state to the opponent every few seconds; silence for too long means they are gone

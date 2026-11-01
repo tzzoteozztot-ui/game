@@ -404,6 +404,7 @@ export class GameEngine {
   public endless: boolean = false;
   // Duel: performance.now() of the duel start; wave N starts N rounds later (shared clock), null outside a duel
   public duelStart: number | null = null;
+  public duelRoundLength: number = CONFIG.duel.roundLength; // real seconds per round (the brawl has its own)
   public duelOutgoing: Partial<Record<SendType, number>> = {}; // bought, leaves for the opponent with the next wave
   public duelOutgoingCost = 0;
   public duelIncome = 0; // gold added at the start of every round, grows with every send
@@ -739,8 +740,9 @@ export class GameEngine {
   }
 
   /** Duel: an endless game on this map whose waves follow the shared clock from startAt (performance.now()) */
-  public startDuel(level: number, startAt: number, opponentArmy: number, race: RaceId = 'humans') {
+  public startDuel(level: number, startAt: number, opponentArmy: number, race: RaceId = 'humans', roundLength: number = CONFIG.duel.roundLength) {
     this.startLevel(level, 'normal', true, undefined, race);
+    this.duelRoundLength = roundLength;
     this.faction = Math.max(1, Math.min(CONFIG.factions.length, Math.floor(opponentArmy) || level));
     this.duelStart = startAt;
     this.waveCountdown = this.duelNextWaveAt() / 1000 - performance.now() / 1000;
@@ -831,7 +833,7 @@ export class GameEngine {
   }
 
   private duelNextWaveAt(): number {
-    return (this.duelStart ?? 0) + (this.wavesLaunched + 1) * CONFIG.duel.roundLength * 1000;
+    return (this.duelStart ?? 0) + (this.wavesLaunched + 1) * this.duelRoundLength * 1000;
   }
 
   public stopLoop() {
