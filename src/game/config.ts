@@ -129,6 +129,21 @@ export interface BoonDef {
   // What it gives a brawl bot (its defence is one number): power — defence ×(1 + power), lives — HP now and at most,
   // mend — HP a wave, sends — a bigger share for sends (выбор Артура 2026-11-01: «пусть боты тоже их получают»)
   bot: { power?: number; lives?: number; mend?: number; sends?: number };
+  weight?: number; // how often it is offered against the others (1 by default)
+}
+
+/** `n` distinct boons from `pool`, each drawn by its weight */
+export function pickBoons(pool: BoonDef[], n: number, rand: () => number = Math.random): BoonDef[] {
+  const left = [...pool];
+  const out: BoonDef[] = [];
+  while (out.length < n && left.length > 0) {
+    const total = left.reduce((s, b) => s + (b.weight ?? 1), 0);
+    let r = rand() * total;
+    let i = 0;
+    while (i < left.length - 1 && r >= (left[i].weight ?? 1)) r -= left[i++].weight ?? 1;
+    out.push(left.splice(i, 1)[0]);
+  }
+  return out;
 }
 export const BOONS: BoonDef[] = [
   { id: 'sharp', name: 'Острые клинки', desc: '+10 % урона всех башен', value: 0.1, bot: { power: 0.1 } },
@@ -141,7 +156,7 @@ export const BOONS: BoonDef[] = [
   { id: 'mire', name: 'Вязкая земля', desc: 'Враги идут на 8 % медленнее', value: 0.08, bot: { power: 0.06 } },
   { id: 'loot', name: 'Мародёр', desc: '+15 % золота за убийство', value: 0.15, bot: { power: 0.05 } },
   { id: 'tithe', name: 'Подать', desc: '+20 золота в начале каждого раунда', value: 20, bot: { power: 0.05 } },
-  { id: 'walls', name: 'Крепкие стены', desc: '+40 к прочности артефакта (и к её пределу)', value: 40, bot: { lives: 40 } },
+  { id: 'walls', name: 'Крепкие стены', desc: '+5 к прочности артефакта (и к её пределу)', value: 5, bot: { lives: 5 }, weight: 0.4 }, // +5 и реже — выбор Артура 2026-11-01
   { id: 'mend', name: 'Каменщики', desc: 'Артефакт чинится на 5 раз в 3 раунда', value: 5, bot: { mend: 5 } }, // слабее и реже — выбор Артура 2026-11-01
   { id: 'ward', name: 'Страж', desc: 'Защита артефакта бьёт вдвое сильнее', value: 1, bot: { power: 0.03 } },
   { id: 'trade', name: 'Торговый пост', desc: 'Башни и связки в лавке на 10 % дешевле', value: 0.1, bot: { power: 0.05 } },

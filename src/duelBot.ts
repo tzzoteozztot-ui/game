@@ -6,7 +6,7 @@
  * the wave (the same unit as the send prices), so a sent enemy counts as much as it costs.
  */
 
-import { BOONS, CONFIG } from './game/config';
+import { BOONS, CONFIG, pickBoons } from './game/config';
 import {
   SEND_TYPES,
   SendType,
@@ -93,9 +93,8 @@ export class BotField {
     const mend = Math.round(k * b.reduce((n, d) => n + (d.bot.mend ?? 0), 0));
     if (mend > 0 && this.lives > 0 && round % CONFIG.brawl.mendEvery === 0) this.lives = Math.min(max, this.lives + mend);
     if (round % CONFIG.brawl.boonEvery !== 0) return;
-    const pool = BOONS.filter((d) => !this.boons.includes(d.id));
-    if (pool.length === 0) return;
-    const pick = pool[Math.floor(Math.random() * pool.length)];
+    const [pick] = pickBoons(BOONS.filter((d) => !this.boons.includes(d.id)), 1);
+    if (!pick) return;
     this.boons.push(pick.id);
     if (pick.bot.lives) this.lives += Math.round(pick.bot.lives * CONFIG.brawl.botBoonScale);
   }

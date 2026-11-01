@@ -609,3 +609,17 @@ test('brawl online: the next host is the first player still online in the lobby 
   assert.equal(nextHost(seats, new Set(['h'])), 'b');
   assert.equal(nextHost(seats, new Set(['h', 'b'])), null);
 });
+
+test('усиления: pickBoons даёт разные и реже берёт лёгкие по весу', async () => {
+  const { BOONS, pickBoons } = await import('./config');
+  const three = pickBoons(BOONS, 3);
+  assert.equal(new Set(three.map((b) => b.id)).size, 3);
+  let walls = 0;
+  let sharp = 0;
+  for (let i = 0; i < 4000; i++) {
+    const ids = pickBoons(BOONS, 3).map((b) => b.id);
+    if (ids.includes('walls')) walls++;
+    if (ids.includes('sharp')) sharp++;
+  }
+  assert.ok(walls < sharp * 0.6, `walls ${walls}, sharp ${sharp}`);
+});
