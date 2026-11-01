@@ -493,8 +493,17 @@ async function worker() {
         ` (${Math.round((Date.now() - t0) / 1000)} с)`
     );
     writeFileSync(out, JSON.stringify(results, null, 1));
-    await page.reload();
-    await page.waitForFunction(() => window.gameEngine);
+    // Дев-сервер иногда сам перезагружает страницу (правка файла) — тогда пробуем ещё раз
+    for (let tryN = 0; ; tryN++) {
+      try {
+        await page.goto(URL_);
+        await page.waitForFunction(() => window.gameEngine);
+        break;
+      } catch (e) {
+        if (tryN >= 4) throw e;
+        await new Promise((ok) => setTimeout(ok, 1000));
+      }
+    }
   }
   await page.close();
 }
