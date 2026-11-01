@@ -24,10 +24,12 @@ import {
 /** Сколько клеток дороги допускаем у случайной карты: как у пяти готовых карт (38–48), с небольшим запасом */
 export const GEN_MIN_ROAD = 36;
 export const GEN_MAX_ROAD = 54;
-/** Входы не ближе этого друг к другу (по клеткам, без диагоналей) */
-const MIN_ENTRANCE_GAP = 3;
+/** Входы не ближе этого друг к другу (по клеткам, без диагоналей); шести входам на краю тесно — им 2, иначе поиск в разы дольше */
+const entranceGap = (want: number) => (want >= 6 ? 2 : 3);
 /** После поворота дорога идёт прямо хотя бы столько шагов: без «лесенок» */
 const MIN_RUN = 2;
+/** Сколько шагов поиска даём одной ветке */
+const BRANCH_STEPS = 400;
 
 const DIRS: Point[] = [
   { x: 1, y: 0 },
@@ -125,9 +127,9 @@ function walk(
   return rec(null, MIN_RUN);
 }
 
-/** Один вход не ближе MIN_ENTRANCE_GAP к другим и не в углу */
-const entranceOk = (p: Point, entrances: Point[]) =>
-  onEdge(p) && !isCorner(p) && entrances.every((e) => Math.abs(e.x - p.x) + Math.abs(e.y - p.y) >= MIN_ENTRANCE_GAP);
+/** Вход не в углу и не ближе `gap` к другим входам */
+const entranceOk = (p: Point, entrances: Point[], gap = 3) =>
+  onEdge(p) && !isCorner(p) && entrances.every((e) => Math.abs(e.x - p.x) + Math.abs(e.y - p.y) >= gap);
 
 /** Ветки к стволу: каждая от своего входа до первой встречной клетки дороги */
 function branches(
@@ -163,7 +165,7 @@ function branches(
 
   for (const s of edge) {
     if (paths.length >= want) break;
-    if (road.has(key(s)) || !entranceOk(s, entrances)) continue;
+    if (road.has(key(s)) || !entranceOk(s, entrances, entranceGap(want))) continue;
     if (around(s).some((n) => road.has(key(n)))) continue;
     const room = GEN_MAX_ROAD - road.size;
     if (room < 2) break;
@@ -177,7 +179,7 @@ function branches(
         cells.length >= 2 &&
         !entrances.some((e) => e.x === target.x && e.y === target.y) && // не вливаться во вход другого пути
         cells.length + route(target).length >= MIN_PATH_LENGTH,
-      budget
+      { steps: BRANCH_STEPS } // свой запас шагов: безнадёжный вход бросаем быстро
     );
     if (!b || !b.joins) continue;
     const full = [...b.cells, ...route(b.joins)];
