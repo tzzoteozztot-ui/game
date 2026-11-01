@@ -97,10 +97,10 @@ const ORC_SPECS: TowerSpecDef[] = [
   { id: 'orc_speed', name: 'Быстрота', desc: '+12 % скорости атаки' },
   { id: 'orc_range', name: 'Зоркость', desc: '+0,3 клетки радиуса' },
 ];
-// Нежить: при слиянии двух башен объединённая усиливает урон или скорость ×1,74 (две отдельные на 15 % сильнее)
+// Нежить: при слиянии двух башен объединённая усиливает урон или скорость ×2,4
 const UNDEAD_SPECS: TowerSpecDef[] = [
-  { id: 'und_dmg', name: 'Урон', desc: 'Урон ×1,74' },
-  { id: 'und_speed', name: 'Скорость', desc: 'Скорость атаки ×1,74' },
+  { id: 'und_dmg', name: 'Урон', desc: 'Урон ×2,4' },
+  { id: 'und_speed', name: 'Скорость', desc: 'Скорость атаки ×2,4' },
 ];
 
 export interface RaceDef {
@@ -267,17 +267,17 @@ export const CONFIG = {
 
     // ---------------- Нежить: слияние двух, выбор «урон или скорость» ----------------
     und_archer: {
-      type: 'und_archer', race: 'undead', name: 'Костяной лучник', cost: 40, damage: 6, damageType: 'phys', cooldown: 0.7, range: 2.7,
+      type: 'und_archer', race: 'undead', name: 'Костяной лучник', cost: 40, damage: 9, damageType: 'phys', cooldown: 0.7, range: 2.7,
       shape: 'triangle', color: '#c9d6b0', sprite: 'enemy_scout_2', sound: 'archer', specs: UNDEAD_SPECS,
       desc: 'Дешёвый дальний стрелок.',
     } as TowerBaseDef,
     und_digger: {
-      type: 'und_digger', race: 'undead', name: 'Могильщик', cost: 55, damage: 3, damageType: 'mag', cooldown: 1.0, range: 2.5,
+      type: 'und_digger', race: 'undead', name: 'Могильщик', cost: 55, damage: 5, damageType: 'mag', cooldown: 1.0, range: 2.5,
       shape: 'circle', color: '#9fb88a', sprite: 'enemy_infantry_2', sound: 'priest', specs: UNDEAD_SPECS,
       desc: 'Замедляет цель на 30 % на 3 с. Враг, убитый в его радиусе, становится призраком: соседи замедлены на 20 % на 1 с.',
     } as TowerBaseDef,
     und_cauldron: {
-      type: 'und_cauldron', race: 'undead', name: 'Чумной котёл', cost: 70, damage: 4, damageType: 'mag', cooldown: 1.4, range: 2.6, aoe: 0.9,
+      type: 'und_cauldron', race: 'undead', name: 'Чумной котёл', cost: 70, damage: 6, damageType: 'mag', cooldown: 1.4, range: 2.6, aoe: 0.9,
       shape: 'rhombus', color: '#8fd45a', sprite: 'enemy_shaman_2', sound: 'mage', specs: UNDEAD_SPECS,
       desc: 'Яд по области: 25 % урона в секунду 4 с; при гибели отравленного яд переходит на соседа.',
     } as TowerBaseDef,
@@ -289,7 +289,7 @@ export const CONFIG = {
 
     // ---------------- Культисты: мегабашни из фигур Т, Х, П ----------------
     cul_archer: {
-      type: 'cul_archer', race: 'cultists', name: 'Ледяной стрелок', cost: 55, damage: 7, damageType: 'phys', cooldown: 0.7, range: 2.8,
+      type: 'cul_archer', race: 'cultists', name: 'Ледяной стрелок', cost: 55, damage: 12, damageType: 'phys', cooldown: 0.7, range: 2.8,
       shape: 'triangle', color: '#9fd8f5', sprite: 'enemy_scout_3', sound: 'archer', specs: [],
       desc: 'Каждое попадание добавляет 8 % замедления (до 40 %) на 2 с.',
     } as TowerBaseDef,
@@ -299,12 +299,12 @@ export const CONFIG = {
       desc: 'Раз в 5 с замораживает всех врагов в радиусе на 1,5 с (босса — на 0,5 с).',
     } as TowerBaseDef,
     cul_pillar: {
-      type: 'cul_pillar', race: 'cultists', name: 'Ритуальный столп', cost: 40, damage: 2, damageType: 'mag', cooldown: 1.0, range: 2.2,
+      type: 'cul_pillar', race: 'cultists', name: 'Ритуальный столп', cost: 40, damage: 8, damageType: 'mag', cooldown: 1.0, range: 2.2,
       shape: 'rhombus', color: '#7fc8f0', sprite: 'enemy_infantry_3', sound: 'mage', specs: [],
       desc: 'Дешёвый модуль мегабашни; один слаб.',
     } as TowerBaseDef,
     cul_spike: {
-      type: 'cul_spike', race: 'cultists', name: 'Ледяной шип', cost: 100, damage: 38, damageType: 'phys', cooldown: 2.2, range: 3.6,
+      type: 'cul_spike', race: 'cultists', name: 'Ледяной шип', cost: 100, damage: 65, damageType: 'phys', cooldown: 2.2, range: 3.6,
       shape: 'square', color: '#5d9fd0', sprite: 'enemy_heavy_3', sound: 'ballista', specs: [],
       desc: 'Тяжёлый выстрел; по замедленным и замороженным ×1,3.',
     } as TowerBaseDef,
@@ -573,9 +573,9 @@ export const CONFIG = {
     },
     undead: {
       id: 'undead', name: 'Нежить', faction: 2, towers: ['und_archer', 'und_digger', 'und_cauldron', 'und_crypt'],
-      merge: 2, maxLevel: 5, levelDamage: 1.74, levelRange: 1.05, binders: false, triplets: false, sellRatio: 0.8,
+      merge: 2, maxLevel: 5, levelDamage: 2.4, levelRange: 1.05, binders: false, triplets: false, sellRatio: 0.8,
       supply: { free: 30, step: 20, growth: 1.06 },
-      features: ['Две одинаковые башни сливаются в одну: на выбор урон или скорость ×1,74 (две отдельные на 15 % сильнее, зато место и цена). Уровней пять.', 'Продажа возвращает 80 %, сила стола дорожает мягче (×1,06).', 'Слабое начало, сила к поздним волнам.'],
+      features: ['Две одинаковые башни сливаются в одну: на выбор урон или скорость ×2,4 (слияние выгоднее двух отдельных). Уровней пять.', 'Продажа возвращает 80 %, сила стола дорожает мягче (×1,06).', 'Слабое начало, сила к поздним волнам.'],
     },
     cultists: {
       id: 'cultists', name: 'Культисты льда', faction: 3, towers: ['cul_archer', 'cul_altar', 'cul_pillar', 'cul_spike'],
