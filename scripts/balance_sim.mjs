@@ -61,7 +61,7 @@ for (const level of LEVELS) {
     add(RUNS, { kind: 'endless', level, policy: 'mixed', style: 'casual', difficulty: DIFF, faction: FACTION, race });
   }
   if (ONLY === 'brawl')
-    for (const style of ['pro', 'casual']) add(RUNS, { kind: 'brawl', level, policy: 'mixed', style, difficulty: DIFF, race });
+    for (const style of ['pro', 'casual']) add(RUNS, { kind: 'brawl', level, policy: 'mixed', style, difficulty: DIFF, race, boons: BOONS });
   if ((!ONLY || ONLY === 'mono') && race === 'humans')
     for (const t of ['archer', 'priest', 'mage', 'ballista'])
       add(Math.max(2, Math.ceil(RUNS / 2)), { kind: 'endless', level, policy: t, style: 'pro', difficulty: 'normal', race });
@@ -111,7 +111,7 @@ async function runInPage(job) {
     };
     engine.onDuelSend = (enemies) => room.send({ t: 'send', enemies });
     engine.waveFactionFor = (w) => room.factionForWave(w);
-    engine.boonsOn = BOONS;
+    engine.boonsOn = job.boons !== false;
   } else engine.startLevel(job.level, job.difficulty, endless, job.faction || undefined, job.race || 'humans', job.mapSeed ?? null);
   const raceDef = CONFIG.races[engine.race];
   const NEED = raceDef.merge;
