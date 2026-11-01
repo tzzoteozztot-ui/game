@@ -734,7 +734,7 @@ export const CONFIG = {
     free: 30,
     step: 20,
     growth: 1.12,
-    maxMult: 999, // ceiling of the price multiplier (no ceiling yet; trial numbers via --set)
+    maxMult: 1.5, // ceiling of the price multiplier of towers and binders (Артур, 2026-11-01: «потолок роста цен»; reached at power 110)
     sellRatio: 0.6,
     killDecay: 0.985,
     killFloor: 0.3,
@@ -770,7 +770,7 @@ export const CONFIG = {
     // Sending enemies to the opponent for gold (Артур: 3А 4А 5А 6Б)
     sendPriceMult: 2 / 1.5, // price = 4/3 × kill gold (was 2 ×; Артур 2026-11-01: «слишком дорого, уменьшим в 1,5 раза»), × the wave's HP multiplier
     botWeightMult: 2, // the bots' wave weight is still counted in the old 2 × kill gold, so their balance did not move with the send price
-    sendWaveCap: 999, // ceiling of the wave's HP multiplier in the send price (no ceiling yet; trial numbers via --set)
+    sendWaveCap: 8, // ceiling of the wave HP multiplier in the send price (Артур, 2026-11-01); reached by wave ~19. Bots count the true weight
     sendIncomeShare: 0.2, // each send adds 1/5 of its price to the gold of every later round
     sentKillGoldShare: 0.5, // the defender gets half the kill gold for a sent enemy
     sendMaxPerType: 200, // a send message with more is cut down (a broken or forged message)
