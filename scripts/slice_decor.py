@@ -1,5 +1,5 @@
 """Нарезка листов декора (фон-маджента): art/concepts/decor-<набор>.* -> public/tiles/<набор>/decor/*.png.
-Запуск: python3 scripts/slice_decor.py [frontier|swamp|ice|scorched]  (без аргумента — все наборы; нужны numpy, Pillow, scipy)
+Запуск: python3 scripts/slice_decor.py [frontier|swamp|ice|scorched|citadel]  (без аргумента — все наборы; нужны numpy, Pillow, scipy)
 Пограничье: только мелкое (камни, кусты, пень, трава); крупные камни, заборы и знамёна не нарезаем (решение Артура 2026-11-01: «мелкий декор»).
 Рамки — по ограничивающим прямоугольникам фигур на листе."""
 import os
@@ -34,6 +34,13 @@ SETS = {
         'ember': (770, 277, 187, 158), 'horn': (70, 450, 283, 197), 'tuft': (449, 472, 206, 166),
         'ash': (711, 492, 275, 145),
     }),
+    # 'tint_strict': как 'tint', но фон ещё и почти без зелёного — у Цитадели свои фиолетовые цветы и трава
+    'citadel': ('art/concepts/decor-citadel.jpg', 'tint_strict', {
+        'slab1': (48, 50, 190, 152), 'slab2': (300, 59, 160, 143), 'column': (516, 36, 225, 188),
+        'crystal': (777, 30, 207, 203), 'bush': (65, 236, 233, 208), 'tuft': (392, 250, 224, 184),
+        'vase1': (745, 263, 213, 180), 'vase2': (62, 467, 204, 173), 'rune': (312, 484, 172, 147),
+        'root': (536, 406, 180, 236), 'leaves': (748, 489, 243, 157),
+    }),
 }
 
 from scipy import ndimage as ndi
@@ -41,6 +48,9 @@ from scipy import ndimage as ndi
 # Поправки цвета отдельных предметов: (набор, имя) → доля обесцвечивания, яркость.
 # Сера слишком похожа на кучку золота (просьба Артура 2026-11-01: «сделай её серее»)
 GREY = {('scorched', 'sulfur'): (0.65, 0.8)}
+# Свечение бирюзового кристалла на мадженте даёт сиреневый ореол: у самого кристалла красного мало, а синий близок
+# к зелёному; у ореола много красного или синий заметно выше зелёного
+HALO_RED = {('citadel', 'crystal'): 15}
 
 
 def slice_set(name):
@@ -57,12 +67,17 @@ def slice_set(name):
     else:
         tint = np.minimum(R, B) - G
         bg = (tint > 35) | ((tint > 8) & (G > 140))  # светлое розовое — сияние на мадженте
+        if key == 'tint_strict':
+            bg = ((tint > 35) & (G < 0.5 * np.minimum(R, B))) | ((tint > 8) & (G > 140))
     bg = ~ndi.binary_erosion(~bg, iterations=1) | bg
     rgba = np.dstack([im, np.where(bg, 0, 255)]).astype('uint8')
     for item, (x, y, w, h) in items.items():
         pad = 4
         crop = rgba[max(0, y - pad):y + h + pad, max(0, x - pad):x + w + pad].copy()
-        if key == 'tint':
+        if (name, item) in HALO_RED:
+            c = crop.astype(int)
+            crop[(c[..., 0] > c[..., 1] + HALO_RED[(name, item)]) | (c[..., 2] > c[..., 1] + 40), 3] = 0
+        if key != 'magenta':
             # Куски соседних предметов заходят в рамку с края — их убираем
             lab, _ = ndi.label(ndi.binary_dilation(crop[..., 3] > 0, iterations=2))
             sizes = np.bincount(lab.ravel())
