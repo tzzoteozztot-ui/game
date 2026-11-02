@@ -97,12 +97,12 @@ test('economy and reward calculations', () => {
   assert.equal(calculateRerollCost(0), 10);
   assert.equal(calculateRerollCost(1), 15);
   assert.equal(calculateRerollCost(4), 30);
-  // Level 1 normal: (200 + 0) * 1.0 = 200
-  assert.equal(calculateStartingGold(1, 'normal'), 200);
-  // Level 1 easy: 200 * 1.25 = 250
-  assert.equal(calculateStartingGold(1, 'easy'), 250);
-  // Level 2 hard: (200 + 25) * 0.8 = 180
-  assert.equal(calculateStartingGold(2, 'hard'), 180);
+  // Level 1 normal: 250 * 1.0 = 250
+  assert.equal(calculateStartingGold(1, 'normal'), 250);
+  // Level 1 easy: 250 * 1.25 = 312
+  assert.equal(calculateStartingGold(1, 'easy'), 312);
+  // Level 2 hard: 250 * 0.8 = 200
+  assert.equal(calculateStartingGold(2, 'hard'), 200);
 
   // Wave clear reward: 20 + 3 * wave
   assert.equal(calculateWaveClearReward(1), 23);

@@ -6,7 +6,8 @@ import { CONFIG, TowerType, Difficulty, EnemyType, WaveDef, DamageType } from '.
 
 export function calculateStartingGold(level: number, difficulty: Difficulty): number {
   const diffMult = CONFIG.difficulty[difficulty].goldMult;
-  return Math.floor((200 + 25 * (level - 1)) * diffMult);
+  void level; // стартовое золото от карты не зависит (Артур, 2026-11-02)
+  return Math.floor(CONFIG.startGold * diffMult);
 }
 
 export function calculateEnemyHp(

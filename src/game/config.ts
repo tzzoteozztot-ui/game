@@ -821,6 +821,9 @@ export const CONFIG = {
     moveCost: 10, // moving a tower while enemies are on the field (duel, brawl; Артур 2026-11-01: «10 монет условно»)
   },
 
+  // Стартовое золото на любой карте (Артур, 2026-11-02: «везде 250»); раньше 200 + 25 за карту. Сложность множит его в кампании и бесконечном
+  startGold: 250,
+
   // «Потасовка» (Артур, 2026-11-01): eight on the duel's clock, the opponents change every wave
   brawl: {
     players: 8,

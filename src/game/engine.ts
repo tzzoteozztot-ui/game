@@ -15,6 +15,7 @@ import {
   calculateEnemyCount,
   calculateRerollCost,
   calculateKillGold,
+  calculateStartingGold,
   calculateWaveClearReward,
   calculateSellRefund,
   calculateSendPrice,
@@ -668,7 +669,7 @@ export class GameEngine {
     this.guardLevel = 1;
     this.guardTimer = 0;
     this.castleSelected = false;
-    this.gold = Math.floor((200 + 25 * (this.level - 1)) * CONFIG.difficulty[diff].goldMult);
+    this.gold = calculateStartingGold(this.level, diff);
     this.wave = 1;
     this.tier = 1;
     this.rerollsThisWave = 0;
