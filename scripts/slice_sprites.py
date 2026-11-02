@@ -26,12 +26,25 @@ SCALE = 3  # спрайт втрое крупнее, чем рисуется в 
 # чтобы ярусы одной башни сохранили соотношение размеров и общую линию основания.
 TOWER_COLUMNS = {'archer': (90, 430), 'priest': (450, 760), 'mage': (790, 1100), 'ballista': (1150, 1520)}
 TOWER_ROWS = {1: (5, 240), 2: (240, 460), 3: (460, 715)}
+# Свои башни рас (листы 4 башни × 3 уровня, светло-серый фон): лист, столбцы, строки
+RACE_TOWER_SHEETS = {
+    'towers-orcs': (
+        {'orc_spear': (30, 330), 'orc_totem': (360, 610), 'orc_trebuchet': (630, 940), 'orc_cage': (960, 1255)},
+        {1: (15, 270), 2: (270, 529), 3: (529, 848)},
+    ),
+}
 
 SPRITES = {
     **{
         f'tower_{kind}_{tier}': ('towers-tiers', (x0, y0, x1, y1), None, None, 1)
         for kind, (x0, x1) in TOWER_COLUMNS.items()
         for tier, (y0, y1) in TOWER_ROWS.items()
+    },
+    **{
+        f'tower_{kind}_{tier}': (sheet, (x0, y0, x1, y1), None, None, 1)
+        for sheet, (cols, rows) in RACE_TOWER_SHEETS.items()
+        for kind, (x0, x1) in cols.items()
+        for tier, (y0, y1) in rows.items()
     },
     'enemy_infantry': ('enemies', (55, 100, 460, 495), (290, 330), 34, -1),
     'enemy_scout': ('enemies', (585, 130, 915, 485), (760, 300), 32, -1),
@@ -128,6 +141,7 @@ def box_mean(a, r):
 SHEET_OPTS = {
     # Лист ярусов башен: настоящая прозрачность, фон вырезать не нужно
     'towers-tiers': {'alpha': True, 'px': 0.26},
+    'towers-orcs': {'light_rim': True, 'px': 0.24},
     'enemies/factions': {'pocket': (9, 13), 'light_rim': True},
     'enemies/ice-legion': {'pocket': (9, 13), 'light_rim': True},
     'enemies/new-orcs': {'light_rim': True},
@@ -264,7 +278,8 @@ def main():
         region = np.zeros(alpha.shape, bool)
         region[y0:y1, x0:x1] = True
         if seed_pt is None:
-            obj = rect_parts(alpha, rect)
+            # На листах башен рас ряды стоят вплотную: берём только то, что внутри рамки
+            obj = rect_parts(alpha, rect, 0 if sheet in RACE_TOWER_SHEETS else 120)
         else:
             solid = dilate(alpha > 0.15, 3) & region
             seed = np.zeros_like(solid)

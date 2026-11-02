@@ -4392,6 +4392,8 @@ export class GameEngine {
   // a missing faction figure falls back to the common one tinted in the faction's color
   private towerSprite(type: TowerType, level: number): PreparedSprite | null {
     const def = CONFIG.towers[type];
+    const drawn = this.ownTowerSprite(type, level);
+    if (drawn) return drawn;
     if (def.sprite) {
       const own = sprites.get(def.sprite);
       if (own) return own;
@@ -4401,9 +4403,14 @@ export class GameEngine {
     return sprites.get(`tower_${type}_${level}`) ?? sprites.get(`tower_${type}_1`);
   }
 
+  /** A race tower's own figure (tower_<type>_<1..3>, art/concepts/towers-<race>); levels above 3 reuse the third */
+  private ownTowerSprite(type: TowerType, level: number): PreparedSprite | null {
+    return sprites.get(`tower_${type}_${Math.min(3, level)}`);
+  }
+
   /** Field height of a faction tower's unit figure: a little taller each level; undefined keeps sprites.json */
   private towerDrawH(type: TowerType, level: number): number | undefined {
-    return CONFIG.towers[type].sprite ? 46 + 7 * (Math.min(3, level) - 1) + 3 * Math.max(0, level - 3) : undefined;
+    return CONFIG.towers[type].sprite && !this.ownTowerSprite(type, level) ? 46 + 7 * (Math.min(3, level) - 1) + 3 * Math.max(0, level - 3) : undefined;
   }
 
   // Stone pedestal under a faction tower so the unit figure reads as a tower, not as an enemy
@@ -4601,7 +4608,7 @@ export class GameEngine {
       if (spr2) drawSprite(ctx, spr2, x2, y2, t.facing, undefined, this.towerPose(t, t.second, timeSec));
       this.drawBond(ctx, x1, y1, x2, y2, power, timeSec, 'front');
     } else {
-      if (baseDef.sprite) this.drawPedestal(ctx, t, cx, footY, timeSec);
+      if (baseDef.sprite && !this.ownTowerSprite(t.type, t.level)) this.drawPedestal(ctx, t, cx, footY, timeSec);
       this.drawBaseRim(ctx, t.type, cx, footY, 1);
       drawSprite(ctx, spr, cx, footY, t.facing, this.towerDrawH(t.type, t.level), this.towerPose(t, t, timeSec));
       if (t.souls) this.drawSpecBadge(ctx, `☠${t.souls}`, cx - 18, cy - 22, cx, cellSize);

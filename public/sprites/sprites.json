@@ -107,6 +107,114 @@
     "anchorY": 1,
     "facing": 1
   },
+  "tower_orc_spear_1": {
+    "file": "tower_orc_spear_1.png",
+    "w": 152,
+    "h": 168,
+    "drawH": 55.9,
+    "anchorX": 0.585,
+    "anchorY": 1,
+    "facing": 1
+  },
+  "tower_orc_spear_2": {
+    "file": "tower_orc_spear_2.png",
+    "w": 175,
+    "h": 187,
+    "drawH": 62.4,
+    "anchorX": 0.5,
+    "anchorY": 1,
+    "facing": 1
+  },
+  "tower_orc_spear_3": {
+    "file": "tower_orc_spear_3.png",
+    "w": 165,
+    "h": 223,
+    "drawH": 74.2,
+    "anchorX": 0.512,
+    "anchorY": 1,
+    "facing": 1
+  },
+  "tower_orc_totem_1": {
+    "file": "tower_orc_totem_1.png",
+    "w": 107,
+    "h": 180,
+    "drawH": 60.0,
+    "anchorX": 0.493,
+    "anchorY": 1,
+    "facing": 1
+  },
+  "tower_orc_totem_2": {
+    "file": "tower_orc_totem_2.png",
+    "w": 107,
+    "h": 186,
+    "drawH": 61.9,
+    "anchorX": 0.494,
+    "anchorY": 1,
+    "facing": 1
+  },
+  "tower_orc_totem_3": {
+    "file": "tower_orc_totem_3.png",
+    "w": 144,
+    "h": 223,
+    "drawH": 74.2,
+    "anchorX": 0.569,
+    "anchorY": 1,
+    "facing": 1
+  },
+  "tower_orc_trebuchet_1": {
+    "file": "tower_orc_trebuchet_1.png",
+    "w": 158,
+    "h": 160,
+    "drawH": 53.3,
+    "anchorX": 0.498,
+    "anchorY": 1,
+    "facing": 1
+  },
+  "tower_orc_trebuchet_2": {
+    "file": "tower_orc_trebuchet_2.png",
+    "w": 162,
+    "h": 162,
+    "drawH": 54.0,
+    "anchorX": 0.492,
+    "anchorY": 1,
+    "facing": 1
+  },
+  "tower_orc_trebuchet_3": {
+    "file": "tower_orc_trebuchet_3.png",
+    "w": 204,
+    "h": 223,
+    "drawH": 74.4,
+    "anchorX": 0.545,
+    "anchorY": 1,
+    "facing": 1
+  },
+  "tower_orc_cage_1": {
+    "file": "tower_orc_cage_1.png",
+    "w": 137,
+    "h": 159,
+    "drawH": 53.0,
+    "anchorX": 0.463,
+    "anchorY": 1,
+    "facing": 1
+  },
+  "tower_orc_cage_2": {
+    "file": "tower_orc_cage_2.png",
+    "w": 157,
+    "h": 169,
+    "drawH": 56.2,
+    "anchorX": 0.476,
+    "anchorY": 1,
+    "facing": 1
+  },
+  "tower_orc_cage_3": {
+    "file": "tower_orc_cage_3.png",
+    "w": 196,
+    "h": 218,
+    "drawH": 72.7,
+    "anchorX": 0.506,
+    "anchorY": 1,
+    "facing": 1
+  },
   "enemy_infantry": {
     "file": "enemy_infantry.png",
     "w": 103,
