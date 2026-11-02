@@ -66,7 +66,7 @@ export interface RunLogData {
   game: 'Тёмный рубеж';
   startedAt: string;
   endedAt: string | null;
-  mode: 'campaign' | 'endless' | 'duel' | 'brawl';
+  mode: 'campaign' | 'endless' | 'duel' | 'brawl' | 'sandbox';
   map: number;
   mapSeed: number | null;
   difficulty: string;
