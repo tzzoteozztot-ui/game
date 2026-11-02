@@ -215,6 +215,438 @@
     "anchorY": 1,
     "facing": 1
   },
+  "tower_und_archer_1": {
+    "file": "tower_und_archer_1.png",
+    "w": 132,
+    "h": 164,
+    "drawH": 54.7,
+    "anchorX": 0.501,
+    "anchorY": 1,
+    "facing": 1
+  },
+  "tower_und_archer_2": {
+    "file": "tower_und_archer_2.png",
+    "w": 142,
+    "h": 189,
+    "drawH": 62.9,
+    "anchorX": 0.501,
+    "anchorY": 1,
+    "facing": 1
+  },
+  "tower_und_archer_3": {
+    "file": "tower_und_archer_3.png",
+    "w": 167,
+    "h": 207,
+    "drawH": 69.1,
+    "anchorX": 0.549,
+    "anchorY": 1,
+    "facing": 1
+  },
+  "tower_und_digger_1": {
+    "file": "tower_und_digger_1.png",
+    "w": 139,
+    "h": 140,
+    "drawH": 46.6,
+    "anchorX": 0.498,
+    "anchorY": 1,
+    "facing": 1
+  },
+  "tower_und_digger_2": {
+    "file": "tower_und_digger_2.png",
+    "w": 153,
+    "h": 182,
+    "drawH": 60.7,
+    "anchorX": 0.521,
+    "anchorY": 1,
+    "facing": 1
+  },
+  "tower_und_digger_3": {
+    "file": "tower_und_digger_3.png",
+    "w": 181,
+    "h": 212,
+    "drawH": 70.8,
+    "anchorX": 0.528,
+    "anchorY": 1,
+    "facing": 1
+  },
+  "tower_und_cauldron_1": {
+    "file": "tower_und_cauldron_1.png",
+    "w": 136,
+    "h": 145,
+    "drawH": 48.2,
+    "anchorX": 0.502,
+    "anchorY": 1,
+    "facing": 1
+  },
+  "tower_und_cauldron_2": {
+    "file": "tower_und_cauldron_2.png",
+    "w": 150,
+    "h": 184,
+    "drawH": 61.4,
+    "anchorX": 0.505,
+    "anchorY": 1,
+    "facing": 1
+  },
+  "tower_und_cauldron_3": {
+    "file": "tower_und_cauldron_3.png",
+    "w": 173,
+    "h": 209,
+    "drawH": 69.6,
+    "anchorX": 0.53,
+    "anchorY": 1,
+    "facing": 1
+  },
+  "tower_und_crypt_1": {
+    "file": "tower_und_crypt_1.png",
+    "w": 139,
+    "h": 151,
+    "drawH": 50.2,
+    "anchorX": 0.497,
+    "anchorY": 1,
+    "facing": 1
+  },
+  "tower_und_crypt_2": {
+    "file": "tower_und_crypt_2.png",
+    "w": 166,
+    "h": 191,
+    "drawH": 63.8,
+    "anchorX": 0.536,
+    "anchorY": 1,
+    "facing": 1
+  },
+  "tower_und_crypt_3": {
+    "file": "tower_und_crypt_3.png",
+    "w": 195,
+    "h": 212,
+    "drawH": 70.8,
+    "anchorX": 0.557,
+    "anchorY": 1,
+    "facing": 1
+  },
+  "tower_cul_archer_1": {
+    "file": "tower_cul_archer_1.png",
+    "w": 104,
+    "h": 149,
+    "drawH": 49.7,
+    "anchorX": 0.465,
+    "anchorY": 1,
+    "facing": 1
+  },
+  "tower_cul_archer_2": {
+    "file": "tower_cul_archer_2.png",
+    "w": 126,
+    "h": 169,
+    "drawH": 56.2,
+    "anchorX": 0.475,
+    "anchorY": 1,
+    "facing": 1
+  },
+  "tower_cul_archer_3": {
+    "file": "tower_cul_archer_3.png",
+    "w": 185,
+    "h": 220,
+    "drawH": 73.2,
+    "anchorX": 0.488,
+    "anchorY": 1,
+    "facing": 1
+  },
+  "tower_cul_altar_1": {
+    "file": "tower_cul_altar_1.png",
+    "w": 98,
+    "h": 156,
+    "drawH": 52.1,
+    "anchorX": 0.496,
+    "anchorY": 1,
+    "facing": 1
+  },
+  "tower_cul_altar_2": {
+    "file": "tower_cul_altar_2.png",
+    "w": 112,
+    "h": 169,
+    "drawH": 56.2,
+    "anchorX": 0.554,
+    "anchorY": 1,
+    "facing": 1
+  },
+  "tower_cul_altar_3": {
+    "file": "tower_cul_altar_3.png",
+    "w": 154,
+    "h": 202,
+    "drawH": 67.2,
+    "anchorX": 0.557,
+    "anchorY": 1,
+    "facing": 1
+  },
+  "tower_cul_pillar_1": {
+    "file": "tower_cul_pillar_1.png",
+    "w": 98,
+    "h": 169,
+    "drawH": 56.4,
+    "anchorX": 0.499,
+    "anchorY": 1,
+    "facing": 1
+  },
+  "tower_cul_pillar_2": {
+    "file": "tower_cul_pillar_2.png",
+    "w": 113,
+    "h": 180,
+    "drawH": 60.0,
+    "anchorX": 0.558,
+    "anchorY": 1,
+    "facing": 1
+  },
+  "tower_cul_pillar_3": {
+    "file": "tower_cul_pillar_3.png",
+    "w": 152,
+    "h": 223,
+    "drawH": 74.4,
+    "anchorX": 0.556,
+    "anchorY": 1,
+    "facing": 1
+  },
+  "tower_cul_spike_1": {
+    "file": "tower_cul_spike_1.png",
+    "w": 99,
+    "h": 146,
+    "drawH": 48.5,
+    "anchorX": 0.496,
+    "anchorY": 1,
+    "facing": 1
+  },
+  "tower_cul_spike_2": {
+    "file": "tower_cul_spike_2.png",
+    "w": 112,
+    "h": 175,
+    "drawH": 58.3,
+    "anchorX": 0.546,
+    "anchorY": 1,
+    "facing": 1
+  },
+  "tower_cul_spike_3": {
+    "file": "tower_cul_spike_3.png",
+    "w": 155,
+    "h": 222,
+    "drawH": 73.9,
+    "anchorX": 0.556,
+    "anchorY": 1,
+    "facing": 1
+  },
+  "tower_dem_ember_1": {
+    "file": "tower_dem_ember_1.png",
+    "w": 133,
+    "h": 155,
+    "drawH": 51.8,
+    "anchorX": 0.497,
+    "anchorY": 1,
+    "facing": 1
+  },
+  "tower_dem_ember_2": {
+    "file": "tower_dem_ember_2.png",
+    "w": 151,
+    "h": 169,
+    "drawH": 56.4,
+    "anchorX": 0.438,
+    "anchorY": 1,
+    "facing": 1
+  },
+  "tower_dem_ember_3": {
+    "file": "tower_dem_ember_3.png",
+    "w": 205,
+    "h": 211,
+    "drawH": 70.3,
+    "anchorX": 0.529,
+    "anchorY": 1,
+    "facing": 1
+  },
+  "tower_dem_warper_1": {
+    "file": "tower_dem_warper_1.png",
+    "w": 134,
+    "h": 153,
+    "drawH": 50.9,
+    "anchorX": 0.501,
+    "anchorY": 1,
+    "facing": 1
+  },
+  "tower_dem_warper_2": {
+    "file": "tower_dem_warper_2.png",
+    "w": 159,
+    "h": 176,
+    "drawH": 58.6,
+    "anchorX": 0.526,
+    "anchorY": 1,
+    "facing": 1
+  },
+  "tower_dem_warper_3": {
+    "file": "tower_dem_warper_3.png",
+    "w": 203,
+    "h": 212,
+    "drawH": 70.6,
+    "anchorX": 0.542,
+    "anchorY": 1,
+    "facing": 1
+  },
+  "tower_dem_rift_1": {
+    "file": "tower_dem_rift_1.png",
+    "w": 134,
+    "h": 142,
+    "drawH": 47.3,
+    "anchorX": 0.502,
+    "anchorY": 1,
+    "facing": 1
+  },
+  "tower_dem_rift_2": {
+    "file": "tower_dem_rift_2.png",
+    "w": 173,
+    "h": 180,
+    "drawH": 60.0,
+    "anchorX": 0.474,
+    "anchorY": 1,
+    "facing": 1
+  },
+  "tower_dem_rift_3": {
+    "file": "tower_dem_rift_3.png",
+    "w": 199,
+    "h": 218,
+    "drawH": 72.7,
+    "anchorX": 0.561,
+    "anchorY": 1,
+    "facing": 1
+  },
+  "tower_dem_gate_1": {
+    "file": "tower_dem_gate_1.png",
+    "w": 134,
+    "h": 171,
+    "drawH": 57.1,
+    "anchorX": 0.499,
+    "anchorY": 1,
+    "facing": 1
+  },
+  "tower_dem_gate_2": {
+    "file": "tower_dem_gate_2.png",
+    "w": 180,
+    "h": 176,
+    "drawH": 58.8,
+    "anchorX": 0.572,
+    "anchorY": 1,
+    "facing": 1
+  },
+  "tower_dem_gate_3": {
+    "file": "tower_dem_gate_3.png",
+    "w": 213,
+    "h": 212,
+    "drawH": 70.8,
+    "anchorX": 0.583,
+    "anchorY": 1,
+    "facing": 1
+  },
+  "tower_elf_archer_1": {
+    "file": "tower_elf_archer_1.png",
+    "w": 122,
+    "h": 165,
+    "drawH": 55.0,
+    "anchorX": 0.417,
+    "anchorY": 1,
+    "facing": 1
+  },
+  "tower_elf_archer_2": {
+    "file": "tower_elf_archer_2.png",
+    "w": 148,
+    "h": 177,
+    "drawH": 59.0,
+    "anchorX": 0.47,
+    "anchorY": 1,
+    "facing": 1
+  },
+  "tower_elf_archer_3": {
+    "file": "tower_elf_archer_3.png",
+    "w": 187,
+    "h": 236,
+    "drawH": 78.7,
+    "anchorX": 0.492,
+    "anchorY": 1,
+    "facing": 1
+  },
+  "tower_elf_weaver_1": {
+    "file": "tower_elf_weaver_1.png",
+    "w": 106,
+    "h": 151,
+    "drawH": 50.2,
+    "anchorX": 0.483,
+    "anchorY": 1,
+    "facing": 1
+  },
+  "tower_elf_weaver_2": {
+    "file": "tower_elf_weaver_2.png",
+    "w": 127,
+    "h": 177,
+    "drawH": 59.0,
+    "anchorX": 0.537,
+    "anchorY": 1,
+    "facing": 1
+  },
+  "tower_elf_weaver_3": {
+    "file": "tower_elf_weaver_3.png",
+    "w": 190,
+    "h": 230,
+    "drawH": 76.8,
+    "anchorX": 0.504,
+    "anchorY": 1,
+    "facing": 1
+  },
+  "tower_elf_sphere_1": {
+    "file": "tower_elf_sphere_1.png",
+    "w": 104,
+    "h": 153,
+    "drawH": 51.1,
+    "anchorX": 0.491,
+    "anchorY": 1,
+    "facing": 1
+  },
+  "tower_elf_sphere_2": {
+    "file": "tower_elf_sphere_2.png",
+    "w": 133,
+    "h": 175,
+    "drawH": 58.3,
+    "anchorX": 0.54,
+    "anchorY": 1,
+    "facing": 1
+  },
+  "tower_elf_sphere_3": {
+    "file": "tower_elf_sphere_3.png",
+    "w": 165,
+    "h": 220,
+    "drawH": 73.4,
+    "anchorX": 0.499,
+    "anchorY": 1,
+    "facing": 1
+  },
+  "tower_elf_blade_1": {
+    "file": "tower_elf_blade_1.png",
+    "w": 151,
+    "h": 140,
+    "drawH": 46.8,
+    "anchorX": 0.527,
+    "anchorY": 1,
+    "facing": 1
+  },
+  "tower_elf_blade_2": {
+    "file": "tower_elf_blade_2.png",
+    "w": 159,
+    "h": 177,
+    "drawH": 59.0,
+    "anchorX": 0.522,
+    "anchorY": 1,
+    "facing": 1
+  },
+  "tower_elf_blade_3": {
+    "file": "tower_elf_blade_3.png",
+    "w": 211,
+    "h": 230,
+    "drawH": 76.8,
+    "anchorX": 0.47,
+    "anchorY": 1,
+    "facing": 1
+  },
   "enemy_infantry": {
     "file": "enemy_infantry.png",
     "w": 103,
