@@ -9,9 +9,9 @@ import { TowerType, CONFIG } from '../game/config';
 /** Tower picture from public/sprites. A failed load (a hiccup of the network or of a deploy) is retried a few times;
  *  the shape icon stands in meanwhile and stays only if the file is really missing. */
 export function TowerSpriteIcon({ type, size = 24, color }: { type: TowerType; size?: number | string; color?: string }) {
-  // Faction towers show their unit figure for now; a missing faction figure falls back to the common one
+  // A tower's own figure first; race towers without one show their unit figure, then the common one
   const def = CONFIG.towers[type];
-  const sources = def.sprite ? [def.sprite, def.sprite.replace(/_\d+$/, '')] : [`tower_${type}_1`];
+  const sources = [`tower_${type}_1`, ...(def.sprite ? [def.sprite, def.sprite.replace(/_\d+$/, '')] : [])];
   const [step, setStep] = React.useState(0);
   const [tries, setTries] = React.useState(0);
   const [failed, setFailed] = React.useState(false);
