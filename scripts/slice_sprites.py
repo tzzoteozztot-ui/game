@@ -32,6 +32,22 @@ RACE_TOWER_SHEETS = {
         {'orc_spear': (30, 330), 'orc_totem': (360, 610), 'orc_trebuchet': (630, 940), 'orc_cage': (960, 1255)},
         {1: (15, 270), 2: (270, 529), 3: (529, 848)},
     ),
+    'towers-undead': (
+        {'und_archer': (0, 306), 'und_digger': (306, 598), 'und_cauldron': (598, 863), 'und_crypt': (863, 1179)},
+        {1: (0, 275), 2: (275, 572), 3: (572, 896)},
+    ),
+    'towers-cultists': (
+        {'cul_archer': (0, 322), 'cul_altar': (322, 626), 'cul_pillar': (626, 943), 'cul_spike': (943, 1264)},
+        {1: (0, 265), 2: (265, 515), 3: (515, 848)},
+    ),
+    'towers-demons': (
+        {'dem_ember': (0, 315), 'dem_warper': (315, 623), 'dem_rift': (623, 923), 'dem_gate': (923, 1264)},
+        {1: (0, 280), 2: (280, 533), 3: (533, 848)},
+    ),
+    'towers-elves': (
+        {'elf_archer': (0, 316), 'elf_weaver': (316, 643), 'elf_sphere': (643, 937), 'elf_blade': (937, 1264)},
+        {1: (0, 258), 2: (258, 510), 3: (510, 848)},
+    ),
 }
 
 SPRITES = {
@@ -141,7 +157,9 @@ def box_mean(a, r):
 SHEET_OPTS = {
     # Лист ярусов башен: настоящая прозрачность, фон вырезать не нужно
     'towers-tiers': {'alpha': True, 'px': 0.26},
-    'towers-orcs': {'light_rim': True, 'px': 0.24},
+    **{sheet: {'light_rim': True, 'px': 0.24} for sheet in ('towers-orcs', 'towers-undead', 'towers-demons')},
+    'towers-cultists': {'light_rim': True, 'glow': 28, 'px': 0.24},
+    'towers-elves': {'light_rim': True, 'glow': 45, 'px': 0.24},
     'enemies/factions': {'pocket': (9, 13), 'light_rim': True},
     'enemies/ice-legion': {'pocket': (9, 13), 'light_rim': True},
     'enemies/new-orcs': {'light_rim': True},
@@ -168,7 +186,7 @@ def gradient_bg(rgb, band=24):
     return basis @ coef
 
 
-def sheet_alpha(rgb, pocket=(5, 8), light_rim=False, gradient=False):
+def sheet_alpha(rgb, pocket=(5, 8), light_rim=False, gradient=False, glow=0):
     h, w, _ = rgb.shape
     if gradient:
         bg = gradient_bg(rgb)
@@ -181,6 +199,9 @@ def sheet_alpha(rgb, pocket=(5, 8), light_rim=False, gradient=False):
     grey = (rgb.max(-1) - rgb.min(-1)) < 14
     if light_rim:
         near |= grey & (rgb.mean(-1) > bg.mean() - 2)
+    # Светлое сияние вокруг фигур (лёд, бирюза): светлее фона и близко к нему по цвету — тоже фон
+    halo = (dist < glow) & (rgb.mean(-1) > bg.mean() + 2) if glow else np.zeros_like(near)
+    near |= halo
     edge = np.zeros_like(near)
     edge[0, :] = edge[-1, :] = edge[:, 0] = edge[:, -1] = True
     background = reconstruct(edge, near)
@@ -194,6 +215,7 @@ def sheet_alpha(rgb, pocket=(5, 8), light_rim=False, gradient=False):
     soft = np.clip((dist - 5) / 11, 0, 1)
     if light_rim:
         soft[grey & (rgb.mean(-1) > bg.mean() - 2)] = 0
+    soft[halo] = 0
     alpha[background] = soft[background]
     if gradient:
         # Шумный край снимка: резкая маска без крошек (размыкание на 2 px) и сглаживание в 1 px
