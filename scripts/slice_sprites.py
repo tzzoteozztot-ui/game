@@ -353,7 +353,13 @@ def main():
         }
         print(f'{name}: {out_w}x{out_h}')
 
-    with open(os.path.join(OUT, 'sprites.json'), 'w', encoding='utf-8') as f:
+    # Фигуры, которые нарезаны не здесь (mega_T, mega_P — готовый арт), остаются в sprites.json как были
+    path = os.path.join(OUT, 'sprites.json')
+    if os.path.exists(path):
+        with open(path, encoding='utf-8') as f:
+            for name, entry in json.load(f).items():
+                meta.setdefault(name, entry)
+    with open(path, 'w', encoding='utf-8') as f:
         json.dump(meta, f, ensure_ascii=False, indent=2)
         f.write('\n')
 
