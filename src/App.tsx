@@ -1523,6 +1523,7 @@ export default function App() {
                   onApplySelected={(level, spec) => engineRef.current?.sandboxSetTower(level, spec)}
                   onOpenWave={() => setSandboxWaveOpen(true)}
                   onDownloadLog={saveSandboxLog}
+                  compact={layout === 'bottom'}
                 />
               ) : (
               <ShopPanel
