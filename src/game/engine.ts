@@ -2052,7 +2052,7 @@ export class GameEngine {
     // A tower bound to a priest shoots stronger
     const partner = tower.second ? (part === tower ? tower.second : tower) : null;
     let rawDamage = stats.damage * mods.dmg * (partner?.type === 'priest' && part.type !== 'priest' ? 1 + CONFIG.priestBase.pairBonus : 1);
-    const cooldown = stats.cooldown * mods.cd * (this.abilityOn(tower, 'dem_ember') ? 0.5 : 1);
+    const cooldown = stats.cooldown * mods.cd * (this.abilityOn(tower, 'dem_ember') ? 0.5 / CONFIG.raceMech.abilityMult : 1);
 
     // Find enemies in range
     const inRange = this.enemies.filter((e) => {
@@ -2368,7 +2368,7 @@ export class GameEngine {
     } else if (type === 'dem_ember') {
       const tower = this.towers.find((t) => t.id === this.dmgSource);
       const storm = tower ? this.abilityOn(tower, 'dem_ember') : false;
-      e.burnDps = rawDmg * mech.burnShare * (storm ? 1.5 : 1);
+      e.burnDps = rawDmg * mech.burnShare * (storm ? 1.5 * mech.abilityMult : 1);
       e.burnSource = this.dmgSource;
       e.burnTimer = mech.burnTime;
     } else if (type === 'dem_warper') {
@@ -2566,14 +2566,13 @@ export class GameEngine {
     const st = attackStats(tower.type, tower.level, tower.specs);
     const mods = this.towerMods(tower);
     if (tower.type === 'dem_gate') {
-      this.summonImp(tower, st.damage * mods.dmg);
-      this.summonImp(tower, st.damage * mods.dmg);
+      for (let i = 0; i < 2 * CONFIG.raceMech.abilityMult; i++) this.summonImp(tower, st.damage * mods.dmg);
     } else if (tower.type === 'dem_rift') {
       const near = this.enemiesNear(tx, ty, st.range * mods.range * cs);
       this.sortEnemiesByPriority(near, tower.priority, tx, ty);
       if (near[0]) {
         const m = CONFIG.raceMech;
-        this.fires.push({ x: near[0].x, y: near[0].y, r: m.patchRadius * cs * 3, dps: st.damage * mods.dmg * m.patchShare * 2, t: m.patchTime, towerId: tower.id });
+        this.fires.push({ x: near[0].x, y: near[0].y, r: m.patchRadius * cs * 3, dps: st.damage * mods.dmg * m.patchShare * 2 * m.abilityMult, t: m.patchTime, towerId: tower.id });
       }
     }
     this.spawnRing(tx, ty, '#ff7a3a', 36);
@@ -2590,7 +2589,7 @@ export class GameEngine {
     if (tower.pulseT > 0) return;
     tower.pulseT = 0.5;
     const cs = CONFIG.grid.cellSize;
-    const bonus = CONFIG.raceMech.warpBonus * 2;
+    const bonus = CONFIG.raceMech.warpBonus * 2 * CONFIG.raceMech.abilityMult;
     for (const e of this.enemiesNear((tower.x + 0.5) * cs, (tower.y + 0.5) * cs, 2 * cs)) {
       if (e.curseTimer <= 0 || bonus >= e.curseBonus) {
         e.curseBonus = bonus;
@@ -2741,7 +2740,7 @@ export class GameEngine {
         x: impactX,
         y: impactY,
         r: mech.patchRadius * cs * (erupt ? 3 : 1),
-        dps: p.damage * mech.patchShare * (erupt ? 2 : 1),
+        dps: p.damage * mech.patchShare * (erupt ? 2 * mech.abilityMult : 1),
         t: mech.patchTime,
         towerId: p.towerId,
       });
