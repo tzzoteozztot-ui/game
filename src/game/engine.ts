@@ -2448,7 +2448,7 @@ export class GameEngine {
         this.fires.splice(i, 1);
         continue;
       }
-      for (const e of this.enemiesNear(f.x, f.y, f.r)) this.directDamage(e, f.dps * dt, f.towerId, 'fire');
+      for (const e of this.enemiesNear(f.x, f.y, f.r)) this.directDamage(e, f.dps * dt * (e.type === 'flyer' ? mech.demFlyerMult : 1), f.towerId, 'fire');
     }
     for (let i = this.blasts.length - 1; i >= 0; i--) {
       const b = this.blasts[i];
@@ -2798,6 +2798,8 @@ export class GameEngine {
       if (others >= mech.huntTowers) rawDmg *= mech.huntMult;
     }
     // Усиления артефакта (потасовка)
+    // Демоны: Метатель углей и Трещина жгут летунов сильнее (по логу Потасовки, просьба Артура 2026-11-02)
+    if (e.type === 'flyer' && (towerType === 'dem_ember' || towerType === 'dem_rift')) rawDmg *= mech.demFlyerMult;
     if (e.type === 'heavy' || e.type === 'boss') rawDmg *= 1 + this.boon('slayer');
     if (e.sieging) rawDmg *= 1 + this.boon('bastion');
     const pierce = 1 - this.boon('pierce');
