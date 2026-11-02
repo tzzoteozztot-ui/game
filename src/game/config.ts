@@ -393,7 +393,7 @@ export const CONFIG = {
       ability: { name: 'Извержение', desc: 'Пятна втрое шире и бьют вдвое сильнее', duration: 5, cooldown: 40, cost: 6 },
     } as TowerBaseDef,
     dem_gate: {
-      type: 'dem_gate', race: 'demons', name: 'Врата бездны', cost: 120, damage: 20, damageType: 'phys', cooldown: 6, range: 2.5,
+      type: 'dem_gate', race: 'demons', name: 'Врата бездны', cost: 100, damage: 20, damageType: 'phys', cooldown: 6, range: 2.5,
       shape: 'square', color: '#b0302a', sprite: 'enemy_heavy_4', sound: 'ballista', special: 'gate', specs: [],
       desc: 'Раз в 6 с зовёт беса на 5 с (20 урона в секунду). «Жертва»: башня рядом сгорает ради залпа ×4 её цены.',
       ability: { name: 'Зов', desc: 'Сразу призывает двух бесов', duration: 5, cooldown: 20, cost: 8 },
