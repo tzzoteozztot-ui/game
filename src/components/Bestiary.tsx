@@ -11,10 +11,14 @@ import { TowerSpriteIcon } from './Icons';
 
 const num = (n: number) => String(Math.round(n * 10) / 10).replace('.', ',');
 
-/** Towers of one playable faction: how it grows, then a card per tower with its Ур.1 numbers, mechanic and lore */
+/** Towers of one playable faction: how it grows, then a card per tower with its numbers at the chosen level, mechanic and lore */
 function TowerSection({ race }: { race: RaceId }) {
   const def = CONFIG.races[race];
   const palette = CONFIG.palettes[def.faction - 1];
+  const maxLevel = def.maxLevel ?? 3;
+  const [level, setLevel] = useState(1);
+  useEffect(() => setLevel(1), [race]);
+  const lv = Math.min(level, maxLevel);
   return (
     <div className="max-w-5xl mx-auto flex flex-col gap-3">
       <section className="rounded-lg border border-[#3d384d] bg-[#1a1724] p-3 sm:p-4">
@@ -29,13 +33,34 @@ function TowerSection({ race }: { race: RaceId }) {
             <li key={f}>{f}</li>
           ))}
         </ul>
+        <div className="mt-2 pt-2 border-t border-[#262233] flex flex-wrap items-center gap-1.5">
+          <span className="text-xs text-stone-400 mr-1">Уровень башен:</span>
+          {Array.from({ length: maxLevel }, (_, i) => i + 1).map((n) => (
+            <button
+              key={n}
+              type="button"
+              onClick={() => setLevel(n)}
+              aria-pressed={n === lv}
+              className={`min-w-10 px-2 py-1 rounded border text-xs font-bold ${n === lv ? 'bg-amber-500 text-black border-amber-300' : 'bg-black/30 text-stone-300 border-[#3d384d] hover:border-amber-500/60'}`}
+            >
+              Ур.{n}
+            </button>
+          ))}
+          {lv > 1 && (
+            <span className="text-[11px] text-stone-500 ml-1">
+              Цена — всех частей, из которых башня собирается ({def.merge} шт. на уровень).
+            </span>
+          )}
+        </div>
       </section>
       <div className="grid grid-cols-1 min-[520px]:grid-cols-2 gap-2 sm:gap-3">
         {def.towers.map((type) => {
           const t = CONFIG.towers[type];
-          const st = attackStats(type, 1, []);
+          // Нежить растёт выбором при слиянии: на карточке — выбор урона на каждом слиянии
+          const st = attackStats(type, lv, race === 'undead' ? Array(lv - 1).fill('und_dmg') : []);
+          const price = Math.round(t.cost * Math.pow(def.merge, lv - 1));
           const stats: [string, string][] = [
-            ['Цена', String(t.cost)],
+            ['Цена', String(price)],
             [t.special === 'gate' ? 'Урон беса в с' : t.special === 'crypt' ? 'За душу' : 'Урон', t.damage ? num(st.damage) : '—'],
             ['Период', `${num(st.cooldown)} с`],
             ['Радиус', num(st.range)],
@@ -47,7 +72,7 @@ function TowerSection({ race }: { race: RaceId }) {
                 style={{ background: `radial-gradient(circle at 50% 70%, ${palette.enemies}33, transparent 70%)` }}
               >
                 <div className="h-24 w-full flex items-end justify-center">
-                  <TowerSpriteIcon type={type} size="100%" color={t.color} />
+                  <TowerSpriteIcon type={type} size="100%" color={t.color} level={lv} />
                 </div>
               </div>
               <div className="p-3 flex-1 min-w-0">
@@ -73,7 +98,19 @@ function TowerSection({ race }: { race: RaceId }) {
                   </p>
                 )}
                 {race === 'humans' && t.specs.length > 0 && (
-                  <p className="mt-1 text-xs text-stone-400 leading-snug">Свойства с Ур.2: {t.specs.map((x) => x.name).join(', ')}.</p>
+                  <p className="mt-1 text-xs text-stone-400 leading-snug">
+                    Свойства с Ур.2: {t.specs.map((x) => x.name).join(', ')}.{lv === 3 ? ' Ур.3 хранит три свойства.' : ''}
+                  </p>
+                )}
+                {race === 'orcs' && (
+                  <p className="mt-1 text-xs text-stone-400 leading-snug">
+                    Закалок: {lv} (при постановке и на каждом уровне): {t.specs.map((x) => `${x.name} (${x.desc})`).join(', ')}.
+                  </p>
+                )}
+                {race === 'undead' && lv > 1 && (
+                  <p className="mt-1 text-xs text-stone-400 leading-snug">
+                    Показан урон, если каждое слияние ({lv - 1}) усилило урон ×2,4; вместо этого можно выбрать скорость атаки ×2,4.
+                  </p>
                 )}
                 <div className="mt-1.5 space-y-1 text-[12px] leading-relaxed text-stone-400 italic">
                   {(TOWER_LORE[type] ?? []).map((p, i) => (

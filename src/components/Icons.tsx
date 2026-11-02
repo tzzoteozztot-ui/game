@@ -8,10 +8,10 @@ import { TowerType, CONFIG } from '../game/config';
 
 /** Tower picture from public/sprites. A failed load (a hiccup of the network or of a deploy) is retried a few times;
  *  the shape icon stands in meanwhile and stays only if the file is really missing. */
-export function TowerSpriteIcon({ type, size = 24, color }: { type: TowerType; size?: number | string; color?: string }) {
+export function TowerSpriteIcon({ type, size = 24, color, level = 1 }: { type: TowerType; size?: number | string; color?: string; level?: number }) {
   // A tower's own figure first; race towers without one show their unit figure, then the common one
   const def = CONFIG.towers[type];
-  const sources = [`tower_${type}_1`, ...(def.sprite ? [def.sprite, def.sprite.replace(/_\d+$/, '')] : [])];
+  const sources = [...new Set([`tower_${type}_${level}`, `tower_${type}_${Math.min(level, 3)}`, `tower_${type}_1`]), ...(def.sprite ? [def.sprite, def.sprite.replace(/_\d+$/, '')] : [])];
   const [step, setStep] = React.useState(0);
   const [tries, setTries] = React.useState(0);
   const [failed, setFailed] = React.useState(false);
@@ -19,7 +19,7 @@ export function TowerSpriteIcon({ type, size = 24, color }: { type: TowerType; s
     setStep(0);
     setTries(0);
     setFailed(false);
-  }, [type]);
+  }, [type, level]);
   React.useEffect(() => {
     if (!failed || tries >= 3) return;
     const id = setTimeout(() => {
