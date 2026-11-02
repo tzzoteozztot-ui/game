@@ -779,6 +779,9 @@ export const CONFIG = {
     sellRatio: 0.6,
     killDecay: 0.985,
     killFloor: 0.3,
+    // Артур, 2026-11-02: награда за убийство (и цены посылок) на всех картах одна, +15 %; от номера карты не зависит
+    // (раньше +15 % за каждую карту). У карт позже будут свои особенности.
+    killGoldMult: 1.15,
     killDecayFrom: 12,
     towerPower: [1, 3, 9], // by tower level
     binderPower: 1,

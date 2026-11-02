@@ -158,17 +158,19 @@ test('enemy scaling and damage formulas', () => {
   assert.equal(calculateEnemyCount(8, 1, 13, true, 'normal', true), 5); // 8 * 1.25 * 0.5 = 5
 
   // Duel send price: 2 × kill gold (a swarm group of 8), × the wave's HP growth
-  assert.equal(calculateSendPrice('infantry', 1, 1), 7); // 5 × 4/3 = 6,67
+  assert.equal(calculateSendPrice('infantry', 1, 1), 8); // kill gold 6 (5 × 1,15), × 4/3 = 8
   assert.equal(calculateSendPrice('swarm', 1, 1), 11);
-  assert.equal(calculateSendPrice('heavy', 3, 1), 23); // 12 × 4/3 × 1.408 = 22.5 -> 23
-  assert.equal(calculateSendPrice('infantry', 1, 2), 8); // kill gold 6 on level 2
+  assert.equal(calculateSendPrice('heavy', 3, 1), 26); // kill gold 14 × 4/3 × 1.408 = 26.3 -> 26
+  assert.equal(calculateSendPrice('infantry', 1, 2), 8); // карта на цену не влияет (Артур, 2026-11-02)
+  assert.equal(calculateSendPrice('heavy', 3, 5), calculateSendPrice('heavy', 3, 1));
   // Each send adds 1/5 of its price to every later round
   assert.equal(calculateSendIncome(60), 12);
   assert.equal(calculateSendIncome(34), 6);
 
-  // Kill gold: round(base * (1 + 0.15*(lvl-1)))
-  assert.equal(calculateKillGold(5, 1), 5);
-  assert.equal(calculateKillGold(5, 2), 6); // 5 * 1.15 = 5.75 -> 6
+  // Kill gold: round(base × 1,15) на любой карте
+  assert.equal(calculateKillGold(5, 1), 6); // 5 * 1.15 = 5.75 -> 6
+  assert.equal(calculateKillGold(5, 5), 6);
+  assert.equal(calculateKillGold(100, 3), 115);
 
   // Physical damage with armor
   const res1 = calculateDamage({
@@ -456,10 +458,10 @@ test('supply: towers add up by level, prices grow ×1,12 per 20 power above 30, 
 });
 
 test('kill gold: after wave 12 it falls ×0,985 per wave to a floor, only where the supply works', () => {
-  assert.equal(calculateKillGold(100, 1, 24, false), 100);
-  assert.equal(calculateKillGold(100, 1, 12, true), 100);
-  assert.equal(calculateKillGold(100, 1, 24, true), Math.round(100 * Math.pow(0.985, 12)));
-  assert.equal(calculateKillGold(100, 1, 500, true), 30);
+  assert.equal(calculateKillGold(100, 1, 24, false), 115);
+  assert.equal(calculateKillGold(100, 1, 12, true), 115);
+  assert.equal(calculateKillGold(100, 1, 24, true), Math.round(115 * Math.pow(0.985, 12)));
+  assert.equal(calculateKillGold(100, 1, 500, true), 34);
 });
 
 test('isEmptyProgress: пустой прогресс отличается от начатого', async () => {
