@@ -2228,7 +2228,8 @@ export class GameEngine {
    *  (a tower can be in several figures); each figure is counted once. */
   private findMegas(): Mega[] {
     const cells = new Map<string, Tower>();
-    for (const t of this.towers) if (CONFIG.towers[t.type].race === 'cultists') cells.set(`${t.x},${t.y}`, t);
+    // собранные башни в фигуры не входят: мегабашня не растворяется в новой фигуре
+    for (const t of this.towers) if (CONFIG.towers[t.type].race === 'cultists' && !t.fused) cells.set(`${t.x},${t.y}`, t);
     const has = (p: { x: number; y: number }) => cells.has(`${p.x},${p.y}`);
     const out: Mega[] = [];
     const seen = new Set<string>();
