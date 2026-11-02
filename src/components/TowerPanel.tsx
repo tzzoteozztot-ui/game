@@ -493,7 +493,17 @@ export function TowerPanel({
 
         {info?.fuse && (
           <>
-            {(info.fuse === 'mega' && info.fuseShapes.length > 1 ? info.fuseShapes : [undefined]).map((shape) => (
+            {info.fuse === 'none' ? (
+              <button
+                type="button"
+                disabled
+                className="h-[var(--h-btn)] px-0.5 rounded font-bold flex flex-col items-center justify-center leading-none bg-black/30 text-stone-500 border border-white/10 cursor-not-allowed"
+                title="Мегабашня: три башни в ряд и одна под серединой (Т) или три в ряд и две ножки на концах (П) — выберите башню фигуры и нажмите «Собрать»"
+              >
+                <span className="text-[length:var(--fs-btn4)]">Собрать</span>
+                <span className="text-[length:var(--fs-xs)] mt-0.5 whitespace-nowrap">нужна Т/П</span>
+              </button>
+            ) : (info.fuse === 'mega' && info.fuseShapes.length > 1 ? info.fuseShapes : [undefined]).map((shape) => (
               <button
                 key={shape ?? 'one'}
                 type="button"
