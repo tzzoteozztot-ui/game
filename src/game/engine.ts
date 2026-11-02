@@ -227,6 +227,7 @@ const GAIT: Partial<Record<EnemyType, { stride: number; lift: number; tilt: numb
   boss: { stride: 40, lift: 1.5, tilt: 0.04 },
 };
 const MAX_CORPSES = 30;
+const SANDBOX_GOLD = 999999; // свободный режим: золото каждый кадр возвращается к этому числу
 
 // Status marks on enemies: slowed (frost, «Оберег», the default priest) and cursed («Проклятие»)
 const SLOW_COLOR = '#8fd4ff';
@@ -324,6 +325,8 @@ export interface GameStateSnapshot {
   level: number;
   /** Endless mode on a generated map (its record is kept apart from the fixed map's) */
   randomMap: boolean;
+  /** Свободный режим: золото без счёта, состав волн вручную */
+  sandbox: boolean;
   wave: number;
   maxWaves: number;
   tier: number;
@@ -459,6 +462,8 @@ export class GameEngine {
   // Spawn state
   public isSpawning: boolean = false;
   public waveInProgress: boolean = false;
+  /** Свободный режим (песочница): золото без счёта, башни любого уровня, состав и запуск волн вручную */
+  public sandbox = false;
   public wavesLaunched: number = 0; // how many of the 12 waves have been started
   public spawnQueue: { type: EnemyType; entrance: number; sent?: boolean; faction?: number }[] = []; // sent: by the duel opponent
   private spawnTimer: number = 0;
@@ -643,6 +648,7 @@ export class GameEngine {
     this.boonOffers = [];
     this.difficulty = diff;
     this.endless = endless;
+    this.sandbox = false;
     this.duelStart = null;
     this.resetView();
     this.duelOutgoing = {};
@@ -703,6 +709,101 @@ export class GameEngine {
     this.generateGrass();
     this.notifyState();
     this.startLoop();
+  }
+
+  /** Свободный режим: бесконечный режим без таймера волн, с вечным золотом, 5-м ярусом и неубиваемым артефактом */
+  public startSandbox(level: number, diff: Difficulty, faction: number, race: RaceId = 'humans', mapSeed: number | null = null) {
+    this.startLevel(level, diff, true, faction, race, mapSeed);
+    this.sandbox = true;
+    if (this.runLog) this.runLog.data.mode = 'sandbox';
+    this.tier = 5;
+    while (this.guardLevel < CONFIG.siege.guard.damage.length) this.raiseGuard();
+    this.gold = SANDBOX_GOLD;
+    this.waveCountdown = null;
+    this.wave = 1;
+    this.notifyState();
+  }
+
+  /**
+   * Свободный режим: запускает волну заданного состава. `counts` — сколько врагов каждого вида (рой — штук, босс — 0 или 1),
+   * `wave` — номер волны для здоровья и наград, `faction` — чьи это враги. Волны можно запускать внахлёст.
+   */
+  public sandboxLaunch(counts: Partial<Record<EnemyType, number>>, wave: number, faction: number): boolean {
+    if (!this.sandbox || this.isGameOver) return false;
+    const list: EnemyType[] = [];
+    for (const t of ['infantry', 'scout', 'heavy', 'flyer', 'shaman'] as EnemyType[]) {
+      for (let i = 0; i < Math.max(0, Math.floor(counts[t] ?? 0)); i++) list.push(t);
+    }
+    for (let i = list.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [list[i], list[j]] = [list[j], list[i]];
+    }
+    const swarm = Math.max(0, Math.floor(counts.swarm ?? 0));
+    const boss = (counts.boss ?? 0) > 0;
+    if (list.length + swarm + (boss ? 1 : 0) === 0) return false;
+    this.wave = Math.max(1, Math.min(999, Math.floor(wave)));
+    this.wavesLaunched++;
+    this.rerollsThisWave = 0;
+    this.faction = Math.max(1, Math.min(CONFIG.factions.length, Math.floor(faction)));
+    const queued0 = this.spawnQueue.length;
+    const entrances = this.currentMap.entrances.length;
+    let ent = 0;
+    for (const type of list) {
+      this.spawnQueue.push({ type, entrance: ent % entrances, faction: this.faction });
+      ent++;
+    }
+    for (let i = 0; i < swarm; i++) this.spawnQueue.push({ type: 'swarm', entrance: Math.floor(i / CONFIG.swarmGroupCount) % entrances, faction: this.faction });
+    if (boss) this.spawnQueue.push({ type: 'boss', entrance: 0, faction: this.faction });
+    this.logWaveStart(queued0);
+    this.isSpawning = true;
+    this.waveInProgress = true;
+    this.spawnTimer = 0;
+    this.onWaveStarted?.();
+    this.notifyState();
+    return true;
+  }
+
+  /** Свободный режим: состав волны N как в бесконечном режиме (для заготовки в окне состава) */
+  public sandboxPreset(wave: number): Partial<Record<EnemyType, number>> {
+    const def = waveDefinition(wave);
+    const c = (n?: number) => (n ? calculateEnemyCount(n, this.level, wave, true, this.difficulty, false) : 0);
+    return {
+      infantry: c(def.infantry),
+      scout: c(def.scout),
+      heavy: c(def.heavy),
+      flyer: c(def.flyer),
+      shaman: c(def.shaman),
+      swarm: c(def.swarm) * CONFIG.swarmGroupCount,
+      boss: def.boss ? 1 : 0,
+    };
+  }
+
+  /** Свободный режим: выбранной башне — нужный уровень и свойство (свойство берётся из списка башни) */
+  public sandboxSetTower(level: number, spec: string | null): boolean {
+    const t = this.towers.find((x) => x.id === this.selectedTowerId);
+    if (!this.sandbox || !t) return false;
+    const lvl = Math.max(1, Math.min(this.maxLevel(), Math.floor(level)));
+    t.level = lvl;
+    t.specs = lvl >= 2 && spec ? Array(this.specCountFor(lvl)).fill(spec) : [];
+    this.logEv('sandbox-set', { id: t.id, level: lvl, specs: [...t.specs] });
+    this.markModsDirty();
+    this.notifyState();
+    return true;
+  }
+
+  /** Сколько свойств хранит готовая башня уровня `level` (люди: три Ур.2 в Ур.3) */
+  private specCountFor(level: number): number {
+    if (level <= 1) return 0;
+    return this.race === 'humans' ? (level === 2 ? 1 : 3) : level - 1;
+  }
+
+  /** Скачивание лога из свободного режима: записать срез и отдать файл */
+  public saveLog() {
+    if (!this.runLog) return;
+    this.runLog.data.finalWave = this.wavesLaunched;
+    this.runLog.data.seconds = Math.round(this.runStats.time);
+    this.logEv('sandbox-save', { gold: Math.round(this.gold), towers: this.logTowers(), damageOther: Math.round(this.runStats.other) });
+    this.runLog.save();
   }
 
   // Polylines run through cell centers (in cells), starting just outside the field edge
@@ -798,8 +899,8 @@ export class GameEngine {
   }
 
   /** Duel: an endless game on this map whose waves follow the shared clock from startAt (performance.now()) */
-  public startDuel(level: number, startAt: number, opponentArmy: number, race: RaceId = 'humans', roundLength: number = CONFIG.duel.roundLength) {
-    this.startLevel(level, 'normal', true, undefined, race);
+  public startDuel(level: number, startAt: number, opponentArmy: number, race: RaceId = 'humans', roundLength: number = CONFIG.duel.roundLength, mapSeed: number | null = null) {
+    this.startLevel(level, 'normal', true, undefined, race, mapSeed);
     this.duelRoundLength = roundLength;
     this.faction = Math.max(1, Math.min(CONFIG.factions.length, Math.floor(opponentArmy) || level));
     this.duelStart = startAt;
@@ -1008,6 +1109,7 @@ export class GameEngine {
   // -------------------------------------------------------------
   // fromClock: a duel wave started by the shared clock; in a duel it comes out over the unfinished one
   public startNextWave(fromClock = false): boolean {
+    if (this.sandbox) return false; // в свободном режиме волну собирает игрок (sandboxLaunch)
     const duel = this.duelStart !== null;
     if (duel !== fromClock) return false; // a duel wave waits for the clock
     if ((this.isSpawning && !duel) || this.isGameOver || this.isVictory) return false;
@@ -1385,6 +1487,7 @@ export class GameEngine {
   // -------------------------------------------------------------
   private update(dt: number) {
     if (!this.isGameOver && !this.isVictory) this.runStats.time += dt;
+    if (this.sandbox) this.gold = SANDBOX_GOLD;
     // 1. Spawning
     if (this.isSpawning) {
       this.spawnTimer -= dt;
@@ -1403,7 +1506,13 @@ export class GameEngine {
     // 2. Wave completion check
     if (this.waveInProgress && !this.isSpawning && this.enemies.length === 0 && !this.isGameOver && !this.isVictory) {
       this.waveInProgress = false;
-      if (this.endless || this.wave <= 12) {
+      if (this.sandbox) {
+        // Свободный режим: ни наград, ни таймера, ни следующей волны сама
+        this.publishWaveSummary();
+        this.logEv('sandbox-clear', { gold: Math.round(this.gold), towers: this.logTowers() });
+        this.runLog?.save();
+        this.notifyState();
+      } else if (this.endless || this.wave <= 12) {
         // Wave cleared!
         const reward = calculateWaveClearReward(this.wave);
         this.gold += reward;
@@ -2856,6 +2965,7 @@ export class GameEngine {
       sound.playError();
     }
 
+    if (this.sandbox) this.lives = this.livesMax();
     if (this.lives <= 0) {
       this.isGameOver = true;
       sound.playDefeat();
@@ -2992,7 +3102,7 @@ export class GameEngine {
       level: this.placingStartLevel,
       // A ready Ур.3: the chosen property in as many parts as the level keeps (people: three Ур.2 towers' worth)
       specs: this.placingStartLevel >= 2 && this.pendingTripletSpec
-        ? Array(this.placingStartLevel === 2 ? 1 : this.race === 'humans' ? 3 : 2).fill(this.pendingTripletSpec)
+        ? Array(this.specCountFor(this.placingStartLevel)).fill(this.pendingTripletSpec)
         : [],
       priority: 'first',
       cooldownTimer: 0,
@@ -3929,6 +4039,7 @@ export class GameEngine {
       gold: this.gold,
       level: this.level,
       randomMap: this.mapSeed !== null,
+      sandbox: this.sandbox,
       wave: this.shownWave(),
       maxWaves: 12,
       tier: this.tier,
@@ -4640,6 +4751,8 @@ export class GameEngine {
   // a missing faction figure falls back to the common one tinted in the faction's color
   private towerSprite(type: TowerType, level: number): PreparedSprite | null {
     const def = CONFIG.towers[type];
+    const drawn = this.ownTowerSprite(type, level);
+    if (drawn) return drawn;
     if (def.sprite) {
       const own = sprites.get(def.sprite);
       if (own) return own;
@@ -4649,9 +4762,14 @@ export class GameEngine {
     return sprites.get(`tower_${type}_${level}`) ?? sprites.get(`tower_${type}_1`);
   }
 
+  /** A race tower's own figure (tower_<type>_<1..3>, art/concepts/towers-<race>); levels above 3 reuse the third */
+  private ownTowerSprite(type: TowerType, level: number): PreparedSprite | null {
+    return sprites.get(`tower_${type}_${Math.min(3, level)}`);
+  }
+
   /** Field height of a faction tower's unit figure: a little taller each level; undefined keeps sprites.json */
   private towerDrawH(type: TowerType, level: number): number | undefined {
-    return CONFIG.towers[type].sprite ? 46 + 7 * (Math.min(3, level) - 1) + 3 * Math.max(0, level - 3) : undefined;
+    return CONFIG.towers[type].sprite && !this.ownTowerSprite(type, level) ? 46 + 7 * (Math.min(3, level) - 1) + 3 * Math.max(0, level - 3) : undefined;
   }
 
   // Stone pedestal under a faction tower so the unit figure reads as a tower, not as an enemy
@@ -4851,7 +4969,7 @@ export class GameEngine {
       if (spr2) drawSprite(ctx, spr2, x2, y2, t.facing, undefined, this.towerPose(t, t.second, timeSec));
       this.drawBond(ctx, x1, y1, x2, y2, power, timeSec, 'front');
     } else {
-      if (baseDef.sprite) this.drawPedestal(ctx, t, cx, footY, timeSec);
+      if (baseDef.sprite && !this.ownTowerSprite(t.type, t.level)) this.drawPedestal(ctx, t, cx, footY, timeSec);
       this.drawBaseRim(ctx, t.type, cx, footY, 1);
       if (t.fused) {
         // A megatower: an icy halo and a bigger figure, the badge tells the figures and what it is

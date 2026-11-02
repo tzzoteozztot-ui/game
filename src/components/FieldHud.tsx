@@ -19,6 +19,8 @@ interface FieldHudProps {
   onStartWave: () => void;
   autoStart: boolean;
   onToggleAutoStart: () => void;
+  sandbox?: boolean; // свободный режим: кнопка открывает состав волны, автостарта нет
+  onOpenSandboxWave?: () => void;
 }
 
 const CELL = `calc(100cqw / ${CONFIG.grid.cols})`;
@@ -37,8 +39,10 @@ export function FieldHud({
   onStartWave,
   autoStart,
   onToggleAutoStart,
+  sandbox,
+  onOpenSandboxWave,
 }: FieldHudProps) {
-  const waveOff = isSpawning || allWavesLaunched || duel;
+  const waveOff = !sandbox && (isSpawning || allWavesLaunched || duel);
   const iconBtn = `${glass} w-[calc(var(--cell)-var(--gap))] h-[calc(var(--cell)-var(--gap))] font-bold`;
 
   return (
@@ -48,10 +52,10 @@ export function FieldHud({
         style={{ '--cell': CELL, '--gap': `calc(${CELL} * 0.12)`, height: CELL } as React.CSSProperties}
       >
         {/* Wave: 3 cells and the auto-start switch (1 cell) at the top left */}
-        <div className="h-full flex items-center justify-center" style={{ width: `calc(var(--cell) * ${HUD_LEFT_COLS - (duel ? 0 : 1)})` }}>
+        <div className="h-full flex items-center justify-center" style={{ width: `calc(var(--cell) * ${HUD_LEFT_COLS - (duel || sandbox ? 0 : 1)})` }}>
           <button
             type="button"
-            onClick={onStartWave}
+            onClick={sandbox ? onOpenSandboxWave : onStartWave}
             disabled={waveOff}
             title={duel ? 'В дуэли волны выходят у обоих разом' : 'Начать волну (Пробел)'}
             className={`${glass} w-[calc(100%-var(--gap))] h-[calc(100%-var(--gap))] px-[calc(var(--cell)*0.12)] flex-col gap-[calc(var(--cell)*0.06)] text-[max(9px,calc(var(--cell)*0.3))] font-bold ${
@@ -60,7 +64,12 @@ export function FieldHud({
                 : 'bg-amber-600/55 hover:bg-amber-500/70 border-amber-300/50 text-white'
             }`}
           >
-            {allWavesLaunched ? (
+            {sandbox ? (
+              <>
+                <span className="whitespace-nowrap">Состав волны</span>
+                {isSpawning && <span className="whitespace-nowrap text-amber-100 text-[0.85em]">Враги выходят…</span>}
+              </>
+            ) : allWavesLaunched ? (
               <span>Последняя волна</span>
             ) : duel && waveCountdown !== null ? (
               <>
@@ -86,7 +95,7 @@ export function FieldHud({
             )}
           </button>
         </div>
-        {!duel && (
+        {!duel && !sandbox && (
           <div className="h-full flex items-center justify-center mr-auto" style={{ width: 'var(--cell)' }}>
             <button
               type="button"
