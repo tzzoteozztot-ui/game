@@ -91,7 +91,8 @@ SPRITES = {
     'enemy_heavy_5': ('enemies/factions', (520, 728, 734, 965), (627, 858), 40, 1),
     'enemy_scout_5': ('enemies/factions', (759, 718, 973, 963), (866, 853), 32, 1),
     # Новые враги фракций (листы GPT, 2026-10-31): орки, нежить, демоны; фон ровный светло-серый
-    'enemy_flyer_1': ('enemies/new-orcs', (60, 100, 860, 900), (560, 560), 34, 1),
+    # Летун орков: крылья расправлены (правка Артура в Gemini, 2026-11-02)
+    'enemy_flyer_1': ('enemies/orc-flyer-v2', (0, 0, 1008, 1059), (650, 600), 34, 1),
     'enemy_swarm_1': ('enemies/new-orcs', (930, 540, 1410, 1000), (1150, 800), 16, 1),
     'enemy_flyer_2': ('enemies/new-undead', (40, 150, 890, 890), (580, 560), 34, 1),
     'enemy_swarm_2': ('enemies/new-undead', (890, 640, 1440, 890), (1200, 740), 16, 1),
@@ -163,6 +164,7 @@ SHEET_OPTS = {
     'enemies/factions': {'pocket': (9, 13), 'light_rim': True},
     'enemies/ice-legion': {'pocket': (9, 13), 'light_rim': True},
     'enemies/new-orcs': {'light_rim': True},
+    'enemies/orc-flyer-v2': {'light_rim': True},
     'enemies/new-undead': {'light_rim': True},
     'enemies/new-demons': {'light_rim': True},
     'enemies/new-elves': {'light_rim': True},

@@ -892,10 +892,10 @@
   },
   "enemy_flyer_1": {
     "file": "enemy_flyer_1.png",
-    "w": 101,
+    "w": 106,
     "h": 102,
     "drawH": 34,
-    "anchorX": 0.443,
+    "anchorX": 0.47,
     "anchorY": 1,
     "facing": 1
   },
@@ -1112,24 +1112,6 @@
     "h": 252,
     "drawH": 84,
     "anchorX": 0.373,
-    "anchorY": 1,
-    "facing": 1
-  },
-  "mega_T": {
-    "file": "mega_T.png",
-    "w": 257,
-    "h": 300,
-    "drawH": 96.0,
-    "anchorX": 0.5,
-    "anchorY": 1,
-    "facing": 1
-  },
-  "mega_P": {
-    "file": "mega_P.png",
-    "w": 258,
-    "h": 300,
-    "drawH": 112.0,
-    "anchorX": 0.5,
     "anchorY": 1,
     "facing": 1
   }
