@@ -23,6 +23,8 @@ export interface LogTower {
   y: number;
   main: LogTowerPart;
   second: LogTowerPart | null;
+  extra?: { x: number; y: number }[]; // мегабашня П занимает ещё одну клетку, гипербашня ещё две
+  fused?: { shapes: string[]; megas: number; parts: LogTowerPart[] }; // культисты: мегабашня (megas = 1) или гипербашня (2+); части стреляют из одной клетки
   damage: number; // накопительно за забег
 }
 
@@ -51,6 +53,7 @@ export interface LogWaveRow {
   towers: LogTower[];
   damageOther: number;
   boons: string[];
+  megas?: string[]; // фигуры Т/Х/П культистов, стоящие на поле к началу волны (ещё не собранные в одну башню)
   brawl?: unknown; // доска Потасовки: HP участников, текущий и следующий соперник
 }
 

@@ -363,7 +363,7 @@ export const CONFIG = {
       desc: 'Раз в 5 с замораживает всех врагов в радиусе на 1,5 с (босса — на 0,5 с).',
     } as TowerBaseDef,
     cul_pillar: {
-      type: 'cul_pillar', race: 'cultists', name: 'Ритуальный столп', cost: 40, damage: 8, damageType: 'ice', cooldown: 1.0, range: 2.2,
+      type: 'cul_pillar', race: 'cultists', name: 'Ритуальный столп', cost: 13, damage: 8, damageType: 'ice', cooldown: 1.0, range: 2.2,
       shape: 'rhombus', color: '#7fc8f0', sprite: 'enemy_infantry_3', sound: 'mage', specs: [],
       desc: 'Дешёвый модуль мегабашни; один слаб.',
     } as TowerBaseDef,
@@ -656,7 +656,7 @@ export const CONFIG = {
     cultists: {
       id: 'cultists', name: 'Культисты льда', faction: 3, towers: ['cul_archer', 'cul_altar', 'cul_pillar', 'cul_spike'],
       merge: 3, levelDamage: 3.3, levelRange: 1.1, binders: false, triplets: true,
-      features: ['Мегабашни: башни культистов, поставленные фигурой, работают вместе.', 'Т (4 клетки): +30 % урона всем. Х (5 клеток, плюс): раз в 4 с взрыв холода у центра, урон ×3. П (5 клеток): +30 % радиуса и заморозка 1 с врагов между ножками.', 'Уровень — слиянием трёх, без свойств.'],
+      features: ['Мегабашни: башни культистов, поставленные фигурой, работают вместе.', 'Т (4 клетки): +30 % урона всем. П (5 клеток): +30 % радиуса и заморозка 1 с врагов между ножками.', 'Уровень — слиянием трёх, без свойств.'],
     },
     demons: {
       id: 'demons', name: 'Демоны', faction: 4, towers: ['dem_ember', 'dem_warper', 'dem_rift', 'dem_gate'],
@@ -693,11 +693,10 @@ export const CONFIG = {
     freezeTime: 1.5,
     spikeSlowedMult: 1.3,
     megaT: 0.3,
-    megaXEvery: 4,
-    megaXRadius: 1.2,
-    megaXMult: 3,
     megaPRange: 0.3,
     megaPFreeze: 1,
+    fuseDmg: 0.07, // собранная мегабашня: +7 % урона за каждую слитую мегабашню (выбор Артура 2026-11-02, бот: медиана 46 волн)
+    hyperMult: 1.07, // гипербашня (две мегабашни и больше): ещё ×1,07
     burnShare: 0.25,
     burnTime: 3,
     warpBonus: 0.3,

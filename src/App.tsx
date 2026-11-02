@@ -205,6 +205,7 @@ export default function App() {
     earlyStartBonus: 0,
     speed: 1,
     selectedTower: null,
+    hyperPlanLeft: 0,
     eligibleMergeCount: 0,
     mergeUsesBinder: false,
     selectedBinder: false,
@@ -746,6 +747,12 @@ export default function App() {
     engine.mergeSelectedTower();
   };
 
+  // Cultists: build the figure the tower stands in into one tower (shape — when it stands in several)
+  const handleFuse = (shape?: 'T' | 'P') => {
+    sound.init();
+    engineRef.current?.fuseSelected(shape);
+  };
+
   // Sell selected tower or binder
   const handleSell = () => {
     sound.init();
@@ -811,8 +818,14 @@ export default function App() {
       return;
     }
 
+    // A hypertower is being placed: the tap picks one of its three cells
+    if (engine.hyperPlan) {
+      engine.pickHyperCell(cellX, cellY);
+      return;
+    }
+
     // Normal click: check if a tower is clicked
-    const clickedTower = engine.towers.find((t) => t.x === cellX && t.y === cellY);
+    const clickedTower = engine.towerAtCell(cellX, cellY);
     if (engine.bindingFromId) {
       // Binding: a tap on a partner binds, any other tap cancels
       if (clickedTower && clickedTower.id !== engine.bindingFromId) engine.bindWith(clickedTower);
@@ -866,9 +879,9 @@ export default function App() {
 
     if (pointersRef.current.size === 1) {
       const cell = toCell(e.clientX, e.clientY);
-      const tower = engine.towers.find((t) => t.x === cell.x && t.y === cell.y);
+      const tower = engine.towerAtCell(cell.x, cell.y);
       // A press on a tower can drag it to another cell: free between waves, for gold in a duel during a wave
-      const towerId = tower && engine.placingSlot === null && !engine.bindingFromId && !engine.upgradingFromBinderId && engine.moveCost() !== null ? tower.id : null;
+      const towerId = tower && engine.placingSlot === null && !engine.hyperPlan && !engine.bindingFromId && !engine.upgradingFromBinderId && engine.moveCost() !== null ? tower.id : null;
       gestureRef.current = { x: e.clientX, y: e.clientY, mode: 'tap', towerId };
     } else if (pointersRef.current.size === 2) {
       if (gestureRef.current) gestureRef.current.mode = 'pinch';
@@ -1019,6 +1032,11 @@ export default function App() {
         }
         return;
       }
+      if (engine.hyperPlan) {
+        e.preventDefault();
+        engine.cancelHyper();
+        return;
+      }
       if (specModalTower) {
         // Specialization choice is mandatory, don't close with Esc
         return;
@@ -1126,6 +1144,8 @@ export default function App() {
       onUpgradeWithBinder={handleUpgradeWithBinder}
       onCyclePriority={handleCyclePriority}
       onMerge={handleMerge}
+      onFuse={handleFuse}
+      hyperLeft={gameState.hyperPlanLeft}
       onBind={handleBind}
       onSell={handleSell}
       onClose={() => engineRef.current?.selectTower(null)}

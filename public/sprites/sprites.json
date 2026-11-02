@@ -574,5 +574,23 @@
     "anchorX": 0.373,
     "anchorY": 1,
     "facing": 1
+  },
+  "mega_T": {
+    "file": "mega_T.png",
+    "w": 257,
+    "h": 300,
+    "drawH": 96.0,
+    "anchorX": 0.5,
+    "anchorY": 1,
+    "facing": 1
+  },
+  "mega_P": {
+    "file": "mega_P.png",
+    "w": 258,
+    "h": 300,
+    "drawH": 112.0,
+    "anchorX": 0.5,
+    "anchorY": 1,
+    "facing": 1
   }
 }
