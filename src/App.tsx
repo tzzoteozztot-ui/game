@@ -18,6 +18,8 @@ import { GameControls } from './components/GameControls';
 import { WaveInfo } from './components/WaveInfo';
 import { Backpack } from './components/Backpack';
 import { ShopPanel, ShopCard } from './components/ShopPanel';
+import { SandboxPanel } from './components/SandboxPanel';
+import { SandboxWaveModal, SandboxWave } from './components/SandboxWaveModal';
 import { rollShop, ShopPity } from './game/shop';
 import { TowerPanel, WaitingHint } from './components/TowerPanel';
 import { SpecModal } from './components/SpecModal';
@@ -36,6 +38,7 @@ import { PauseModal, VictoryModal, DefeatModal, HowToPlayModal, DuelResultModal,
 import { OrientationWarning } from './components/OrientationWarning';
 import { fullscreenSupported, toggleFullscreen } from './fullscreen';
 import { AccountModal, SyncState } from './components/AccountModal';
+import { downloadRunLog } from './game/runLog';
 import { Progress, EMPTY_PROGRESS, readLocalProgress, writeLocalProgress, mergeProgress, isEmptyProgress, endlessRecordKey } from './progress';
 import { cloudEnabled, onUserChange, loadCloudProgress, saveCloudProgress } from './cloud';
 import type { User } from '@supabase/supabase-js';
@@ -185,6 +188,7 @@ export default function App() {
     gold: 200,
     level: 1,
     randomMap: false,
+    sandbox: false,
     wave: 1,
     maxWaves: 12,
     tier: 1,
@@ -365,7 +369,7 @@ export default function App() {
   // Endless mode: the best wave reached is kept the moment a wave starts, so leaving to the menu
   // (or closing the page) in the middle of a run loses nothing; defeat counts the wave that broke through
   useEffect(() => {
-    if (gameState.endless && !gameState.duel && (gameState.isWaveActive || gameState.isGameOver)) {
+    if (gameState.endless && !gameState.sandbox && !gameState.duel && (gameState.isWaveActive || gameState.isGameOver)) {
       const diff = engineRef.current?.difficulty ?? 'normal';
       const key = endlessRecordKey(gameState.level, gameState.faction, gameState.randomMap);
       setProgress((prev) =>
@@ -460,6 +464,39 @@ export default function App() {
 
   // «Потасовка»: a room of eight run here, driven like a duel (src/brawl.ts); its board for the overlay
   const [brawl, setBrawl] = useState<BrawlSnapshot | null>(null);
+  // Свободный режим (песочница, просьба Артура 2026-11-02): карта и враги — чтобы «Заново» начал то же поле
+  const [sandboxCfg, setSandboxCfg] = useState<{ level: number; enemies: number; randomRoad: boolean } | null>(null);
+  const [sandboxWaveOpen, setSandboxWaveOpen] = useState(false);
+  const [sandboxWave, setSandboxWave] = useState<SandboxWave>({ faction: 1, wave: 1, counts: {} });
+  const handleSandboxStart = (level: number, enemies: number, randomRoad: boolean, seed: number | null = randomRoad ? newMapSeed() : null) => {
+    sound.init();
+    setSandboxCfg({ level, enemies, randomRoad });
+    setSandboxWaveOpen(false);
+    setSandboxWave({ faction: enemies || level, wave: 1, counts: {} });
+    setSpecModalTower(null);
+    setShopCards([]);
+    const begin = () => {
+      if (!canvasRef.current || !engineRef.current) return;
+      engineRef.current.setCanvas(canvasRef.current);
+      engineRef.current.startSandbox(level, difficulty, enemies || level, race, seed);
+    };
+    if (screen === 'playing') begin();
+    else {
+      setScreen('playing');
+      setTimeout(begin, 50);
+    }
+  };
+  const launchSandboxWave = () => {
+    sound.init();
+    const engine = engineRef.current;
+    if (!engine) return;
+    if (engine.sandboxLaunch(sandboxWave.counts, sandboxWave.wave, sandboxWave.faction)) setSandboxWaveOpen(false);
+  };
+  const saveSandboxLog = () => {
+    engineRef.current?.saveLog();
+    downloadRunLog();
+  };
+
   const handleBrawlStart = (level: number, bots: Difficulty, randomRoad = false) => {
     sound.init();
     const startAt = performance.now();
@@ -611,6 +648,10 @@ export default function App() {
     if (!engine) return;
 
     const seed = engine.mapSeed; // «Повторить» — та же случайная дорога
+    if (engine.sandbox && sandboxCfg) {
+      handleSandboxStart(sandboxCfg.level, sandboxCfg.enemies, sandboxCfg.randomRoad, seed);
+      return;
+    }
     if (screen === 'playing' && canvasRef.current) {
       engine.setCanvas(canvasRef.current);
       engine.startLevel(selectedLevel, difficulty, endless, enemyFaction, race, seed);
@@ -735,6 +776,11 @@ export default function App() {
     sound.init();
     const engine = engineRef.current;
     if (!engine) return;
+    if (engine.sandbox) {
+      // Пробел в свободном режиме: повторить собранную волну, а если она пуста — открыть окно состава
+      if (!engine.sandboxLaunch(sandboxWave.counts, sandboxWave.wave, sandboxWave.faction)) setSandboxWaveOpen(true);
+      return;
+    }
     engine.startNextWave();
   };
 
@@ -1209,6 +1255,7 @@ export default function App() {
             setMode('duel');
             setScreen('duelLobby');
           }}
+          onStartSandbox={(level, enemies, randomRoad) => handleSandboxStart(level, enemies, randomRoad)}
           onStartBrawl={handleBrawlStart}
           onOpenBrawlLobby={(m, level, bots, randomRoad) => {
             sound.init();
@@ -1315,6 +1362,8 @@ export default function App() {
                   onStartWave={handleStartWave}
                   autoStart={gameState.autoStart}
                   onToggleAutoStart={() => engineRef.current?.setAutoStart(!engineRef.current.autoStart)}
+                  sandbox={gameState.sandbox}
+                  onOpenSandboxWave={() => setSandboxWaveOpen(true)}
                 />
                 {brawl && <BrawlBoard snap={brawl} />}
                 {gameState.boonOffer && !gameState.isGameOver && (
@@ -1337,6 +1386,7 @@ export default function App() {
                       wave={gameState.wave}
                       maxWaves={gameState.maxWaves}
                       endless={gameState.endless}
+                      sandbox={gameState.sandbox}
                       supply={gameState.supplyActive ? { power: gameState.supplyPower, mult: gameState.supplyMult, next: gameState.supplyNext } : null}
                       opponent={gameState.duel ? opponent : undefined}
                       opponentTitle={brawl ? (brawl.currentId ? 'Сейчас' : 'След. соперник') : undefined}
@@ -1436,6 +1486,24 @@ export default function App() {
                   }}
                   onClear={() => engineRef.current?.clearSends()}
                 />
+              ) : gameState.sandbox ? (
+                <SandboxPanel
+                  race={gameState.race}
+                  maxLevel={gameState.maxLevel}
+                  selectedTower={gameState.selectedTower ? { type: gameState.selectedTower.type, level: gameState.selectedTower.level } : null}
+                  inHand={engineRef.current?.placingBinder ? 'binder' : engineRef.current?.placingTowerType || null}
+                  onTake={(type, level, spec) => {
+                    sound.init();
+                    engineRef.current?.buyToBackpack('tower', type, level > 1, spec, level);
+                  }}
+                  onTakeBinder={() => {
+                    sound.init();
+                    engineRef.current?.buyToBackpack('binder', null, false, null);
+                  }}
+                  onApplySelected={(level, spec) => engineRef.current?.sandboxSetTower(level, spec)}
+                  onOpenWave={() => setSandboxWaveOpen(true)}
+                  onDownloadLog={saveSandboxLog}
+                />
               ) : (
               <ShopPanel
                 cards={shopCards}
@@ -1474,6 +1542,18 @@ export default function App() {
             </div>
           </div>
         </div>
+      )}
+
+      {screen === 'playing' && gameState.sandbox && sandboxWaveOpen && (
+        <SandboxWaveModal
+          value={sandboxWave}
+          isSpawning={gameState.isSpawning}
+          onChange={setSandboxWave}
+          onPreset={(w) => setSandboxWave((v) => ({ ...v, counts: engineRef.current?.sandboxPreset(w) ?? {} }))}
+          onLaunch={launchSandboxWave}
+          onClose={() => setSandboxWaveOpen(false)}
+          onDownloadLog={saveSandboxLog}
+        />
       )}
 
       {/* 5. Specialization Modal */}
