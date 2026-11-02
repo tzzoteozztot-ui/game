@@ -374,7 +374,7 @@ export function TowerPanel({
         <div className="min-w-0 flex-1 flex items-baseline justify-between gap-1 leading-none">
           <div className={`font-bold text-stone-200 text-[length:var(--fs-md)] truncate min-w-0`}>
             {info?.title ?? baseDef.name}{' '}
-            <span className="text-amber-400 text-[length:var(--fs-md)] font-bold">{second ? tower.level : info?.title === 'Мегабашня Т' || info?.title === 'Мегабашня П' ? '' : `Ур.${info?.fuseLevel ?? tower.level}`}</span>
+            <span className="text-amber-400 text-[length:var(--fs-md)] font-bold">{second ? tower.level : `Ур.${info?.fuseLevel ?? tower.level}`}</span>
             {second && secondDef && (
               <>
                 <span style={{ color: CONFIG.binder.color }}> + </span>
