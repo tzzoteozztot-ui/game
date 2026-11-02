@@ -29,9 +29,13 @@ import {
 import { sound } from './audio';
 import { sprites, drawSprite, PreparedSprite, SpritePose, SpriteVariant } from './sprites';
 import { TILESETS, DECOR_ONLY, loadTileset, loadDecor, bakeField, bakeDecor, Tileset } from './tiles';
-
 // Light rim color (r, g, b) under the pedestal of the dark tower figures
-const TOWER_RIMS: Partial<Record<TowerType, string>> = { archer: '214, 236, 190', mage: '214, 200, 255' };
+// (people's Стрелок and Маг, all dark elf towers: they sink into dark maps)
+const ELF_RIM = '170, 240, 228';
+const TOWER_RIMS: Partial<Record<TowerType, string>> = {
+  archer: '214, 236, 190', mage: '214, 200, 255',
+  elf_archer: ELF_RIM, elf_weaver: ELF_RIM, elf_sphere: ELF_RIM, elf_blade: ELF_RIM,
+};
 import { attackStats, specBadge, specPower, specsOfType, stackedSlow, towerDamageType } from './towerStats';
 
 // -------------------------------------------------------------
