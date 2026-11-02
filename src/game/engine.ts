@@ -3856,8 +3856,20 @@ export class GameEngine {
       this.logEv('move', { id: a.id, type: a.type, fromX: a.x, fromY: a.y, x: cells[0].x, y: cells[0].y, paid: 0 });
     }
     const f: NonNullable<Tower['fused']> = { shapes: [], parts: [], megas: 0 };
+    // A megatower is the level of a random tower of the figure (просьба Артура 2026-11-02): the chance of Ур.2 / Ур.3 is the share
+    // of such towers in it. The drawn tower becomes the main part (its type, level and properties), the old main goes to the parts
+    const mainPart = this.partOf(main);
+    let lead: Tower | null = null;
+    if (kind === 'mega' && joined.length > 1) {
+      lead = joined[Math.floor(Math.random() * joined.length)];
+      if (lead !== main) {
+        main.type = lead.type;
+        main.level = lead.level;
+        main.specs = [...lead.specs];
+      }
+    }
     for (const t of joined) {
-      if (t !== main) f.parts.push(this.partOf(t));
+      if (t !== main) f.parts.push(t === lead && lead !== main ? mainPart : this.partOf(t));
       if (t.fused) {
         f.shapes.push(...t.fused.shapes);
         f.parts.push(...t.fused.parts);
