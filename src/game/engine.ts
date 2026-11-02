@@ -396,7 +396,8 @@ export interface GameStateSnapshot {
     ability: { name: string; desc: string; cost: number; cooldown: number; left: number; ready: boolean; auto: boolean } | null;
     sacrifice: number | null; // Врата бездны: volley damage of a sacrifice, null without a tower next to it
     fuseShapes: ('T' | 'P')[]; // в каких фигурах стоит башня: если больше одной, игрок выбирает, какую собрать
-    fuse: 'mega' | 'hyper' | null; // культисты: «Собрать» a figure into one tower, or megatowers into a hypertower
+    fuse: 'mega' | 'hyper' | 'none' | null; // 'none' — a cultist tower that stands in no figure yet (the card shows the button dimmed, with a hint)
+    // культисты: «Собрать» a figure into one tower, or megatowers into a hypertower
   } | null;
 }
 
@@ -4139,7 +4140,7 @@ export class GameEngine {
           }
         : null,
       sacrifice: victim ? CONFIG.raceMech.sacrificeMult * this.towerInvested(victim) : null,
-      fuse: this.fuseKind(t),
+      fuse: this.fuseKind(t) ?? (this.race === 'cultists' && !t.fused ? 'none' : null),
       fuseShapes: this.fuseShapes(t),
     };
   }
