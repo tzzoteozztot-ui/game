@@ -2559,6 +2559,7 @@ export class GameEngine {
       return false;
     }
     this.gold -= ab.cost;
+    this.logEv('ability', { id: tower.id, type: tower.type, level: tower.level, name: ab.name, paid: ab.cost, auto, x: tower.x, y: tower.y });
     tower.abilityLeft = ab.duration;
     tower.abilityCd = ab.cooldown;
     tower.pulseT = 0;
@@ -2654,6 +2655,7 @@ export class GameEngine {
       return false;
     }
     const dmg = CONFIG.raceMech.sacrificeMult * this.towerInvested(victim);
+    this.logEv('sacrifice', { id: gate.id, level: gate.level, victim: victim.type, victimLevel: victim.level, dmg: Math.round(dmg), hit: hit.length, x: gate.x, y: gate.y });
     this.towers.splice(this.towers.indexOf(victim), 1);
     this.markModsDirty();
     this.spawnPuff((victim.x + 0.5) * cs, (victim.y + 0.5) * cs, '#ff4a2f');
