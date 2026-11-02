@@ -4,7 +4,7 @@
  * отсюда же открывается окно состава волны и скачивается лог партии.
  */
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { CONFIG, RaceId, TowerType } from '../game/config';
 import { TowerSpriteIcon } from './Icons';
 
@@ -30,6 +30,16 @@ export function SandboxPanel({ race, maxLevel, selectedTower, inHand, onTake, on
   const [type, setType] = useState<TowerType>(types[0]);
   const [level, setLevel] = useState(1);
   const [spec, setSpec] = useState('');
+  // выбрали башню на поле — панель подстраивается под неё, «Взять в руку» берёт такую же
+  const selType = selectedTower?.type;
+  const selLevel = selectedTower?.level;
+  useEffect(() => {
+    if (selType && types.includes(selType)) {
+      setType(selType);
+      setLevel(selLevel ?? 1);
+      setSpec('');
+    }
+  }, [selType, selLevel]); // eslint-disable-line react-hooks/exhaustive-deps
   const cur = types.includes(type) ? type : types[0];
   const specs = CONFIG.towers[cur].specs;
   const lvl = Math.min(level, maxLevel);
