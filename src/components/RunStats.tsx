@@ -56,11 +56,11 @@ export function RunStats({ stats }: { stats: RunSummary | null }) {
           </button>
           {open && <div className="flex flex-col gap-1.5 tabular-nums mt-1">
             {top.map((t, i) => {
-              const name = (type: string, level: number, specs: string[], second = false) => (
+              const name = (type: string, level: number, specs: string[], second = false, title: string | null = null) => (
                 <div className="leading-snug">
                   <span className={second ? 'text-teal-200' : ''}>
                     {second ? '+ ' : ''}
-                    <b className={second ? '' : 'text-stone-100'}>{towerName(type)}</b> Ур.{level}
+                    <b className={second ? '' : 'text-stone-100'}>{title ?? towerName(type)}</b> Ур.{level}
                   </span>
                   {specs.length > 0 && <div className="text-[10px] text-amber-200/90 break-words">{specSummary(specs)}</div>}
                 </div>
@@ -69,7 +69,7 @@ export function RunStats({ stats }: { stats: RunSummary | null }) {
                 <div key={i}>
                   <div className="flex justify-between items-baseline gap-2">
                     <div className="min-w-0 flex flex-col gap-0.5">
-                      {name(t.type, t.level, t.specs)}
+                      {name(t.type, t.level, t.specs, false, t.title)}
                       {t.second && name(t.second, t.secondLevel, t.secondSpecs, true)}
                     </div>
                     <div className="text-right shrink-0">
