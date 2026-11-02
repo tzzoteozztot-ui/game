@@ -18,12 +18,13 @@ interface SandboxPanelProps {
   onApplySelected: (level: number, spec: string | null) => void;
   onOpenWave: () => void;
   onDownloadLog: () => void;
+  compact?: boolean; // полоса под полем (низкая): два столбца вместо одного
 }
 
 const BTN =
   'min-h-[var(--h-line,24px)] px-1 rounded border text-[length:var(--fs-sm)] font-bold cursor-pointer transition-colors bg-[#221f2d] border-[#383347] text-stone-200 hover:bg-[#2c283a]';
 
-export function SandboxPanel({ race, maxLevel, selectedTower, inHand, onTake, onTakeBinder, onApplySelected, onOpenWave, onDownloadLog }: SandboxPanelProps) {
+export function SandboxPanel({ race, maxLevel, selectedTower, inHand, onTake, onTakeBinder, onApplySelected, onOpenWave, onDownloadLog, compact }: SandboxPanelProps) {
   const raceDef = CONFIG.races[race];
   const types = raceDef.towers;
   const [type, setType] = useState<TowerType>(types[0]);
@@ -35,7 +36,12 @@ export function SandboxPanel({ race, maxLevel, selectedTower, inHand, onTake, on
   const specId = lvl >= 2 && spec && specs.some((s) => s.id === spec) ? spec : null;
 
   return (
-    <div className="w-full p-1.5 bg-[#171520] text-[#f4f2e6] text-[length:var(--fs-md)] flex flex-col gap-1 shrink-0 select-none">
+    <div
+      className={`w-full p-1.5 bg-[#171520] text-[#f4f2e6] text-[length:var(--fs-md)] shrink-0 select-none ${
+        compact ? 'grid grid-cols-2 gap-x-2 items-start' : 'flex flex-col gap-1'
+      }`}
+    >
+     <div className={compact ? 'flex flex-col gap-1 min-w-0' : 'contents'}>
       <div className="flex items-center justify-between gap-1 leading-none">
         <span className="text-[length:var(--fs-sm)] uppercase font-semibold tracking-wider text-stone-400">Свободный режим</span>
         <span className="text-amber-400 font-bold text-[length:var(--fs-sm)]">Золото ∞</span>
@@ -49,7 +55,7 @@ export function SandboxPanel({ race, maxLevel, selectedTower, inHand, onTake, on
             onClick={() => setType(t)}
             aria-pressed={cur === t}
             title={CONFIG.towers[t].name}
-            className={`h-[var(--h-card,44px)] rounded border flex items-center justify-center cursor-pointer ${
+            className={`${compact ? "h-[calc(var(--h-line,24px)*1.7)]" : "h-[var(--h-card,44px)]"} rounded border flex items-center justify-center cursor-pointer ${
               cur === t ? 'bg-[#2a2236] border-amber-400 ring-1 ring-amber-500/60' : 'bg-[#221f2d] border-[#383347] hover:bg-[#2c283a]'
             }`}
           >
@@ -85,6 +91,8 @@ export function SandboxPanel({ race, maxLevel, selectedTower, inHand, onTake, on
         </select>
       )}
 
+     </div>
+     <div className={compact ? 'flex flex-col gap-1 min-w-0' : 'contents'}>
       <button
         type="button"
         onClick={() => onTake(cur, lvl, specId)}
@@ -116,6 +124,7 @@ export function SandboxPanel({ race, maxLevel, selectedTower, inHand, onTake, on
           Скачать лог
         </button>
       </div>
+     </div>
     </div>
   );
 }
