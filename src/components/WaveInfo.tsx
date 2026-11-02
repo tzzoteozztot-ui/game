@@ -112,7 +112,7 @@ export function WaveInfo({ nextWave, summary, faction, isWaveActive }: WaveInfoP
               {summary.towers.slice(0, 6).map((t, i) => (
                 <div key={i} className="flex justify-between gap-1 tabular-nums">
                   <span className="truncate">
-                    {towerName(t.type)}
+                    {t.title ?? towerName(t.type)}
                     {t.second ? `+${towerName(t.second)}` : ''} {t.level}
                   </span>
                   <span>{fmt(t.damage)}</span>
