@@ -164,6 +164,7 @@ export interface BoardState {
   host: string;
   epoch: number; // grows each time the host changes
   level: number;
+  seed?: number; // the shared random road, if any
   elapsed: number; // ms since the start on the host's clock
   wave: number;
   seats: SeatState[];
@@ -175,9 +176,9 @@ export interface BoardState {
 
 export type BrawlWire =
   | { t: 'join'; name: string; race: RaceId } // guest → host, every second in the lobby (also its sign of life)
-  | { t: 'lobby'; level: number; bots: string; players: LobbyPlayer[] } // host → all, every second in the lobby
+  | { t: 'lobby'; level: number; rnd?: boolean; bots: string; players: LobbyPlayer[] } // host → all, every second in the lobby
   | { t: 'full' } // host → a guest: eight already
-  | { t: 'go'; level: number } // host → all: the game starts now
+  | { t: 'go'; level: number; seed?: number } // host → all: the game starts now
   | { t: 'board'; b: BoardState } // host → all, every second in the game
   | { t: 'beat'; lives: number; lost: boolean } // player → host, every 2 s in the game
   | { t: 'send'; enemies: Partial<Record<SendType, number>>; wave?: number; army?: number } // player → host: bought at a wave start; host → player: enemies for you
@@ -246,6 +247,7 @@ export interface BrawlNetSetup {
   players: LobbyPlayer[]; // the lobby's order, the host first
   hosting: boolean;
   hostId: string;
+  seed?: number; // random road shared by all eight (0 / none: the map's own)
 }
 
 export class BrawlRoom implements DuelLink {
@@ -273,6 +275,7 @@ export class BrawlRoom implements DuelLink {
   private board: BoardState | null = null; // client: the host's last board
   private deadHosts = new Set<string>();
   private lostSent = false; // client: my artifact fell (the host may not know yet)
+  private seed = 0;
   private factionByWave: Record<number, number> = {}; // client: whose enemies each wave brings me
 
   constructor(
@@ -284,6 +287,7 @@ export class BrawlRoom implements DuelLink {
     net?: BrawlNetSetup
   ) {
     this.net = net?.link ?? null;
+    this.seed = net?.seed ?? 0;
     this.me = net ? net.link.me : YOU;
     this.hosting = net ? net.hosting : true;
     this.hostId = net ? net.hostId : YOU;
@@ -671,6 +675,7 @@ export class BrawlRoom implements DuelLink {
       host: this.me,
       epoch: this.epoch,
       level: this.level,
+      seed: this.seed || undefined,
       elapsed: Math.round(now - this.startAt),
       wave: this.wave,
       seats: this.seats.map((s) => ({

@@ -419,7 +419,7 @@ export default function App() {
 
   const [opponentArmy, setOpponentArmy] = useState(1);
   const [myArmy, setMyArmy] = useState(1); // the army I send: its enemies' names in «Армия»
-  const handleDuelStart = (link: DuelLink, level: number, startAt: number, army: number, myArmy: number, roundLength = CONFIG.duel.roundLength) => {
+  const handleDuelStart = (link: DuelLink, level: number, startAt: number, army: number, myArmy: number, roundLength = CONFIG.duel.roundLength, mapSeed: number | null = null) => {
     duelLinkRef.current = link;
     duelSeenRef.current = performance.now();
     duelOutcomeRef.current = null;
@@ -441,7 +441,7 @@ export default function App() {
     setTimeout(() => {
       if (canvasRef.current && engineRef.current) {
         engineRef.current.setCanvas(canvasRef.current);
-        engineRef.current.startDuel(level, startAt, army, race, roundLength);
+        engineRef.current.startDuel(level, startAt, army, race, roundLength, mapSeed);
         const eng = engineRef.current;
         eng.onDuelSend = (enemies) => link.send({ t: 'send', enemies, wave: eng.wavesLaunched + 1 });
         if (link instanceof BrawlRoom) {
@@ -460,7 +460,7 @@ export default function App() {
 
   // «Потасовка»: a room of eight run here, driven like a duel (src/brawl.ts); its board for the overlay
   const [brawl, setBrawl] = useState<BrawlSnapshot | null>(null);
-  const handleBrawlStart = (level: number, bots: Difficulty) => {
+  const handleBrawlStart = (level: number, bots: Difficulty, randomRoad = false) => {
     sound.init();
     const startAt = performance.now();
     const room = new BrawlRoom(level, race, brawlBots(bots), startAt, () => engineRef.current?.lives ?? 0);
@@ -468,16 +468,16 @@ export default function App() {
     setMode('duel');
     // Every wave brings the opponent's own army: its race's enemies (просьба Артура 2026-11-01)
     const own = CONFIG.races[race].faction;
-    handleDuelStart(room, level, startAt, room.factionForWave(1), own, CONFIG.brawl.roundLength);
+    handleDuelStart(room, level, startAt, room.factionForWave(1), own, CONFIG.brawl.roundLength, randomRoad ? newMapSeed() : null);
   };
   // Network brawl from its lobby (BrawlLobby.tsx): the same room, its seats are the lobby's players
-  const [brawlLobby, setBrawlLobby] = useState<{ mode: 'host' | 'join'; level: number; bots: Difficulty } | null>(null);
+  const [brawlLobby, setBrawlLobby] = useState<{ mode: 'host' | 'join'; level: number; bots: Difficulty; randomRoad: boolean } | null>(null);
   const handleBrawlNetStart = (setup: BrawlNetSetup, level: number, bots: Difficulty, startAt: number) => {
     sound.init();
     const room = new BrawlRoom(level, race, brawlBots(bots), startAt, () => engineRef.current?.lives ?? 0, setup);
     room.onChange(setBrawl);
     setMode('duel');
-    handleDuelStart(room, level, startAt, room.factionForWave(1), CONFIG.races[race].faction, CONFIG.brawl.roundLength);
+    handleDuelStart(room, level, startAt, room.factionForWave(1), CONFIG.races[race].faction, CONFIG.brawl.roundLength, setup.seed || null);
   };
 
   // Duel: my state to the opponent every few seconds; silence for too long means they are gone
@@ -1210,9 +1210,9 @@ export default function App() {
             setScreen('duelLobby');
           }}
           onStartBrawl={handleBrawlStart}
-          onOpenBrawlLobby={(m, level, bots) => {
+          onOpenBrawlLobby={(m, level, bots, randomRoad) => {
             sound.init();
-            setBrawlLobby({ mode: m, level, bots });
+            setBrawlLobby({ mode: m, level, bots, randomRoad });
             setScreen('brawlLobby');
           }}
           onOpenHowToPlay={() => setShowHowToPlay(true)}
@@ -1244,6 +1244,7 @@ export default function App() {
           mode={brawlLobby.mode}
           level={brawlLobby.level}
           bots={brawlLobby.bots}
+          randomRoad={brawlLobby.randomRoad}
           unlockedLevel={unlockedLevel}
           race={race}
           onChangeRace={setRace}

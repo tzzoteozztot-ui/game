@@ -8,6 +8,7 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import { CONFIG, Difficulty, RaceId } from '../game/config';
+import { newMapSeed } from '../game/mapgen';
 import { RacePicker } from './RacePicker';
 import { RoomLink, newRoomCode, openRoom } from '../duel';
 import { BrawlNetSetup, BrawlWire, LobbyPlayer, NAME_MAX, cleanName, cleanRace } from '../brawl';
@@ -19,6 +20,7 @@ interface BrawlLobbyProps {
   race: RaceId;
   onChangeRace: (race: RaceId) => void;
   bots: Difficulty;
+  randomRoad: boolean;
   onStart: (setup: BrawlNetSetup, level: number, bots: Difficulty, startAt: number) => void;
   onBack: () => void;
 }
@@ -43,21 +45,22 @@ function loadName(): string {
 
 type Phase = { kind: 'code' } | { kind: 'connecting' } | { kind: 'lobby'; code: string };
 
-export function BrawlLobby({ mode, level: firstLevel, unlockedLevel, race, onChangeRace, bots: firstBots, onStart, onBack }: BrawlLobbyProps) {
+export function BrawlLobby({ mode, level: firstLevel, unlockedLevel, race, onChangeRace, bots: firstBots, randomRoad: firstRandom, onStart, onBack }: BrawlLobbyProps) {
   const [phase, setPhase] = useState<Phase>(mode === 'host' ? { kind: 'connecting' } : { kind: 'code' });
   const [codeInput, setCodeInput] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [name, setName] = useState(loadName);
   const [level, setLevel] = useState(firstLevel);
   const [bots, setBots] = useState<Difficulty>(firstBots);
+  const [randomRoad, setRandomRoad] = useState(firstRandom);
   const [players, setPlayers] = useState<LobbyPlayer[]>([]);
 
   const linkRef = useRef<RoomLink<BrawlWire> | null>(null);
   const startedRef = useRef(false);
   const timerRef = useRef<number | null>(null);
   // What the lobby's timers read: the latest values without restarting them
-  const live = useRef({ name, race, level, bots, players });
-  live.current = { name, race, level, bots, players };
+  const live = useRef({ name, race, level, bots, players, randomRoad });
+  live.current = { name, race, level, bots, players, randomRoad };
   const guestsRef = useRef<Map<string, { name: string; race: RaceId; seen: number }>>(new Map());
 
   const stopTimer = () => {
@@ -129,7 +132,7 @@ export function BrawlLobby({ mode, level: firstLevel, unlockedLevel, race, onCha
         for (const [id, g] of guestsRef.current) if (now - g.seen > GUEST_TIMEOUT_MS) guestsRef.current.delete(id);
         const list = hostPlayers();
         setPlayers(list);
-        link.send({ t: 'lobby', level: live.current.level, bots: live.current.bots, players: list });
+        link.send({ t: 'lobby', level: live.current.level, rnd: live.current.randomRoad, bots: live.current.bots, players: list });
       };
       tick();
       timerRef.current = window.setInterval(tick, 1000);
@@ -146,8 +149,9 @@ export function BrawlLobby({ mode, level: firstLevel, unlockedLevel, race, onCha
     startedRef.current = true;
     stopTimer();
     const list = hostPlayers().slice(0, CONFIG.brawl.players);
-    link.send({ t: 'go', level });
-    onStart({ link, players: list, hosting: true, hostId: link.me }, level, bots, performance.now());
+    const seed = randomRoad ? newMapSeed() : 0; // one road for all eight
+    link.send({ t: 'go', level, seed });
+    onStart({ link, players: list, hosting: true, hostId: link.me, seed }, level, bots, performance.now());
   };
 
   // ---- guest ----
@@ -165,12 +169,12 @@ export function BrawlLobby({ mode, level: firstLevel, unlockedLevel, race, onCha
       let hostId: string | null = null;
       let heard = performance.now();
       let lastPlayers: LobbyPlayer[] = [];
-      const begin = (lvl: number, elapsed: number) => {
+      const begin = (lvl: number, elapsed: number, seed = 0) => {
         if (startedRef.current || !hostId) return;
         startedRef.current = true;
         stopTimer();
         const startAt = performance.now() - Math.max(0, Math.min(elapsed, 60000));
-        onStart({ link, players: lastPlayers, hosting: false, hostId }, Math.max(1, Math.min(CONFIG.levelCount, Math.floor(lvl) || 1)), live.current.bots, startAt);
+        onStart({ link, players: lastPlayers, hosting: false, hostId, seed: Math.max(0, Math.floor(Number(seed)) || 0) }, Math.max(1, Math.min(CONFIG.levelCount, Math.floor(lvl) || 1)), live.current.bots, startAt);
       };
       link.onMessage((msg, from) => {
         if (startedRef.current) return;
@@ -183,10 +187,11 @@ export function BrawlLobby({ mode, level: firstLevel, unlockedLevel, race, onCha
           lastPlayers = msg.players.slice(0, CONFIG.brawl.players).map((p) => ({ id: String(p.id), name: cleanName(p.name), race: cleanRace(p.race) }));
           setPlayers(lastPlayers);
           setLevel(Math.max(1, Math.min(CONFIG.levelCount, Math.floor(Number(msg.level)) || 1)));
+          setRandomRoad(msg.rnd === true);
           if (BOT_CHOICES.some((b) => b.id === msg.bots)) setBots(msg.bots as Difficulty);
           setPhase({ kind: 'lobby', code });
-        } else if (hostId !== null && msg.t === 'go') begin(msg.level, 0);
-        else if (hostId !== null && msg.t === 'board') begin(msg.b?.level, Number(msg.b?.elapsed) || 0);
+        } else if (hostId !== null && msg.t === 'go') begin(msg.level, 0, msg.seed);
+        else if (hostId !== null && msg.t === 'board') begin(msg.b?.level, Number(msg.b?.elapsed) || 0, msg.b?.seed);
         else if (hostId !== null && msg.t === 'leave') leave('Создатель закрыл лобби.');
       });
       const knock = () => {
@@ -313,6 +318,24 @@ export function BrawlLobby({ mode, level: firstLevel, unlockedLevel, race, onCha
                     </select>
                   </label>
                   <div className="flex items-center justify-between gap-1">
+                    <span className="text-xs text-stone-400">Дорога:</span>
+                    <div className="flex items-center gap-1">
+                      {[false, true].map((on) => (
+                        <button
+                          key={String(on)}
+                          type="button"
+                          onClick={() => setRandomRoad(on)}
+                          aria-pressed={randomRoad === on}
+                          className={`px-2.5 py-1.5 min-h-[34px] rounded text-xs font-bold transition-colors cursor-pointer ${
+                            randomRoad === on ? 'bg-amber-600 text-stone-950 font-black' : 'text-stone-400 hover:text-stone-200 hover:bg-[#221f2d]'
+                          }`}
+                        >
+                          {on ? 'Случайная' : 'Как на карте'}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between gap-1">
                     <span className="text-xs text-stone-400">Боты:</span>
                     <div className="flex items-center gap-1">
                       {BOT_CHOICES.map((b) => (
@@ -336,7 +359,7 @@ export function BrawlLobby({ mode, level: firstLevel, unlockedLevel, race, onCha
                 </>
               ) : (
                 <p className="text-xs text-stone-400 leading-snug">
-                  Карта: <b className="text-stone-200">{CONFIG.factions[level - 1]?.location}</b>, боты:{' '}
+                  Карта: <b className="text-stone-200">{CONFIG.factions[level - 1]?.location}</b>{randomRoad ? ', дорога случайная' : ''}, боты:{' '}
                   <b className="text-stone-200">{BOT_CHOICES.find((b) => b.id === bots)?.label.toLowerCase()}</b>. Ждём, пока создатель лобби начнёт игру…
                 </p>
               )}
