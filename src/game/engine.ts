@@ -787,8 +787,8 @@ export class GameEngine {
   }
 
   /** Duel: an endless game on this map whose waves follow the shared clock from startAt (performance.now()) */
-  public startDuel(level: number, startAt: number, opponentArmy: number, race: RaceId = 'humans', roundLength: number = CONFIG.duel.roundLength) {
-    this.startLevel(level, 'normal', true, undefined, race);
+  public startDuel(level: number, startAt: number, opponentArmy: number, race: RaceId = 'humans', roundLength: number = CONFIG.duel.roundLength, mapSeed: number | null = null) {
+    this.startLevel(level, 'normal', true, undefined, race, mapSeed);
     this.duelRoundLength = roundLength;
     this.faction = Math.max(1, Math.min(CONFIG.factions.length, Math.floor(opponentArmy) || level));
     this.duelStart = startAt;

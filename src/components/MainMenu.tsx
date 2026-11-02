@@ -37,8 +37,8 @@ interface MainMenuProps {
   onSelectLevel: (lvl: number) => void; // highlights the card; the game starts with onPlay
   onPlay: () => void;
   onOpenDuel: () => void;
-  onStartBrawl: (level: number, bots: Difficulty) => void;
-  onOpenBrawlLobby: (mode: 'host' | 'join', level: number, bots: Difficulty) => void; // network brawl (needs the server)
+  onStartBrawl: (level: number, bots: Difficulty, randomRoad: boolean) => void;
+  onOpenBrawlLobby: (mode: 'host' | 'join', level: number, bots: Difficulty, randomRoad: boolean) => void; // network brawl (needs the server)
   onChangeDifficulty: (diff: Difficulty) => void;
   onOpenHowToPlay: () => void;
   onOpenBestiary: () => void;
@@ -200,6 +200,7 @@ const BRAWL_BOTS: { id: Difficulty; label: string }[] = [
 
 function BrawlPage({ onBack, unlockedLevel, selectedLevel, onSelectLevel, race, onChangeRace, onStartBrawl, onOpenBrawlLobby, duelAvailable }: MainMenuProps & { onBack: () => void }) {
   const [bots, setBots] = useState<Difficulty>('normal');
+  const [randomRoad, setRandomRoad] = useState(false);
   const level = Math.min(selectedLevel, Math.max(1, unlockedLevel));
   return (
     <div className="w-full max-w-md short:max-w-3xl flex flex-col items-center">
@@ -227,6 +228,24 @@ function BrawlPage({ onBack, unlockedLevel, selectedLevel, onSelectLevel, race, 
               ))}
             </select>
           </label>
+          <div className={`${PANEL} w-full flex items-center justify-between p-1`}>
+            <span className="text-xs font-semibold text-stone-400 pl-3 short:pl-2 pr-1">Дорога:</span>
+            <div className="flex items-center gap-1 short:gap-0.5">
+              {[false, true].map((on) => (
+                <button
+                  key={String(on)}
+                  type="button"
+                  onClick={() => setRandomRoad(on)}
+                  aria-pressed={randomRoad === on}
+                  className={`px-3 short:px-1.5 py-1.5 min-h-[36px] short:min-h-[34px] rounded text-xs font-bold transition-colors cursor-pointer ${
+                    randomRoad === on ? 'bg-amber-600 text-stone-950 font-black' : 'text-stone-400 hover:text-stone-200 hover:bg-[#221f2d]'
+                  }`}
+                >
+                  {on ? 'Случайная' : 'Как на карте'}
+                </button>
+              ))}
+            </div>
+          </div>
           <div className={`${PANEL} w-full p-1.5`}>
             <RacePicker race={race} onChange={onChangeRace} compact />
           </div>
@@ -250,7 +269,7 @@ function BrawlPage({ onBack, unlockedLevel, selectedLevel, onSelectLevel, race, 
           </div>
           <button
             type="button"
-            onClick={() => onStartBrawl(level, bots)}
+            onClick={() => onStartBrawl(level, bots, randomRoad)}
             className="w-full min-h-[48px] short:min-h-[42px] py-2 px-4 rounded bg-amber-500 hover:bg-amber-400 text-stone-950 font-black text-sm short:text-xs tracking-wider uppercase transition-all shadow-lg shadow-amber-950/50 cursor-pointer active:translate-y-0.5"
           >
             С ботами: {CONFIG.factions[level - 1].location}
@@ -259,14 +278,14 @@ function BrawlPage({ onBack, unlockedLevel, selectedLevel, onSelectLevel, race, 
             <div className="w-full grid grid-cols-2 gap-2 short:gap-1.5">
               <button
                 type="button"
-                onClick={() => onOpenBrawlLobby('host', level, bots)}
+                onClick={() => onOpenBrawlLobby('host', level, bots, randomRoad)}
                 className="min-h-[44px] short:min-h-[40px] py-2 px-2 rounded bg-[#221f2d] hover:bg-[#2c283a] text-amber-200 border border-[#383347] font-bold text-xs cursor-pointer"
               >
                 Создать лобби
               </button>
               <button
                 type="button"
-                onClick={() => onOpenBrawlLobby('join', level, bots)}
+                onClick={() => onOpenBrawlLobby('join', level, bots, randomRoad)}
                 className="min-h-[44px] short:min-h-[40px] py-2 px-2 rounded bg-[#221f2d] hover:bg-[#2c283a] text-stone-200 border border-[#383347] font-bold text-xs cursor-pointer"
               >
                 Войти по коду
