@@ -35,6 +35,8 @@ const FACTION = Number(opt('faction', 0));
 const LEVELS = opt('levels', '1,2,3,4,5').split(',').map(Number);
 // Бесконечный режим на случайных дорогах (src/game/mapgen.ts): --random-map — у каждого прогона своя карта
 const RANDOM_MAP = args.includes('--random-map');
+// Культисты: --no-fuse — бот не собирает фигуры в мегабашни (для сравнения)
+const NO_FUSE = args.includes('--no-fuse');
 // Раса игрока (чьи башни в лавке): humans, orcs, undead, cultists, demons, elves или all — все по очереди
 const RACE_OPT = opt('race', 'humans');
 // --boons=0: потасовка без усилений артефакта (по умолчанию бот берёт случайное из трёх)
@@ -52,7 +54,7 @@ const SET = opt('set', '')
 const jobs = [];
 const add = (n, job) => {
   for (let r = 0; r < n; r++)
-    jobs.push({ ...job, seed: jobs.length * 7919 + 17, mapSeed: RANDOM_MAP && job.kind === 'endless' ? jobs.length + 1 : null });
+    jobs.push({ ...job, noFuse: NO_FUSE, seed: jobs.length * 7919 + 17, mapSeed: RANDOM_MAP && job.kind === 'endless' ? jobs.length + 1 : null });
 };
 for (const race of RACES)
 for (const level of LEVELS) {
@@ -264,10 +266,26 @@ async function runInPage(job) {
   };
 
   const allowed = (type) => job.policy === 'mixed' || job.policy === type;
-  const plain = (t) => !t.second;
+  const plain = (t) => !t.second && !t.fused;
   const group = (type, level) =>
     engine.towers.filter((t) => plain(t) && t.type === type && t.level === level && !engine.specPending(t));
 
+  // Культисты: фигура собирается в одну мегабашню, мегабашни — в гипербашню
+  const doFuse = () => {
+    if (engine.race !== 'cultists' || job.noFuse) return;
+    for (let guard = 0; guard < 12; guard++) {
+      const t = engine.towers.find((x) => engine.fuseKind(x));
+      if (!t) break;
+      engine.selectedTowerId = t.id;
+      const kind = engine.fuseKind(t);
+      const cells = kind === 'hyper' ? engine.suggestHyperCells(t) : undefined;
+      if (kind === 'hyper' && !cells) {
+        engine.cancelHyper();
+        break;
+      }
+      if (!engine.fuseSelected(undefined, cells)) break;
+    }
+  };
   const doMerges = () => {
     let merged = true;
     while (merged) {
@@ -371,6 +389,7 @@ async function runInPage(job) {
   const think = () => {
     resolveSpecs();
     doMerges();
+    doFuse();
     doBinders();
     for (let guard = 0; guard < 30; guard++) {
       let best = -1;
@@ -386,6 +405,7 @@ async function runInPage(job) {
       if (best >= 0) {
         if (!buyCard(best)) cards[best] = null;
         doMerges();
+        doFuse();
         doBinders();
         continue;
       }

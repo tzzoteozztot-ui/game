@@ -64,12 +64,20 @@ export interface Tower extends TowerPart {
   abilityLeft?: number; // демоны: s the ability still works
   auto?: boolean; // демоны: the ability casts by itself
   pulseT?: number; // timer of a repeated effect (Разлом)
+  // Культисты: a megatower (or a hypertower of several) built into one tower: the other parts shoot from the same cell
+  extra?: { x: number; y: number }[]; // собранная мегабашня П стоит на двух клетках, гипербашня на трёх: остальные клетки
+  fused?: { shapes: ('T' | 'P')[]; parts: TowerPart[]; megas: number };
+}
+
+/** Every part of a tower that shoots: the tower itself, the parts fused into it and the bound one */
+export function towerParts(t: Tower): TowerPart[] {
+  return [t, ...(t.fused?.parts ?? []), ...(t.second ? [t.second] : [])];
 }
 
 /** Cultist megatower: towers standing in a figure work together */
 export interface Mega {
   key: string;
-  shape: 'T' | 'X' | 'P';
+  shape: 'T' | 'P';
   ids: string[];
   center: { x: number; y: number }; // Х: the middle cell; П: the cell between the legs
   centerId: string | null; // Х: the tower in the middle
@@ -339,6 +347,7 @@ export interface GameStateSnapshot {
   earlyStartBonus: number;
   speed: number;
   selectedTower: Tower | null;
+  hyperPlanLeft: number; // гипербашня: сколько клеток ещё выбрать (0 — не выбирает)
   eligibleMergeCount: number;
   mergeUsesBinder: boolean; // two towers and a binder stand in for the third: a plain one, for Ур.1
   selectedBinder: boolean;
@@ -382,6 +391,8 @@ export interface GameStateSnapshot {
     lines: string[];
     ability: { name: string; desc: string; cost: number; cooldown: number; left: number; ready: boolean; auto: boolean } | null;
     sacrifice: number | null; // Врата бездны: volley damage of a sacrifice, null without a tower next to it
+    fuseShapes: ('T' | 'P')[]; // в каких фигурах стоит башня: если больше одной, игрок выбирает, какую собрать
+    fuse: 'mega' | 'hyper' | null; // культисты: «Собрать» a figure into one tower, or megatowers into a hypertower
   } | null;
 }
 
@@ -1255,6 +1266,8 @@ export class GameEngine {
       y: t.y,
       main: { type: t.type, level: t.level, specs: [...t.specs] },
       second: t.second ? { type: t.second.type, level: t.second.level, specs: [...t.second.specs] } : null,
+      ...(t.extra ? { extra: t.extra.map((c) => ({ ...c })) } : {}),
+      ...(t.fused ? { fused: { shapes: [...t.fused.shapes], megas: t.fused.megas, parts: t.fused.parts.map((p) => ({ type: p.type, level: p.level, specs: [...p.specs] })) } } : {}),
       damage: Math.round(this.runStats.dmg.get(t.id) || 0),
     }));
   }
@@ -1292,6 +1305,7 @@ export class GameEngine {
       towers: this.logTowers(),
       damageOther: Math.round(other),
       boons: [...this.boons],
+      megas: this.megas.map((g) => g.shape),
       brawl,
     });
   }
@@ -1539,13 +1553,13 @@ export class GameEngine {
         continue;
       }
       if (tower.auto && CONFIG.towers[tower.type].ability) this.autoCast(tower);
-      for (const part of tower.second ? [tower, tower.second] : [tower]) {
+      for (const part of towerParts(tower)) {
         if (part.cooldownTimer > 0) {
           part.cooldownTimer -= dt;
         }
         const stats = attackStats(part.type, part.level, part.specs);
         if (CONFIG.towers[part.type].special) {
-          if (part.cooldownTimer <= 0) this.towerSpecial(tower, stats);
+          if (part.cooldownTimer <= 0) this.towerSpecial(tower, stats, part);
           continue;
         }
         if (stats.smiteDamage > 0) {
@@ -2165,10 +2179,28 @@ export class GameEngine {
         } else if (g.shape === 'P') {
           m.range *= 1 + mech.megaPRange;
           m.lines.push(`Мегабашня П: +${Math.round(mech.megaPRange * 100)} % радиуса, заморозка между ножками`);
-        } else {
-          m.lines.push(`Мегабашня Х: взрыв холода раз в ${mech.megaXEvery} с`);
         }
       }
+    }
+    // A megatower built into one tower: the figures' bonuses of all its parts, plus the bonus of the fusion itself
+    for (const t of this.towers) {
+      const f = t.fused;
+      if (!f) continue;
+      const m = get(t);
+      const nT = f.shapes.filter((x) => x === 'T').length;
+      const nP = f.shapes.filter((x) => x === 'P').length;
+      if (nT > 0) {
+        m.dmg *= 1 + mech.megaT; // a kind of figure counts once, however many are built into the tower
+        m.lines.push(`Мегабашня Т: +${Math.round(mech.megaT * 100)} % урона`);
+      }
+      if (nP > 0) {
+        m.range *= 1 + mech.megaPRange;
+        m.lines.push(`Мегабашня П: +${Math.round(mech.megaPRange * 100)} % радиуса, заморозка рядом с башней`);
+      }
+      const fuse = 1 + mech.fuseDmg * f.megas;
+      const hyper = f.megas >= 2 ? mech.hyperMult : 1;
+      m.dmg *= fuse * hyper;
+      m.lines.push(f.megas >= 2 ? `Гипербашня из ${f.megas} мегабашен: +${Math.round((fuse * hyper - 1) * 100)} % урона` : `Слияние: +${Math.round(mech.fuseDmg * 100)} % урона`);
     }
     // Усиления артефакта (потасовка): every tower
     const dmg = this.boon('sharp');
@@ -2197,12 +2229,11 @@ export class GameEngine {
       const key = shape + ':' + pts.map((p) => `${p.x},${p.y}`).sort().join(';');
       if (seen.has(key)) return;
       seen.add(key);
-      out.push({ key, shape, ids: pts.map((p) => cells.get(`${p.x},${p.y}`)!.id), center, centerId, timer: CONFIG.raceMech.megaXEvery });
+      out.push({ key, shape, ids: pts.map((p) => cells.get(`${p.x},${p.y}`)!.id), center, centerId, timer: 0 });
     };
     const list = [...cells.values()].sort((a, b) => a.y - b.y || a.x - b.x);
     for (const t of list) {
       const m = { x: t.x, y: t.y };
-      take('X', [m, { x: m.x - 1, y: m.y }, { x: m.x + 1, y: m.y }, { x: m.x, y: m.y - 1 }, { x: m.x, y: m.y + 1 }], m, t.id);
       for (const [ax, ay] of [
         [1, 0],
         [0, 1],
@@ -2245,8 +2276,8 @@ export class GameEngine {
   }
 
   /** Towers without a plain shot: Клетка зверя, Алтарь инея, Склеп, Врата бездны */
-  private towerSpecial(tower: Tower, stats: ReturnType<typeof attackStats>) {
-    const def = CONFIG.towers[tower.type];
+  private towerSpecial(tower: Tower, stats: ReturnType<typeof attackStats>, part: TowerPart = tower) {
+    const def = CONFIG.towers[part.type];
     const mods = this.towerMods(tower);
     const cs = CONFIG.grid.cellSize;
     const tx = (tower.x + 0.5) * cs;
@@ -2270,14 +2301,14 @@ export class GameEngine {
       this.spawnSpark(e.x, e.y, def.color);
       this.applyDamageToEnemy(e, stats.damage * mods.dmg, 'phys', tower.type, []);
     } else if (def.special === 'altar') {
-      const time = mech.freezeTime * (1 + 0.3 * (tower.level - 1));
+      const time = mech.freezeTime * (1 + 0.3 * (part.level - 1));
       for (const e of inRange) this.stun(e, time);
       sound.playShot('priest');
       this.spawnRing(tx, ty, '#d6f0ff', rangePx - 8);
     } else if (def.special === 'crypt') {
       const souls = tower.souls ?? 0;
       if (souls <= 0) {
-        tower.cooldownTimer = 0.5; // nothing to spend yet: look again soon
+        part.cooldownTimer = 0.5; // nothing to spend yet: look again soon
         return;
       }
       tower.souls = 0;
@@ -2291,8 +2322,8 @@ export class GameEngine {
     } else if (def.special === 'gate') {
       this.summonImp(tower, stats.damage * mods.dmg);
     }
-    tower.cooldownTimer = cooldown;
-    tower.shotAt = performance.now() / 1000;
+    part.cooldownTimer = cooldown;
+    part.shotAt = performance.now() / 1000;
   }
 
   private summonImp(tower: Tower, dps: number) {
@@ -2452,24 +2483,26 @@ export class GameEngine {
     for (const g of this.megas) {
       const cx = (g.center.x + 0.5) * cs;
       const cy = (g.center.y + 0.5) * cs;
-      if (g.shape === 'X') {
-        g.timer -= dt;
-        const centre = this.towers.find((t) => t.id === g.centerId);
-        if (g.timer > 0 || !centre) continue;
-        const hit = this.enemiesNear(cx, cy, mech.megaXRadius * cs);
-        if (hit.length === 0) continue;
-        g.timer = mech.megaXEvery;
-        const st = attackStats(centre.type, centre.level, centre.specs);
-        const dmg = Math.max(st.damage, 4) * this.towerMods(centre).dmg * mech.megaXMult;
-        this.spawnRing(cx, cy, '#d6f0ff', mech.megaXRadius * cs);
-        for (const e of hit) {
-          this.dmgSource = centre.id;
-          this.applyDamageToEnemy(e, dmg, 'ice', centre.type, []);
-        }
-      } else if (g.shape === 'P') {
+      if (g.shape === 'P') {
         for (const e of this.enemiesNear(cx, cy, cs * 0.55)) {
           if (e.pFrozen?.has(g.key)) continue;
           (e.pFrozen ??= new Set()).add(g.key);
+          this.stun(e, mech.megaPFreeze);
+          this.spawnSpark(e.x, e.y, '#d6f0ff');
+        }
+      }
+    }
+    // Fused megatowers: П freezes around the tower itself
+    for (const t of this.towers) {
+      const f = t.fused;
+      if (!f) continue;
+      const cx = (t.x + 0.5) * cs;
+      const cy = (t.y + 0.5) * cs;
+      const nP = f.shapes.filter((x) => x === 'P').length;
+      if (nP > 0) {
+        for (const e of this.enemiesNear(cx, cy, cs * 1.1)) {
+          if (e.pFrozen?.has('f' + t.id)) continue;
+          (e.pFrozen ??= new Set()).add('f' + t.id);
           this.stun(e, mech.megaPFreeze);
           this.spawnSpark(e.x, e.y, '#d6f0ff');
         }
@@ -3017,7 +3050,7 @@ export class GameEngine {
   }
 
   public supplyPower(): number {
-    const levels = this.towers.flatMap((t) => (t.second ? [t.level, t.second.level] : [t.level]));
+    const levels = this.towers.flatMap((t) => towerParts(t).map((p) => p.level));
     const triple = this.binders.filter((b) => b.triple).length;
     return calculateSupplyPower(levels, this.binders.length - triple, triple, this.mergeNeed());
   }
@@ -3105,6 +3138,13 @@ export class GameEngine {
     return true;
   }
 
+  private ignoreTowers = new Set<string>(); // a tower being moved (or built into a hypertower) does not block its own cells
+
+  /** The tower standing on a cell (a megatower П takes two) */
+  public towerAtCell(cx: number, cy: number): Tower | undefined {
+    return this.towers.find((t) => (t.x === cx && t.y === cy) || (t.extra && t.extra.some((c) => c.x === cx && c.y === cy)));
+  }
+
   public isCellFree(cx: number, cy: number): boolean {
     if (cx < 0 || cx >= CONFIG.grid.cols || cy < 0 || cy >= CONFIG.grid.rows) return false;
     // Check castle and the corners under the field buttons
@@ -3115,13 +3155,14 @@ export class GameEngine {
       if (p.some((c) => c.x === cx && c.y === cy)) return false;
     }
     // Check existing tower or binder
-    if (this.towers.some((t) => t.x === cx && t.y === cy)) return false;
+    if (this.towers.some((t) => !this.ignoreTowers.has(t.id) && ((t.x === cx && t.y === cy) || (t.extra && t.extra.some((c) => c.x === cx && c.y === cy))))) return false;
     if (this.binders.some((b) => b.x === cx && b.y === cy)) return false;
     return true;
   }
 
   public selectTower(id: string | null) {
     if (this.overflowPending()) return; // the bought tower must be placed or swapped first
+    this.hyperPlan = null;
     this.selectedTowerId = id;
     this.selectedBinderId = null;
     this.castleSelected = false;
@@ -3244,7 +3285,13 @@ export class GameEngine {
   public moveSelectedTower(cellX: number, cellY: number, paid = false): boolean {
     const tower = this.selectedTowerId ? this.towers.find((t) => t.id === this.selectedTowerId) : null;
     const cost = this.moveCost();
-    if (!tower || cost === null || (cost > 0 && !paid) || !this.isCellFree(cellX, cellY)) return false;
+    if (!tower || cost === null || (cost > 0 && !paid)) return false;
+    // a megatower П keeps its second cell at the same offset
+    const off = tower.extra ? tower.extra.map((c) => ({ x: c.x - tower.x, y: c.y - tower.y })) : null;
+    this.ignoreTowers = new Set([tower.id]);
+    const fits = this.isCellFree(cellX, cellY) && (!off || off.every((o) => this.isCellFree(cellX + o.x, cellY + o.y)));
+    this.ignoreTowers = new Set();
+    if (!fits) return false;
     const cs = CONFIG.grid.cellSize;
     if (cost > 0) {
       if (this.gold < cost) {
@@ -3259,6 +3306,7 @@ export class GameEngine {
     this.spawnPuff((tower.x + 0.5) * cs, (tower.y + 0.5) * cs, '#f4c06a');
     tower.x = cellX;
     tower.y = cellY;
+    if (off) tower.extra = off.map((o) => ({ x: cellX + o.x, y: cellY + o.y }));
     this.markModsDirty();
     this.spawnRing((cellX + 0.5) * cs, (cellY + 0.5) * cs, '#d9b44a');
     sound.playBuy();
@@ -3581,6 +3629,7 @@ export class GameEngine {
     if (idx === -1) return false;
     const tower = this.towers[idx];
     let refund = calculateSellRefund(CONFIG.towers[tower.type].cost, tower.level, this.sellRatio(), this.mergeNeed());
+    for (const part of tower.fused?.parts ?? []) refund += calculateSellRefund(CONFIG.towers[part.type].cost, part.level, this.sellRatio(), this.mergeNeed());
     if (tower.second) {
       refund += calculateSellRefund(CONFIG.towers[tower.second.type].cost, tower.second.level, this.sellRatio());
       refund += Math.floor(CONFIG.binder.cost * this.sellRatio());
@@ -3603,11 +3652,188 @@ export class GameEngine {
     return CONFIG.races[this.race].maxLevel ?? 3;
   }
 
+  /** Cultists: what the selected tower can be built into. A tower standing in a figure → a megatower;
+   *  a megatower with another megatower on the field → a hypertower. */
+  public fuseKind(t: Tower): 'mega' | 'hyper' | null {
+    if (this.race !== 'cultists' || CONFIG.towers[t.type].race !== 'cultists') return null;
+    if (this.modsDirty) this.computeMods();
+    if (t.fused) return this.towers.some((o) => o !== t && o.fused) ? 'hyper' : null;
+    return this.megas.some((g) => g.ids.includes(t.id)) ? 'mega' : null;
+  }
+
+  private partOf(t: Tower): TowerPart {
+    return { type: t.type, level: t.level, specs: [...t.specs], cooldownTimer: 0, smiteTimer: 2.5 };
+  }
+
+  /** The cultists' «Собрать»: the figure's towers become one tower with all their abilities stacked;
+   *  megatowers (also ready ones) fused again become a hypertower */
+  public fuseShapes(t: Tower): ('T' | 'P')[] {
+    if (this.fuseKind(t) !== 'mega') return [];
+    return [...new Set(this.megas.filter((m) => m.ids.includes(t.id)).map((m) => m.shape))];
+  }
+
+  /** Hypertower in the making: the player picks three adjacent free cells (the cells of the two joining towers count as free) */
+  public hyperPlan: { mainId: string; otherId: string; cells: { x: number; y: number }[] } | null = null;
+
+  public hyperCellFree(x: number, y: number): boolean {
+    const plan = this.hyperPlan;
+    if (!plan) return false;
+    this.ignoreTowers = new Set([plan.mainId, plan.otherId]);
+    const ok = this.isCellFree(x, y);
+    this.ignoreTowers = new Set();
+    return ok;
+  }
+
+  /** The cells a tap on (x, y) may add to the plan: free, not picked yet and next to a picked one */
+  public hyperCellValid(x: number, y: number): boolean {
+    const plan = this.hyperPlan;
+    if (!plan || !this.hyperCellFree(x, y) || plan.cells.some((c) => c.x === x && c.y === y)) return false;
+    return plan.cells.length === 0 || plan.cells.some((c) => Math.abs(c.x - x) + Math.abs(c.y - y) === 1);
+  }
+
+  private startHyper(sel: Tower): boolean {
+    const other = this.nearest(this.towers.filter((o) => o !== sel && o.fused), sel)[0];
+    if (!other) return false;
+    this.hyperPlan = { mainId: sel.id, otherId: other.id, cells: [] };
+    this.notifyState();
+    return true;
+  }
+
+  public cancelHyper() {
+    if (!this.hyperPlan) return;
+    this.hyperPlan = null;
+    this.notifyState();
+  }
+
+  /** A tap on a cell while planning: the third cell builds the tower */
+  public pickHyperCell(x: number, y: number): boolean {
+    const plan = this.hyperPlan;
+    if (!plan) return false;
+    if (!this.hyperCellValid(x, y)) {
+      sound.playError();
+      return false;
+    }
+    plan.cells.push({ x, y });
+    sound.playBuy();
+    if (plan.cells.length < 3) {
+      this.notifyState();
+      return true;
+    }
+    return this.finishFuse('hyper', null, plan.cells);
+  }
+
+  /** Three adjacent free cells near the tower, for a bot (a player picks them by hand) */
+  public suggestHyperCells(sel: Tower): { x: number; y: number }[] | null {
+    if (!this.hyperPlan && !this.startHyper(sel)) return null;
+    const plan = this.hyperPlan!;
+    const cells: { x: number; y: number }[] = [];
+    const around = (c: { x: number; y: number }) => [{ x: c.x + 1, y: c.y }, { x: c.x - 1, y: c.y }, { x: c.x, y: c.y + 1 }, { x: c.x, y: c.y - 1 }];
+    const starts: { x: number; y: number }[] = [];
+    for (let y = 0; y < CONFIG.grid.rows; y++) for (let x = 0; x < CONFIG.grid.cols; x++) if (this.hyperCellFree(x, y)) starts.push({ x, y });
+    for (const st of this.nearest(starts, sel)) {
+      cells.length = 0;
+      cells.push(st);
+      for (let k = 0; k < 2; k++) {
+        const next = this.nearest(around(cells[cells.length - 1]).filter((c) => this.hyperCellFree(c.x, c.y) && !cells.some((d) => d.x === c.x && d.y === c.y)), sel)[0];
+        if (!next) break;
+        cells.push(next);
+      }
+      if (cells.length === 3) break;
+    }
+    if (cells.length < 3) {
+      plan.cells = [];
+      return null;
+    }
+    return [...cells];
+  }
+
+  public fuseSelected(shape?: 'T' | 'P', hyperCells?: { x: number; y: number }[]): boolean {
+    const sel = this.selectedTowerId ? this.towers.find((t) => t.id === this.selectedTowerId) : null;
+    if (!sel) return false;
+    const kind = this.fuseKind(sel);
+    if (!kind) return false;
+    if (kind === 'hyper') {
+      // the second tap on the button cancels the planning; a bot passes the cells at once
+      if (this.hyperPlan && !hyperCells) {
+        this.cancelHyper();
+        return true;
+      }
+      if (!this.hyperPlan && !this.startHyper(sel)) return false;
+      if (!hyperCells) return true;
+      this.hyperPlan!.cells = hyperCells.map((c) => ({ ...c }));
+      return this.finishFuse('hyper', null, this.hyperPlan!.cells);
+    }
+    return this.finishFuse('mega', shape ?? null, []);
+  }
+
+  private finishFuse(kind: 'mega' | 'hyper', shape: 'T' | 'P' | null, cells: { x: number; y: number }[]): boolean {
+    const cs = CONFIG.grid.cellSize;
+    let main: Tower;
+    let joined: Tower[];
+    let built: 'T' | 'P' | null = null;
+    let extra: { x: number; y: number }[] = [];
+    if (kind === 'mega') {
+      const sel = this.towers.find((t) => t.id === this.selectedTowerId);
+      if (!sel) return false;
+      const g = [...this.megas].filter((m) => m.ids.includes(sel.id) && (!shape || m.shape === shape)).sort((a, b) => b.ids.length - a.ids.length)[0];
+      if (!g) return false;
+      joined = g.ids.map((id) => this.towers.find((t) => t.id === id)!).filter(Boolean);
+      main = joined[0];
+      built = g.shape;
+      // П takes two cells: the bar's middle and the next cell of the bar; the other cells of the figure are freed
+      if (g.shape === 'P') extra = [{ x: joined[1].x, y: joined[1].y }];
+    } else {
+      const plan = this.hyperPlan;
+      const a = plan && this.towers.find((t) => t.id === plan.mainId);
+      const b = plan && this.towers.find((t) => t.id === plan.otherId);
+      if (!a || !b || cells.length !== 3) return false;
+      main = a;
+      joined = [a, b];
+      // the tower stands on the three picked cells
+      extra = cells.slice(1).map((c) => ({ ...c }));
+      this.logEv('move', { id: a.id, type: a.type, fromX: a.x, fromY: a.y, x: cells[0].x, y: cells[0].y, paid: 0 });
+    }
+    const f: NonNullable<Tower['fused']> = { shapes: [], parts: [], megas: 0 };
+    for (const t of joined) {
+      if (t !== main) f.parts.push(this.partOf(t));
+      if (t.fused) {
+        f.shapes.push(...t.fused.shapes);
+        f.parts.push(...t.fused.parts);
+        f.megas += t.fused.megas;
+      }
+    }
+    if (built) {
+      f.shapes.push(built);
+      f.megas += 1;
+    }
+    for (const t of joined) {
+      if (t === main) continue;
+      this.spawnPuff((t.x + 0.5) * cs, (t.y + 0.5) * cs, '#d6f0ff');
+      this.towers.splice(this.towers.indexOf(t), 1);
+    }
+    main.fused = f;
+    if (kind === 'hyper') {
+      main.x = cells[0].x;
+      main.y = cells[0].y;
+    }
+    main.extra = extra.length > 0 ? extra : undefined;
+    this.hyperPlan = null;
+    this.logEv('fuse', { id: main.id, kind, shapes: [...f.shapes], megas: f.megas, parts: f.parts.map((p) => `${p.type}${p.level}`), x: main.x, y: main.y, extra });
+    this.selectedTowerId = main.id;
+    this.markModsDirty();
+    sound.playMerge();
+    this.spawnRing((main.x + 0.5) * cs, (main.y + 0.5) * cs, '#d6f0ff', cs * 1.6);
+    this.addFloatingText(f.megas >= 2 ? 'ГИПЕРБАШНЯ!' : 'МЕГАБАШНЯ!', (main.x + 0.5) * cs, (main.y + 0.5) * cs - 16, '#d6f0ff');
+    this.notifyState();
+    return true;
+  }
+
   public getEligibleMergeTowers(selected: Tower): Tower[] {
-    if (selected.level >= this.maxLevel() || selected.second) return [];
+    if (selected.level >= this.maxLevel() || selected.second || selected.fused) return [];
     return this.towers.filter(
       (t) =>
         !t.second &&
+        !t.fused &&
         t.type === selected.type &&
         t.level === selected.level &&
         // a tower still choosing its specialization (tempering, merge choice) can't merge yet
@@ -3834,6 +4060,7 @@ export class GameEngine {
       earlyStartBonus: this.earlyStartBonus(),
       speed: this.speedMultiplier,
       selectedTower: selected,
+      hyperPlanLeft: this.hyperPlan ? 3 - this.hyperPlan.cells.length : 0,
       eligibleMergeCount: eligibleCount,
       mergeUsesBinder: !!mergeBinder,
       selectedBinder: this.selectedBinderId !== null,
@@ -3890,6 +4117,7 @@ export class GameEngine {
     if (!def.race || def.race === 'humans') return null;
     const lines = [...this.towerMods(t).lines];
     if (t.souls !== undefined) lines.push(`Души: ${t.souls} из ${CONFIG.raceMech.soulsMax}`);
+    if (t.fused) lines.push(`Состав: ${[t, ...t.fused.parts].map((p) => `${CONFIG.towers[p.type].name} Ур.${p.level}`).join(', ')}`);
     if (t.critT !== undefined) lines.push(`Шанс крита сейчас: ${Math.round(Math.min(1, t.critT / CONFIG.raceMech.critFull) * 100)} %`);
     const ab = def.ability;
     const victim = t.type === 'dem_gate' ? this.sacrificeVictims(t)[0] : undefined;
@@ -3907,6 +4135,8 @@ export class GameEngine {
           }
         : null,
       sacrifice: victim ? CONFIG.raceMech.sacrificeMult * this.towerInvested(victim) : null,
+      fuse: this.fuseKind(t),
+      fuseShapes: this.fuseShapes(t),
     };
   }
 
@@ -4040,7 +4270,7 @@ export class GameEngine {
       }
 
       // Attack range circle of each part of the selected tower
-      const parts: TowerPart[] = selectedTower.second ? [selectedTower, selectedTower.second] : [selectedTower];
+      const parts: TowerPart[] = towerParts(selectedTower);
       for (const part of parts) {
         const rangePx = attackStats(part.type, part.level, part.specs).range * this.towerMods(selectedTower).range * cellSize;
         ctx.fillStyle = 'rgba(244, 192, 106, 0.09)';
@@ -4098,6 +4328,24 @@ export class GameEngine {
       ctx.lineWidth = 3;
       for (const m of marks) ctx.strokeRect(m.x * cellSize + 2, m.y * cellSize + 2, cellSize - 4, cellSize - 4);
       ctx.globalAlpha = 1;
+    }
+
+    // Hypertower: the cells picked so far and the ones that can still be picked
+    if (this.hyperPlan) {
+      const pulse = 0.5 + 0.5 * Math.sin(timeSec * 5);
+      for (let y = 0; y < CONFIG.grid.rows; y++)
+        for (let x = 0; x < CONFIG.grid.cols; x++) {
+          if (this.hyperPlan.cells.some((c) => c.x === x && c.y === y)) {
+            ctx.fillStyle = 'rgba(159, 216, 245, 0.45)';
+            ctx.fillRect(x * cellSize + 2, y * cellSize + 2, cellSize - 4, cellSize - 4);
+          } else if (this.hyperCellValid(x, y)) {
+            ctx.strokeStyle = '#9fd8f5';
+            ctx.globalAlpha = 0.35 + 0.4 * pulse;
+            ctx.lineWidth = 2;
+            ctx.strokeRect(x * cellSize + 4, y * cellSize + 4, cellSize - 8, cellSize - 8);
+            ctx.globalAlpha = 1;
+          }
+        }
     }
 
     // 6. Placement preview when placing a tower or a binder
@@ -4661,8 +4909,10 @@ export class GameEngine {
   }
 
   private renderTowerSprite(ctx: CanvasRenderingContext2D, t: Tower, cellSize: number, spr: PreparedSprite, timeSec: number) {
-    const cx = (t.x + 0.5) * cellSize;
-    const cy = (t.y + 0.5) * cellSize;
+    // A megatower П stands between its two cells
+    const nCells = 1 + (t.extra?.length ?? 0);
+    const cx = (t.x + 0.5 + (t.extra ? t.extra.reduce((a, c) => a + c.x - t.x, 0) / nCells : 0)) * cellSize;
+    const cy = (t.y + 0.5 + (t.extra ? t.extra.reduce((a, c) => a + c.y - t.y, 0) / nCells : 0)) * cellSize;
     const baseDef = CONFIG.towers[t.type];
     const ringY = cy + 22;
     const footY = cy + 30;
@@ -4721,7 +4971,21 @@ export class GameEngine {
     } else {
       if (baseDef.sprite && !this.ownTowerSprite(t.type, t.level)) this.drawPedestal(ctx, t, cx, footY, timeSec);
       this.drawBaseRim(ctx, t.type, cx, footY, 1);
-      drawSprite(ctx, spr, cx, footY, t.facing, this.towerDrawH(t.type, t.level), this.towerPose(t, t, timeSec));
+      if (t.fused) {
+        // A megatower: an icy halo and a bigger figure, the badge tells the figures and what it is
+        const pulse = 0.5 + 0.5 * Math.sin(timeSec * 2.4);
+        ctx.fillStyle = '#9fd8f5';
+        ctx.globalAlpha = 0.22 + 0.12 * pulse;
+        ctx.beginPath();
+        ctx.ellipse(cx, cy - 2, 33, 38, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.globalAlpha = 1;
+        // One figure for the whole built tower: the twin altars of the figure's shape (Т, П; a hypertower — of its first)
+        const megaSpr = sprites.get(t.extra ? 'mega_P' : 'mega_T') ?? spr;
+        const scale = 1;
+        drawSprite(ctx, megaSpr, cx, footY + 4, t.facing, megaSpr === spr ? this.towerDrawH(t.type, t.level) : (nCells >= 3 ? 150 : t.extra ? 112 : 96) * scale, this.towerPose(t, t, timeSec));
+        this.drawSpecBadge(ctx, `${t.fused.megas >= 2 ? 'Гипер' : 'Мега'} ${t.fused.shapes.map((x) => ({ T: 'Т', P: 'П' })[x]).join('')}`, cx, cy - 26, cx, cellSize);
+      } else drawSprite(ctx, spr, cx, footY, t.facing, this.towerDrawH(t.type, t.level), this.towerPose(t, t, timeSec));
       if (t.souls) this.drawSpecBadge(ctx, `☠${t.souls}`, cx - 18, cy - 22, cx, cellSize);
     }
 
@@ -5261,16 +5525,12 @@ export class GameEngine {
         ctx.setLineDash([5, 4]);
         ctx.strokeRect(m.center.x * cs + 6, m.center.y * cs + 6, cs - 12, cs - 12);
         ctx.setLineDash([]);
-      } else if (m.shape === 'X') {
-        ctx.beginPath();
-        ctx.arc((m.center.x + 0.5) * cs, (m.center.y + 0.5) * cs, CONFIG.raceMech.megaXRadius * cs * (1 - m.timer / CONFIG.raceMech.megaXEvery), 0, Math.PI * 2);
-        ctx.stroke();
       }
       ctx.restore();
-      const c = m.shape === 'P' ? pts[0] : (pts.find((t) => t.id === m.centerId) ?? pts[0]);
+      const c = pts[0];
       if (c) {
         const l = labels.get(c) ?? new Set<string>();
-        l.add(m.shape === 'X' ? 'Х' : m.shape === 'P' ? 'П' : 'Т');
+        l.add(m.shape === 'P' ? 'П' : 'Т');
         labels.set(c, l);
       }
     }

@@ -51,6 +51,8 @@ interface TowerPanelProps {
   onUpgradeWithBinder: () => void;
   onCyclePriority: () => void;
   onMerge: () => void;
+  onFuse: (shape?: 'T' | 'P') => void;
+  hyperLeft: number; // гипербашня: сколько клеток ещё выбрать
   onBind: () => void;
   onSell: () => void;
   onClose: () => void;
@@ -132,6 +134,8 @@ export function TowerPanel({
   onUpgradeWithBinder,
   onCyclePriority,
   onMerge,
+  onFuse,
+  hyperLeft,
   onBind,
   onSell,
   onClose,
@@ -455,8 +459,9 @@ export function TowerPanel({
 
       {/* 3. Target priority, merge, bind and sell: one row */}
       <div
+        style={info?.fuse ? { gridTemplateColumns: `repeat(${3 + (info.fuse === 'mega' ? Math.max(1, info.fuseShapes.length) : 1)}, minmax(0, 1fr))` } : undefined}
         className={`grid gap-1 h-[var(--h-btn)] shrink-0 ${
-          humans ? (canUpgrade ? 'grid-cols-5' : 'grid-cols-4') : ability ? (info?.sacrifice !== undefined && tower.type === 'dem_gate' ? 'grid-cols-5' : 'grid-cols-4') : 'grid-cols-3'
+          humans ? (canUpgrade ? 'grid-cols-5' : 'grid-cols-4') : info?.fuse ? '' : ability ? (info?.sacrifice !== undefined && tower.type === 'dem_gate' ? 'grid-cols-5' : 'grid-cols-4') : 'grid-cols-3'
         }`}
       >
         <button
@@ -485,6 +490,27 @@ export function TowerPanel({
             {second ? '—' : tower.level >= maxLevel ? 'макс' : mergeUsesBinder ? '2+связка' : `${eligibleMergeCount}/${mergeNeed}`}
           </span>
         </button>
+
+        {info?.fuse && (
+          <>
+            {(info.fuse === 'mega' && info.fuseShapes.length > 1 ? info.fuseShapes : [undefined]).map((shape) => (
+              <button
+                key={shape ?? 'one'}
+                type="button"
+                onClick={() => onFuse(shape)}
+                className="h-[var(--h-btn)] px-0.5 rounded font-bold flex flex-col items-center justify-center leading-none bg-sky-300 hover:bg-sky-200 text-stone-950 border border-sky-100 shadow-md shadow-sky-950/40 animate-pulse cursor-pointer"
+                title={
+                  info.fuse === 'hyper'
+                    ? 'Слить с ближайшей мегабашней в гипербашню на трёх смежных клетках, которые выберете сами; части стреляют вместе, бонусы складываются'
+                    : 'Собрать башни фигуры в одну мегабашню: части стреляют из одной клетки, бонусы складываются'
+                }
+              >
+                <span className="text-[length:var(--fs-btn4)]">{info.fuse === 'hyper' ? (hyperLeft > 0 ? 'Отмена' : 'Гипер') : shape ? `Мега ${shape === 'T' ? 'Т' : 'П'}` : 'Собрать'}</span>
+                <span className="text-[length:var(--fs-xs)] mt-0.5 whitespace-nowrap">{info.fuse === 'hyper' ? (hyperLeft > 0 ? `ещё ${hyperLeft} кл.` : 'слить') : 'в одну'}</span>
+              </button>
+            ))}
+          </>
+        )}
 
         {ability && (
           <button
