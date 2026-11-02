@@ -3285,6 +3285,7 @@ export class GameEngine {
    */
   public moveCost(): number | null {
     if (this.canMoveTowers()) return 0;
+    if (this.sandbox && !this.isGameOver) return 0; // свободный режим: переставлять можно всегда
     if (this.duelStart !== null && !this.isGameOver && !this.isVictory) return CONFIG.duel.moveCost;
     return null;
   }
