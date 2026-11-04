@@ -18,6 +18,7 @@ import { GameControls } from './components/GameControls';
 import { WaveInfo } from './components/WaveInfo';
 import { Backpack } from './components/Backpack';
 import { ShopPanel, ShopCard } from './components/ShopPanel';
+import { SandboxSummaryModal } from './components/SandboxSummaryModal';
 import { SandboxPanel } from './components/SandboxPanel';
 import { SandboxWaveModal, SandboxWave } from './components/SandboxWaveModal';
 import { rollShop, ShopPity } from './game/shop';
@@ -468,6 +469,7 @@ export default function App() {
   // Свободный режим (песочница, просьба Артура 2026-11-02): карта и враги — чтобы «Заново» начал то же поле
   const [sandboxCfg, setSandboxCfg] = useState<{ level: number; enemies: number; randomRoad: boolean } | null>(null);
   const [sandboxWaveOpen, setSandboxWaveOpen] = useState(false);
+  const [sandboxSummaryOpen, setSandboxSummaryOpen] = useState(false);
   const [sandboxWave, setSandboxWave] = useState<SandboxWave>({ faction: 1, wave: 1, counts: {} });
   const handleSandboxStart = (level: number, enemies: number, randomRoad: boolean, seed: number | null = randomRoad ? newMapSeed() : null) => {
     sound.init();
@@ -1372,7 +1374,7 @@ export default function App() {
                   className="w-full h-full block cursor-crosshair touch-none"
                   style={{ imageRendering: 'pixelated' }}
                 />
-                <FieldHud
+                {!gameState.sandbox && <FieldHud
                   isSpawning={gameState.isSpawning}
                   isWaveActive={gameState.isWaveActive}
                   allWavesLaunched={gameState.allWavesLaunched}
@@ -1384,17 +1386,17 @@ export default function App() {
                   onToggleAutoStart={() => engineRef.current?.setAutoStart(!engineRef.current.autoStart)}
                   sandbox={gameState.sandbox}
                   onOpenSandboxWave={() => setSandboxWaveOpen(true)}
-                />
+                />}
                 {brawl && <BrawlBoard snap={brawl} />}
                 {gameState.boonOffer && !gameState.isGameOver && (
                   <BoonPicker offer={gameState.boonOffer} onChoose={(id) => engineRef.current?.chooseBoon(id)} />
                 )}
-                <WaveInfo
+                {!gameState.sandbox && <WaveInfo
                   nextWave={gameState.nextWave}
                   summary={gameState.waveSummary}
                   faction={gameState.nextWaveFaction}
                   isWaveActive={gameState.isWaveActive}
-                />
+                />}
                 {/* Bottom corners: gold and lives on the left; the selected tower's card on the half away from it,
                     «Всё поле» on the right. Only the plates' own buttons take taps */}
                 <div className="absolute inset-0 pointer-events-none [container-type:inline-size]">
@@ -1523,6 +1525,8 @@ export default function App() {
                   onApplySelected={(level, spec) => engineRef.current?.sandboxSetTower(level, spec)}
                   onOpenWave={() => setSandboxWaveOpen(true)}
                   onDownloadLog={saveSandboxLog}
+                  summaryWave={gameState.waveSummary?.wave ?? null}
+                  onOpenSummary={() => setSandboxSummaryOpen(true)}
                   compact={layout === 'bottom'}
                 />
               ) : (
@@ -1565,6 +1569,9 @@ export default function App() {
         </div>
       )}
 
+      {screen === 'playing' && gameState.sandbox && sandboxSummaryOpen && gameState.waveSummary && (
+        <SandboxSummaryModal summary={gameState.waveSummary} onClose={() => setSandboxSummaryOpen(false)} />
+      )}
       {screen === 'playing' && gameState.sandbox && sandboxWaveOpen && (
         <SandboxWaveModal
           value={sandboxWave}

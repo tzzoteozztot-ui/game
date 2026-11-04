@@ -18,13 +18,15 @@ interface SandboxPanelProps {
   onApplySelected: (level: number, spec: string | null) => void;
   onOpenWave: () => void;
   onDownloadLog: () => void;
+  summaryWave: number | null; // номер зачищенной волны, итоги которой можно открыть
+  onOpenSummary: () => void;
   compact?: boolean; // полоса под полем (низкая): два столбца вместо одного
 }
 
 const BTN =
   'min-h-[var(--h-line,24px)] px-1 rounded border text-[length:var(--fs-sm)] font-bold cursor-pointer transition-colors bg-[#221f2d] border-[#383347] text-stone-200 hover:bg-[#2c283a]';
 
-export function SandboxPanel({ race, maxLevel, selectedTower, inHand, onTake, onTakeBinder, onApplySelected, onOpenWave, onDownloadLog, compact }: SandboxPanelProps) {
+export function SandboxPanel({ race, maxLevel, selectedTower, inHand, onTake, onTakeBinder, onApplySelected, onOpenWave, onDownloadLog, summaryWave, onOpenSummary, compact }: SandboxPanelProps) {
   const raceDef = CONFIG.races[race];
   const types = raceDef.towers;
   const [type, setType] = useState<TowerType>(types[0]);
@@ -132,6 +134,9 @@ export function SandboxPanel({ race, maxLevel, selectedTower, inHand, onTake, on
         </button>
         <button type="button" className={BTN} onClick={onDownloadLog} title="Скачать лог партии (JSON)">
           Скачать лог
+        </button>
+        <button type="button" className={`${BTN} col-span-2`} disabled={summaryWave === null} onClick={onOpenSummary} title="Итоги последней зачищенной волны">
+          {summaryWave === null ? 'Итоги волны' : `Итоги волны ${summaryWave}`}
         </button>
       </div>
      </div>
