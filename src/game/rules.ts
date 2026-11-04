@@ -6,7 +6,8 @@ import { CONFIG, TowerType, Difficulty, EnemyType, WaveDef, DamageType } from '.
 
 export function calculateStartingGold(level: number, difficulty: Difficulty): number {
   const diffMult = CONFIG.difficulty[difficulty].goldMult;
-  return Math.floor((200 + 25 * (level - 1)) * diffMult);
+  void level; // стартовое золото от карты не зависит (Артур, 2026-11-02)
+  return Math.floor(CONFIG.startGold * diffMult);
 }
 
 export function calculateEnemyHp(
@@ -120,7 +121,8 @@ export function waveDefinition(wave: number): WaveDef {
 export function calculateKillGold(baseGold: number, level: number, wave = 0, decay = false): number {
   const s = CONFIG.supply;
   const mult = decay && wave > s.killDecayFrom ? Math.max(s.killFloor, Math.pow(s.killDecay, wave - s.killDecayFrom)) : 1;
-  return Math.round(baseGold * (1 + 0.15 * (level - 1)) * mult);
+  void level; // награда от карты не зависит (Артур, 2026-11-02)
+  return Math.round(baseGold * s.killGoldMult * mult);
 }
 
 /** Shop reroll price: grows with every reroll since the current wave started (Артур, тест баланса) */

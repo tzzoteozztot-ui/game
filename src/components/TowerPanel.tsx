@@ -373,8 +373,8 @@ export function TowerPanel({
         </div>
         <div className="min-w-0 flex-1 flex items-baseline justify-between gap-1 leading-none">
           <div className={`font-bold text-stone-200 text-[length:var(--fs-md)] truncate min-w-0`}>
-            {baseDef.name}{' '}
-            <span className="text-amber-400 text-[length:var(--fs-md)] font-bold">{second ? tower.level : `Ур.${tower.level}`}</span>
+            {info?.title ?? baseDef.name}{' '}
+            <span className="text-amber-400 text-[length:var(--fs-md)] font-bold">{second ? tower.level : `Ур.${info?.fuseLevel ?? tower.level}`}</span>
             {second && secondDef && (
               <>
                 <span style={{ color: CONFIG.binder.color }}> + </span>
@@ -493,7 +493,17 @@ export function TowerPanel({
 
         {info?.fuse && (
           <>
-            {(info.fuse === 'mega' && info.fuseShapes.length > 1 ? info.fuseShapes : [undefined]).map((shape) => (
+            {info.fuse === 'none' ? (
+              <button
+                type="button"
+                disabled
+                className="h-[var(--h-btn)] px-0.5 rounded font-bold flex flex-col items-center justify-center leading-none bg-black/30 text-stone-500 border border-white/10 cursor-not-allowed"
+                title="Мегабашня: три башни в ряд и одна под серединой (Т) или три в ряд и две ножки на концах (П) — выберите башню фигуры и нажмите «Собрать». Гипербашня — из одной Т и одной П; её уровень растёт слиянием с гипербашней или двумя одинаковыми мегабашнями"
+              >
+                <span className="text-[length:var(--fs-btn4)]">{tower.fused ? 'Гипер' : 'Собрать'}</span>
+                <span className="text-[length:var(--fs-xs)] mt-0.5 whitespace-nowrap">{info.fuseNone}</span>
+              </button>
+            ) : (info.fuse === 'mega' && info.fuseShapes.length > 1 ? info.fuseShapes : [undefined]).map((shape) => (
               <button
                 key={shape ?? 'one'}
                 type="button"
@@ -505,8 +515,8 @@ export function TowerPanel({
                     : 'Собрать башни фигуры в одну мегабашню: части стреляют из одной клетки, бонусы складываются'
                 }
               >
-                <span className="text-[length:var(--fs-btn4)]">{info.fuse === 'hyper' ? (hyperLeft > 0 ? 'Отмена' : 'Гипер') : shape ? `Мега ${shape === 'T' ? 'Т' : 'П'}` : 'Собрать'}</span>
-                <span className="text-[length:var(--fs-xs)] mt-0.5 whitespace-nowrap">{info.fuse === 'hyper' ? (hyperLeft > 0 ? `ещё ${hyperLeft} кл.` : 'слить') : 'в одну'}</span>
+                <span className="text-[length:var(--fs-btn4)]">{info.fuse === 'hyperup' ? 'Ур.+' : info.fuse === 'hyper' ? (hyperLeft > 0 ? 'Отмена' : 'Гипер') : shape ? `Мега ${shape === 'T' ? 'Т' : 'П'}` : 'Собрать'}</span>
+                <span className="text-[length:var(--fs-xs)] mt-0.5 whitespace-nowrap">{info.fuse === 'hyperup' ? 'слить' : info.fuse === 'hyper' ? (hyperLeft > 0 ? `ещё ${hyperLeft} кл.` : 'Т+П') : 'в одну'}</span>
               </button>
             ))}
           </>

@@ -378,25 +378,25 @@ export const CONFIG = {
       type: 'dem_ember', race: 'demons', name: 'Метатель углей', cost: 55, damage: 9, damageType: 'fire', cooldown: 0.8, range: 2.8,
       shape: 'triangle', color: '#ff7a3a', sprite: 'enemy_scout_4', sound: 'archer', specs: [],
       desc: 'Поджигает: 25 % урона в секунду 3 с.',
-      ability: { name: 'Огненный шторм', desc: 'Стреляет вдвое чаще, поджог ×1,5', duration: 5, cooldown: 30, cost: 4 },
+      ability: { name: 'Огненный шторм', desc: 'Стреляет вчетверо чаще, поджог ×3', duration: 5, cooldown: 30, cost: 4 },
     } as TowerBaseDef,
     dem_warper: {
       type: 'dem_warper', race: 'demons', name: 'Искажатель', cost: 70, damage: 2, damageType: 'lightning', cooldown: 1.0, range: 2.5,
       shape: 'circle', color: '#e05a8a', sprite: 'enemy_shaman_4', sound: 'priest', specs: [],
       desc: 'Цель и враги в 1 клетке от неё получают +30 % урона от всех башен 4 с.',
-      ability: { name: 'Разлом', desc: 'Враги в 2 клетках от башни получают +60 % урона', duration: 4, cooldown: 35, cost: 5 },
+      ability: { name: 'Разлом', desc: 'Враги в 2 клетках от башни получают +120 % урона', duration: 4, cooldown: 35, cost: 5 },
     } as TowerBaseDef,
     dem_rift: {
       type: 'dem_rift', race: 'demons', name: 'Огненная трещина', cost: 85, damage: 12, damageType: 'fire', cooldown: 1.6, range: 2.6,
       shape: 'rhombus', color: '#ff4a2f', sprite: 'enemy_infantry_4', sound: 'mage', specs: [],
       desc: 'Оставляет горящее пятно на 4 с: 40 % урона в секунду всем в нём.',
-      ability: { name: 'Извержение', desc: 'Пятна втрое шире и бьют вдвое сильнее', duration: 5, cooldown: 40, cost: 6 },
+      ability: { name: 'Извержение', desc: 'Пятна втрое шире и бьют вчетверо сильнее', duration: 5, cooldown: 40, cost: 6 },
     } as TowerBaseDef,
     dem_gate: {
-      type: 'dem_gate', race: 'demons', name: 'Врата бездны', cost: 120, damage: 20, damageType: 'phys', cooldown: 6, range: 2.5,
+      type: 'dem_gate', race: 'demons', name: 'Врата бездны', cost: 100, damage: 20, damageType: 'phys', cooldown: 6, range: 2.5,
       shape: 'square', color: '#b0302a', sprite: 'enemy_heavy_4', sound: 'ballista', special: 'gate', specs: [],
       desc: 'Раз в 6 с зовёт беса на 5 с (20 урона в секунду). «Жертва»: башня рядом сгорает ради залпа ×4 её цены.',
-      ability: { name: 'Зов', desc: 'Сразу призывает двух бесов', duration: 5, cooldown: 20, cost: 8 },
+      ability: { name: 'Зов', desc: 'Сразу призывает четырёх бесов', duration: 5, cooldown: 20, cost: 8 },
     } as TowerBaseDef,
 
     // ---------------- Тёмные эльфы: крит копится 10 с ----------------
@@ -696,9 +696,12 @@ export const CONFIG = {
     megaPRange: 0.3,
     megaPFreeze: 1,
     fuseDmg: 0.07, // собранная мегабашня: +7 % урона за каждую слитую мегабашню (выбор Артура 2026-11-02, бот: медиана 46 волн)
-    hyperMult: 1.07, // гипербашня (две мегабашни и больше): ещё ×1,07
+    hyperMult: 1.07, // гипербашня: ещё ×1,07 за каждый её уровень
+    hyperMaxLevel: 3, // уровень гипербашни растёт слиянием с гипербашней или двумя одинаковыми мегабашнями
     burnShare: 0.25,
     burnTime: 3,
+    abilityMult: 2, // демоны: сила эффектов способностей ×2 без смены цен и времени (просьба Артура 2026-11-02, черновик)
+    demFlyerMult: 1.25, // Метатель углей и Трещина по летунам ×1,25 (лог Потасовки 2026-11-02: до артефакта доходило 35 % летунов; черновик)
     warpBonus: 0.3,
     warpTime: 4,
     patchShare: 0.4,
@@ -776,6 +779,9 @@ export const CONFIG = {
     sellRatio: 0.6,
     killDecay: 0.985,
     killFloor: 0.3,
+    // Артур, 2026-11-02: награда за убийство (и цены посылок) на всех картах одна, +15 %; от номера карты не зависит
+    // (раньше +15 % за каждую карту). У карт позже будут свои особенности.
+    killGoldMult: 1.15,
     killDecayFrom: 12,
     towerPower: [1, 3, 9], // by tower level
     binderPower: 1,
@@ -814,6 +820,9 @@ export const CONFIG = {
     sendMaxPerType: 200, // a send message with more is cut down (a broken or forged message)
     moveCost: 10, // moving a tower while enemies are on the field (duel, brawl; Артур 2026-11-01: «10 монет условно»)
   },
+
+  // Стартовое золото на любой карте (Артур, 2026-11-02: «везде 250»); раньше 200 + 25 за карту. Сложность множит его в кампании и бесконечном
+  startGold: 250,
 
   // «Потасовка» (Артур, 2026-11-01): eight on the duel's clock, the opponents change every wave
   brawl: {
