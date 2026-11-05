@@ -31,26 +31,31 @@ const DECOR: Record<string, [string, number][]> = {
     ['rock1', 0.3], ['rock2', 0.24], ['rock3', 0.28], ['rock4', 0.28],
     ['tuft', 0.26], ['bush1', 0.36], ['bush2', 0.34], ['bush3', 0.36], ['stump', 0.34],
     ['flowers', 0.28], ['fern', 0.3], ['berries', 0.3], ['branch', 0.34],
+    ['molehill', 0.3], ['clover', 0.28], ['wheel', 0.3], ['burdock', 0.3], ['thistle', 0.28], ['strawberry', 0.28], ['spear', 0.34], ['hay', 0.3],
   ],
   swamp: [
     ['rock1', 0.28], ['rock2', 0.28], ['grave1', 0.26], ['grave2', 0.32], ['bones', 0.3], ['shrooms', 0.26],
     ['log', 0.38], ['snag', 0.38], ['reeds', 0.24], ['bush', 0.32], ['tuft', 0.28],
     ['sedge', 0.3], ['lily', 0.3], ['shrooms2', 0.26], ['helmet', 0.26],
+    ['duckweed', 0.34], ['cotton', 0.28], ['oar', 0.34], ['lantern', 0.24], ['wisps', 0.32], ['berrylog', 0.34], ['snails', 0.3], ['sword', 0.32],
   ],
   ice: [
     ['rock1', 0.3], ['rock2', 0.3], ['crystal1', 0.26], ['crystal2', 0.28], ['shard', 0.26], ['bush', 0.34],
     ['stump', 0.32], ['tuft', 0.26], ['rune', 0.24], ['drift', 0.32],
     ['hummock', 0.32], ['icebits', 0.28], ['flower', 0.26], ['branch', 0.32],
+    ['puddle', 0.34], ['berries', 0.28], ['shield', 0.3], ['lichen', 0.26], ['hide', 0.34], ['iceshrooms', 0.28], ['lantern', 0.28], ['fish', 0.3],
   ],
   scorched: [
     ['rock1', 0.28], ['rock2', 0.28], ['stump', 0.34], ['bush', 0.32], ['bones', 0.34], ['sulfur', 0.3], // сера при нарезке приглушена: яркая была похожа на золото
     ['ember', 0.26], ['horn', 0.36], ['tuft', 0.28], ['ash', 0.32],
     ['coal', 0.26], ['obsidian', 0.26], ['thorns', 0.3], ['chain', 0.3],
+    ['lava', 0.36], ['sword', 0.3], ['ashshrooms', 0.28], ['firepit', 0.3], ['charlog', 0.32], ['drops', 0.28], ['flower', 0.26], ['cauldron', 0.28],
   ],
   citadel: [
     ['slab1', 0.3], ['slab2', 0.26], ['column', 0.38], ['crystal', 0.26], ['bush', 0.34], ['tuft', 0.3],
     ['vase1', 0.28], ['vase2', 0.28], ['rune', 0.26], ['root', 0.3], ['leaves', 0.3],
     ['flower', 0.26], ['tile', 0.28], ['mushroom', 0.26], ['branch', 0.3],
+    ['pool', 0.3], ['bells', 0.26], ['web', 0.28], ['carving', 0.3], ['petals', 0.3], ['mirror', 0.26], ['vine', 0.3], ['bowl', 0.26],
   ],
 };
 const DECOR_SHARE = 0.32; // доля свободных клеток с декором
@@ -169,7 +174,7 @@ function hash(x: number, y: number): number {
 
 // Мелкие растения и камни ложатся кучкой из 2–4 копий (просьба Артура 2026-11-05: больше объёма и деталей);
 // крупные одиночные предметы (пень, надгробие, колонна…) остаются по одному
-const CLUSTER = /bush|tuft|reeds|shrooms|crystal|leaves|rock|ember|ash|bones|shard|root|flower|fern|berries|sedge|icebits|thorns|mushroom/;
+const CLUSTER = /bush|tuft|reeds|shrooms|crystal|leaves|rock|ember|ash|bones|shard|root|flower|fern|berries|sedge|icebits|thorns|mushroom|clover|thistle|strawberr|cotton|bells/;
 const DECOR_SCALE = 1.2; // ширина предмета = доля из DECOR × 1,2 клетки (было ×1,5: декор выглядел как помеха на клетке)
 
 /** Мелкий декор в одном из углов клетки (x, y); клетка выбирается по хэшу, доля — DECOR_SHARE */
