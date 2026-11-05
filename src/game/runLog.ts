@@ -26,6 +26,8 @@ export interface LogTower {
   extra?: { x: number; y: number }[]; // мегабашня П занимает ещё одну клетку, гипербашня ещё две
   fused?: { shapes: string[]; megas: number; parts: LogTowerPart[] }; // культисты: мегабашня (megas = 1) или гипербашня (2+); части стреляют из одной клетки
   damage: number; // накопительно за забег
+  abilDmg?: number; // демоны: из них за время способности (и пятен «Извержения»)
+  abilSec?: number; // демоны: секунд работы способности за забег
 }
 
 export interface LogEnemyStat {
