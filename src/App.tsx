@@ -249,6 +249,7 @@ export default function App() {
     selectedDamage: null,
     selectedSide: null,
     castle: null,
+    zone: null,
     race: 'humans',
     mergeNeed: 3,
     maxLevel: 3,
@@ -459,6 +460,7 @@ export default function App() {
           engineRef.current.waveFactionFor = (w) => link.factionForWave(w);
           engineRef.current.boonsOn = true;
           if (eng.runLog) eng.runLog.data.mode = 'brawl';
+          eng.setupZones();
           eng.logExtra = () => {
             const b = link.snapshot();
             return { currentId: b.currentId, opponentId: b.opponentId, ghostId: b.ghostId, ghostFoeId: b.ghostFoeId, alive: b.alive, seats: b.seats.map((s) => ({ id: s.id, name: s.name, race: s.race, kind: s.kind, lives: Math.round(s.lives), out: s.out, place: s.place })) };
@@ -892,7 +894,11 @@ export default function App() {
       return;
     }
     const clickedBinder = engine.binders.find((b) => b.x === cellX && b.y === cellY);
-    if (CONFIG.grid.castleCells.some((c) => c.x === cellX && c.y === cellY)) {
+    const clickedZone = engine.zoneAt(cellX, cellY);
+    if (clickedZone && !engine.selectedTowerId) {
+      engine.selectZone(clickedZone.id);
+      sound.playBuy();
+    } else if (CONFIG.grid.castleCells.some((c) => c.x === cellX && c.y === cellY)) {
       engine.selectCastle();
       sound.playBuy();
     } else if (clickedBinder) {
@@ -1114,7 +1120,7 @@ export default function App() {
         engine.toggleBinding();
       } else if (engine.upgradingFromBinderId) {
         engine.toggleUpgrading();
-      } else if (engine.selectedTowerId || engine.selectedBinderId || engine.castleSelected) {
+      } else if (engine.selectedTowerId || engine.selectedBinderId || engine.castleSelected || engine.selectedZoneId !== null) {
         engine.selectTower(null);
       } else if (screen === 'playing') {
         engine.togglePause();
@@ -1220,6 +1226,8 @@ export default function App() {
       details={towerDetails}
       onToggleDetails={() => setTowerDetails((d) => !d)}
       castle={gameState.castle}
+      zone={gameState.zone}
+      onOpenZone={() => engineRef.current?.buySelectedZone()}
       boons={gameState.boons}
       gold={gameState.gold}
       onUpgradeCastle={() => engineRef.current?.upgradeGuard()}

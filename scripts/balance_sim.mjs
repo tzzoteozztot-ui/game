@@ -41,6 +41,10 @@ const NO_FUSE = args.includes('--no-fuse');
 const RACE_OPT = opt('race', 'humans');
 // --boons=0: потасовка без усилений артефакта (по умолчанию бот берёт случайное из трёх)
 const BOONS = opt('boons', '1') !== '0';
+// Закрытые зоны Потасовки: --zones=auto (доля по расе, CONFIG.brawl.zones), число 0..1 или 0 — без зон;
+// --unlock=gold (бот открывает и за золото) | round (только сами, по раундам)
+const ZONES = opt('zones', 'auto');
+const UNLOCK = opt('unlock', 'gold');
 const RACES = RACE_OPT === 'all' ? ['humans', 'orcs', 'undead', 'cultists', 'demons', 'elves'] : RACE_OPT.split(',');
 // Пробные числа без правки config.ts: --set=siege.attack.shaman.range=2,lives.start=300
 const SET = opt('set', '')
@@ -63,7 +67,7 @@ for (const level of LEVELS) {
     add(RUNS, { kind: 'endless', level, policy: 'mixed', style: 'casual', difficulty: DIFF, faction: FACTION, race });
   }
   if (ONLY === 'brawl')
-    for (const style of ['pro', 'casual']) add(RUNS, { kind: 'brawl', level, policy: 'mixed', style, difficulty: DIFF, race, boons: BOONS });
+    for (const style of ['pro', 'casual']) add(RUNS, { kind: 'brawl', level, policy: 'mixed', style, difficulty: DIFF, race, boons: BOONS, zones: ZONES, unlock: UNLOCK });
   if ((!ONLY || ONLY === 'mono') && race === 'humans')
     for (const t of ['archer', 'priest', 'mage', 'ballista'])
       add(Math.max(2, Math.ceil(RUNS / 2)), { kind: 'endless', level, policy: t, style: 'pro', difficulty: 'normal', race });
@@ -386,7 +390,24 @@ async function runInPage(job) {
     return true;
   };
 
+  // --- Закрытые зоны (Потасовка, CONFIG.brawl.zones): --zones=auto — доля по расе из config.ts, число — своя, 0 — без зон.
+  // Каждые everyRounds раундов одна зона открывается сама; бот открывает раньше за золото, если хороших клеток мало
+  // или золота вдвое больше цены (--unlock=round — только сами)
+  if (brawlJob) engine.setupZones(job.zones === 'auto' || job.zones === '' ? undefined : Number(job.zones));
+  const zoneLog = { cells: engine.zones.reduce((s, z) => s + z.cells.length, 0), groups: engine.zones.length, goldSpent: 0, bought: 0 };
+  const zoneTick = () => {
+    if (!engine.zones.length || job.unlock === 'round') return;
+    const goodFree = freeCells().filter((c) => coverage(c.x, c.y, 2.7) > 3).length;
+    const best = [...engine.zones].sort((a, b) => b.cells.reduce((s, c) => s + coverage(c.x, c.y, 2.7), 0) - a.cells.reduce((s, c) => s + coverage(c.x, c.y, 2.7), 0))[0];
+    const price = engine.zonePrice(best);
+    if (engine.gold >= price && (goodFree < 4 || engine.gold >= 2 * price) && engine.openZone(best.id, price)) {
+      zoneLog.goldSpent += price;
+      zoneLog.bought++;
+    }
+  };
+
   const think = () => {
+    zoneTick();
     resolveSpecs();
     doMerges();
     doFuse();
@@ -477,6 +498,7 @@ async function runInPage(job) {
       lives: engine.lives,
       gameTime: Math.round(clock),
       table: snap.seats.map((x) => ({ name: x.name, kind: x.kind, place: x.place })),
+      zones: { ...zoneLog, opened: engine.zonesOpened, killed: engine.runStats.killed, towers: engine.towers.length, freeLeft: freeCells().length },
       waves: stats.waves,
     };
   }
@@ -566,7 +588,7 @@ async function worker() {
     results.push(r);
     console.log(
       `${results.length}/${jobs.length} ${job.race} ${job.kind} ур.${job.level}${job.faction ? ` фр.${job.faction}` : ''} ${job.policy} ${job.style} ${job.difficulty}: ` +
-        (job.kind === 'brawl' ? `место ${r.place}, волна ${r.wavesLaunched}, ${Math.round(r.gameTime / 60)} мин` : job.kind === 'campaign' ? (r.victory ? `победа, жизней ${r.lives}` : `поражение на волне ${r.reached}`) : `дошёл до волны ${r.reached}`) +
+        (job.kind === 'brawl' ? `место ${r.place}, волна ${r.wavesLaunched}, зон ${r.zones.groups}/${r.zones.opened}, убито ${r.zones.killed}, башен ${r.zones.towers}, свободно ${r.zones.freeLeft}, ${Math.round(r.gameTime / 60)} мин` : job.kind === 'campaign' ? (r.victory ? `победа, жизней ${r.lives}` : `поражение на волне ${r.reached}`) : `дошёл до волны ${r.reached}`) +
         ` (${Math.round((Date.now() - t0) / 1000)} с)`
     );
     writeFileSync(out, JSON.stringify(results, null, 1));
