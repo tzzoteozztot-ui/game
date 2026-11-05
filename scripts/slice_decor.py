@@ -45,17 +45,29 @@ SETS = {
 
 # Дополнительные листы: набор → [(лист, ключ фона, предметы)]. Лист GPT 2026-11-05 — по ряду на карту (просьба Артура: разнообразнее)
 ALL_V2 = 'art/concepts/decor-all-v2.jpg'
+ALL_V3 = 'art/concepts/decor-all-v3.jpg'  # ещё два листа GPT 2026-11-05, фон — градиент
+ALL_V4 = 'art/concepts/decor-all-v4.jpg'
 EXTRA = {
     'frontier': [(ALL_V2, 'tint', {'flowers': (45, 21, 170, 104), 'fern': (302, 19, 166, 108),
-                                   'berries': (554, 19, 167, 111), 'branch': (773, 20, 225, 101)})],
+                                   'berries': (554, 19, 167, 111), 'branch': (773, 20, 225, 101)}),
+        (ALL_V3, 'grad', {'molehill': (42, 27, 192, 102), 'clover': (297, 14, 186, 121), 'wheel': (557, 20, 163, 117), 'burdock': (789, 13, 194, 126)}),
+        (ALL_V4, 'grad', {'thistle': (55, 13, 170, 112), 'strawberry': (307, 18, 163, 118), 'spear': (522, 36, 234, 97), 'hay': (795, 33, 198, 99)})],
     'swamp': [(ALL_V2, 'tint', {'sedge': (43, 137, 188, 124), 'lily': (280, 154, 212, 108),
-                                'shrooms2': (563, 144, 140, 116), 'helmet': (783, 137, 204, 139)})],
+                                'shrooms2': (563, 144, 140, 116), 'helmet': (783, 137, 204, 139)}),
+        (ALL_V3, 'grad', {'duckweed': (26, 138, 225, 133), 'cotton': (300, 140, 179, 135), 'oar': (530, 140, 221, 133), 'lantern': (813, 151, 150, 120)}),
+        (ALL_V4, 'grad', {'wisps': (26, 135, 225, 136), 'berrylog': (288, 144, 203, 127), 'snails': (530, 142, 216, 131), 'sword': (783, 142, 220, 131)})],
     'ice': [(ALL_V2, 'tint', {'hummock': (18, 289, 237, 107), 'icebits': (300, 296, 175, 91),
-                              'flower': (548, 289, 174, 103), 'branch': (786, 276, 198, 128)})],
+                              'flower': (548, 289, 174, 103), 'branch': (786, 276, 198, 128)}),
+        (ALL_V3, 'grad', {'puddle': (19, 294, 240, 104), 'berries': (301, 286, 178, 105), 'shield': (534, 283, 212, 123), 'lichen': (817, 290, 142, 94)}),
+        (ALL_V4, 'grad', {'hide': (19, 291, 240, 107), 'iceshrooms': (302, 272, 177, 119), 'lantern': (534, 280, 212, 126), 'fish': (786, 278, 213, 123)})],
     'scorched': [(ALL_V2, 'tint', {'coal': (38, 425, 194, 98), 'obsidian': (299, 415, 175, 112),
-                                   'thorns': (543, 404, 189, 137), 'chain': (787, 424, 195, 104)})],
+                                   'thorns': (543, 404, 189, 137), 'chain': (787, 424, 195, 104)}),
+        (ALL_V3, 'grad', {'lava': (19, 415, 245, 121), 'sword': (296, 418, 186, 109), 'ashshrooms': (552, 415, 176, 114), 'firepit': (778, 423, 221, 108)}),
+        (ALL_V4, 'grad', {'charlog': (44, 403, 178, 124), 'drops': (296, 427, 186, 100), 'flower': (551, 427, 177, 102), 'cauldron': (778, 408, 221, 123)})],
     'citadel': [(ALL_V2, 'tint', {'flower': (55, 543, 160, 125), 'tile': (297, 551, 180, 114),
-                                  'mushroom': (567, 551, 139, 111), 'branch': (782, 539, 213, 129)})],
+                                  'mushroom': (567, 551, 139, 111), 'branch': (782, 539, 213, 129)}),
+        (ALL_V3, 'grad', {'pool': (43, 561, 200, 106), 'bells': (312, 534, 157, 136), 'web': (551, 538, 175, 134), 'carving': (786, 556, 199, 115)}),
+        (ALL_V4, 'grad', {'petals': (43, 560, 200, 107), 'mirror': (312, 542, 157, 128), 'vine': (546, 544, 196, 128), 'bowl': (785, 557, 200, 114)})],
 }
 
 from scipy import ndimage as ndi
@@ -68,6 +80,8 @@ GREY = {('scorched', 'sulfur'): (0.65, 0.8)}
 HALO_RED = {('citadel', 'crystal'): 15}
 # Бледное сияние вокруг поганок: светлые пиксели вне замкнутого тёмного контура фигур
 HALO_PALE = {('swamp', 'shrooms2')}
+# Светлые полупрозрачные предметы на градиентном фоне: фон не «растёт» по светлому (иначе съедает лёд и снег), сияние остаётся
+NO_GROW = {('ice', 'iceshrooms'), ('ice', 'fish'), ('ice', 'hide'), ('scorched', 'lava')}
 
 
 def slice_set(name):
@@ -85,6 +99,30 @@ def slice_sheet(name, src, key, items):
         # кайма: у края фона убираем и пурпурные пиксели потемнее, затем сжимаем маску на 1 px
         ring = ndi.binary_dilation(bg, iterations=3) & ~bg
         bg = bg | (ring & (np.minimum(R, B) > G * 1.35 + 8))
+    elif key == 'grad':
+        # Фон-градиент (листы GPT 2026-11-05: сверху маджента, ниже серый): цвет фона строки — по краям листа;
+        # фоном считаем близкие к нему пиксели, связанные с краем листа (серые предметы внутри контура остаются)
+        edge = np.concatenate([im[:, :8], im[:, -8:]], axis=1)
+        bgc = ndi.uniform_filter1d(np.median(edge, axis=1), 9, axis=0)[:, None, :]
+        dist = np.abs(im - bgc).max(-1)
+        lab, _ = ndi.label(dist < 30)
+        border = np.unique(np.concatenate([lab[0], lab[-1], lab[:, 0], lab[:, -1]]))
+        bg = np.isin(lab, border[border > 0])
+        bg0 = bg.copy()
+        # Сияние и розовая кайма вокруг предметов: фон «растёт» по светлым или пурпурным пикселям, пока не упрётся
+        # в тёмный контур фигуры
+        lum = im @ np.array([0.299, 0.587, 0.114])
+        blum = bgc @ np.array([0.299, 0.587, 0.114])
+        tint = np.minimum(R, B) - G
+        btint = (np.minimum(bgc[..., 0], bgc[..., 2]) - bgc[..., 1])
+        grow = ((lum >= blum - 25) & (lum <= blum + 70) & (dist < 90)) | ((tint > 40) & (tint > 0.3 * btint))
+        bg = ndi.binary_dilation(bg, mask=grow | bg, iterations=0)
+        # Дыры фона внутри предметов (колесо, кольцо фонаря) — только в пурпурной части листа: в серой серые предметы
+        holes = ndi.binary_opening((dist < 40) & ~bg & (btint > 60), iterations=1)
+        hl, hn = ndi.label(holes)
+        hs = np.bincount(hl.ravel())
+        bg |= np.isin(hl, np.nonzero(hs > 40)[0][1:])
+        bg |= (btint > 60) & (tint > 0.6 * btint)  # пурпурные карманы между листьями
     else:
         tint = np.minimum(R, B) - G
         bg = (tint > 35) | ((tint > 8) & (G > 140))  # светлое розовое — сияние на мадженте
@@ -92,9 +130,13 @@ def slice_sheet(name, src, key, items):
             bg = ((tint > 35) & (G < 0.5 * np.minimum(R, B))) | ((tint > 8) & (G > 140))
     bg = ~ndi.binary_erosion(~bg, iterations=1) | bg
     rgba = np.dstack([im, np.where(bg, 0, 255)]).astype('uint8')
+    if key == 'grad':
+        bg0 = ~ndi.binary_erosion(~bg0, iterations=1) | bg0
+        rgba0 = np.dstack([im, np.where(bg0, 0, 255)]).astype('uint8')
     for item, (x, y, w, h) in items.items():
         pad = 4
-        crop = rgba[max(0, y - pad):y + h + pad, max(0, x - pad):x + w + pad].copy()
+        src_rgba = rgba0 if (name, item) in NO_GROW and key == 'grad' else rgba
+        crop = src_rgba[max(0, y - pad):y + h + pad, max(0, x - pad):x + w + pad].copy()
         if (name, item) in HALO_RED:
             c = crop.astype(int)
             crop[(c[..., 0] > c[..., 1] + HALO_RED[(name, item)]) | (c[..., 2] > c[..., 1] + 40), 3] = 0
