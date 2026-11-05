@@ -43,6 +43,21 @@ SETS = {
     }),
 }
 
+# Дополнительные листы: набор → [(лист, ключ фона, предметы)]. Лист GPT 2026-11-05 — по ряду на карту (просьба Артура: разнообразнее)
+ALL_V2 = 'art/concepts/decor-all-v2.jpg'
+EXTRA = {
+    'frontier': [(ALL_V2, 'tint', {'flowers': (45, 21, 170, 104), 'fern': (302, 19, 166, 108),
+                                   'berries': (554, 19, 167, 111), 'branch': (773, 20, 225, 101)})],
+    'swamp': [(ALL_V2, 'tint', {'sedge': (43, 137, 188, 124), 'lily': (280, 154, 212, 108),
+                                'shrooms2': (563, 144, 140, 116), 'helmet': (783, 137, 204, 139)})],
+    'ice': [(ALL_V2, 'tint', {'hummock': (18, 289, 237, 107), 'icebits': (300, 296, 175, 91),
+                              'flower': (548, 289, 174, 103), 'branch': (786, 276, 198, 128)})],
+    'scorched': [(ALL_V2, 'tint', {'coal': (38, 425, 194, 98), 'obsidian': (299, 415, 175, 112),
+                                   'thorns': (543, 404, 189, 137), 'chain': (787, 424, 195, 104)})],
+    'citadel': [(ALL_V2, 'tint', {'flower': (55, 543, 160, 125), 'tile': (297, 551, 180, 114),
+                                  'mushroom': (567, 551, 139, 111), 'branch': (782, 539, 213, 129)})],
+}
+
 from scipy import ndimage as ndi
 
 # Поправки цвета отдельных предметов: (набор, имя) → доля обесцвечивания, яркость.
@@ -51,10 +66,16 @@ GREY = {('scorched', 'sulfur'): (0.65, 0.8)}
 # Свечение бирюзового кристалла на мадженте даёт сиреневый ореол: у самого кристалла красного мало, а синий близок
 # к зелёному; у ореола много красного или синий заметно выше зелёного
 HALO_RED = {('citadel', 'crystal'): 15}
+# Бледное сияние вокруг поганок: светлые пиксели вне замкнутого тёмного контура фигур
+HALO_PALE = {('swamp', 'shrooms2')}
 
 
 def slice_set(name):
-    src, key, items = SETS[name]
+    for src, key, items in [SETS[name]] + EXTRA.get(name, []):
+        slice_sheet(name, src, key, items)
+
+
+def slice_sheet(name, src, key, items):
     out = f'public/tiles/{name}/decor/'
     os.makedirs(out, exist_ok=True)
     im = np.array(Image.open(src).convert('RGB')).astype(int)
@@ -77,6 +98,11 @@ def slice_set(name):
         if (name, item) in HALO_RED:
             c = crop.astype(int)
             crop[(c[..., 0] > c[..., 1] + HALO_RED[(name, item)]) | (c[..., 2] > c[..., 1] + 40), 3] = 0
+        if (name, item) in HALO_PALE:
+            c = crop.astype(int)
+            inside = ndi.binary_fill_holes(ndi.binary_dilation(c[..., :3].sum(-1) < 240, iterations=1))
+            crop[~inside & (c[..., :3].sum(-1) > 330), 3] = 0
+            crop[(np.minimum(c[..., 0], c[..., 2]) > c[..., 1] + 12), 3] = 0  # розовые крапины у ножек
         if key != 'magenta':
             # Куски соседних предметов заходят в рамку с края — их убираем
             lab, _ = ndi.label(ndi.binary_dilation(crop[..., 3] > 0, iterations=2))

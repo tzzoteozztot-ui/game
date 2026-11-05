@@ -30,22 +30,27 @@ const DECOR: Record<string, [string, number][]> = {
   frontier: [
     ['rock1', 0.3], ['rock2', 0.24], ['rock3', 0.28], ['rock4', 0.28],
     ['tuft', 0.26], ['bush1', 0.36], ['bush2', 0.34], ['bush3', 0.36], ['stump', 0.34],
+    ['flowers', 0.28], ['fern', 0.3], ['berries', 0.3], ['branch', 0.34],
   ],
   swamp: [
     ['rock1', 0.28], ['rock2', 0.28], ['grave1', 0.26], ['grave2', 0.32], ['bones', 0.3], ['shrooms', 0.26],
     ['log', 0.38], ['snag', 0.38], ['reeds', 0.24], ['bush', 0.32], ['tuft', 0.28],
+    ['sedge', 0.3], ['lily', 0.3], ['shrooms2', 0.26], ['helmet', 0.26],
   ],
   ice: [
     ['rock1', 0.3], ['rock2', 0.3], ['crystal1', 0.26], ['crystal2', 0.28], ['shard', 0.26], ['bush', 0.34],
     ['stump', 0.32], ['tuft', 0.26], ['rune', 0.24], ['drift', 0.32],
+    ['hummock', 0.32], ['icebits', 0.28], ['flower', 0.26], ['branch', 0.32],
   ],
   scorched: [
     ['rock1', 0.28], ['rock2', 0.28], ['stump', 0.34], ['bush', 0.32], ['bones', 0.34], ['sulfur', 0.3], // сера при нарезке приглушена: яркая была похожа на золото
     ['ember', 0.26], ['horn', 0.36], ['tuft', 0.28], ['ash', 0.32],
+    ['coal', 0.26], ['obsidian', 0.26], ['thorns', 0.3], ['chain', 0.3],
   ],
   citadel: [
     ['slab1', 0.3], ['slab2', 0.26], ['column', 0.38], ['crystal', 0.26], ['bush', 0.34], ['tuft', 0.3],
     ['vase1', 0.28], ['vase2', 0.28], ['rune', 0.26], ['root', 0.3], ['leaves', 0.3],
+    ['flower', 0.26], ['tile', 0.28], ['mushroom', 0.26], ['branch', 0.3],
   ],
 };
 const DECOR_SHARE = 0.32; // доля свободных клеток с декором
@@ -164,7 +169,7 @@ function hash(x: number, y: number): number {
 
 // Мелкие растения и камни ложатся кучкой из 2–4 копий (просьба Артура 2026-11-05: больше объёма и деталей);
 // крупные одиночные предметы (пень, надгробие, колонна…) остаются по одному
-const CLUSTER = /bush|tuft|reeds|shrooms|crystal|leaves|rock|ember|ash|bones|shard|root/;
+const CLUSTER = /bush|tuft|reeds|shrooms|crystal|leaves|rock|ember|ash|bones|shard|root|flower|fern|berries|sedge|icebits|thorns|mushroom/;
 const DECOR_SCALE = 1.2; // ширина предмета = доля из DECOR × 1,2 клетки (было ×1,5: декор выглядел как помеха на клетке)
 
 /** Мелкий декор в одном из углов клетки (x, y); клетка выбирается по хэшу, доля — DECOR_SHARE */
