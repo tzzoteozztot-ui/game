@@ -6,6 +6,7 @@ import { RunLog, LogTower } from './runLog';
 import { CONFIG, TowerType, TargetPriority, Difficulty, EnemyType, RaceId, TowerBaseDef, BOONS, BoonDef, pickBoons, DamageType, DAMAGE_TYPES } from './config';
 import { MAPS, Point, MapDef, isHudCell } from './maps';
 import { generateMap } from './mapgen';
+import { MapDraft, MapEditTool, MAX_EXITS, draftToMap, mapToDraft, inField, isCastle } from './mapEditor';
 import {
   calculateDamage,
   calculateFactionDamageMult,
@@ -333,6 +334,10 @@ export interface GameStateSnapshot {
   randomMap: boolean;
   /** Свободный режим: золото без счёта, состав волн вручную */
   sandbox: boolean;
+  /** Название карты на поле (свободный режим: готовая, случайная или своя) */
+  mapName: string;
+  /** Свободный режим: открыт редактор карты — инструмент, местность и что мешает применить */
+  mapEdit: { tool: MapEditTool; level: number; errors: string[]; exits: number; roads: number; blocked: number } | null;
   wave: number;
   maxWaves: number;
   tier: number;
@@ -543,6 +548,9 @@ export class GameEngine {
   private currentMap: MapDef = MAPS[0];
   /** Seed of the generated map (endless mode), null — the level's fixed map */
   public mapSeed: number | null = null;
+  /** Свободный режим: черновик редактора карты (клетки — ключи «x,y»), null — редактор закрыт */
+  private mapEdit: { level: number; name: string; road: Set<string>; exits: Point[]; blocked: Set<string>; tool: MapEditTool; paintAdd: boolean } | null = null;
+  private mapEditCheck: ReturnType<typeof draftToMap> | null = null;
   private levelStartTime: number = 0;
   // Road geometry cached per level: ribbon polylines and unique steps for chevrons
   private roadLines: Point[][] = [];
@@ -644,7 +652,7 @@ export class GameEngine {
    * `faction`: whose enemies come; by default the map's own (endless mode lets one pick another).
    * `mapSeed`: a generated road (mapgen.ts) for this level's biome instead of its fixed map; endless mode only.
    */
-  public startLevel(level: number, diff: Difficulty, endless = false, faction?: number, race: RaceId = 'humans', mapSeed: number | null = null) {
+  public startLevel(level: number, diff: Difficulty, endless = false, faction?: number, race: RaceId = 'humans', mapSeed: number | null = null, customMap: MapDef | null = null) {
     this.race = CONFIG.races[race] ? race : 'humans';
     this.megas = [];
     this.fires = [];
@@ -668,7 +676,9 @@ export class GameEngine {
     this.duelOutgoingCost = 0;
     this.duelIncome = 0;
     this.mapSeed = endless && mapSeed ? mapSeed : null;
-    this.currentMap = this.mapSeed ? generateMap(this.level, this.mapSeed) : MAPS[this.level - 1];
+    this.currentMap = customMap ?? (this.mapSeed ? generateMap(this.level, this.mapSeed) : MAPS[this.level - 1]);
+    this.mapEdit = null;
+    this.mapEditCheck = null;
     this.lives = CONFIG.lives.start;
     this.guardLevel = 1;
     this.guardTimer = 0;
@@ -727,8 +737,8 @@ export class GameEngine {
   }
 
   /** Свободный режим: бесконечный режим без таймера волн, с вечным золотом, 5-м ярусом и неубиваемым артефактом */
-  public startSandbox(level: number, diff: Difficulty, faction: number, race: RaceId = 'humans', mapSeed: number | null = null) {
-    this.startLevel(level, diff, true, faction, race, mapSeed);
+  public startSandbox(level: number, diff: Difficulty, faction: number, race: RaceId = 'humans', mapSeed: number | null = null, customMap: MapDef | null = null) {
+    this.startLevel(customMap?.level ?? level, diff, true, faction, race, mapSeed, customMap);
     this.sandbox = true;
     if (this.runLog) this.runLog.data.mode = 'sandbox';
     this.tier = 5;
@@ -774,6 +784,206 @@ export class GameEngine {
     this.waveInProgress = true;
     this.spawnTimer = 0;
     this.onWaveStarted?.();
+    this.notifyState();
+    return true;
+  }
+
+  /** Свободный режим: начать заново на той же карте (смена расы — тоже отсюда: башни другой расы с поля убираются) */
+  public sandboxRestart(race: RaceId = this.race) {
+    if (!this.sandbox) return;
+    this.startSandbox(this.level, this.difficulty, this.faction, race, this.mapSeed, this.mapSeed ? null : this.currentMap);
+  }
+
+  // ----- Редактор карты свободного режима (просьба Артура 2026-11-05) -----
+
+  /** Открыть редактор: черновик — карта на поле */
+  public mapEditOpen() {
+    if (!this.sandbox) return;
+    this.selectTower(null);
+    this.mapEditLoad(this.currentMap);
+  }
+
+  public mapEditClose() {
+    this.mapEdit = null;
+    this.mapEditCheck = null;
+    this.notifyState();
+  }
+
+  public isMapEditing(): boolean {
+    return this.mapEdit !== null;
+  }
+
+  /** Черновик из готовой карты (одной из пяти, случайной или своей) */
+  public mapEditLoad(m: MapDef | MapDraft) {
+    const d = 'paths' in m ? mapToDraft(m) : m;
+    const k = (p: Point) => `${p.x},${p.y}`;
+    this.mapEdit = {
+      level: Math.max(1, Math.min(CONFIG.levelCount, d.level)),
+      name: d.name,
+      road: new Set(d.road.map(k)),
+      exits: d.exits.map((p) => ({ x: p.x, y: p.y })),
+      blocked: new Set(d.blocked.map(k)),
+      tool: this.mapEdit?.tool ?? 'road',
+      paintAdd: true,
+    };
+    this.mapEditChanged();
+  }
+
+  /** Случайная дорога местности черновика (mapgen.ts) */
+  public mapEditRandom(seed: number) {
+    if (!this.mapEdit) return;
+    const level = this.mapEdit.level;
+    this.mapEditLoad({ ...generateMap(level, seed), name: 'Случайная' });
+  }
+
+  public mapEditClear() {
+    if (!this.mapEdit) return;
+    this.mapEdit.road.clear();
+    this.mapEdit.exits = [];
+    this.mapEdit.blocked.clear();
+    this.mapEditChanged();
+  }
+
+  public mapEditTool(tool: MapEditTool) {
+    if (!this.mapEdit) return;
+    this.mapEdit.tool = tool;
+    this.notifyState();
+  }
+
+  /** Местность черновика: палитра, тайлы и числа уровня */
+  public mapEditLevel(level: number) {
+    if (!this.mapEdit) return;
+    this.mapEdit.level = Math.max(1, Math.min(CONFIG.levelCount, Math.floor(level)));
+    this.mapEditChanged(); // проверка хранит готовую карту с местностью: без пересчёта «Применить» взяла бы прежнюю
+  }
+
+  public mapEditDraft(name?: string): MapDraft | null {
+    const e = this.mapEdit;
+    if (!e) return null;
+    const pts = (set: Set<string>) => [...set].map((k) => ({ x: Number(k.split(',')[0]), y: Number(k.split(',')[1]) }));
+    return { level: e.level, name: name ?? e.name, road: pts(e.road), exits: e.exits.map((p) => ({ ...p })), blocked: pts(e.blocked) };
+  }
+
+  /**
+   * Кисть редактора: `start` — первая клетка нажатия. Дорога и «без башен» по первой клетке решают, ставить или стирать,
+   * и дальше ведут так же; выход ставится и снимается только касанием.
+   */
+  public mapEditPaint(x: number, y: number, start: boolean) {
+    // Палец или мышь за кадр проходит несколько клеток: кисть ведётся от прошлой клетки шагами по сторонам, без дыр в дороге
+    const last = this.mapEditLast;
+    if (!start && last && Math.abs(x - last.x) + Math.abs(y - last.y) > 1) {
+      let cx = last.x;
+      let cy = last.y;
+      while (cx !== x || cy !== y) {
+        if (Math.abs(x - cx) >= Math.abs(y - cy)) cx += Math.sign(x - cx);
+        else cy += Math.sign(y - cy);
+        this.mapEditPaintCell(cx, cy, false);
+      }
+      return;
+    }
+    if (!start && last && last.x === x && last.y === y) return;
+    this.mapEditPaintCell(x, y, start);
+  }
+
+  private mapEditLast: Point | null = null;
+
+  private mapEditPaintCell(x: number, y: number, start: boolean) {
+    this.mapEditLast = { x, y };
+    const e = this.mapEdit;
+    const p = { x, y };
+    if (!e || !inField(p) || isCastle(p)) return;
+    const k = `${x},${y}`;
+    const exitIdx = e.exits.findIndex((c) => c.x === x && c.y === y);
+    let changed = false;
+    if (e.tool === 'exit') {
+      if (!start) return;
+      if (exitIdx >= 0) e.exits.splice(exitIdx, 1);
+      else {
+        if (e.exits.length >= MAX_EXITS) {
+          this.addFloatingText(`Не больше ${MAX_EXITS} выходов`, (x + 0.5) * CONFIG.grid.cellSize, y * CONFIG.grid.cellSize, '#e0452f');
+          return;
+        }
+        e.exits.push(p);
+        e.road.add(k);
+        e.blocked.delete(k);
+      }
+      changed = true;
+    } else if (e.tool === 'erase') {
+      changed = e.road.delete(k) || e.blocked.delete(k) || exitIdx >= 0;
+      if (exitIdx >= 0) e.exits.splice(exitIdx, 1);
+    } else {
+      const set = e.tool === 'road' ? e.road : e.blocked;
+      if (start) e.paintAdd = !set.has(k);
+      if (e.paintAdd && !set.has(k)) {
+        set.add(k);
+        (e.tool === 'road' ? e.blocked : e.road).delete(k);
+        if (e.tool === 'block' && exitIdx >= 0) e.exits.splice(exitIdx, 1);
+        changed = true;
+      } else if (!e.paintAdd && set.has(k)) {
+        set.delete(k);
+        if (e.tool === 'road' && exitIdx >= 0) e.exits.splice(exitIdx, 1);
+        changed = true;
+      }
+    }
+    if (changed) this.mapEditChanged();
+  }
+
+  private mapEditChanged() {
+    const d = this.mapEditDraft();
+    this.mapEditCheck = d ? draftToMap(d) : null;
+    this.notifyState();
+  }
+
+  /**
+   * Поставить черновик на поле. Враги на поле и в очереди убираются (их пути — от старой карты),
+   * башни и связки на новой дороге и на клетках без башен — тоже. Возвращает false, если в черновике ошибки.
+   */
+  public mapEditApply(): boolean {
+    const map = this.mapEditCheck?.map;
+    if (!this.sandbox || !this.mapEdit || !map) {
+      sound.playError();
+      return false;
+    }
+    this.level = map.level;
+    this.currentMap = map;
+    this.mapSeed = null;
+    this.enemies = [];
+    this.projectiles = [];
+    this.spawnQueue = [];
+    this.fires = [];
+    this.imps = [];
+    this.blasts = [];
+    this.corpses = [];
+    this.isSpawning = false;
+    this.waveInProgress = false;
+    this.mapEdit = null;
+    this.mapEditCheck = null;
+    const before = this.towers.length + this.binders.length;
+    const cellOk = (c: Point) => this.isCellFree(c.x, c.y);
+    this.towers = this.towers.filter((t) => {
+      this.ignoreTowers.add(t.id);
+      const ok = [{ x: t.x, y: t.y }, ...(t.extra ?? [])].every(cellOk);
+      this.ignoreTowers.delete(t.id);
+      return ok;
+    });
+    const binders = this.binders;
+    this.binders = [];
+    this.binders = binders.filter((b) => cellOk(b));
+    const removed = before - this.towers.length - this.binders.length;
+    this.markModsDirty();
+    this.selectedTowerId = null;
+    this.selectedBinderId = null;
+    this.buildRoadGeometry();
+    this.generateGrass();
+    this.logEv('sandbox-map', {
+      level: map.level,
+      name: map.name,
+      paths: map.paths.map((p) => p.map((c) => [c.x, c.y])),
+      blocked: (map.blocked ?? []).map((c) => [c.x, c.y]),
+      removed,
+    });
+    if (removed > 0) this.addFloatingText(`Убрано с дороги: ${removed}`, CONFIG.grid.totalWidth / 2, 120, '#f4c06a');
+    sound.playBuy();
     this.notifyState();
     return true;
   }
@@ -3179,6 +3389,7 @@ export class GameEngine {
     for (const p of this.currentMap.paths) {
       if (p.some((c) => c.x === cx && c.y === cy)) return false;
     }
+    if (this.currentMap.blocked?.some((c) => c.x === cx && c.y === cy)) return false;
     // Check existing tower or binder
     if (this.towers.some((t) => !this.ignoreTowers.has(t.id) && ((t.x === cx && t.y === cy) || (t.extra && t.extra.some((c) => c.x === cx && c.y === cy))))) return false;
     if (this.binders.some((b) => b.x === cx && b.y === cy)) return false;
@@ -4133,6 +4344,17 @@ export class GameEngine {
       level: this.level,
       randomMap: this.mapSeed !== null,
       sandbox: this.sandbox,
+      mapName: this.currentMap.name,
+      mapEdit: this.mapEdit
+        ? {
+            tool: this.mapEdit.tool,
+            level: this.mapEdit.level,
+            errors: this.mapEditCheck?.errors ?? [],
+            exits: this.mapEdit.exits.length,
+            roads: this.mapEdit.road.size,
+            blocked: this.mapEdit.blocked.size,
+          }
+        : null,
       wave: this.shownWave(),
       maxWaves: 12,
       tier: this.tier,
@@ -4247,6 +4469,7 @@ export class GameEngine {
     const z = dpr * this.viewZoom;
     ctx.setTransform(z, 0, 0, z, -z * this.viewX, -z * this.viewY);
     this.renderField(ctx);
+    if (this.mapEdit) this.renderMapEdit(ctx);
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   }
 
@@ -4324,6 +4547,11 @@ export class GameEngine {
     }
     ctx.lineCap = 'butt';
     ctx.lineJoin = 'miter';
+
+    // Клетки без башен (своя карта свободного режима): тёмная штриховка
+    if (this.currentMap.blocked?.length && !this.mapEdit) {
+      for (const c of this.currentMap.blocked) this.hatchCell(ctx, c, cellSize, 'rgba(0, 0, 0, 0.32)', 'rgba(224, 69, 47, 0.35)');
+    }
 
     // 3. Gates at entrances and the castle
     for (const e of this.currentMap.entrances) {
@@ -4605,6 +4833,111 @@ export class GameEngine {
       ctx.stroke();
     }
     ctx.lineJoin = 'miter';
+  }
+
+  private hatchCell(ctx: CanvasRenderingContext2D, c: Point, cellSize: number, fill: string, line: string) {
+    const x0 = c.x * cellSize;
+    const y0 = c.y * cellSize;
+    ctx.fillStyle = fill;
+    ctx.fillRect(x0, y0, cellSize, cellSize);
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(x0, y0, cellSize, cellSize);
+    ctx.clip();
+    ctx.strokeStyle = line;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    for (let d = -cellSize; d < cellSize; d += cellSize / 4) {
+      ctx.moveTo(x0 + d, y0 + cellSize);
+      ctx.lineTo(x0 + d + cellSize, y0);
+    }
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  /** Редактор карты: черновик поверх затемнённого поля — дорога, выходы с номерами, клетки без башен, ошибки красным */
+  private renderMapEdit(ctx: CanvasRenderingContext2D) {
+    const e = this.mapEdit!;
+    const cs = CONFIG.grid.cellSize;
+    const palette = CONFIG.palettes[e.level - 1];
+    const timeSec = performance.now() / 1000;
+    ctx.fillStyle = 'rgba(10, 8, 16, 0.82)';
+    ctx.fillRect(0, 0, CONFIG.grid.totalWidth, CONFIG.grid.totalHeight);
+    // сетка
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    for (let x = 1; x < CONFIG.grid.cols; x++) {
+      ctx.moveTo(x * cs, 0);
+      ctx.lineTo(x * cs, CONFIG.grid.totalHeight);
+    }
+    for (let y = 1; y < CONFIG.grid.rows; y++) {
+      ctx.moveTo(0, y * cs);
+      ctx.lineTo(CONFIG.grid.totalWidth, y * cs);
+    }
+    ctx.stroke();
+    const at = (k: string) => ({ x: Number(k.split(',')[0]), y: Number(k.split(',')[1]) });
+    const roadFill = mixColor(palette.road, '#ffffff', 0.2);
+    for (const k of e.road) {
+      const c = at(k);
+      ctx.fillStyle = roadFill;
+      ctx.fillRect(c.x * cs + 3, c.y * cs + 3, cs - 6, cs - 6);
+    }
+    for (const k of e.blocked) this.hatchCell(ctx, at(k), cs, 'rgba(224, 69, 47, 0.12)', 'rgba(224, 69, 47, 0.6)');
+    const check = this.mapEditCheck;
+    // путь каждого выхода — пунктир от выхода к артефакту
+    if (check) {
+      const paths = check.map?.paths ?? [];
+      ctx.strokeStyle = 'rgba(244, 192, 106, 0.55)';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([5, 5]);
+      ctx.lineDashOffset = -timeSec * 20;
+      for (const p of paths) {
+        ctx.beginPath();
+        p.forEach((c, i) => (i ? ctx.lineTo((c.x + 0.5) * cs, (c.y + 0.5) * cs) : ctx.moveTo((c.x + 0.5) * cs, (c.y + 0.5) * cs)));
+        ctx.lineTo(CONFIG.grid.castleTarget.x * cs, CONFIG.grid.castleTarget.y * cs);
+        ctx.stroke();
+      }
+      ctx.setLineDash([]);
+      ctx.lineDashOffset = 0;
+      ctx.strokeStyle = '#e0452f';
+      ctx.lineWidth = 3;
+      for (const c of [...check.unused, ...check.broken]) ctx.strokeRect(c.x * cs + 4, c.y * cs + 4, cs - 8, cs - 8);
+    }
+    // артефакт
+    const cc = CONFIG.grid.castleCells[0];
+    ctx.fillStyle = 'rgba(127, 214, 224, 0.35)';
+    ctx.fillRect(cc.x * cs + 3, cc.y * cs + 3, cs - 6, cs - 6);
+    ctx.fillStyle = '#e8fbff';
+    ctx.font = `700 ${Math.round(cs * 0.22)}px system-ui, sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('Артефакт', (cc.x + 0.5) * cs, (cc.y + 0.5) * cs);
+    // выходы
+    e.exits.forEach((c, i) => {
+      const cx = (c.x + 0.5) * cs;
+      const cy = (c.y + 0.5) * cs;
+      ctx.fillStyle = check?.broken.some((b) => b.x === c.x && b.y === c.y) ? '#e0452f' : '#c0392b';
+      ctx.beginPath();
+      ctx.arc(cx, cy, cs * 0.3, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = '#ffd9a0';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      ctx.fillStyle = '#fff';
+      ctx.font = `900 ${Math.round(cs * 0.3)}px system-ui, sans-serif`;
+      ctx.fillText(String(i + 1), cx, cy + 1);
+    });
+    ctx.textAlign = 'start';
+    ctx.textBaseline = 'alphabetic';
+    const h = this.hoverCell;
+    if (h) {
+      ctx.strokeStyle = '#f4c06a';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([6, 4]);
+      ctx.strokeRect(h.x * cs + 2, h.y * cs + 2, cs - 4, cs - 4);
+      ctx.setLineDash([]);
+    }
   }
 
   private renderGate(ctx: CanvasRenderingContext2D, e: Point, cellSize: number, light: string, timeSec: number) {

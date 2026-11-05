@@ -20,6 +20,9 @@ import { Backpack } from './components/Backpack';
 import { ShopPanel, ShopCard } from './components/ShopPanel';
 import { SandboxSummaryModal } from './components/SandboxSummaryModal';
 import { SandboxPanel } from './components/SandboxPanel';
+import { SandboxMapPanel } from './components/SandboxMapPanel';
+import { SavedMap, loadCustomMaps, saveCustomMap, deleteCustomMap } from './customMaps';
+import { MAPS } from './game/maps';
 import { SandboxWaveModal, SandboxWave } from './components/SandboxWaveModal';
 import { rollShop, ShopPity } from './game/shop';
 import { TowerPanel, WaitingHint } from './components/TowerPanel';
@@ -190,6 +193,8 @@ export default function App() {
     level: 1,
     randomMap: false,
     sandbox: false,
+    mapName: '',
+    mapEdit: null,
     wave: 1,
     maxWaves: 12,
     tier: 1,
@@ -466,14 +471,13 @@ export default function App() {
 
   // «Потасовка»: a room of eight run here, driven like a duel (src/brawl.ts); its board for the overlay
   const [brawl, setBrawl] = useState<BrawlSnapshot | null>(null);
-  // Свободный режим (песочница, просьба Артура 2026-11-02): карта и враги — чтобы «Заново» начал то же поле
-  const [sandboxCfg, setSandboxCfg] = useState<{ level: number; enemies: number; randomRoad: boolean } | null>(null);
+  // Свободный режим (песочница, просьба Артура 2026-11-02); раса, враги и карта меняются внутри режима (2026-11-05)
   const [sandboxWaveOpen, setSandboxWaveOpen] = useState(false);
   const [sandboxSummaryOpen, setSandboxSummaryOpen] = useState(false);
   const [sandboxWave, setSandboxWave] = useState<SandboxWave>({ faction: 1, wave: 1, counts: {} });
+  const [customMaps, setCustomMaps] = useState<SavedMap[]>(() => loadCustomMaps());
   const handleSandboxStart = (level: number, enemies: number, randomRoad: boolean, seed: number | null = randomRoad ? newMapSeed() : null) => {
     sound.init();
-    setSandboxCfg({ level, enemies, randomRoad });
     setSandboxWaveOpen(false);
     setSandboxWave({ faction: enemies || level, wave: 1, counts: {} });
     setSpecModalTower(null);
@@ -651,8 +655,9 @@ export default function App() {
     if (!engine) return;
 
     const seed = engine.mapSeed; // «Повторить» — та же случайная дорога
-    if (engine.sandbox && sandboxCfg) {
-      handleSandboxStart(sandboxCfg.level, sandboxCfg.enemies, sandboxCfg.randomRoad, seed);
+    if (engine.sandbox) {
+      // «Заново» в свободном режиме — та же карта (и своя), та же раса
+      engine.sandboxRestart();
       return;
     }
     if (screen === 'playing' && canvasRef.current) {
@@ -906,7 +911,7 @@ export default function App() {
 
   const pointersRef = useRef(new Map<number, { x: number; y: number }>());
   // The current press: where it started, whether it became a drag or a pinch
-  const gestureRef = useRef<{ x: number; y: number; mode: 'tap' | 'pan' | 'tower' | 'pinch'; towerId: string | null } | null>(null);
+  const gestureRef = useRef<{ x: number; y: number; mode: 'tap' | 'pan' | 'tower' | 'pinch' | 'paint'; towerId: string | null } | null>(null);
   const pinchRef = useRef<{ dist: number; midX: number; midY: number } | null>(null);
   const DRAG_START_PX = 8;
 
@@ -925,7 +930,12 @@ export default function App() {
     e.currentTarget.setPointerCapture(e.pointerId);
     pointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
 
-    if (pointersRef.current.size === 1) {
+    if (pointersRef.current.size === 1 && engine.isMapEditing()) {
+      // Редактор карты: кисть рисует сразу и дальше по клеткам, через которые ведут палец или мышь
+      const cell = toCell(e.clientX, e.clientY);
+      engine.mapEditPaint(cell.x, cell.y, true);
+      gestureRef.current = { x: e.clientX, y: e.clientY, mode: 'paint', towerId: null };
+    } else if (pointersRef.current.size === 1) {
       const cell = toCell(e.clientX, e.clientY);
       const tower = engine.towerAtCell(cell.x, cell.y);
       // A press on a tower can drag it to another cell: free between waves, for gold in a duel during a wave
@@ -961,6 +971,10 @@ export default function App() {
       if (before.dist > 0) engine.zoomAt(now.midX, now.midY, now.dist / before.dist);
       engine.panBy(now.midX - before.midX, now.midY - before.midY);
       pinchRef.current = now;
+      return;
+    }
+    if (g.mode === 'paint') {
+      if (cell.x >= 0 && cell.x < CONFIG.grid.cols && cell.y >= 0 && cell.y < CONFIG.grid.rows) engine.mapEditPaint(cell.x, cell.y, false);
       return;
     }
     if (g.mode === 'tap' && Math.hypot(e.clientX - g.x, e.clientY - g.y) > DRAG_START_PX) {
@@ -1083,6 +1097,11 @@ export default function App() {
       if (engine.hyperPlan) {
         e.preventDefault();
         engine.cancelHyper();
+        return;
+      }
+      if (engine.isMapEditing()) {
+        e.preventDefault();
+        engine.mapEditClose();
         return;
       }
       if (specModalTower) {
@@ -1508,8 +1527,48 @@ export default function App() {
                   }}
                   onClear={() => engineRef.current?.clearSends()}
                 />
+              ) : gameState.sandbox && gameState.mapEdit ? (
+                <SandboxMapPanel
+                  edit={gameState.mapEdit}
+                  saved={customMaps}
+                  onTool={(t) => engineRef.current?.mapEditTool(t)}
+                  onLevel={(l) => engineRef.current?.mapEditLevel(l)}
+                  onLoadFixed={(l) => engineRef.current?.mapEditLoad(MAPS[l - 1])}
+                  onLoadRandom={() => engineRef.current?.mapEditRandom(newMapSeed())}
+                  onLoadSaved={(m) => engineRef.current?.mapEditLoad(m)}
+                  onClear={() => engineRef.current?.mapEditClear()}
+                  onApply={() => {
+                    sound.init();
+                    engineRef.current?.mapEditApply();
+                  }}
+                  onClose={() => engineRef.current?.mapEditClose()}
+                  onSave={() => {
+                    const engine = engineRef.current;
+                    const draft = engine?.mapEditDraft();
+                    if (!engine || !draft) return;
+                    const base = draft.name && !MAPS.some((m) => m.name === draft.name) && draft.name !== 'Случайная' ? draft.name : `Моя карта ${customMaps.length + 1}`;
+                    const name = window.prompt('Название карты (то же название перезапишет её)', base);
+                    if (name === null) return;
+                    setCustomMaps(saveCustomMap({ ...draft, name: name.trim() || base }));
+                    engine.mapEditLoad({ ...draft, name: name.trim() || base });
+                  }}
+                  onDelete={(id) => {
+                    const m = customMaps.find((x) => x.id === id);
+                    if (m && window.confirm(`Удалить карту «${m.name}»?`)) setCustomMaps(deleteCustomMap(id));
+                  }}
+                  compact={layout === 'bottom'}
+                />
               ) : gameState.sandbox ? (
                 <SandboxPanel
+                  onRace={(r) => {
+                    setRace(r);
+                    setSpecModalTower(null);
+                    engineRef.current?.sandboxRestart(r);
+                  }}
+                  enemyFaction={sandboxWave.faction}
+                  onEnemyFaction={(f) => setSandboxWave((v) => ({ ...v, faction: f }))}
+                  mapName={gameState.mapName}
+                  onEditMap={() => engineRef.current?.mapEditOpen()}
                   race={gameState.race}
                   maxLevel={gameState.maxLevel}
                   selectedTower={gameState.selectedTower ? { type: gameState.selectedTower.type, level: gameState.selectedTower.level } : null}

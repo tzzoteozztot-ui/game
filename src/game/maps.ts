@@ -35,6 +35,8 @@ export interface MapDef {
   name: string;
   entrances: Point[];
   paths: Point[][];
+  /** Клетки, где нельзя ставить башни (своя карта свободного режима) */
+  blocked?: Point[];
 }
 
 export function makePath(points: Point[]): Point[] {

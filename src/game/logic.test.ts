@@ -676,3 +676,34 @@ test('лавка: гарантия готовой башни — за 10 обн�
   assert.ok(!rollShop(4, [...types], { triplets: true, binders: false }, { since: 0 }, () => 0.01).some((c) => c.level3));
   assert.ok(rollShop(5, [...types], { triplets: true, binders: false }, { since: 0 }, () => 0.01).some((c) => c.level3));
 });
+
+// ----- Редактор карты свободного режима -----
+import { draftToMap, mapToDraft } from './mapEditor';
+
+test('редактор карты: готовые карты проходят через черновик', () => {
+  for (const m of MAPS) {
+    const res = draftToMap(mapToDraft(m));
+    assert.deepEqual(res.errors, [], m.name);
+    assert.equal(res.map!.entrances.length, m.entrances.length);
+    for (const p of res.map!.paths) {
+      const end = p[p.length - 1];
+      assert.equal(Math.abs(end.x - 7) + Math.abs(end.y - 4), 1);
+    }
+  }
+});
+
+test('редактор карты: ошибки черновика', () => {
+  const empty = draftToMap({ level: 1, name: '', road: [], exits: [], blocked: [] });
+  assert.equal(empty.map, null);
+  assert.ok(empty.errors.length > 0);
+  // дорога (0,4)→(6,4) к артефакту, выход слева, лишняя клетка (3,0) и выход без пути (13,0)
+  const road = Array.from({ length: 7 }, (_, x) => ({ x, y: 4 }));
+  const ok = draftToMap({ level: 1, name: 'т', road, exits: [{ x: 0, y: 4 }], blocked: [{ x: 2, y: 2 }] });
+  assert.deepEqual(ok.errors, []);
+  assert.equal(ok.map!.paths[0].length, 7);
+  assert.deepEqual(ok.map!.blocked, [{ x: 2, y: 2 }]);
+  const bad = draftToMap({ level: 1, name: 'т', road: [...road, { x: 3, y: 0 }, { x: 13, y: 0 }], exits: [{ x: 0, y: 4 }, { x: 13, y: 0 }], blocked: [] });
+  assert.equal(bad.map, null);
+  assert.equal(bad.broken.length, 1);
+  assert.equal(bad.unused.length, 2);
+});

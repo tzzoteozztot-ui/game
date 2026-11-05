@@ -302,10 +302,9 @@ function BrawlPage({ onBack, unlockedLevel, selectedLevel, onSelectLevel, race, 
 }
 
 // -------------------------------------------------------------
-// Sandbox: the map, whose enemies, the difficulty and the race; the field itself is for testing (просьба Артура 2026-11-02)
+// Sandbox: the starting map and the difficulty; race, enemies and the map itself change inside the mode (просьба Артура 2026-11-05)
 // -------------------------------------------------------------
-function SandboxPage({ onBack, race, onChangeRace, selectedDifficulty, onChangeDifficulty, randomMap, onChangeRandomMap, selectedLevel, onSelectLevel, onStartSandbox }: MainMenuProps & { onBack: () => void }) {
-  const [enemies, setEnemies] = useState(0);
+function SandboxPage({ onBack, selectedDifficulty, onChangeDifficulty, selectedLevel, onSelectLevel, onStartSandbox }: MainMenuProps & { onBack: () => void }) {
   const level = Math.max(1, Math.min(CONFIG.levelCount, selectedLevel));
   return (
     <div className="w-full max-w-md short:max-w-3xl flex flex-col items-center">
@@ -314,11 +313,12 @@ function SandboxPage({ onBack, race, onChangeRace, selectedDifficulty, onChangeD
         <div className={`${PANEL} w-full p-2.5 short:p-2 text-xs text-stone-300 leading-relaxed`}>
           Поле для проверок. Золото не кончается, любую башню своей расы можно взять сразу нужного уровня и со свойством, а выбранную —
           поднять или сменить ей свойство. Состав волны (виды врагов, сколько, чьи, номер волны для здоровья) и запуск — ваши.
-          Артефакт не падает. Лог партии скачивается кнопкой в боковой колонке. Рекорды и звёзды режим не даёт.
+          Раса, чьи враги и карта меняются прямо в режиме: в редакторе карты можно нарисовать свою дорогу, выходы врагов и клетки без башен
+          и сохранить карту. Артефакт не падает. Лог партии скачивается кнопкой в боковой колонке. Рекорды и звёзды режим не даёт.
         </div>
         <div className="w-full flex flex-col gap-2 short:gap-1.5">
           <label className={`${PANEL} w-full flex items-center justify-between gap-2 p-1`}>
-            <span className="text-xs font-semibold text-stone-400 pl-3 short:pl-2">Карта:</span>
+            <span className="text-xs font-semibold text-stone-400 pl-3 short:pl-2">Карта для начала:</span>
             <select
               value={level}
               onChange={(e) => onSelectLevel(Number(e.target.value))}
@@ -331,39 +331,6 @@ function SandboxPage({ onBack, race, onChangeRace, selectedDifficulty, onChangeD
               ))}
             </select>
           </label>
-          <label className={`${PANEL} w-full flex items-center justify-between gap-2 p-1`}>
-            <span className="text-xs font-semibold text-stone-400 pl-3 short:pl-2">Враги:</span>
-            <select
-              value={enemies}
-              onChange={(e) => setEnemies(Number(e.target.value))}
-              className="min-h-[36px] short:min-h-[34px] flex-1 max-w-[220px] rounded bg-[#221f2d] border border-[#383347] px-2 text-xs font-bold text-stone-200 cursor-pointer"
-            >
-              <option value={0}>Хозяева карты ({CONFIG.factions[level - 1].name})</option>
-              {CONFIG.factions.map((f) => (
-                <option key={f.id} value={f.id}>
-                  {f.name}
-                </option>
-              ))}
-            </select>
-          </label>
-          <div className={`${PANEL} w-full flex items-center justify-between p-1`}>
-            <span className="text-xs font-semibold text-stone-400 pl-3 short:pl-2 pr-1">Дорога:</span>
-            <div className="flex items-center gap-1 short:gap-0.5">
-              {[false, true].map((on) => (
-                <button
-                  key={String(on)}
-                  type="button"
-                  onClick={() => onChangeRandomMap(on)}
-                  aria-pressed={randomMap === on}
-                  className={`px-3 short:px-1.5 py-1.5 min-h-[36px] short:min-h-[34px] rounded text-xs font-bold transition-colors cursor-pointer ${
-                    randomMap === on ? 'bg-amber-600 text-stone-950 font-black' : 'text-stone-400 hover:text-stone-200 hover:bg-[#221f2d]'
-                  }`}
-                >
-                  {on ? 'Случайная' : 'Как на карте'}
-                </button>
-              ))}
-            </div>
-          </div>
           <div className={`${PANEL} w-full flex items-center justify-between p-1`}>
             <span className="text-xs font-semibold text-stone-400 pl-3 short:pl-2 pr-1">Сложность:</span>
             <div className="flex items-center gap-1 short:gap-0.5">
@@ -381,15 +348,12 @@ function SandboxPage({ onBack, race, onChangeRace, selectedDifficulty, onChangeD
               ))}
             </div>
           </div>
-          <div className={`${PANEL} w-full p-1.5`}>
-            <RacePicker race={race} onChange={onChangeRace} compact />
-          </div>
           <button
             type="button"
-            onClick={() => onStartSandbox(level, enemies, randomMap)}
+            onClick={() => onStartSandbox(level, 0, false)}
             className="w-full min-h-[48px] short:min-h-[42px] py-2 px-4 rounded bg-amber-500 hover:bg-amber-400 text-stone-950 font-black text-sm short:text-xs tracking-wider uppercase transition-all shadow-lg shadow-amber-950/50 cursor-pointer active:translate-y-0.5"
           >
-            Начать: {CONFIG.factions[level - 1].location}
+            Начать
           </button>
         </div>
       </div>
