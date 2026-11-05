@@ -854,7 +854,7 @@ export class GameEngine {
   public mapEditLevel(level: number) {
     if (!this.mapEdit) return;
     this.mapEdit.level = Math.max(1, Math.min(CONFIG.levelCount, Math.floor(level)));
-    this.notifyState();
+    this.mapEditChanged(); // проверка хранит готовую карту с местностью: без пересчёта «Применить» взяла бы прежнюю
   }
 
   public mapEditDraft(name?: string): MapDraft | null {
