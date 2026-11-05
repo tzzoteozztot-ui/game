@@ -309,44 +309,44 @@ export const CONFIG = {
 
     // ---------------- Орки: рост от 4 башен, закалка при постановке ----------------
     orc_spear: {
-      type: 'orc_spear', race: 'orcs', name: 'Метатель копий', cost: 55, damage: 9, damageType: 'phys', cooldown: 0.8, range: 2.8,
+      type: 'orc_spear', race: 'orcs', name: 'Метатель копий', cost: 55, damage: 12, damageType: 'phys', cooldown: 0.8, range: 2.8,
       shape: 'triangle', color: '#a9bf5a', sprite: 'enemy_scout_1', sound: 'archer', specs: ORC_SPECS,
       desc: 'Копьё пробивает цель и бьёт ещё одного врага за ней (в 1 клетке).',
     } as TowerBaseDef,
     orc_totem: {
-      type: 'orc_totem', race: 'orcs', name: 'Тотем предков', cost: 60, damage: 3, damageType: 'lightning', cooldown: 1.0, range: 2.5,
+      type: 'orc_totem', race: 'orcs', name: 'Тотем предков', cost: 60, damage: 4, damageType: 'lightning', cooldown: 1.0, range: 2.5,
       shape: 'circle', color: '#e0c26a', sprite: 'enemy_shaman_1', sound: 'priest', specs: ORC_SPECS,
       desc: 'Ярость: орочьи башни в соседних клетках стреляют на 10 % быстрее (Ур.2 — 15 %, Ур.3 — 20 %).',
     } as TowerBaseDef,
     orc_trebuchet: {
-      type: 'orc_trebuchet', race: 'orcs', name: 'Требушет', cost: 90, damage: 36, damageType: 'phys', cooldown: 2.6, range: 4.0, aoe: 0.9,
+      type: 'orc_trebuchet', race: 'orcs', name: 'Требушет', cost: 90, damage: 47, damageType: 'phys', cooldown: 2.6, range: 4.0, aoe: 0.9,
       shape: 'square', color: '#b98a52', sprite: 'enemy_heavy_1', sound: 'ballista', specs: ORC_SPECS,
       desc: 'Медленный камень по области 0,9 клетки, далеко бьёт.',
     } as TowerBaseDef,
     orc_cage: {
-      type: 'orc_cage', race: 'orcs', name: 'Клетка зверя', cost: 100, damage: 6, damageType: 'phys', cooldown: 0.5, range: 2.0,
+      type: 'orc_cage', race: 'orcs', name: 'Клетка зверя', cost: 100, damage: 8, damageType: 'phys', cooldown: 0.5, range: 2.0,
       shape: 'rhombus', color: '#c96a3a', sprite: 'enemy_swarm_1', sound: 'archer', special: 'cage', specs: ORC_SPECS,
       desc: 'Гончая кусает раз в 0,5 с и раз в 6 с держит врага на месте 3 с (босса — 1 с).',
     } as TowerBaseDef,
 
     // ---------------- Нежить: слияние двух, выбор «урон или скорость» ----------------
     und_archer: {
-      type: 'und_archer', race: 'undead', name: 'Костяной лучник', cost: 40, damage: 9, damageType: 'phys', cooldown: 0.7, range: 2.7,
+      type: 'und_archer', race: 'undead', name: 'Костяной лучник', cost: 40, damage: 13, damageType: 'phys', cooldown: 0.7, range: 2.7,
       shape: 'triangle', color: '#c9d6b0', sprite: 'enemy_scout_2', sound: 'archer', specs: UNDEAD_SPECS,
       desc: 'Дешёвый дальний стрелок.',
     } as TowerBaseDef,
     und_digger: {
-      type: 'und_digger', race: 'undead', name: 'Могильщик', cost: 55, damage: 5, damageType: 'ice', cooldown: 1.0, range: 2.5,
+      type: 'und_digger', race: 'undead', name: 'Могильщик', cost: 55, damage: 7, damageType: 'ice', cooldown: 1.0, range: 2.5,
       shape: 'circle', color: '#9fb88a', sprite: 'enemy_infantry_2', sound: 'priest', specs: UNDEAD_SPECS,
       desc: 'Замедляет цель на 30 % на 3 с. Враг, убитый в его радиусе, становится призраком: соседи замедлены на 20 % на 1 с.',
     } as TowerBaseDef,
     und_cauldron: {
-      type: 'und_cauldron', race: 'undead', name: 'Чумной котёл', cost: 70, damage: 6, damageType: 'poison', cooldown: 1.4, range: 2.6, aoe: 0.9,
+      type: 'und_cauldron', race: 'undead', name: 'Чумной котёл', cost: 70, damage: 9, damageType: 'poison', cooldown: 1.4, range: 2.6, aoe: 0.9,
       shape: 'rhombus', color: '#8fd45a', sprite: 'enemy_shaman_2', sound: 'mage', specs: UNDEAD_SPECS,
       desc: 'Яд по области: 25 % урона в секунду 4 с; при гибели отравленного яд переходит на соседа.',
     } as TowerBaseDef,
     und_crypt: {
-      type: 'und_crypt', race: 'undead', name: 'Склеп', cost: 90, damage: 6, damageType: 'poison', cooldown: 8, range: 2.0, minTier: 2,
+      type: 'und_crypt', race: 'undead', name: 'Склеп', cost: 90, damage: 9, damageType: 'poison', cooldown: 8, range: 2.0, minTier: 2,
       shape: 'square', color: '#7a8a6a', sprite: 'enemy_heavy_2', sound: 'mage', special: 'crypt', specs: UNDEAD_SPECS,
       desc: 'Копит души убитых в радиусе (до 10); раз в 8 с залп по всем в радиусе: 6 урона за каждую душу. В лавке со 2-го яруса.',
     } as TowerBaseDef,
@@ -401,22 +401,22 @@ export const CONFIG = {
 
     // ---------------- Тёмные эльфы: крит копится 10 с ----------------
     elf_archer: {
-      type: 'elf_archer', race: 'elves', name: 'Теневой лучник', cost: 55, damage: 6, damageType: 'phys', cooldown: 0.5, range: 2.7,
+      type: 'elf_archer', race: 'elves', name: 'Теневой лучник', cost: 55, damage: 9, damageType: 'phys', cooldown: 0.5, range: 2.7,
       shape: 'triangle', color: '#3ed6c4', sprite: 'enemy_scout_5', sound: 'archer', specs: [],
       desc: 'Быстрый дальний стрелок.',
     } as TowerBaseDef,
     elf_weaver: {
-      type: 'elf_weaver', race: 'elves', name: 'Ткачиха теней', cost: 65, damage: 3, damageType: 'poison', cooldown: 1.0, range: 2.5,
+      type: 'elf_weaver', race: 'elves', name: 'Ткачиха теней', cost: 65, damage: 4.5, damageType: 'poison', cooldown: 1.0, range: 2.5,
       shape: 'circle', color: '#9a7ae0', sprite: 'enemy_shaman_5', sound: 'priest', specs: [],
       desc: 'Паутина на цель и врагов в 1 клетке: замедление 25 % и −30 % урона по артефакту, 3 с.',
     } as TowerBaseDef,
     elf_sphere: {
-      type: 'elf_sphere', race: 'elves', name: 'Сумеречная сфера', cost: 80, damage: 12, damageType: 'lightning', cooldown: 1.5, range: 2.6, aoe: 0.9,
+      type: 'elf_sphere', race: 'elves', name: 'Сумеречная сфера', cost: 80, damage: 18, damageType: 'lightning', cooldown: 1.5, range: 2.6, aoe: 0.9,
       shape: 'rhombus', color: '#6a5ad8', sprite: 'enemy_heavy_5', sound: 'mage', specs: [],
       desc: 'Сфера взрывается через 0,5 с после падения, по области 0,9 клетки.',
     } as TowerBaseDef,
     elf_blade: {
-      type: 'elf_blade', race: 'elves', name: 'Клинок сумерек', cost: 60, damage: 7, damageType: 'phys', cooldown: 0.4, range: 1.3,
+      type: 'elf_blade', race: 'elves', name: 'Клинок сумерек', cost: 60, damage: 10.5, damageType: 'phys', cooldown: 0.4, range: 1.3,
       shape: 'square', color: '#e8c76a', sprite: 'enemy_infantry_5', sound: 'archer', specs: [],
       desc: 'Ближний и быстрый. «Охота на отставших»: ×1,3 по врагу, который уже прошёл мимо двух других башен.',
     } as TowerBaseDef,
