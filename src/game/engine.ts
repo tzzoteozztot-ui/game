@@ -96,6 +96,7 @@ interface GroundFire {
   dps: number;
   t: number;
   towerId: string;
+  hot?: boolean; // пятно «Извержения»: урон идёт в счёт способности и после её конца
 }
 
 interface Imp {
@@ -502,6 +503,9 @@ export class GameEngine {
   private dmgSource: string | null = null; // tower whose hit is being applied
   private summarySeq = 0;
   private runStats = { killed: 0, leaked: 0, gold: 0, lives: 0, time: 0, dmg: new Map<string, number>(), other: 0 };
+  private abilDmg = new Map<string, number>(); // урон башни за время её способности и пятен «Извержения», за забег (лог)
+  private abilSec = new Map<string, number>(); // секунд работы способности, за забег (лог)
+  private abilHot = false; // следующий урон идёт в счёт способности
   public lastSummary: WaveSummary | null = null;
   public placingSlot: number | null = null;
   public selectedBinderId: string | null = null;
@@ -705,6 +709,8 @@ export class GameEngine {
     this.placingSlot = null;
     this.resetWaveStats();
     this.runStats = { killed: 0, leaked: 0, gold: 0, lives: 0, time: 0, dmg: new Map(), other: 0 };
+    this.abilDmg = new Map();
+    this.abilSec = new Map();
     this.lastSummary = null;
     this.runLog = new RunLog({ mode: 'campaign', map: this.level, mapSeed, difficulty: diff, race: this.race, faction: this.faction });
     this.runLog.data.mode = endless ? 'endless' : 'campaign';
@@ -1278,6 +1284,7 @@ export class GameEngine {
       ...(t.extra ? { extra: t.extra.map((c) => ({ ...c })) } : {}),
       ...(t.fused ? { fused: { shapes: [...t.fused.shapes], megas: t.fused.megas, parts: t.fused.parts.map((p) => ({ type: p.type, level: p.level, specs: [...p.specs] })) } } : {}),
       damage: Math.round(this.runStats.dmg.get(t.id) || 0),
+      ...(CONFIG.towers[t.type].ability ? { abilDmg: Math.round(this.abilDmg.get(t.id) || 0), abilSec: Math.round((this.abilSec.get(t.id) || 0) * 10) / 10 } : {}),
     }));
   }
 
@@ -1341,6 +1348,7 @@ export class GameEngine {
     } else {
       this.waveStats.dmg.set(id, (this.waveStats.dmg.get(id) || 0) + amount);
       this.runStats.dmg.set(id, (this.runStats.dmg.get(id) || 0) + amount);
+      if (this.abilHot || (this.towers.find((t) => t.id === id)?.abilityLeft ?? 0) > 0) this.abilDmg.set(id, (this.abilDmg.get(id) || 0) + amount);
       if (id === this.selectedTowerId) this.selectedDamageDirty = true;
     }
   }
@@ -1554,6 +1562,7 @@ export class GameEngine {
       if (tower.holdCd !== undefined && tower.holdCd > 0) tower.holdCd -= dt;
       if (tower.abilityCd !== undefined && tower.abilityCd > 0) tower.abilityCd = Math.max(0, tower.abilityCd - dt);
       if (tower.abilityLeft !== undefined && tower.abilityLeft > 0) {
+        this.abilSec.set(tower.id, (this.abilSec.get(tower.id) || 0) + Math.min(dt, tower.abilityLeft));
         tower.abilityLeft = Math.max(0, tower.abilityLeft - dt);
         this.abilityTick(tower, dt);
       }
@@ -2449,7 +2458,9 @@ export class GameEngine {
         this.fires.splice(i, 1);
         continue;
       }
+      this.abilHot = !!f.hot;
       for (const e of this.enemiesNear(f.x, f.y, f.r)) this.directDamage(e, f.dps * dt * (e.type === 'flyer' ? mech.demFlyerMult : 1), f.towerId, 'fire');
+      this.abilHot = false;
     }
     for (let i = this.blasts.length - 1; i >= 0; i--) {
       const b = this.blasts[i];
@@ -2573,7 +2584,7 @@ export class GameEngine {
       this.sortEnemiesByPriority(near, tower.priority, tx, ty);
       if (near[0]) {
         const m = CONFIG.raceMech;
-        this.fires.push({ x: near[0].x, y: near[0].y, r: m.patchRadius * cs * 3, dps: st.damage * mods.dmg * m.patchShare * 2 * m.abilityMult, t: m.patchTime, towerId: tower.id });
+        this.fires.push({ x: near[0].x, y: near[0].y, r: m.patchRadius * cs * 3, dps: st.damage * mods.dmg * m.patchShare * 2 * m.abilityMult, t: m.patchTime, towerId: tower.id, hot: true });
       }
     }
     this.spawnRing(tx, ty, '#ff7a3a', 36);
@@ -2744,6 +2755,7 @@ export class GameEngine {
         dps: p.damage * mech.patchShare * (erupt ? 2 * mech.abilityMult : 1),
         t: mech.patchTime,
         towerId: p.towerId,
+        hot: erupt,
       });
     }
     if (p.towerType === 'orc_spear' && target) {
