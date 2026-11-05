@@ -3597,7 +3597,10 @@ export class GameEngine {
         taken.add(key(first));
         const size = Math.min(left, Math.random() < 0.5 ? 3 : 2);
         while (cells.length < size) {
-          const next = cells.flatMap(sides).filter((n) => inGroup.has(key(n)) && !taken.has(key(n)));
+          const own = new Set(cells.map(key));
+          const next = cells
+            .flatMap(sides)
+            .filter((n) => inGroup.has(key(n)) && !taken.has(key(n)) && !sides(n).some((m) => taken.has(key(m)) && !own.has(key(m))));
           if (!next.length) break;
           const n = next[Math.floor(Math.random() * next.length)];
           cells.push(n);
