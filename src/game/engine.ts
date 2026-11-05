@@ -4548,9 +4548,11 @@ export class GameEngine {
     ctx.lineCap = 'butt';
     ctx.lineJoin = 'miter';
 
-    // Клетки без башен (своя карта свободного режима): тёмная штриховка
+    // Клетки без башен: пульсирующий магический нарост (public/tiles/blocked), пока он грузится — тёмная штриховка
     if (this.currentMap.blocked?.length && !this.mapEdit) {
-      for (const c of this.currentMap.blocked) this.hatchCell(ctx, c, cellSize, 'rgba(0, 0, 0, 0.32)', 'rgba(224, 69, 47, 0.35)');
+      for (const c of this.currentMap.blocked) {
+        if (!this.drawGrowth(ctx, c, cellSize, timeSec)) this.hatchCell(ctx, c, cellSize, 'rgba(0, 0, 0, 0.32)', 'rgba(224, 69, 47, 0.35)');
+      }
     }
 
     // 3. Gates at entrances and the castle
@@ -4833,6 +4835,40 @@ export class GameEngine {
       ctx.stroke();
     }
     ctx.lineJoin = 'miter';
+  }
+
+  /** Магические наросты закрытых клеток: 4 варианта, грузятся один раз */
+  private static growthImgs: HTMLImageElement[] | null = null;
+
+  /** Нарост на закрытой клетке: вариант по координатам, бирюзовый ореол и яркость дышат (у каждой клетки своя фаза).
+   *  false — картинки ещё не загрузились */
+  private drawGrowth(ctx: CanvasRenderingContext2D, c: Point, cellSize: number, timeSec: number): boolean {
+    if (!GameEngine.growthImgs) {
+      GameEngine.growthImgs = [1, 2, 3, 4].map((i) => {
+        const img = new Image();
+        img.src = `tiles/blocked/growth${i}.png`;
+        return img;
+      });
+    }
+    const img = GameEngine.growthImgs[(c.x * 7 + c.y * 3) % 4];
+    if (!img.complete || !img.naturalWidth) return false;
+    const cx = (c.x + 0.5) * cellSize;
+    const cy = (c.y + 0.5) * cellSize;
+    const pulse = 0.5 + 0.5 * Math.sin(timeSec * 2.2 + c.x * 1.3 + c.y * 0.7);
+    const halo = ctx.createRadialGradient(cx, cy, cellSize * 0.1, cx, cy, cellSize * 0.62);
+    halo.addColorStop(0, `rgba(110, 240, 235, ${0.22 + 0.2 * pulse})`);
+    halo.addColorStop(1, 'rgba(110, 240, 235, 0)');
+    ctx.fillStyle = halo;
+    ctx.fillRect(cx - cellSize * 0.62, cy - cellSize * 0.62, cellSize * 1.24, cellSize * 1.24);
+    const size = cellSize * 0.98;
+    ctx.drawImage(img, cx - size / 2, cy - size / 2, size, size);
+    // Вспышка: тот же рисунок поверх в режиме сложения, его сила дышит
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.globalAlpha = 0.28 * pulse;
+    ctx.drawImage(img, cx - size / 2, cy - size / 2, size, size);
+    ctx.restore();
+    return true;
   }
 
   private hatchCell(ctx: CanvasRenderingContext2D, c: Point, cellSize: number, fill: string, line: string) {
