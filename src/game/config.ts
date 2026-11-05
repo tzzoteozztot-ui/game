@@ -433,9 +433,9 @@ export const CONFIG = {
   arrowHail: { perExtraTarget: 0.05 },
 
   upgrade: {
-    lvl2DamageMult: 3.3,
+    lvl2DamageMult: 2.2, // люди; было 3,3 (ослабление по просьбе Артура 2026-11-05: бот-Потасовка, люди 3,2 место против 6,9 у остальных)
     lvl2RangeMult: 1.1,
-    lvl3DamageMult: 3.3,
+    lvl3DamageMult: 2.2,
     lvl3RangeMult: 1.1,
     sellRatio: 0.7,
   },
