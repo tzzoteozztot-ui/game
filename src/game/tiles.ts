@@ -162,17 +162,47 @@ function hash(x: number, y: number): number {
   return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
 }
 
+// Мелкие растения и камни ложатся кучкой из 2–4 копий (просьба Артура 2026-11-05: больше объёма и деталей);
+// крупные одиночные предметы (пень, надгробие, колонна…) остаются по одному
+const CLUSTER = /bush|tuft|reeds|shrooms|crystal|leaves|rock|ember|ash|bones|shard|root/;
+const DECOR_SCALE = 1.2; // ширина предмета = доля из DECOR × 1,2 клетки (было ×1,5: декор выглядел как помеха на клетке)
+
 /** Мелкий декор в одном из углов клетки (x, y); клетка выбирается по хэшу, доля — DECOR_SHARE */
 function placeDecor(ctx: CanvasRenderingContext2D, name: string, imgs: Tileset, x: number, y: number, res: number) {
   const decor = (DECOR[name] ?? []).filter(([n]) => imgs.has(`decor/${n}`));
   if (!decor.length || hash(x + 31, y + 7) >= DECOR_SHARE) return;
   const [dn, wf] = decor[Math.floor(hash(x + 11, y + 53) * decor.length)];
   const img = imgs.get(`decor/${dn}`)!;
-  const w = wf * 1.5 * res;
-  const h = (w * img.naturalHeight) / img.naturalWidth;
-  const cxn = hash(x + 3, y + 29) < 0.5 ? 0.24 : 0.76;
-  const cyn = hash(x + 41, y + 13) < 0.5 ? 0.3 : 0.74;
-  ctx.drawImage(img, x * res + cxn * res - w / 2, y * res + cyn * res - h / 2, w, h);
+  const cxn = hash(x + 3, y + 29) < 0.5 ? 0.26 : 0.74;
+  const cyn = hash(x + 41, y + 13) < 0.5 ? 0.3 : 0.72;
+  const count = CLUSTER.test(dn) ? 2 + Math.floor(hash(x + 67, y + 19) * 3) : 1;
+  const parts: { dx: number; dy: number; k: number; flip: boolean }[] = [];
+  for (let i = 0; i < count; i++) {
+    const a = hash(x * 13 + i, y * 7 + 5) * Math.PI * 2;
+    const r = i === 0 ? 0 : 0.07 + 0.06 * hash(x + i * 17, y + 3);
+    parts.push({
+      dx: Math.cos(a) * r,
+      dy: Math.sin(a) * r * 0.8,
+      k: i === 0 ? 1 : 0.62 + 0.3 * hash(x + 5, y + i * 23), // копии вокруг главной чуть меньше
+      flip: hash(x + i * 29, y + 61) < 0.5,
+    });
+  }
+  parts.sort((p, q) => p.dy - q.dy); // дальние (выше) рисуются первыми
+  for (const p of parts) {
+    const w = wf * DECOR_SCALE * p.k * res;
+    const h = (w * img.naturalHeight) / img.naturalWidth;
+    const px = x * res + (cxn + p.dx) * res;
+    const py = y * res + (cyn + p.dy) * res;
+    if (p.flip) {
+      ctx.save();
+      ctx.translate(px, py);
+      ctx.scale(-1, 1);
+      ctx.drawImage(img, -w / 2, -h / 2, w, h);
+      ctx.restore();
+    } else {
+      ctx.drawImage(img, px - w / 2, py - h / 2, w, h);
+    }
+  }
 }
 
 /** Только декор на прозрачном холсте (res px на клетку): для карт, где земля и дорога рисуются кодом */
