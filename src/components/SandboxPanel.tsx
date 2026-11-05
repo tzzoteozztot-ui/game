@@ -21,12 +21,21 @@ interface SandboxPanelProps {
   summaryWave: number | null; // номер зачищенной волны, итоги которой можно открыть
   onOpenSummary: () => void;
   compact?: boolean; // полоса под полем (низкая): два столбца вместо одного
+  // Раса, чьи враги и карта меняются здесь же, на ходу (просьба Артура 2026-11-05)
+  onRace: (race: RaceId) => void;
+  enemyFaction: number;
+  onEnemyFaction: (faction: number) => void;
+  mapName: string;
+  onEditMap: () => void;
 }
+
+const SELECT =
+  'min-h-[var(--h-line,24px)] w-full min-w-0 rounded bg-[#221f2d] border border-[#383347] px-1 text-[length:var(--fs-sm)] font-bold text-stone-200 cursor-pointer';
 
 const BTN =
   'min-h-[var(--h-line,24px)] px-1 rounded border text-[length:var(--fs-sm)] font-bold cursor-pointer transition-colors bg-[#221f2d] border-[#383347] text-stone-200 hover:bg-[#2c283a]';
 
-export function SandboxPanel({ race, maxLevel, selectedTower, inHand, onTake, onTakeBinder, onApplySelected, onOpenWave, onDownloadLog, summaryWave, onOpenSummary, compact }: SandboxPanelProps) {
+export function SandboxPanel({ race, maxLevel, selectedTower, inHand, onTake, onTakeBinder, onApplySelected, onOpenWave, onDownloadLog, summaryWave, onOpenSummary, compact, onRace, enemyFaction, onEnemyFaction, mapName, onEditMap }: SandboxPanelProps) {
   const raceDef = CONFIG.races[race];
   const types = raceDef.towers;
   const [type, setType] = useState<TowerType>(types[0]);
@@ -58,6 +67,39 @@ export function SandboxPanel({ race, maxLevel, selectedTower, inHand, onTake, on
         <span className="text-[length:var(--fs-sm)] uppercase font-semibold tracking-wider text-stone-400">Свободный режим</span>
         <span className="text-amber-400 font-bold text-[length:var(--fs-sm)]">Золото ∞</span>
       </div>
+
+      <div className="grid grid-cols-2 gap-x-1 text-[length:var(--fs-xs,10px)] text-stone-500 font-semibold leading-none -mb-0.5">
+        <span>Ваша раса</span>
+        <span>Чьи враги</span>
+      </div>
+      <div className="grid grid-cols-2 gap-1">
+        <select
+          value={race}
+          onChange={(e) => {
+            const r = e.target.value as RaceId;
+            if (r !== race && window.confirm('Сменить расу? Башни с поля и из рюкзака уберутся, враги тоже.')) onRace(r);
+          }}
+          title="Ваша раса: башни в лавке свободного режима. Смена начинает поле заново на той же карте"
+          className={SELECT}
+        >
+          {(Object.keys(CONFIG.races) as RaceId[]).map((r) => (
+            <option key={r} value={r}>
+              {CONFIG.races[r].name}
+            </option>
+          ))}
+        </select>
+        <select value={enemyFaction} onChange={(e) => onEnemyFaction(Number(e.target.value))} title="Чьи враги пойдут следующей волной" className={SELECT}>
+          {CONFIG.factions.map((f) => (
+            <option key={f.id} value={f.id}>
+              {f.name}
+            </option>
+          ))}
+        </select>
+      </div>
+      <button type="button" className={`${BTN} flex items-center justify-between gap-1`} onClick={onEditMap} title="Нарисовать свою дорогу, выходы и клетки без башен; сохранить карту">
+        <span className="truncate text-stone-400 font-semibold">{mapName}</span>
+        <span className="shrink-0 text-amber-300">Карта ✎</span>
+      </button>
 
       <div className="grid grid-cols-4 gap-1">
         {types.map((t) => (
