@@ -848,6 +848,16 @@ export const CONFIG = {
     boonOffer: 3,
     boons: BOONS,
     botBoonScale: 1, // bots' boons ×this (power, sends, HP); 1 — as the player's
+    // Закрытые зоны (просьба Артура 2026-11-05, баланс рас): доля свободных клеток, где сначала нельзя ставить башни.
+    // Группы по 2–3 клетки, поровну у дороги и вдали от неё, не рядом с артефактом и не впритык друг к другу.
+    // Каждые everyRounds раундов одна зона (ближайшая к артефакту) открывается сама; любую можно открыть раньше за золото:
+    // cellPrice за клетку × priceGrowth за каждую уже открытую зону. Числа — черновик.
+    zones: {
+      share: { humans: 0.3, cultists: 0.3, demons: 0.15, orcs: 0.1, undead: 0.1, elves: 0.1 } as Record<string, number>,
+      everyRounds: 3,
+      cellPrice: 25,
+      priceGrowth: 1.25,
+    },
   },
 
   spawnInterval: 0.8, // seconds between spawns

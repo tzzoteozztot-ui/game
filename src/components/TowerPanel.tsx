@@ -60,6 +60,8 @@ interface TowerPanelProps {
   onToggleDetails: () => void;
   damage: { wave: number; run: number } | null; // damage the selected tower has dealt
   castle?: GameStateSnapshot['castle']; // the artifact's card: HP and its defence
+  zone?: GameStateSnapshot['zone']; // Потасовка: выбранная закрытая зона
+  onOpenZone?: () => void;
   boons?: GameStateSnapshot['boons']; // brawl: the artifact's boons
   gold?: number;
   onUpgradeCastle?: () => void;
@@ -143,6 +145,8 @@ export function TowerPanel({
   details,
   onToggleDetails,
   castle = null,
+  zone = null,
+  onOpenZone,
   boons = [],
   gold = 0,
   onUpgradeCastle,
@@ -159,6 +163,34 @@ export function TowerPanel({
       ×
     </button>
   );
+  if (!tower && zone) {
+    const canBuy = gold >= zone.cost;
+    return (
+      <Card>
+        <div className="flex items-center gap-2 h-[var(--h-head)] shrink-0">
+          <div className="flex-1 font-bold text-[length:var(--fs-md)] text-stone-300">Закрытая зона</div>
+          {closeBtn}
+        </div>
+        <div className="text-[length:var(--fs-xs)] leading-tight text-stone-300">
+          {zone.cells === 1 ? 'Клетка' : `${zone.cells} клетки`} без башен. Ближайшая к артефакту зона откроется сама на волне {zone.nextFreeWave}; закрытых зон: {zone.left}.
+        </div>
+        <button
+          type="button"
+          onClick={onOpenZone}
+          disabled={!canBuy}
+          title="Открыть зону сейчас"
+          className={`h-[var(--h-btn)] px-1 rounded font-bold flex flex-col items-center justify-center leading-none transition-all shrink-0 ${
+            canBuy
+              ? 'bg-teal-950/60 hover:bg-teal-900/60 text-[#7fd6e0] border border-[#7fd6e0]/60 cursor-pointer'
+              : 'bg-black/30 text-stone-500 border border-white/10 cursor-not-allowed'
+          }`}
+        >
+          <span className="text-[length:var(--fs-btn4)]">Открыть</span>
+          <span className="text-amber-300 text-[length:var(--fs-xs)] mt-0.5 tabular-nums">{zone.cost}</span>
+        </button>
+      </Card>
+    );
+  }
   if (!tower && castle) {
     const canBuy = castle.cost !== null && gold >= castle.cost;
     return (

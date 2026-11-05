@@ -387,6 +387,8 @@ export interface GameStateSnapshot {
   selectedSide: 'left' | 'right' | null; // half of the screen (with the zoom) the selected tower or binder is on
   // The artifact's card (open while the artifact is selected)
   castle: { hp: number; maxHp: number; level: number; maxLevel: number; damage: number; nextDamage: number | null; cost: number | null } | null;
+  // Потасовка: карточка выбранной закрытой зоны
+  zone: { cells: number; cost: number; nextFreeWave: number | null; left: number } | null;
   isBinding: boolean; // waiting for a tap on the second tower
   canMoveTowers: boolean; // between waves towers can be moved to a free cell
   moveCost: number | null; // price of moving a tower now: 0 free, null not now
@@ -515,6 +517,10 @@ export class GameEngine {
   public placingSlot: number | null = null;
   public selectedBinderId: string | null = null;
   public castleSelected = false; // the artifact's card is open
+  // Потасовка: закрытые зоны (CONFIG.brawl.zones) — клетки, где пока нельзя ставить башни
+  public zones: { id: number; cells: Point[] }[] = [];
+  public zonesOpened = 0;
+  public selectedZoneId: number | null = null;
   public guardLevel = 1; // level of the artifact's own defence (CONFIG.siege.guard)
   // Brawl: the artifact's boons (CONFIG.brawl.boons) — one of three after every 3rd wave (просьба Артура 2026-11-01)
   public boonsOn = false;
@@ -642,7 +648,8 @@ export class GameEngine {
     const sel =
       this.towers.find((t) => t.id === this.selectedTowerId) ||
       this.binders.find((b) => b.id === this.selectedBinderId) ||
-      (this.castleSelected ? CONFIG.grid.castleCells[0] : null);
+      (this.castleSelected ? CONFIG.grid.castleCells[0] : null) ||
+      this.zones.find((z) => z.id === this.selectedZoneId)?.cells[0];
     if (!sel) return null;
     const sx = ((sel.x + 0.5) * CONFIG.grid.cellSize - this.viewX) * this.viewZoom;
     return sx < CONFIG.grid.totalWidth / 2 ? 'left' : 'right';
@@ -683,6 +690,9 @@ export class GameEngine {
     this.guardLevel = 1;
     this.guardTimer = 0;
     this.castleSelected = false;
+    this.zones = [];
+    this.zonesOpened = 0;
+    this.selectedZoneId = null;
     this.gold = calculateStartingGold(this.level, diff);
     this.wave = 1;
     this.tier = 1;
@@ -1367,6 +1377,7 @@ export class GameEngine {
     this.wavesLaunched++;
     this.rerollsThisWave = 0;
     if (this.boonsOn && this.wavesLaunched % CONFIG.brawl.boonEvery === 0) this.offerBoons();
+    if (this.zones.length && this.wavesLaunched % CONFIG.brawl.zones.everyRounds === 0) this.openZone(this.zoneNearestCastle(), 0);
     if (duel) this.waveCountdown = Math.max(0, (this.duelNextWaveAt() - performance.now()) / 1000);
     const waveDef = waveDefinition(this.wave);
     this.faction = this.factionOfWave(this.wave);
@@ -3390,6 +3401,7 @@ export class GameEngine {
       if (p.some((c) => c.x === cx && c.y === cy)) return false;
     }
     if (this.currentMap.blocked?.some((c) => c.x === cx && c.y === cy)) return false;
+    if (this.zoneAt(cx, cy)) return false;
     // Check existing tower or binder
     if (this.towers.some((t) => !this.ignoreTowers.has(t.id) && ((t.x === cx && t.y === cy) || (t.extra && t.extra.some((c) => c.x === cx && c.y === cy))))) return false;
     if (this.binders.some((b) => b.x === cx && b.y === cy)) return false;
@@ -3402,6 +3414,7 @@ export class GameEngine {
     this.selectedTowerId = id;
     this.selectedBinderId = null;
     this.castleSelected = false;
+    this.selectedZoneId = null;
     this.bindingFromId = null;
     this.upgradingFromBinderId = null;
     this.clearPlacing();
@@ -3549,6 +3562,111 @@ export class GameEngine {
     sound.playBuy();
     this.notifyState();
     return true;
+  }
+
+  // --- Потасовка: закрытые зоны (просьба Артура 2026-11-05) ---
+
+  /** Закрывает долю свободных клеток по расе игрока; вызывать сразу после startDuel */
+  public setupZones(share: number = CONFIG.brawl.zones.share[this.race] ?? 0) {
+    this.zones = [];
+    this.zonesOpened = 0;
+    this.selectedZoneId = null;
+    if (share <= 0) return;
+    const castle = CONFIG.grid.castleCells[0];
+    const road = new Set(this.currentMap.paths.flatMap((p) => p.map((c) => `${c.x},${c.y}`)));
+    const nearRoad = (c: Point) => [-1, 0, 1].some((dx) => [-1, 0, 1].some((dy) => road.has(`${c.x + dx},${c.y + dy}`)));
+    const cand: Point[] = [];
+    for (let y = 0; y < CONFIG.grid.rows; y++)
+      for (let x = 0; x < CONFIG.grid.cols; x++)
+        if (this.isCellFree(x, y) && Math.max(Math.abs(x - castle.x), Math.abs(y - castle.y)) > 1) cand.push({ x, y });
+    const taken = new Set<string>();
+    const key = (c: Point) => `${c.x},${c.y}`;
+    const sides = (c: Point) => [{ x: c.x + 1, y: c.y }, { x: c.x - 1, y: c.y }, { x: c.x, y: c.y + 1 }, { x: c.x, y: c.y - 1 }];
+    let id = 0;
+    for (const near of [true, false]) {
+      const group = cand.filter((c) => nearRoad(c) === near);
+      const inGroup = new Set(group.map(key));
+      let left = Math.round(group.length * share);
+      for (let guard = 0; left > 0 && guard < 500; guard++) {
+        const free = group.filter((c) => !taken.has(key(c)));
+        if (!free.length) break;
+        const first = free[Math.floor(Math.random() * free.length)];
+        // новая зона не касается старых, пока это возможно
+        if (guard < 400 && sides(first).some((n) => taken.has(key(n)))) continue;
+        const cells = [first];
+        taken.add(key(first));
+        const size = Math.min(left, Math.random() < 0.5 ? 3 : 2);
+        while (cells.length < size) {
+          const next = cells.flatMap(sides).filter((n) => inGroup.has(key(n)) && !taken.has(key(n)));
+          if (!next.length) break;
+          const n = next[Math.floor(Math.random() * next.length)];
+          cells.push(n);
+          taken.add(key(n));
+        }
+        left -= cells.length;
+        this.zones.push({ id: ++id, cells });
+      }
+    }
+    this.logEv('zones', { share, cells: taken.size, zones: this.zones.map((z) => z.cells.map((c) => [c.x, c.y])) });
+  }
+
+  public zoneAt(cx: number, cy: number): { id: number; cells: Point[] } | undefined {
+    return this.zones.find((z) => z.cells.some((c) => c.x === cx && c.y === cy));
+  }
+
+  /** Цена открыть зону за золото сейчас */
+  public zonePrice(zone: { cells: Point[] }): number {
+    const z = CONFIG.brawl.zones;
+    return Math.round(z.cellPrice * zone.cells.length * z.priceGrowth ** this.zonesOpened);
+  }
+
+  private zoneNearestCastle(): number | null {
+    const c = CONFIG.grid.castleTarget;
+    let best: number | null = null;
+    let bestD = Infinity;
+    for (const z of this.zones) {
+      const d = Math.min(...z.cells.map((p) => Math.hypot(p.x + 0.5 - c.x, p.y + 0.5 - c.y)));
+      if (d < bestD) {
+        bestD = d;
+        best = z.id;
+      }
+    }
+    return best;
+  }
+
+  /** Открывает зону: price 0 — сама (по раундам), иначе за золото */
+  public openZone(id: number | null, price: number): boolean {
+    const zone = this.zones.find((z) => z.id === id);
+    if (!zone || this.gold < price) return false;
+    this.gold -= price;
+    this.zones = this.zones.filter((z) => z !== zone);
+    this.zonesOpened++;
+    if (this.selectedZoneId === id) this.selectedZoneId = null;
+    this.logEv('zone-open', { cells: zone.cells.map((c) => [c.x, c.y]), price, gold: Math.round(this.gold), left: this.zones.length });
+    const p = zone.cells[0];
+    this.addFloatingText(price ? 'Зона открыта' : 'Зона открылась', (p.x + 0.5) * CONFIG.grid.cellSize, p.y * CONFIG.grid.cellSize, '#7fd6e0');
+    this.notifyState();
+    return true;
+  }
+
+  public selectZone(id: number) {
+    this.selectTower(null);
+    if (this.overflowPending()) return;
+    this.selectedZoneId = id;
+    this.notifyState();
+  }
+
+  /** Кнопка «Открыть» в карточке зоны */
+  public buySelectedZone(): boolean {
+    const zone = this.zones.find((z) => z.id === this.selectedZoneId);
+    if (!zone) return false;
+    const price = this.zonePrice(zone);
+    if (this.gold < price) {
+      sound.playError();
+      return false;
+    }
+    sound.playBuy();
+    return this.openZone(zone.id, price);
   }
 
   // The artifact's card: its HP and its own defence, which can be raised for gold
@@ -4413,6 +4531,12 @@ export class GameEngine {
       zoomed: this.viewZoom > 1,
       selectedDamage: selected ? { wave: this.waveStats.dmg.get(selected.id) || 0, run: this.runStats.dmg.get(selected.id) || 0 } : null,
       selectedSide: this.selectedSideShown,
+      zone: (() => {
+        const z = this.zones.find((zz) => zz.id === this.selectedZoneId);
+        if (!z) return null;
+        const every = CONFIG.brawl.zones.everyRounds;
+        return { cells: z.cells.length, cost: this.zonePrice(z), nextFreeWave: (Math.floor(this.wavesLaunched / every) + 1) * every, left: this.zones.length };
+      })(),
       castle: this.castleSelected
         ? {
             hp: this.lives,
@@ -4551,6 +4675,12 @@ export class GameEngine {
     // Клетки без башен (своя карта свободного режима): тёмная штриховка
     if (this.currentMap.blocked?.length && !this.mapEdit) {
       for (const c of this.currentMap.blocked) this.hatchCell(ctx, c, cellSize, 'rgba(0, 0, 0, 0.32)', 'rgba(224, 69, 47, 0.35)');
+    }
+
+    // Потасовка: закрытые зоны — штриховка, выбранная ярче
+    for (const z of this.zones) {
+      const sel = z.id === this.selectedZoneId;
+      for (const c of z.cells) this.hatchCell(ctx, c, cellSize, sel ? 'rgba(0, 0, 0, 0.45)' : 'rgba(0, 0, 0, 0.35)', sel ? 'rgba(127, 214, 224, 0.75)' : 'rgba(150, 140, 120, 0.4)');
     }
 
     // 3. Gates at entrances and the castle

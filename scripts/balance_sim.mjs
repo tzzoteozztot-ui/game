@@ -41,14 +41,10 @@ const NO_FUSE = args.includes('--no-fuse');
 const RACE_OPT = opt('race', 'humans');
 // --boons=0: потасовка без усилений артефакта (по умолчанию бот берёт случайное из трёх)
 const BOONS = opt('boons', '1') !== '0';
-// Закрытые зоны (проба, только Потасовка): --zones=auto (доля по расе) или число 0..1; --unlock=none|gold|kills|round|mix
-// --zprice=25 (золото за клетку, ×1,25 за каждую открытую зону), --zkills=40, --zround=2
-const ZONES = opt('zones', '');
-const UNLOCK = opt('unlock', 'none');
-const ZPRICE = Number(opt('zprice', 25));
-const ZKILLS = Number(opt('zkills', 40));
-const ZROUND = Number(opt('zround', 2));
-const ZPLACE = opt('zplace', 'even'); // even — поровну у дороги и вдали; near — все зоны у дороги
+// Закрытые зоны Потасовки: --zones=auto (доля по расе, CONFIG.brawl.zones), число 0..1 или 0 — без зон;
+// --unlock=gold (бот открывает и за золото) | round (только сами, по раундам)
+const ZONES = opt('zones', 'auto');
+const UNLOCK = opt('unlock', 'gold');
 const RACES = RACE_OPT === 'all' ? ['humans', 'orcs', 'undead', 'cultists', 'demons', 'elves'] : RACE_OPT.split(',');
 // Пробные числа без правки config.ts: --set=siege.attack.shaman.range=2,lives.start=300
 const SET = opt('set', '')
@@ -71,7 +67,7 @@ for (const level of LEVELS) {
     add(RUNS, { kind: 'endless', level, policy: 'mixed', style: 'casual', difficulty: DIFF, faction: FACTION, race });
   }
   if (ONLY === 'brawl')
-    for (const style of ['pro', 'casual']) add(RUNS, { kind: 'brawl', level, policy: 'mixed', style, difficulty: DIFF, race, boons: BOONS, zones: ZONES, unlock: UNLOCK, zprice: ZPRICE, zkills: ZKILLS, zround: ZROUND, zplace: ZPLACE });
+    for (const style of ['pro', 'casual']) add(RUNS, { kind: 'brawl', level, policy: 'mixed', style, difficulty: DIFF, race, boons: BOONS, zones: ZONES, unlock: UNLOCK });
   if ((!ONLY || ONLY === 'mono') && race === 'humans')
     for (const t of ['archer', 'priest', 'mage', 'ballista'])
       add(Math.max(2, Math.ceil(RUNS / 2)), { kind: 'endless', level, policy: t, style: 'pro', difficulty: 'normal', race });
@@ -394,85 +390,19 @@ async function runInPage(job) {
     return true;
   };
 
-  // --- Закрытые зоны: группы по 2–3 клетки, поровну среди клеток у дороги и вдали от неё, не у артефакта
-  const ZONE_SHARE = { humans: 0.3, demons: 0.22, cultists: 0.2, orcs: 0.15, undead: 0.15, elves: 0.1 };
-  const zoneShare = !brawlJob || !job.zones ? 0 : job.zones === 'auto' ? ZONE_SHARE[engine.race] : Number(job.zones);
-  const zones = []; // [{ cells: [{x,y}], open: false }]
-  const zoneLog = { cells: 0, opened: [], goldSpent: 0 };
-  if (zoneShare > 0) {
-    const castleC = CONFIG.grid.castleCells[0];
-    const roadSet = new Set(roadCells.filter((r) => r.w === 1).map((r) => `${r.x},${r.y}`));
-    const nearRoad = (x, y) => [-1, 0, 1].some((dx) => [-1, 0, 1].some((dy) => roadSet.has(`${x + dx},${y + dy}`)));
-    const cand = freeCells().filter((c) => Math.max(Math.abs(c.x - castleC.x), Math.abs(c.y - castleC.y)) > 1);
-    const taken = new Set();
-    for (const near of job.zplace === 'near' ? [true] : [true, false]) {
-      const group = cand.filter((c) => job.zplace === 'near' || nearRoad(c.x, c.y) === near);
-      const pool = job.zplace === 'near' ? cand.filter((c) => nearRoad(c.x, c.y)) : group;
-      let left = Math.round(group.length * zoneShare);
-      group.length = 0;
-      group.push(...pool);
-      const inGroup = new Set(group.map((c) => `${c.x},${c.y}`));
-      for (let guard = 0; left > 0 && guard < 500; guard++) {
-        const free = group.filter((c) => !taken.has(`${c.x},${c.y}`));
-        if (!free.length) break;
-        const seedC = free[Math.floor(Math.random() * free.length)];
-        // не прижимать зону к другой зоне: у новой группы нет соседей из старых
-        const touches = (c) => [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) => taken.has(`${c.x + dx},${c.y + dy}`));
-        if (touches(seedC) && guard < 400) continue;
-        const cells = [seedC];
-        taken.add(`${seedC.x},${seedC.y}`);
-        const size = Math.min(left, 2 + (Math.random() < 0.5 ? 1 : 0));
-        while (cells.length < size) {
-          const nb = cells.flatMap((c) => [[1, 0], [-1, 0], [0, 1], [0, -1]].map(([dx, dy]) => ({ x: c.x + dx, y: c.y + dy })))
-            .filter((c) => inGroup.has(`${c.x},${c.y}`) && !taken.has(`${c.x},${c.y}`) && !touches({ x: -9, y: -9 }));
-          if (!nb.length) break;
-          const n = nb[Math.floor(Math.random() * nb.length)];
-          cells.push(n);
-          taken.add(`${n.x},${n.y}`);
-        }
-        left -= cells.length;
-        zones.push({ cells, open: false });
-      }
-    }
-    zoneLog.cells = taken.size;
-  }
-  const applyZones = () => {
-    if (!zones.length) return;
-    engine.currentMap = { ...engine.currentMap, blocked: zones.filter((z) => !z.open).flatMap((z) => z.cells) };
-  };
-  applyZones();
-  const zoneValue = (z) => z.cells.reduce((s, c) => s + coverage(c.x, c.y, 2.7), 0);
-  const openBestZone = (why) => {
-    const closed = zones.filter((z) => !z.open).sort((a, b) => zoneValue(b) - zoneValue(a));
-    if (!closed.length) return false;
-    closed[0].open = true;
-    zoneLog.opened.push({ wave: engine.wavesLaunched, why });
-    applyZones();
-    return true;
-  };
-  let zoneRoundsDone = 0;
-  const zonePrice = () => Math.round((job.zprice ?? 25) * 2.5 * 1.25 ** zoneLog.opened.length);
+  // --- Закрытые зоны (Потасовка, CONFIG.brawl.zones): --zones=auto — доля по расе из config.ts, число — своя, 0 — без зон.
+  // Каждые everyRounds раундов одна зона открывается сама; бот открывает раньше за золото, если хороших клеток мало
+  // или золота вдвое больше цены (--unlock=round — только сами)
+  if (brawlJob) engine.setupZones(job.zones === 'auto' || job.zones === '' ? undefined : Number(job.zones));
+  const zoneLog = { cells: engine.zones.reduce((s, z) => s + z.cells.length, 0), groups: engine.zones.length, goldSpent: 0, bought: 0 };
   const zoneTick = () => {
-    if (!zones.length || zones.every((z) => z.open)) return;
-    const u = job.unlock;
-    if (u === 'kills' || u === 'mix2') {
-      while (engine.runStats.killed >= (zoneLog.opened.length + 1) * job.zkills && openBestZone('kills'));
-    }
-    if (u === 'round' || u === 'mix') {
-      while (Math.floor(engine.wavesLaunched / job.zround) > zoneRoundsDone) {
-        zoneRoundsDone++;
-        openBestZone('round');
-      }
-    }
-    if (u === 'gold' || u === 'mix' || u === 'mix2') {
-      // бот покупает зону, когда хороших клеток мало или золота вдвое больше цены
-      const goodFree = freeCells().filter((c) => coverage(c.x, c.y, 2.7) > 3).length;
-      const price = zonePrice();
-      if (engine.gold >= price && (goodFree < 4 || engine.gold >= 2 * price)) {
-        engine.gold -= price;
-        zoneLog.goldSpent += price;
-        openBestZone('gold');
-      }
+    if (!engine.zones.length || job.unlock === 'round') return;
+    const goodFree = freeCells().filter((c) => coverage(c.x, c.y, 2.7) > 3).length;
+    const best = [...engine.zones].sort((a, b) => b.cells.reduce((s, c) => s + coverage(c.x, c.y, 2.7), 0) - a.cells.reduce((s, c) => s + coverage(c.x, c.y, 2.7), 0))[0];
+    const price = engine.zonePrice(best);
+    if (engine.gold >= price && (goodFree < 4 || engine.gold >= 2 * price) && engine.openZone(best.id, price)) {
+      zoneLog.goldSpent += price;
+      zoneLog.bought++;
     }
   };
 
@@ -568,7 +498,7 @@ async function runInPage(job) {
       lives: engine.lives,
       gameTime: Math.round(clock),
       table: snap.seats.map((x) => ({ name: x.name, kind: x.kind, place: x.place })),
-      zones: { share: zoneShare, groups: zones.length, ...zoneLog, killed: engine.runStats.killed, towers: engine.towers.length, freeLeft: freeCells().length },
+      zones: { ...zoneLog, opened: engine.zonesOpened, killed: engine.runStats.killed, towers: engine.towers.length, freeLeft: freeCells().length },
       waves: stats.waves,
     };
   }
@@ -658,7 +588,7 @@ async function worker() {
     results.push(r);
     console.log(
       `${results.length}/${jobs.length} ${job.race} ${job.kind} ур.${job.level}${job.faction ? ` фр.${job.faction}` : ''} ${job.policy} ${job.style} ${job.difficulty}: ` +
-        (job.kind === 'brawl' ? `место ${r.place}, волна ${r.wavesLaunched}, зон ${r.zones.groups}/${r.zones.opened.length}, убито ${r.zones.killed}, башен ${r.zones.towers}, свободно ${r.zones.freeLeft}, ${Math.round(r.gameTime / 60)} мин` : job.kind === 'campaign' ? (r.victory ? `победа, жизней ${r.lives}` : `поражение на волне ${r.reached}`) : `дошёл до волны ${r.reached}`) +
+        (job.kind === 'brawl' ? `место ${r.place}, волна ${r.wavesLaunched}, зон ${r.zones.groups}/${r.zones.opened}, убито ${r.zones.killed}, башен ${r.zones.towers}, свободно ${r.zones.freeLeft}, ${Math.round(r.gameTime / 60)} мин` : job.kind === 'campaign' ? (r.victory ? `победа, жизней ${r.lives}` : `поражение на волне ${r.reached}`) : `дошёл до волны ${r.reached}`) +
         ` (${Math.round((Date.now() - t0) / 1000)} с)`
     );
     writeFileSync(out, JSON.stringify(results, null, 1));
