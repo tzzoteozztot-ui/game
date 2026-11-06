@@ -238,7 +238,7 @@ const GAIT: Partial<Record<EnemyType, { stride: number; lift: number; tilt: numb
 };
 const MAX_CORPSES = 30;
 const HEX_BAKE = 2; // гексовое поле запекается вдвое крупнее для чёткости
-const HEX_PREF_KEY = 'dark_frontier_hex_field'; // свободный режим: опытное гексовое поле
+const HEX_PREF_KEY = 'dark_frontier_hex_field'; // свободный режим: '0' — квадратное поле для сравнения
 const SANDBOX_GOLD = 999999; // свободный режим: золото каждый кадр возвращается к этому числу
 
 // Status marks on enemies: slowed (frost, «Оберег», the default priest) and cursed («Проклятие»)
@@ -662,7 +662,7 @@ export class GameEngine {
    * `mapSeed`: a generated road (mapgen.ts) for this level's biome instead of its fixed map; endless mode only.
    */
   public startLevel(level: number, diff: Difficulty, endless = false, faction?: number, race: RaceId = 'humans', mapSeed: number | null = null, customMap: MapDef | null = null) {
-    setHex(false); // гексовое поле — пока только опыт в свободном режиме
+    setHex(true); // гексовое поле во всех режимах (выбор Артура 2026-11-06); квадраты — только в свободном режиме по кнопке
     this.race = CONFIG.races[race] ? race : 'humans';
     this.megas = [];
     this.fires = [];
@@ -819,9 +819,9 @@ export class GameEngine {
 
   private static readHexPref(): boolean {
     try {
-      return localStorage.getItem(HEX_PREF_KEY) === '1';
+      return localStorage.getItem(HEX_PREF_KEY) !== '0';
     } catch {
-      return false;
+      return true;
     }
   }
 

@@ -37,8 +37,8 @@ const LEVELS = opt('levels', '1,2,3,4,5').split(',').map(Number);
 const RANDOM_MAP = args.includes('--random-map');
 // Культисты: --no-fuse — бот не собирает фигуры в мегабашни (для сравнения)
 const NO_FUSE = args.includes('--no-fuse');
-// Опыт «гексовое поле» (src/game/grid.ts): --hex — те же карты на гексах, во всех режимах
-const HEX = args.includes('--hex');
+// Поле из гексов во всех режимах (src/game/grid.ts); --square — прежние квадраты для сравнения
+const SQUARE = args.includes('--square');
 // Раса игрока (чьи башни в лавке): humans, orcs, undead, cultists, demons, elves или all — все по очереди
 const RACE_OPT = opt('race', 'humans');
 // --boons=0: потасовка без усилений артефакта (по умолчанию бот берёт случайное из трёх)
@@ -119,7 +119,7 @@ async function runInPage(job) {
     engine.boonsOn = job.boons !== false;
   } else engine.startLevel(job.level, job.difficulty, endless, job.faction || undefined, job.race || 'humans', job.mapSeed ?? null);
   const grid = GameEngine.grid; // тот же экземпляр модуля, что у движка
-  if (job.hex) grid.setHex(true);
+  if (job.square) grid.setHex(false);
   const raceDef = CONFIG.races[engine.race];
   const NEED = raceDef.merge;
   if (engine.race === 'demons') engine.setAutoAbilities(true);
@@ -570,7 +570,7 @@ async function worker() {
   await page.waitForFunction(() => window.gameEngine);
   while (next < jobs.length) {
     const job = jobs[next++];
-    const r = await page.evaluate(runInPage, { ...job, maxWave: MAXWAVE, set: SET, hex: HEX });
+    const r = await page.evaluate(runInPage, { ...job, maxWave: MAXWAVE, set: SET, square: SQUARE });
     results.push(r);
     console.log(
       `${results.length}/${jobs.length} ${job.race} ${job.kind} ур.${job.level}${job.faction ? ` фр.${job.faction}` : ''} ${job.policy} ${job.style} ${job.difficulty}: ` +
