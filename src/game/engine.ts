@@ -3445,7 +3445,8 @@ export class GameEngine {
     if (cx < 0 || cx >= CONFIG.grid.cols || cy < 0 || cy >= CONFIG.grid.rows) return false;
     // Check castle and the corners under the field buttons
     if (CONFIG.grid.castleCells.some((c) => c.x === cx && c.y === cy)) return false;
-    if (!this.sandbox && isHudCell(cx, cy)) return false; // в свободном режиме кнопок на поле нет
+    // на квадратах кнопки «Волна» и «Авто» лежат на клетках левого верхнего угла; на гексах они над небом (Артур 2026-11-06: «сними»)
+    if (!this.sandbox && !isHex() && isHudCell(cx, cy)) return false;
     // Check road
     for (const p of this.currentMap.paths) {
       if (p.some((c) => c.x === cx && c.y === cy)) return false;
