@@ -5,7 +5,8 @@
 import { RunLog, LogTower } from './runLog';
 import { CONFIG, TowerType, TargetPriority, Difficulty, EnemyType, RaceId, TowerBaseDef, BOONS, BoonDef, pickBoons, DamageType, DAMAGE_TYPES } from './config';
 import { MAPS, Point, MapDef, isHudCell } from './maps';
-import { centerX, centerY, castleX, castleY, cellPath, isHex, setHex, hexView, screenToGround, cellAt } from './grid';
+import { centerX, centerY, castleX, castleY, cellPath, isHex, setHex, hexView, screenToGround, cellAt, neighbours, ring, adjacent, translate } from './grid';
+import * as gridModule from './grid';
 import { generateMap } from './mapgen';
 import { MapDraft, MapEditTool, MAX_EXITS, draftToMap, mapToDraft, inField, isCastle } from './mapEditor';
 import {
@@ -237,7 +238,7 @@ const GAIT: Partial<Record<EnemyType, { stride: number; lift: number; tilt: numb
 };
 const MAX_CORPSES = 30;
 const HEX_BAKE = 2; // гексовое поле запекается вдвое крупнее для чёткости
-const HEX_PREF_KEY = 'dark_frontier_hex_field'; // свободный режим: опытное гексовое поле
+const HEX_PREF_KEY = 'dark_frontier_hex_field'; // свободный режим: '0' — квадратное поле для сравнения
 const SANDBOX_GOLD = 999999; // свободный режим: золото каждый кадр возвращается к этому числу
 
 // Status marks on enemies: slowed (frost, «Оберег», the default priest) and cursed («Проклятие»)
@@ -661,7 +662,7 @@ export class GameEngine {
    * `mapSeed`: a generated road (mapgen.ts) for this level's biome instead of its fixed map; endless mode only.
    */
   public startLevel(level: number, diff: Difficulty, endless = false, faction?: number, race: RaceId = 'humans', mapSeed: number | null = null, customMap: MapDef | null = null) {
-    setHex(false); // гексовое поле — пока только опыт в свободном режиме
+    setHex(true); // гексовое поле во всех режимах (выбор Артура 2026-11-06); квадраты — только в свободном режиме по кнопке
     this.race = CONFIG.races[race] ? race : 'humans';
     this.megas = [];
     this.fires = [];
@@ -813,11 +814,14 @@ export class GameEngine {
     this.notifyState();
   }
 
+  /** Геометрия клеток того же экземпляра модуля, что у движка (для бота баланса и проверок: --hex) */
+  public static grid = gridModule;
+
   private static readHexPref(): boolean {
     try {
-      return localStorage.getItem(HEX_PREF_KEY) === '1';
+      return localStorage.getItem(HEX_PREF_KEY) !== '0';
     } catch {
-      return false;
+      return true;
     }
   }
 
@@ -2411,7 +2415,9 @@ export class GameEngine {
       }
       return m;
     };
-    const near = (a: Tower, b: Tower) => a !== b && Math.abs(a.x - b.x) <= 1 && Math.abs(a.y - b.y) <= 1;
+    // соседи: 8 клеток вокруг квадрата, 6 вокруг гекса
+    const near = (a: Tower, b: Tower) =>
+      a !== b && (isHex() ? neighbours(a).some((n) => n.x === b.x && n.y === b.y) : Math.abs(a.x - b.x) <= 1 && Math.abs(a.y - b.y) <= 1);
     const orcs = this.towers.filter((t) => CONFIG.towers[t.type].race === 'orcs');
     for (const t of orcs) {
       // Тотем предков: the strongest totem next to it hastens it
@@ -2500,6 +2506,22 @@ export class GameEngine {
       out.push({ key, shape, ids: pts.map((p) => cells.get(`${p.x},${p.y}`)!.id), center, centerId, timer: 0 });
     };
     const list = [...cells.values()].sort((a, b) => a.y - b.y || a.x - b.x);
+    if (isHex()) {
+      // Гексы (выбор Артура 2026-11-06): «Клин» вместо Т — три в ряд и одна сбоку от средней;
+      // «Подкова» вместо П — пять из шести гексов вокруг одного, в нём враги замерзают
+      for (const t of list) {
+        const r = ring(t);
+        for (let i = 0; i < 3; i++)
+          for (let j = 0; j < 6; j++) if (j !== i && j !== i + 3) take('T', [{ x: t.x, y: t.y }, r[i], r[i + 3], r[j]], { x: t.x, y: t.y }, null);
+      }
+      for (let y = 0; y < CONFIG.grid.rows; y++)
+        for (let x = 0; x < CONFIG.grid.cols; x++) {
+          const r = ring({ x, y });
+          if (r.filter(has).length < 5) continue;
+          for (let k = 0; k < 6; k++) take('P', [1, 2, 3, 4, 5].map((d) => r[(k + d) % 6]), { x, y }, null);
+        }
+      return out;
+    }
     for (const t of list) {
       const m = { x: t.x, y: t.y };
       for (const [ax, ay] of [
@@ -2891,7 +2913,7 @@ export class GameEngine {
   public sacrificeVictims(gate: Tower): Tower[] {
     if (gate.type !== 'dem_gate') return [];
     return this.towers
-      .filter((t) => t !== gate && Math.abs(t.x - gate.x) <= 1 && Math.abs(t.y - gate.y) <= 1)
+      .filter((t) => t !== gate && (isHex() ? adjacent(t, gate) : Math.abs(t.x - gate.x) <= 1 && Math.abs(t.y - gate.y) <= 1))
       .sort((a, b) => this.towerInvested(a) - this.towerInvested(b));
   }
 
@@ -3563,9 +3585,10 @@ export class GameEngine {
     const cost = this.moveCost();
     if (!tower || cost === null || (cost > 0 && !paid)) return false;
     // a megatower П keeps its second cell at the same offset
-    const off = tower.extra ? tower.extra.map((c) => ({ x: c.x - tower.x, y: c.y - tower.y })) : null;
+    const to = { x: cellX, y: cellY };
+    const off = tower.extra ? tower.extra.map((c) => translate(c, tower, to)) : null;
     this.ignoreTowers = new Set([tower.id]);
-    const fits = this.isCellFree(cellX, cellY) && (!off || off.every((o) => this.isCellFree(cellX + o.x, cellY + o.y)));
+    const fits = this.isCellFree(cellX, cellY) && (!off || off.every((o) => this.isCellFree(o.x, o.y)));
     this.ignoreTowers = new Set();
     if (!fits) return false;
     const cs = CONFIG.grid.cellSize;
@@ -3582,7 +3605,7 @@ export class GameEngine {
     this.spawnPuff(centerX(tower), centerY(tower), '#f4c06a');
     tower.x = cellX;
     tower.y = cellY;
-    if (off) tower.extra = off.map((o) => ({ x: cellX + o.x, y: cellY + o.y }));
+    if (off) tower.extra = off;
     this.markModsDirty();
     this.spawnRing(centerX({ x: cellX, y: cellY }), centerY({ x: cellX, y: cellY }), '#d9b44a');
     sound.playBuy();
@@ -3997,7 +4020,7 @@ export class GameEngine {
   public hyperCellValid(x: number, y: number): boolean {
     const plan = this.hyperPlan;
     if (!plan || !this.hyperCellFree(x, y) || plan.cells.some((c) => c.x === x && c.y === y)) return false;
-    return plan.cells.length === 0 || plan.cells.some((c) => Math.abs(c.x - x) + Math.abs(c.y - y) === 1);
+    return plan.cells.length === 0 || plan.cells.some((c) => adjacent(c, { x, y }));
   }
 
   private startHyper(sel: Tower): boolean {
@@ -5471,8 +5494,8 @@ export class GameEngine {
   private renderTowerSprite(ctx: CanvasRenderingContext2D, t: Tower, cellSize: number, spr: PreparedSprite, timeSec: number) {
     // A megatower П stands between its two cells
     const nCells = 1 + (t.extra?.length ?? 0);
-    const cx = (t.x + 0.5 + (t.extra ? t.extra.reduce((a, c) => a + c.x - t.x, 0) / nCells : 0)) * cellSize;
-    const cy = (t.y + 0.5 + (t.extra ? t.extra.reduce((a, c) => a + c.y - t.y, 0) / nCells : 0)) * cellSize;
+    const cx = (centerX(t) + (t.extra ?? []).reduce((a, c) => a + centerX(c), 0)) / nCells;
+    const cy = (centerY(t) + (t.extra ?? []).reduce((a, c) => a + centerY(c), 0)) / nCells;
     const baseDef = CONFIG.towers[t.type];
     const ringY = cy + 22;
     const footY = cy + 30;
@@ -6077,7 +6100,7 @@ export class GameEngine {
       ctx.lineWidth = 3;
       for (const a of pts)
         for (const b of pts)
-          if (a.id < b.id && Math.abs(a.x - b.x) + Math.abs(a.y - b.y) === 1) {
+          if (a.id < b.id && adjacent(a, b)) {
             ctx.beginPath();
             ctx.moveTo(centerX(a), (centerY(a) + (0.75 - 0.5) * CONFIG.grid.cellSize));
             ctx.lineTo(centerX(b), (centerY(b) + (0.75 - 0.5) * CONFIG.grid.cellSize));
