@@ -768,7 +768,7 @@ test('world: the region is mostly wild — the hero walks roads and clearings, e
   let open = 0;
   for (const row of r.terrain) for (const c of row) if ('.=fh'.includes(c)) open++;
   assert.ok(open / (W.regionW(r) * W.regionH(r)) < 0.4, `walkable share ${open}`);
-  assert.ok(r.objects.filter((o) => o.army).length >= 2, 'battles with an army exist');
+  assert.ok(r.objects.filter((o) => o.army).length >= 1, 'the fortress is a battle with an army');
   assert.ok((r.props ?? []).filter((p) => p.kind === 'castle').length >= 2, 'castles fill the wild');
   // Without enemies every object can be reached from the camp
   const st = W.newWorld(r);
@@ -857,4 +857,50 @@ test('world: a save survives a round trip and junk is rejected', () => {
   assert.equal(W.hexDistance({ x: 0, y: 0 }, { x: 3, y: 0 }), 3);
   assert.ok(W.battleSeed(W.FRONTIER.objects[3])! > 0);
   assert.equal(W.battleSeed(W.FRONTIER.objects.find((o) => o.kind === 'fortress')!), null);
+});
+
+test('world: the tutorial trail — locks open in order and the whole chapter can be cleared', async () => {
+  const D = await import('../campaign/dialogs');
+  const r = W.FRONTIER;
+  const st = W.newWorld(r);
+  st.seen = r.terrain.flatMap((row, y) => [...row].map((_, x) => y * row.length + x));
+  const at = (id: string) => r.objects.find((o) => o.id === id)!;
+  assert.ok(!W.isLocked(st, at('sq1')), 'the first squad is open');
+  assert.ok(W.isLocked(st, at('sq2')) && W.isLocked(st, at('fortress')), 'the rest waits');
+  assert.match(W.lockText(st, r, at('sq2')), /Разведка орков/);
+  assert.deepEqual(W.allowedTowers(st, r, at('sq1')), ['archer']);
+  assert.deepEqual(W.allowedTowers(st, r, at('sq2')).sort(), ['archer', 'priest']);
+  // Greedy walk: clear whatever the hero can reach (locked and hostile objects block the way)
+  const order: string[] = [];
+  for (let guard = 0; guard < 100 && !st.won; guard++) {
+    const next = r.objects.find((o) => o.kind !== 'camp' && !W.isCleared(st, o.id) && !W.isLocked(st, o) && W.findPath(st, r, o));
+    assert.ok(next, `stuck after ${order.join(', ')}`);
+    order.push(next.id);
+    if (W.isHostile(st, next)) W.winBattle(st, r, next.id);
+    else W.stepHero(st, r, next) ?? (st.done.push(next.id), (st.hero = { x: next.x, y: next.y }));
+    st.moves = W.MOVES_PER_DAY;
+    if (!W.isCleared(st, next.id)) {
+      st.hero = { x: next.x, y: next.y };
+      if (next.kind === 'mine') st.owned.push(next.id);
+      else st.done.push(next.id);
+    }
+  }
+  assert.ok(st.won, 'the fortress falls');
+  // Towers come before levels, levels before the binder
+  const idx = (id: string) => order.indexOf(id);
+  assert.ok(idx('sq3') < Math.min(idx('ford'), idx('bridge')) || idx('ford') === -1 || idx('bridge') === -1);
+  assert.ok(Math.min(...['ford', 'bridge'].map(idx).filter((i) => i >= 0)) < idx('sq4'));
+  assert.deepEqual(W.allowedTowers(st, r, null).sort(), ['archer', 'ballista', 'mage', 'priest']);
+  // Every scene trigger points at a real scene, every object id in triggers exists
+  for (const [t, id] of Object.entries(D.SCENE_AT)) {
+    assert.ok(D.SCENES.some((s) => s.id === id), `${t} → ${id}`);
+    const obj = t.split(':')[1];
+    if (obj) assert.ok(r.objects.some((o) => o.id === obj), `${t}: object exists`);
+  }
+  // A scene plays once
+  assert.ok(D.sceneFor('before:ford', []));
+  assert.equal(D.sceneFor('before:bridge', ['levels']), null, 'the river fork shares one lesson');
+  // Old saves: the prologue and scenes of cleared objects count as seen
+  const old = W.normalizeWorld({ ...W.newWorld(r), done: ['sq1'], scenes: undefined });
+  assert.ok(old && old.scenes.includes('start') && old.scenes.includes('sq1-after'));
 });
