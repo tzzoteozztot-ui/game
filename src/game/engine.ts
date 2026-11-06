@@ -332,6 +332,8 @@ export interface BackpackItem {
 }
 
 export interface GameStateSnapshot {
+  /** Стычка похода: число волн (null — обычный бой) */
+  waveLimit: number | null;
   lives: number;
   gold: number;
   level: number;
@@ -486,6 +488,13 @@ export class GameEngine {
   /** Свободный режим (песочница): золото без счёта, башни любого уровня, состав и запуск волн вручную */
   public sandbox = false;
   public wavesLaunched: number = 0; // how many of the 12 waves have been started
+  /** Поход по глобальной карте: стычка из первых N волн уровня вместо 12 (null — обычный бой) */
+  public waveLimit: number | null = null;
+
+  /** Последняя волна обычного боя: 12, в стычке похода — её N */
+  private lastWave(): number {
+    return this.waveLimit ?? CONFIG.waves.length;
+  }
   public spawnQueue: { type: EnemyType; entrance: number; sent?: boolean; faction?: number }[] = []; // sent: by the duel opponent
   private spawnTimer: number = 0;
   private currentEntranceIndex: number = 0;
@@ -680,6 +689,7 @@ export class GameEngine {
     this.difficulty = diff;
     this.endless = endless;
     this.sandbox = false;
+    this.waveLimit = null;
     this.duelStart = null;
     this.resetView();
     this.duelOutgoing = {};
@@ -744,6 +754,17 @@ export class GameEngine {
     this.generateGrass();
     this.notifyState();
     this.startLoop();
+  }
+
+  /**
+   * Бой похода по глобальной карте (просьба Артура 2026-11-06): уровень биома, первые `waves` волн,
+   * своя дорога из генератора по зерну отряда (крепость — готовая карта уровня, `seed` = null).
+   */
+  public startWorldBattle(level: number, waves: number, seed: number | null, diff: Difficulty = 'normal') {
+    this.startLevel(level, diff, false, undefined, 'humans', null, seed ? generateMap(level, seed) : null);
+    this.waveLimit = Math.max(1, Math.min(CONFIG.waves.length, Math.floor(waves)));
+    if (this.runLog) this.runLog.data.mode = 'world';
+    this.notifyState();
   }
 
   /** Свободный режим: бесконечный режим без таймера волн, с вечным золотом, 5-м ярусом и неубиваемым артефактом */
@@ -1381,11 +1402,11 @@ export class GameEngine {
     const duel = this.duelStart !== null;
     if (duel !== fromClock) return false; // a duel wave waits for the clock
     if ((this.isSpawning && !duel) || this.isGameOver || this.isVictory) return false;
-    if (!this.endless && this.wavesLaunched >= CONFIG.waves.length) return false;
+    if (!this.endless && this.wavesLaunched >= this.lastWave()) return false;
 
     // Early start: gold for the seconds left on the timer; while enemies are still alive the waves
     // merge, so the cleared-wave reward of the unfinished one is paid now (Артур: награда сразу и +20)
-    if (!duel && this.waveInProgress && this.enemies.length > 0 && (this.endless || this.wave <= 12)) {
+    if (!duel && this.waveInProgress && this.enemies.length > 0 && (this.endless || this.wave <= this.lastWave())) {
       const reward = calculateWaveClearReward(this.wave);
       this.gold += reward;
       this.statGold(reward);
@@ -1504,7 +1525,7 @@ export class GameEngine {
   private nextWaveComposition(): { type: EnemyType; count: number }[] | null {
     if (this.waveCountdown === null || this.isGameOver || this.isVictory) return null;
     const number = this.wavesLaunched + 1;
-    if (!this.endless && number > CONFIG.waves.length) return null;
+    if (!this.endless && number > this.lastWave()) return null;
     const def = waveDefinition(number);
     const duel = this.duelStart !== null;
     const count = (n?: number) => (n ? calculateEnemyCount(n, this.level, number, this.endless, this.difficulty, duel) : 0);
@@ -1782,7 +1803,7 @@ export class GameEngine {
         this.logEv('sandbox-clear', { gold: Math.round(this.gold), towers: this.logTowers() });
         this.runLog?.save();
         this.notifyState();
-      } else if (this.endless || this.wave <= 12) {
+      } else if (this.endless || this.wave <= this.lastWave()) {
         // Wave cleared!
         const reward = calculateWaveClearReward(this.wave);
         this.gold += reward;
@@ -1791,7 +1812,7 @@ export class GameEngine {
         this.addFloatingText(`Волна ${this.wave} зачищена! +${reward} золота`, CONFIG.grid.totalWidth / 2, 80, '#f4c06a');
         sound.playBuy();
 
-        if (!this.endless && this.wave === 12) {
+        if (!this.endless && this.wave === this.lastWave()) {
           // Level Completed!
           this.isVictory = true;
           sound.playVictory();
@@ -4419,14 +4440,15 @@ export class GameEngine {
           }
         : null,
       wave: this.shownWave(),
-      maxWaves: 12,
+      maxWaves: this.endless ? 12 : this.lastWave(),
       tier: this.tier,
       isWaveActive: this.waveInProgress || this.isSpawning || this.enemies.length > 0,
       isSpawning: this.isSpawning,
       isGameOver: this.isGameOver,
       isVictory: this.isVictory,
       isPaused: this.isPaused,
-      allWavesLaunched: !this.endless && this.wavesLaunched >= CONFIG.waves.length,
+      allWavesLaunched: !this.endless && this.wavesLaunched >= this.lastWave(),
+      waveLimit: this.waveLimit,
       endless: this.endless,
       duel: this.duelStart !== null,
       duelSendPrices: this.duelStart === null ? null : Object.fromEntries(SEND_TYPES.map((t) => [t, this.sendPrice(t)])) as Record<SendType, number>,

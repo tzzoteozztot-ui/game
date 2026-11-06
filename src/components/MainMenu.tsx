@@ -37,6 +37,7 @@ interface MainMenuProps {
   onSelectLevel: (lvl: number) => void; // highlights the card; the game starts with onPlay
   onPlay: () => void;
   onOpenDuel: () => void;
+  onOpenWorld: () => void; // поход по глобальной карте (прототип)
   onStartSandbox: (level: number, enemies: number, randomRoad: boolean) => void; // свободный режим: карта, чьи враги (0 — хозяева карты), дорога
   onStartBrawl: (level: number, bots: Difficulty, randomRoad: boolean) => void;
   onOpenBrawlLobby: (mode: 'host' | 'join', level: number, bots: Difficulty, randomRoad: boolean) => void; // network brawl (needs the server)
@@ -106,7 +107,7 @@ export function MainMenu(props: MainMenuProps) {
 // -------------------------------------------------------------
 // Home: the four modes
 // -------------------------------------------------------------
-function HomePage({ onChangePage, onOpenDuel, duelAvailable, unlockedLevel, accountLabel }: MainMenuProps) {
+function HomePage({ onChangePage, onOpenDuel, onOpenWorld, duelAvailable, unlockedLevel, accountLabel }: MainMenuProps) {
   const fullscreen = useFullscreen();
   const [hint, setHint] = useState(false);
   const standalone = isStandalone();
@@ -118,6 +119,7 @@ function HomePage({ onChangePage, onOpenDuel, duelAvailable, unlockedLevel, acco
       onClick: () => onChangePage('campaign'),
       main: true,
     },
+    { key: 'world', title: 'Поход (проба)', hint: 'Глобальная карта: Пограничье, отряды, промыслы, крепость Вождя', onClick: onOpenWorld },
     { key: 'endless', title: 'Бесконечный режим', hint: 'Волны без конца, рекорд волны', onClick: () => onChangePage('endless') },
     { key: 'brawl', title: 'Потасовка', hint: 'Восемь рубежей, соперник меняется каждую волну', onClick: () => onChangePage('brawl') },
     { key: 'sandbox', title: 'Свободный режим', hint: 'Золото без счёта, башни любого уровня, волны вручную, лог', onClick: () => onChangePage('sandbox') },
