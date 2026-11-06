@@ -6,6 +6,7 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { CONFIG, Difficulty, TowerType, RaceId } from './game/config';
 import { createBotLink } from './duelBot';
+import { HeroBar } from './components/HeroBar';
 import { validateAllMaps } from './game/maps';
 import { newMapSeed } from './game/mapgen';
 import { sound, AudioSettings } from './game/audio';
@@ -42,7 +43,8 @@ import { LevelBriefing } from './components/LevelBriefing';
 import { PauseModal, VictoryModal, DefeatModal, HowToPlayModal, DuelResultModal, BrawlResultModal, DuelOutcome } from './components/StatusModals';
 import { OrientationWarning } from './components/OrientationWarning';
 import { WorldMap, WorldBattleResult } from './components/WorldMap';
-import { WorldState, WorldObj, REGIONS, FRONTIER, newWorld, loadWorld, saveWorld, winBattle, battleSeed } from './campaign/world';
+import { WorldState, WorldObj, REGIONS, FRONTIER, newWorld, loadWorld, saveWorld, winBattle, battleSeed, battlePerks, heroLevel } from './campaign/world';
+import { HERO_ABILITIES } from './game/config';
 import { fullscreenSupported, toggleFullscreen } from './fullscreen';
 import { AccountModal, SyncState } from './components/AccountModal';
 import { downloadRunLog } from './game/runLog';
@@ -254,6 +256,7 @@ export default function App() {
     isBinding: false,
     canMoveTowers: false,
     boons: [],
+    heroSkills: [],
     boonOffer: null,
     moveCost: null,
     rerollCost: CONFIG.shop.rerollCost,
@@ -659,6 +662,13 @@ export default function App() {
     }
   };
 
+  // Поход: пассивки лагеря и предметы героя, умения по его уровню
+  const heroIntoBattle = (eng: GameEngine) => {
+    if (!world) return;
+    eng.setCampBoons(battlePerks(world));
+    eng.setHeroSkills(HERO_ABILITIES.filter((d) => d.unlock <= heroLevel(world)).map((d) => d.id));
+  };
+
   // Поход: бой отряда или крепости на обычном поле — первые N волн уровня биома
   const startWorldBattle = (obj: WorldObj) => {
     sound.init();
@@ -668,7 +678,7 @@ export default function App() {
       // Бой с армией (просьба Артура 2026-11-06): как дуэль с ботом — волны идут без конца, пока не падёт артефакт вражеского лагеря
       closeDuel();
       const region = REGIONS[world?.region ?? 'frontier'] ?? FRONTIER;
-      handleDuelStart(createBotLink(region.level, obj.army), region.level, performance.now(), region.level, CONFIG.races.humans.faction, CONFIG.duel.roundLength, battleSeed(obj), 'humans', (eng) => eng.setCampBoons(world?.camp ?? {}));
+      handleDuelStart(createBotLink(region.level, obj.army), region.level, performance.now(), region.level, CONFIG.races.humans.faction, CONFIG.duel.roundLength, battleSeed(obj), 'humans', (eng) => heroIntoBattle(eng));
       return;
     }
     setScreen('playing');
@@ -677,7 +687,7 @@ export default function App() {
         engineRef.current.setCanvas(canvasRef.current);
         const region = REGIONS[world?.region ?? 'frontier'] ?? FRONTIER;
         engineRef.current.startWorldBattle(region.level, obj.waves ?? 3, battleSeed(obj));
-        engineRef.current.setCampBoons(world?.camp ?? {});
+        heroIntoBattle(engineRef.current);
         setShopCards(generateShopCards(1));
       }
     }, 50);
@@ -725,7 +735,7 @@ export default function App() {
     if (worldBattle) {
       if (canvasRef.current) engine.setCanvas(canvasRef.current);
       engine.startWorldBattle(FRONTIER.level, worldBattle.waves ?? 3, battleSeed(worldBattle));
-      engine.setCampBoons(world?.camp ?? {});
+      heroIntoBattle(engine);
       return;
     }
     if (engine.sandbox) {
@@ -1234,6 +1244,9 @@ export default function App() {
       if (screen === 'playing' && engine.canUpgradeSelectedTower()) handleUpgradeTower();
     } else if (e.key === 'a' || e.key === 'A' || e.key === 'ф' || e.key === 'Ф') {
       if (screen === 'playing' && engine.selectedTowerId) engine.castAbility(engine.selectedTowerId);
+    } else if (screen === 'playing' && ['KeyZ', 'KeyX', 'KeyC'].includes(e.code) && engine.heroSkills.length) {
+      const h = engine.heroSkills[['KeyZ', 'KeyX', 'KeyC'].indexOf(e.code)];
+      if (h) engine.castHero(h.id);
     } else if (e.key === 'Tab') {
       if (screen === 'playing' && engine.selectedTowerId) {
         e.preventDefault();
@@ -1488,6 +1501,7 @@ export default function App() {
                   onOpenSandboxWave={() => setSandboxWaveOpen(true)}
                 />}
                 {brawl && <BrawlBoard snap={brawl} />}
+                {worldBattle && <HeroBar skills={gameState.heroSkills} onCast={(id) => engineRef.current?.castHero(id)} />}
                 {gameState.boonOffer && !gameState.isGameOver && (
                   <BoonPicker offer={gameState.boonOffer} onChoose={(id) => engineRef.current?.chooseBoon(id)} />
                 )}
