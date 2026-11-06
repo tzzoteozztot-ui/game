@@ -890,6 +890,7 @@ test('world: the tutorial trail — locks open in order and the whole chapter ca
   const idx = (id: string) => order.indexOf(id);
   assert.ok(idx('sq3') < Math.min(idx('ford'), idx('bridge')) || idx('ford') === -1 || idx('bridge') === -1);
   assert.ok(Math.min(...['ford', 'bridge'].map(idx).filter((i) => i >= 0)) < idx('sq4'));
+  assert.ok(Math.min(...['ford', 'bridge'].map(idx).filter((i) => i >= 0)) < idx('warcamp'), 'shop tier comes after levels');
   assert.deepEqual(W.allowedTowers(st, r, null).sort(), ['archer', 'ballista', 'mage', 'priest']);
   // Every scene trigger points at a real scene, every object id in triggers exists
   for (const [t, id] of Object.entries(D.SCENE_AT)) {

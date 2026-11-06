@@ -170,7 +170,7 @@ const FRONTIER_OBJECTS: WorldObj[] = [
   { id: 'saw', kind: 'mine', x: 8, y: 26, name: 'Лесопилка', waves: 3, income: { wood: 5 }, needs: ['quarry'], teach: ['mage'], text: 'Орки рубят здесь лес. Отобьём — будет дерево каждый день.' },
   { id: 'shrine', kind: 'shrine', x: 19, y: 16, name: 'Камень предков', reward: { crystal: 2 }, item: 'idol', needs: ['saw'], text: 'Орки приносят сюда дары. Камень звенит так же, как наш узел.' },
   {
-    id: 'warcamp', kind: 'squad', x: 21, y: 3, name: 'Военный лагерь рода', waves: 6, reward: { gold: 250, wood: 30, crystal: 4 }, item: 'warbanner', needs: ['sq3'],
+    id: 'warcamp', kind: 'squad', x: 21, y: 3, name: 'Военный лагерь рода', waves: 6, reward: { gold: 250, wood: 30, crystal: 4 }, item: 'warbanner', needsAny: ['ford', 'bridge'], // ярус лавки и защита — после уроков уровней (Лоровед, 2026-11-06)
     text: 'Здесь орки собирают силы для набега. Бой не обязателен, но лагерь богат.',
   },
   // Переправы
