@@ -442,7 +442,7 @@ export default function App() {
 
   const [opponentArmy, setOpponentArmy] = useState(1);
   const [myArmy, setMyArmy] = useState(1); // the army I send: its enemies' names in «Армия»
-  const handleDuelStart = (link: DuelLink, level: number, startAt: number, army: number, myArmy: number, roundLength = CONFIG.duel.roundLength, mapSeed: number | null = null, asRace: RaceId = race) => {
+  const handleDuelStart = (link: DuelLink, level: number, startAt: number, army: number, myArmy: number, roundLength = CONFIG.duel.roundLength, mapSeed: number | null = null, asRace: RaceId = race, afterStart?: (eng: GameEngine) => void) => {
     duelLinkRef.current = link;
     duelSeenRef.current = performance.now();
     duelOutcomeRef.current = null;
@@ -466,6 +466,7 @@ export default function App() {
         engineRef.current.setCanvas(canvasRef.current);
         engineRef.current.startDuel(level, startAt, army, asRace, roundLength, mapSeed);
         const eng = engineRef.current;
+        afterStart?.(eng);
         eng.onDuelSend = (enemies) => link.send({ t: 'send', enemies, wave: eng.wavesLaunched + 1 });
         if (link instanceof BrawlRoom) {
           engineRef.current.waveFactionFor = (w) => link.factionForWave(w);
@@ -667,7 +668,7 @@ export default function App() {
       // Бой с армией (просьба Артура 2026-11-06): как дуэль с ботом — волны идут без конца, пока не падёт артефакт вражеского лагеря
       closeDuel();
       const region = REGIONS[world?.region ?? 'frontier'] ?? FRONTIER;
-      handleDuelStart(createBotLink(region.level, obj.army), region.level, performance.now(), region.level, CONFIG.races.humans.faction, CONFIG.duel.roundLength, battleSeed(obj), 'humans');
+      handleDuelStart(createBotLink(region.level, obj.army), region.level, performance.now(), region.level, CONFIG.races.humans.faction, CONFIG.duel.roundLength, battleSeed(obj), 'humans', (eng) => eng.setCampBoons(world?.camp ?? {}));
       return;
     }
     setScreen('playing');
@@ -676,6 +677,7 @@ export default function App() {
         engineRef.current.setCanvas(canvasRef.current);
         const region = REGIONS[world?.region ?? 'frontier'] ?? FRONTIER;
         engineRef.current.startWorldBattle(region.level, obj.waves ?? 3, battleSeed(obj));
+        engineRef.current.setCampBoons(world?.camp ?? {});
         setShopCards(generateShopCards(1));
       }
     }, 50);
@@ -723,6 +725,7 @@ export default function App() {
     if (worldBattle) {
       if (canvasRef.current) engine.setCanvas(canvasRef.current);
       engine.startWorldBattle(FRONTIER.level, worldBattle.waves ?? 3, battleSeed(worldBattle));
+      engine.setCampBoons(world?.camp ?? {});
       return;
     }
     if (engine.sandbox) {

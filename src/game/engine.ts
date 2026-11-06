@@ -533,6 +533,8 @@ export class GameEngine {
   public guardLevel = 1; // level of the artifact's own defence (CONFIG.siege.guard)
   // Brawl: the artifact's boons (CONFIG.brawl.boons) — one of three after every 3rd wave (просьба Артура 2026-11-01)
   public boonsOn = false;
+  /** Поход: уровни пассивок лагеря (id усиления → уровень); каждый уровень — ещё одна доля усиления */
+  public campLevels: Record<string, number> = {};
   /** Лог партии (runLog.ts): пишется всегда, скачивается с экрана итогов */
   public runLog: RunLog | null = null;
   /** Данные вне движка для среза волны (доска Потасовки) — задаёт App */
@@ -685,6 +687,7 @@ export class GameEngine {
     this.waveFactionFor = null;
     this.boonsOn = false;
     this.boons = [];
+    this.campLevels = {};
     this.boonOffers = [];
     this.difficulty = diff;
     this.endless = endless;
@@ -1273,7 +1276,17 @@ export class GameEngine {
 
   /** Величина усиления артефакта, 0 — если его не брали */
   public boon(id: string): number {
-    return this.boons.includes(id) ? (BOONS.find((b) => b.id === id)?.value ?? 0) : 0;
+    const n = (this.boons.includes(id) ? 1 : 0) + (this.campLevels[id] ?? 0);
+    return n > 0 ? (BOONS.find((b) => b.id === id)?.value ?? 0) * n : 0;
+  }
+
+  /** Поход: пассивки лагеря на весь бой (после startWorldBattle / startDuel) */
+  public setCampBoons(levels: Record<string, number>) {
+    this.campLevels = { ...levels };
+    this.lives = this.livesMax();
+    this.markModsDirty();
+    if (this.runLog) (this.runLog.data as { camp?: Record<string, number> }).camp = { ...levels };
+    this.notifyState();
   }
 
   /** Three boons not taken and not on offer yet; nothing once the pool runs dry */
@@ -4487,7 +4500,7 @@ export class GameEngine {
       isBinding: this.bindingFromId !== null,
       canMoveTowers: this.canMoveTowers(),
       moveCost: this.moveCost(),
-      boons: this.boons.map((id) => BOONS.find((b) => b.id === id)!).filter(Boolean),
+      boons: [...new Set([...this.boons, ...Object.keys(this.campLevels).filter((id) => this.campLevels[id] > 0)])].map((id) => BOONS.find((b) => b.id === id)!).filter(Boolean),
       boonOffer: this.boonOffers[0]?.map((id) => BOONS.find((b) => b.id === id)!).filter(Boolean) ?? null,
       rerollCost: this.rerollCost(),
       race: this.race,

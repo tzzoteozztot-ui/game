@@ -71,6 +71,7 @@ export interface WorldState {
   owned: string[]; // захваченные промыслы
   seen: number[]; // открытые туманом гексы: y * ширина + x
   won: boolean; // крепость взята
+  camp: Record<string, number>; // уровни пассивок лагеря: id усиления → 1..CAMP_MAX_LEVEL
 }
 
 // -------------------------------------------------------------
@@ -391,6 +392,7 @@ export function newWorld(region: RegionDef = FRONTIER): WorldState {
     owned: [],
     seen: [],
     won: false,
+    camp: {},
   };
   reveal(st, region);
   return st;
@@ -594,6 +596,9 @@ export function normalizeWorld(v: unknown): WorldState | null {
     owned: (o.owned ?? []).filter((id) => ids.has(id)),
     seen: (o.seen ?? []).filter((n) => Number.isInteger(n)),
     won: !!o.won,
+    camp: Object.fromEntries(
+      Object.entries(o.camp ?? {}).filter(([id, n]) => CAMP_PERKS.includes(id) && Number.isInteger(n) && n > 0).map(([id, n]) => [id, Math.min(campMax(id), n as number)])
+    ),
   };
   reveal(st, region);
   return st;
@@ -651,4 +656,53 @@ export function saveSlot(i: number, st: WorldState) {
   } catch {
     // нет хранилища
   }
+}
+
+// -------------------------------------------------------------
+// Лагерь (просьба Артура 2026-11-06): за ресурсы качаются пассивки — те же усиления, что в Потасовке
+// (BOONS в config.ts), каждый уровень — ещё одна доля усиления на все бои похода. Постройки — по людям
+// лагеря из лора (Гарт — Кузня, Сефира Ноль — Башня магов, Осип — Казна). Цены — черновик.
+// -------------------------------------------------------------
+export interface CampBuilding {
+  id: string;
+  name: string;
+  keeper: string; // кто ведёт постройку
+  text: string;
+  perks: string[]; // id усилений из BOONS
+}
+
+export const CAMP_BUILDINGS: CampBuilding[] = [
+  { id: 'forge', name: 'Кузня', keeper: 'Гарт', text: 'Клинки, наконечники и тетивы для всех башен.', perks: ['sharp', 'haste', 'pierce', 'slayer'] },
+  { id: 'tower', name: 'Башня магов', keeper: 'Сефира Ноль', text: 'Чары узла: дальше видеть, вязнуть врагу, сильнее бить у артефакта.', perks: ['sight', 'mire', 'ward', 'bastion'] },
+  { id: 'treasury', name: 'Казна', keeper: 'Осип', text: 'Золото с боя, скидки в лавке и вербовка.', perks: ['loot', 'trade', 'scout', 'envoy'] },
+  { id: 'walls', name: 'Стены', keeper: 'Наместник Орис Вельд', text: 'Камень для стен вокруг артефакта.', perks: ['walls'] },
+];
+export const CAMP_PERKS = CAMP_BUILDINGS.flatMap((b) => b.perks);
+export const CAMP_MAX_LEVEL = 3;
+/** Сколько уровней у пассивки: «Разведка» — да или нет, у остальных три */
+export const campMax = (perk: string) => (perk === 'scout' ? 1 : CAMP_MAX_LEVEL);
+
+/** Цена следующего уровня пассивки (уровень 1..3) */
+export function campCost(level: number): Resources {
+  return [
+    { gold: 100, wood: 15, crystal: 0 },
+    { gold: 200, wood: 30, crystal: 2 },
+    { gold: 350, wood: 50, crystal: 4 },
+  ][Math.max(0, Math.min(CAMP_MAX_LEVEL, level) - 1)];
+}
+
+export function canAfford(st: WorldState, cost: Resources): boolean {
+  return (Object.keys(cost) as ResKey[]).every((k) => st.res[k] >= cost[k]);
+}
+
+/** Поднять пассивку на уровень, если хватает ресурсов. Возвращает новый уровень или null */
+export function upgradeCamp(st: WorldState, perk: string): number | null {
+  if (!CAMP_PERKS.includes(perk)) return null;
+  const next = (st.camp[perk] ?? 0) + 1;
+  if (next > campMax(perk)) return null;
+  const cost = campCost(next);
+  if (!canAfford(st, cost)) return null;
+  for (const k of Object.keys(cost) as ResKey[]) st.res[k] -= cost[k];
+  st.camp = { ...st.camp, [perk]: next };
+  return next;
 }

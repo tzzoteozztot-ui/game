@@ -30,11 +30,13 @@ import {
   loadSlots,
   saveSlot,
   SLOT_COUNT,
+  upgradeCamp,
 } from '../campaign/world';
 import { bakeTerrain, drawLive, loadExtras, hexAt, wx, wy, worldW, worldH, HW, P } from '../campaign/worldRender';
 import { sprites } from '../game/sprites';
 import { loadTileset, Tileset, TILESETS } from '../game/tiles';
 import { sound } from '../game/audio';
+import { CampPanel } from './CampPanel';
 
 interface WorldMapProps {
   world: WorldState;
@@ -51,7 +53,7 @@ type Cam = { zoom: number; x: number; y: number }; // экран = мир × zoo
 const MAX_ZOOM = 2.2;
 const CAM_KEY = 'dark_frontier_world_zoom';
 
-const copyWorld = (w: WorldState): WorldState => ({ ...w, hero: { ...w.hero }, res: { ...w.res }, done: [...w.done], owned: [...w.owned], seen: [...w.seen] });
+const copyWorld = (w: WorldState): WorldState => ({ ...w, hero: { ...w.hero }, res: { ...w.res }, done: [...w.done], owned: [...w.owned], seen: [...w.seen], camp: { ...w.camp } });
 
 export function WorldMap({ world, region, onChange, onBattle, onExit, onReset }: WorldMapProps) {
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -66,6 +68,7 @@ export function WorldMap({ world, region, onChange, onBattle, onExit, onReset }:
   const [notice, setNotice] = useState<Notice | null>(null);
   const [confirmReset, setConfirmReset] = useState(false);
   const [savesOpen, setSavesOpen] = useState(false);
+  const [campOpen, setCampOpen] = useState(false);
   const [slots, setSlots] = useState<(WorldSlot | null)[]>(() => loadSlots());
   const stRef = useRef(world);
   stRef.current = world;
@@ -256,7 +259,10 @@ export function WorldMap({ world, region, onChange, onBattle, onExit, onReset }:
           setNotice({ title: res.obj.name, text: `Промысел наш. Каждый день: ${resText(res.obj.income)}` });
           return stop();
         }
-        if (res.kind === 'visit' && res.obj.kind === 'camp' && i === steps.length) setNotice({ title: res.obj.name, text: res.obj.text ?? '' });
+        if (res.kind === 'visit' && res.obj.kind === 'camp' && i === steps.length) {
+          setCampOpen(true);
+          return stop();
+        }
         setTimeout(next, 140);
       };
       next();
@@ -393,15 +399,19 @@ export function WorldMap({ world, region, onChange, onBattle, onExit, onReset }:
         >
           Конец дня
         </button>
+        <button className="px-2 py-1 rounded bg-[#2a2635] hover:bg-[#3a3448] disabled:opacity-50" disabled={walking} title="Лагерь" onClick={() => setCampOpen(true)}>
+          ⛺<span className="hidden md:inline"> Лагерь</span>
+        </button>
         <button
           className="px-2 py-1 rounded bg-[#2a2635] hover:bg-[#3a3448] disabled:opacity-50"
           disabled={walking}
+          title="Сохранения"
           onClick={() => {
             setSlots(loadSlots());
             setSavesOpen(true);
           }}
         >
-          💾 Сохранения
+          💾<span className="hidden lg:inline"> Сохранения</span>
         </button>
         <button className="px-2 py-1 rounded bg-[#2a2635] hover:bg-[#3a3448]" onClick={() => setConfirmReset(true)}>
           Заново
@@ -503,6 +513,20 @@ export function WorldMap({ world, region, onChange, onBattle, onExit, onReset }:
               )}
             </div>
           </div>
+        )}
+
+        {campOpen && (
+          <CampPanel
+            world={world}
+            onClose={() => setCampOpen(false)}
+            onUpgrade={(perk) => {
+              const st = copyWorld(world);
+              if (upgradeCamp(st, perk) !== null) {
+                sound.playBuy();
+                onChange(st);
+              }
+            }}
+          />
         )}
 
         {savesOpen && (

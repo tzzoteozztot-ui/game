@@ -802,6 +802,22 @@ test('world: moves, battle, loot, mines and days', () => {
   assert.equal(W.stepHero(st, r, W.hexNeighbours(st.hero.x, st.hero.y).find((p) => { const t = W.terrainAt(r, p.x, p.y); return !!t && W.TERRAIN_COST[t] !== null; })!), null);
 });
 
+test('world: the camp sells perk levels for resources, up to the top level, and saves them', async () => {
+  const { BOONS } = await import('./config');
+  const st = W.newWorld();
+  assert.equal(W.upgradeCamp(st, 'sharp'), null, 'no resources — no upgrade');
+  st.res = { gold: 2000, wood: 500, crystal: 50 };
+  assert.equal(W.upgradeCamp(st, 'sharp'), 1);
+  assert.equal(st.res.gold, 2000 - W.campCost(1).gold);
+  assert.equal(W.upgradeCamp(st, 'sharp'), 2);
+  assert.equal(W.upgradeCamp(st, 'sharp'), 3);
+  assert.equal(W.upgradeCamp(st, 'sharp'), null, 'top level');
+  assert.equal(W.upgradeCamp(st, 'nope'), null);
+  const back = W.normalizeWorld(JSON.parse(JSON.stringify({ ...st, camp: { ...st.camp, junk: 2, haste: 9 } })))!;
+  assert.deepEqual(back.camp, { sharp: 3, haste: W.CAMP_MAX_LEVEL });
+  for (const id of W.CAMP_PERKS) assert.ok(BOONS.some((b) => b.id === id), `${id} is a boon`);
+});
+
 test('world: a save survives a round trip and junk is rejected', () => {
   const st = W.newWorld();
   W.winBattle(st, W.FRONTIER, 'sq1');
