@@ -784,7 +784,7 @@ test('world: moves, battle, loot, mines and days', () => {
   assert.equal(st.moves, W.MOVES_PER_DAY);
   // Without moves left the hero does not step
   st.moves = 0;
-  assert.equal(W.stepHero(st, r, W.hexNeighbours(st.hero.x, st.hero.y).find((p) => W.terrainAt(r, p.x, p.y) === 'grass')!), null);
+  assert.equal(W.stepHero(st, r, W.hexNeighbours(st.hero.x, st.hero.y).find((p) => { const t = W.terrainAt(r, p.x, p.y); return !!t && W.TERRAIN_COST[t] !== null; })!), null);
 });
 
 test('world: a save survives a round trip and junk is rejected', () => {
@@ -792,8 +792,8 @@ test('world: a save survives a round trip and junk is rejected', () => {
   W.winBattle(st, W.FRONTIER, 'sq1');
   const back = W.normalizeWorld(JSON.parse(JSON.stringify(st)));
   assert.deepEqual(back, st);
-  assert.equal(W.normalizeWorld({ v: 2 }), null);
-  assert.equal(W.normalizeWorld({ v: 1, region: 'frontier', hero: { x: 99, y: 0 }, res: {} }), null);
+  assert.equal(W.normalizeWorld({ v: 1 }), null);
+  assert.equal(W.normalizeWorld({ v: 2, region: 'frontier', hero: { x: 99, y: 0 }, res: {} }), null);
   assert.equal(W.hexDistance({ x: 0, y: 0 }, { x: 0, y: 1 }), 1);
   assert.equal(W.hexDistance({ x: 0, y: 0 }, { x: 3, y: 0 }), 3);
   assert.ok(W.battleSeed(W.FRONTIER.objects[3])! > 0);

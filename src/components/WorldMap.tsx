@@ -1,7 +1,8 @@
 /**
- * Глобальная карта кампании (прототип, просьба Артура 2026-11-06, вариант В): регион из гексов, туман,
- * герой ходит по дням. Касание гекса — путь и сведения, второе касание того же гекса — идти.
- * Логика — src/campaign/world.ts; бой отряда запускает App через `onBattle`.
+ * Глобальная карта кампании (прототип, просьба Артура 2026-11-06, вариант В): большой регион из гексов,
+ * туман, герой ходит по дням. Карту двигают перетаскиванием, приближают кнопками «+»/«−», колесом и щипком.
+ * Сетка гексов видна, только когда герой выбран: касание героя — выбрать, касание гекса — путь, ещё раз — идти.
+ * Логика — src/campaign/world.ts, рисование — src/campaign/worldRender.ts; бой отряда запускает App через `onBattle`.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -17,16 +18,17 @@ import {
   isHostile,
   isSeen,
   terrainAt,
-  regionW,
-  regionH,
   resText,
   RES_ICONS,
   RES_NAMES,
   ResKey,
   MOVES_PER_DAY,
+  TERRAIN_NAMES,
+  TERRAIN_COST,
   dailyIncome,
 } from '../campaign/world';
-import { sprites, drawSprite } from '../game/sprites';
+import { bakeTerrain, drawLive, loadExtras, hexAt, wx, wy, worldW, worldH, HW, P } from '../campaign/worldRender';
+import { sprites } from '../game/sprites';
 import { loadTileset, Tileset, TILESETS } from '../game/tiles';
 import { sound } from '../game/audio';
 
@@ -39,68 +41,36 @@ interface WorldMapProps {
   onReset: () => void;
 }
 
-type P = { x: number; y: number };
 type Notice = { title: string; text: string; battle?: WorldObj };
+type Cam = { zoom: number; x: number; y: number }; // экран = мир × zoom + (x, y)
 
-const SQ3 = Math.sqrt(3);
+const MAX_ZOOM = 2.2;
+const CAM_KEY = 'dark_frontier_world_zoom';
 
-/** Геометрия гексов под размер холста: ширина гекса w, высота h, ряды через 0,75 h */
-function layoutFor(region: RegionDef, cw: number, ch: number) {
-  const cols = regionW(region);
-  const rows = regionH(region);
-  const wByW = cw / (cols + 0.5);
-  const wByH = ch / (((rows - 1) * 0.75 + 1) * (2 / SQ3));
-  const w = Math.max(10, Math.min(wByW, wByH));
-  const h = (w * 2) / SQ3;
-  const totalW = (cols + 0.5) * w;
-  const totalH = ((rows - 1) * 0.75 + 1) * h;
-  const ox = (cw - totalW) / 2;
-  const oy = (ch - totalH) / 2;
-  const cx = (p: P) => ox + (p.x + 0.5 + 0.5 * (p.y & 1)) * w;
-  const cy = (p: P) => oy + h / 2 + p.y * 0.75 * h;
-  return { w, h, cx, cy, ox, oy };
-}
-
-function hexPath(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number) {
-  ctx.beginPath();
-  ctx.moveTo(x, y - h / 2);
-  ctx.lineTo(x + w / 2, y - h / 4);
-  ctx.lineTo(x + w / 2, y + h / 4);
-  ctx.lineTo(x, y + h / 2);
-  ctx.lineTo(x - w / 2, y + h / 4);
-  ctx.lineTo(x - w / 2, y - h / 4);
-  ctx.closePath();
-}
-
-/** Детерминированный «случай» для декора клетки */
-function rnd(x: number, y: number, k: number) {
-  const s = Math.sin(x * 127.1 + y * 311.7 + k * 74.7) * 43758.5453;
-  return s - Math.floor(s);
-}
-
-function squadSprite(o: WorldObj, level: number): string {
-  const n = o.waves ?? 3;
-  return `enemy_${n <= 3 ? 'scout' : n <= 5 ? 'infantry' : 'heavy'}_${level}`;
-}
+const copyWorld = (w: WorldState): WorldState => ({ ...w, hero: { ...w.hero }, res: { ...w.res }, done: [...w.done], owned: [...w.owned], seen: [...w.seen] });
 
 export function WorldMap({ world, region, onChange, onBattle, onExit, onReset }: WorldMapProps) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [size, setSize] = useState({ w: 0, h: 0 });
   const [tiles, setTiles] = useState<Tileset | null>(null);
+  const [extras, setExtras] = useState<Map<string, HTMLImageElement> | null>(null);
   const [spritesReady, setSpritesReady] = useState(false);
+  const [selected, setSelected] = useState(false);
   const [target, setTarget] = useState<P | null>(null);
   const [walking, setWalking] = useState(false);
   const [notice, setNotice] = useState<Notice | null>(null);
   const [confirmReset, setConfirmReset] = useState(false);
-  const [tick, setTick] = useState(0); // перерисовка во время хода
   const stRef = useRef(world);
   stRef.current = world;
+  const cam = useRef<Cam>({ zoom: 1, x: 0, y: 0 });
+  const camReady = useRef(false);
 
   useEffect(() => {
     let alive = true;
     sprites.load().then(() => alive && setSpritesReady(true));
     loadTileset(TILESETS[region.level] ?? 'frontier').then((t) => alive && setTiles(t));
+    loadExtras().then((m) => alive && setExtras(m));
     return () => {
       alive = false;
     };
@@ -114,267 +84,127 @@ export function WorldMap({ world, region, onChange, onBattle, onExit, onReset }:
     return () => ro.disconnect();
   }, []);
 
-  const path = useMemo(() => (target ? findPath(world, region, target) : null), [target, world, region, tick]);
+  // Запечённая местность: заново, когда догрузились тайлы и картинки
+  const baked = useMemo(() => (typeof document === 'undefined' ? null : bakeTerrain(region, tiles, extras)), [region, tiles, extras]);
+  const path = useMemo(() => (selected && target ? findPath(world, region, target) : null), [selected, target, world, region]);
+
+  // ---------------------------------------------------------------- камера
+  const minZoom = () => Math.min(size.w / worldW(region), size.h / worldH(region));
+  const clampCam = () => {
+    const c = cam.current;
+    c.zoom = Math.max(minZoom(), Math.min(MAX_ZOOM, c.zoom));
+    const mw = worldW(region) * c.zoom;
+    const mh = worldH(region) * c.zoom;
+    c.x = mw <= size.w ? (size.w - mw) / 2 : Math.min(0, Math.max(size.w - mw, c.x));
+    c.y = mh <= size.h ? (size.h - mh) / 2 : Math.min(0, Math.max(size.h - mh, c.y));
+  };
+  const centerOn = (p: P) => {
+    const c = cam.current;
+    c.x = size.w / 2 - wx(p) * c.zoom;
+    c.y = size.h / 2 - wy(p) * c.zoom;
+    clampCam();
+  };
+  const zoomAt = (k: number, sx: number, sy: number) => {
+    const c = cam.current;
+    const gx = (sx - c.x) / c.zoom;
+    const gy = (sy - c.y) / c.zoom;
+    c.zoom *= k;
+    clampCam();
+    c.x = sx - gx * c.zoom;
+    c.y = sy - gy * c.zoom;
+    clampCam();
+    try {
+      localStorage.setItem(CAM_KEY, String(c.zoom));
+    } catch {
+      /* без хранилища — без памяти о приближении */
+    }
+    requestDraw();
+  };
 
   // ---------------------------------------------------------------- рисование
-  useEffect(() => {
+  const drawRef = useRef<() => void>(() => {});
+  const raf = useRef(0);
+  const requestDraw = () => {
+    if (raf.current) return;
+    raf.current = requestAnimationFrame(() => {
+      raf.current = 0;
+      drawRef.current();
+    });
+  };
+  drawRef.current = () => {
     const cv = canvasRef.current;
     if (!cv || !size.w || !size.h) return;
     const dpr = Math.min(2, window.devicePixelRatio || 1);
-    cv.width = Math.round(size.w * dpr);
-    cv.height = Math.round(size.h * dpr);
+    if (cv.width !== Math.round(size.w * dpr)) cv.width = Math.round(size.w * dpr);
+    if (cv.height !== Math.round(size.h * dpr)) cv.height = Math.round(size.h * dpr);
     const ctx = cv.getContext('2d')!;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    ctx.clearRect(0, 0, size.w, size.h);
-    const L = layoutFor(region, size.w, size.h);
-    const st = world;
-    const grass = tiles?.get('grass');
-    const dirt = tiles?.get('dirt');
-    const dec = (n: string) => tiles?.get(`decor/${n}`) ?? null;
+    ctx.fillStyle = '#0b0a10';
+    ctx.fillRect(0, 0, size.w, size.h);
+    const c = cam.current;
+    ctx.setTransform(dpr * c.zoom, 0, 0, dpr * c.zoom, dpr * c.x, dpr * c.y);
+    if (baked) ctx.drawImage(baked, 0, 0, worldW(region), worldH(region));
+    drawLive(ctx, region, stRef.current, { selected, path, target, extras, time: performance.now() });
+  };
 
-    // Земля
-    for (let y = 0; y < regionH(region); y++) {
-      for (let x = 0; x < regionW(region); x++) {
-        const t = terrainAt(region, x, y)!;
-        const px = L.cx({ x, y });
-        const py = L.cy({ x, y });
-        ctx.save();
-        hexPath(ctx, px, py, L.w + 0.6, L.h + 0.6);
-        ctx.clip();
-        if (t === 'water') {
-          const g = ctx.createLinearGradient(px, py - L.h / 2, px, py + L.h / 2);
-          g.addColorStop(0, '#1f3f4f');
-          g.addColorStop(1, '#152c38');
-          ctx.fillStyle = g;
-          ctx.fillRect(px - L.w, py - L.h, L.w * 2, L.h * 2);
-          ctx.strokeStyle = 'rgba(160,210,220,0.18)';
-          ctx.lineWidth = 1;
-          for (let i = 0; i < 3; i++) {
-            const wy = py - L.h * 0.25 + i * L.h * 0.22;
-            ctx.beginPath();
-            ctx.moveTo(px - L.w * 0.3, wy);
-            ctx.quadraticCurveTo(px, wy - 3, px + L.w * 0.3, wy);
-            ctx.stroke();
-          }
-        } else if (t === 'rock') {
-          ctx.fillStyle = '#26232c';
-          ctx.fillRect(px - L.w, py - L.h, L.w * 2, L.h * 2);
-        } else {
-          const img = t === 'hills' ? dirt : grass;
-          if (img) {
-            // Кусок тайла со сдвигом по клетке, чтобы трава не повторялась узором
-            const sx = rnd(x, y, 1) * img.width * 0.5;
-            const sy = rnd(x, y, 2) * img.height * 0.5;
-            ctx.drawImage(img, sx, sy, img.width * 0.5, img.height * 0.5, px - L.w / 2, py - L.h / 2, L.w, L.h);
-          } else {
-            ctx.fillStyle = t === 'hills' ? '#5a4a36' : '#3e5530';
-            ctx.fillRect(px - L.w, py - L.h, L.w * 2, L.h * 2);
-          }
-          if (t === 'forest') {
-            ctx.fillStyle = 'rgba(10,30,10,0.35)';
-            ctx.fillRect(px - L.w, py - L.h, L.w * 2, L.h * 2);
-          }
-        }
-        ctx.restore();
-
-        // Декор местности
-        const put = (name: string, fx: number, fy: number, scale: number) => {
-          const im = dec(name);
-          if (!im) return;
-          const dw = L.w * scale;
-          const dh = (im.height / im.width) * dw;
-          ctx.drawImage(im, px + fx * L.w - dw / 2, py + fy * L.h - dh, dw, dh);
-        };
-        if (t === 'forest') {
-          put(['bush1', 'bush2', 'bush3'][Math.floor(rnd(x, y, 3) * 3)], -0.18, 0.05, 0.55);
-          put(['bush2', 'bush3', 'fern'][Math.floor(rnd(x, y, 4) * 3)], 0.16, 0.22, 0.5);
-          if (rnd(x, y, 5) > 0.5) put('stump', 0.05, -0.12, 0.3);
-        } else if (t === 'hills') {
-          put('rock2', -0.12, 0.15, 0.45);
-          put('rock3', 0.18, 0.05, 0.35);
-        } else if (t === 'rock') {
-          put(['rock1', 'rock4'][Math.floor(rnd(x, y, 6) * 2)], 0, 0.25, 0.75);
-        }
-
-        ctx.save();
-        hexPath(ctx, px, py, L.w, L.h);
-        ctx.strokeStyle = 'rgba(0,0,0,0.28)';
-        ctx.lineWidth = 1;
-        ctx.stroke();
-        ctx.restore();
+  // Первый показ: приближение по памяти, герой в центре
+  useEffect(() => {
+    if (!size.w || !size.h) return;
+    if (!camReady.current) {
+      let z = Math.max(minZoom(), size.w / (16 * HW));
+      try {
+        const saved = Number(localStorage.getItem(CAM_KEY));
+        if (saved > 0) z = saved;
+      } catch {
+        /* нет хранилища */
       }
-    }
+      cam.current.zoom = z;
+      clampCam();
+      centerOn(world.hero);
+      camReady.current = true;
+    } else clampCam();
+    requestDraw();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [size]);
 
-    // Объекты
-    const lvl = region.level;
-    for (const o of region.objects) {
-      if (!isSeen(st, region, o.x, o.y)) continue;
-      const live = objectAt(st, region, o.x, o.y);
-      if (!live) continue;
-      const px = L.cx(o);
-      const py = L.cy(o);
-      const foot = py + L.h * 0.3;
-      const spr = (name: string, hgt: number, dir = -1) => {
-        const s = spritesReady ? sprites.get(name) : null;
-        if (s) drawSprite(ctx, s, px, foot, dir, hgt);
-        return !!s;
-      };
-      if (o.kind === 'camp') {
-        if (!spr('castle', L.h * 1.0)) {
-          ctx.fillStyle = '#3ed6c4';
-          ctx.beginPath();
-          ctx.arc(px, py, L.w * 0.2, 0, Math.PI * 2);
-          ctx.fill();
-        }
-      } else if (o.kind === 'squad' || o.kind === 'fortress') {
-        if (o.kind === 'fortress') {
-          ctx.fillStyle = 'rgba(120,20,20,0.35)';
-          hexPath(ctx, px, py, L.w * 0.9, L.h * 0.9);
-          ctx.fill();
-        }
-        const name = o.kind === 'fortress' ? `boss_${lvl}` : squadSprite(o, lvl);
-        if (!spr(name, o.kind === 'fortress' ? L.h * 1.15 : L.h * 0.75)) {
-          ctx.fillStyle = '#b33';
-          ctx.beginPath();
-          ctx.arc(px, py, L.w * 0.18, 0, Math.PI * 2);
-          ctx.fill();
-        }
-        // Сила отряда — число волн на табличке
-        ctx.font = `bold ${Math.max(10, L.w * 0.2)}px sans-serif`;
-        ctx.textAlign = 'center';
-        const label = `${o.waves}`;
-        const bw = ctx.measureText(label).width + 8;
-        ctx.fillStyle = 'rgba(40,10,10,0.85)';
-        ctx.fillRect(px + L.w * 0.18, py + L.h * 0.12, bw, L.w * 0.26);
-        ctx.fillStyle = '#ffb4a0';
-        ctx.fillText(label, px + L.w * 0.18 + bw / 2, py + L.h * 0.12 + L.w * 0.2);
-      } else if (o.kind === 'chest') {
-        const bw = L.w * 0.34;
-        const bh = L.w * 0.22;
-        ctx.fillStyle = '#5b3a1e';
-        ctx.fillRect(px - bw / 2, py - bh / 2 + L.h * 0.08, bw, bh);
-        ctx.fillStyle = '#d9a441';
-        ctx.fillRect(px - bw / 2, py - bh / 2 + L.h * 0.08, bw, bh * 0.25);
-        ctx.fillRect(px - 2, py + L.h * 0.08 - 2, 4, bh * 0.5);
-      } else if (o.kind === 'shrine') {
-        const done = st.done.includes(o.id);
-        ctx.fillStyle = '#4a4752';
-        ctx.beginPath();
-        ctx.moveTo(px - L.w * 0.14, foot - L.h * 0.05);
-        ctx.lineTo(px - L.w * 0.08, foot - L.h * 0.55);
-        ctx.lineTo(px + L.w * 0.1, foot - L.h * 0.5);
-        ctx.lineTo(px + L.w * 0.15, foot - L.h * 0.05);
-        ctx.closePath();
-        ctx.fill();
-        if (!done) {
-          ctx.fillStyle = 'rgba(62,214,196,0.8)';
-          ctx.beginPath();
-          ctx.arc(px, foot - L.h * 0.32, L.w * 0.06, 0, Math.PI * 2);
-          ctx.fill();
-        }
-      } else if (o.kind === 'mine') {
-        const ours = st.owned.includes(o.id);
-        ctx.fillStyle = '#4b3a2a';
-        ctx.fillRect(px - L.w * 0.22, foot - L.h * 0.35, L.w * 0.44, L.h * 0.3);
-        ctx.fillStyle = '#2d241c';
-        ctx.beginPath();
-        ctx.moveTo(px - L.w * 0.27, foot - L.h * 0.35);
-        ctx.lineTo(px, foot - L.h * 0.58);
-        ctx.lineTo(px + L.w * 0.27, foot - L.h * 0.35);
-        ctx.closePath();
-        ctx.fill();
-        // Флаг: бирюзовый — наш, красный — охрана врага
-        ctx.strokeStyle = '#ccc';
-        ctx.lineWidth = 1.5;
-        ctx.beginPath();
-        ctx.moveTo(px + L.w * 0.22, foot - L.h * 0.35);
-        ctx.lineTo(px + L.w * 0.22, foot - L.h * 0.75);
-        ctx.stroke();
-        ctx.fillStyle = ours ? '#3ed6c4' : '#b33';
-        ctx.fillRect(px + L.w * 0.22, foot - L.h * 0.75, L.w * 0.16, L.h * 0.12);
-        if (!ours && o.waves) {
-          ctx.font = `bold ${Math.max(10, L.w * 0.2)}px sans-serif`;
-          ctx.textAlign = 'center';
-          ctx.fillStyle = '#ffb4a0';
-          ctx.fillText(`${o.waves}`, px - L.w * 0.3, py + L.h * 0.3);
-        }
-        const icon = o.income ? RES_ICONS[Object.keys(o.income)[0] as ResKey] : '';
-        ctx.font = `${Math.max(10, L.w * 0.22)}px sans-serif`;
-        ctx.textAlign = 'center';
-        ctx.fillText(icon, px, foot - L.h * 0.08);
-      }
-    }
+  useEffect(() => {
+    requestDraw();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [baked, spritesReady, world, selected, path, target]);
 
-    // Путь
-    if (path) {
-      let left = st.moves;
-      for (const p of path) {
-        left -= stepCost(region, p);
-        const ok = left >= 0;
-        ctx.fillStyle = ok ? 'rgba(120,230,140,0.9)' : 'rgba(200,200,200,0.55)';
-        ctx.beginPath();
-        ctx.arc(L.cx(p), L.cy(p), Math.max(3, L.w * 0.07), 0, Math.PI * 2);
-        ctx.fill();
-      }
-    }
-    if (target) {
-      ctx.save();
-      hexPath(ctx, L.cx(target), L.cy(target), L.w * 0.92, L.h * 0.92);
-      ctx.strokeStyle = path ? '#f4c06a' : '#b33';
-      ctx.lineWidth = 2;
-      ctx.stroke();
-      ctx.restore();
-    }
+  // Мерцание сундуков и узлов — редкая перерисовка
+  useEffect(() => {
+    const t = setInterval(requestDraw, 120);
+    return () => clearInterval(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-    // Герой
-    {
-      const px = L.cx(st.hero);
-      const py = L.cy(st.hero);
-      ctx.fillStyle = 'rgba(62,214,196,0.25)';
-      ctx.beginPath();
-      ctx.ellipse(px, py + L.h * 0.28, L.w * 0.3, L.h * 0.1, 0, 0, Math.PI * 2);
-      ctx.fill();
-      const s = spritesReady ? sprites.get('enemy_heavy_6') : null;
-      if (s) drawSprite(ctx, s, px, py + L.h * 0.3, 1, L.h * 0.85);
-      else {
-        ctx.fillStyle = '#3ed6c4';
-        ctx.beginPath();
-        ctx.arc(px, py, L.w * 0.2, 0, Math.PI * 2);
-        ctx.fill();
-      }
-    }
-
-    // Туман
-    for (let y = 0; y < regionH(region); y++) {
-      for (let x = 0; x < regionW(region); x++) {
-        if (isSeen(st, region, x, y)) continue;
-        hexPath(ctx, L.cx({ x, y }), L.cy({ x, y }), L.w + 1, L.h + 1);
-        ctx.fillStyle = '#0d0c12';
-        ctx.fill();
-        ctx.fillStyle = `rgba(60,55,80,${0.08 + rnd(x, y, 9) * 0.1})`;
-        ctx.fill();
-      }
-    }
-  }, [size, tiles, spritesReady, world, region, path, target, tick]);
+  // Герой ушёл к краю экрана — камера следует
+  const follow = (p: P) => {
+    const c = cam.current;
+    const sx = wx(p) * c.zoom + c.x;
+    const sy = wy(p) * c.zoom + c.y;
+    const m = Math.min(size.w, size.h) * 0.2;
+    if (sx < m || sy < m || sx > size.w - m || sy > size.h - m) centerOn(p);
+  };
 
   // ---------------------------------------------------------------- ход
   const walk = useCallback(
     (steps: P[]) => {
       setWalking(true);
       let i = 0;
+      const stop = () => {
+        setWalking(false);
+        setTarget(null);
+      };
       const next = () => {
-        const st = { ...stRef.current, hero: { ...stRef.current.hero }, res: { ...stRef.current.res }, done: [...stRef.current.done], owned: [...stRef.current.owned], seen: [...stRef.current.seen] };
+        const st = copyWorld(stRef.current);
         const p = steps[i++];
-        if (!p) {
-          setWalking(false);
-          setTarget(null);
-          return;
-        }
-        // Перед боем — вопрос, ход не тратится, пока игрок не согласится
+        if (!p) return stop();
+        // Перед боем — вопрос; ход тратится, только если игрок согласится
         const o = objectAt(st, region, p.x, p.y);
         if (o && isHostile(st, o)) {
-          setWalking(false);
-          setTarget(null);
+          stop();
           if (st.moves < stepCost(region, p)) {
             setNotice({ title: 'Ходы кончились', text: 'До врага не хватает очков хода. Завершите день.' });
             return;
@@ -388,87 +218,131 @@ export function WorldMap({ world, region, onChange, onBattle, onExit, onReset }:
         }
         const res: Arrival | null = stepHero(st, region, p);
         if (!res) {
-          setWalking(false);
-          if (i === 1) setNotice({ title: 'Ходы кончились', text: 'Герой устал. Завершите день, чтобы идти дальше.' });
+          stop();
+          setNotice({ title: 'Ходы кончились', text: 'Герой устал. Завершите день, чтобы идти дальше.' });
           return;
         }
+        stRef.current = st;
         onChange(st);
-        setTick((t) => t + 1);
+        follow(p);
         if (res.kind === 'loot') {
           sound.playBuy();
           setNotice({ title: res.obj.name, text: `${res.obj.text ? res.obj.text + '\n\n' : ''}Найдено: ${resText(res.got)}` });
-          setWalking(false);
-          setTarget(null);
-          return;
+          return stop();
         }
         if (res.kind === 'captured') {
           sound.playBuy();
           setNotice({ title: res.obj.name, text: `Промысел наш. Каждый день: ${resText(res.obj.income)}` });
-          setWalking(false);
-          setTarget(null);
-          return;
+          return stop();
         }
-        if (res.kind === 'visit' && res.obj.kind === 'camp' && i === steps.length) {
-          setNotice({ title: res.obj.name, text: res.obj.text ?? '' });
-        }
-        setTimeout(next, 170);
+        if (res.kind === 'visit' && res.obj.kind === 'camp' && i === steps.length) setNotice({ title: res.obj.name, text: res.obj.text ?? '' });
+        setTimeout(next, 140);
       };
       next();
     },
-    [onChange, region]
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [onChange, region, size]
   );
 
-  const tapAt = (clientX: number, clientY: number) => {
+  const tapAt = (sx: number, sy: number) => {
     if (walking || notice) return;
-    const cv = canvasRef.current;
-    if (!cv) return;
-    const r = cv.getBoundingClientRect();
-    const mx = clientX - r.left;
-    const my = clientY - r.top;
-    const L = layoutFor(region, size.w, size.h);
-    let best: P | null = null;
-    let bd = Infinity;
-    for (let y = 0; y < regionH(region); y++)
-      for (let x = 0; x < regionW(region); x++) {
-        const d = (L.cx({ x, y }) - mx) ** 2 + (L.cy({ x, y }) - my) ** 2;
-        if (d < bd) {
-          bd = d;
-          best = { x, y };
-        }
-      }
-    if (!best || bd > (L.w * 0.6) ** 2) return;
+    const c = cam.current;
+    const h = hexAt(region, (sx - c.x) / c.zoom, (sy - c.y) / c.zoom);
+    if (!h) return;
     sound.init();
-    if (best.x === world.hero.x && best.y === world.hero.y) {
-      const o = objectAt(world, region, best.x, best.y);
-      if (o?.kind === 'camp') setNotice({ title: o.name, text: o.text ?? '' });
+    if (h.x === world.hero.x && h.y === world.hero.y) {
+      setSelected((s) => !s);
+      setTarget(null);
       return;
     }
-    if (target && target.x === best.x && target.y === best.y && path) {
+    if (selected && target && target.x === h.x && target.y === h.y && path) {
       walk(path);
       return;
     }
-    setTarget(best);
+    setTarget(h);
   };
 
+  // ---------------------------------------------------------------- касания: перетаскивание, щипок, касание
+  const pointers = useRef(new Map<number, { x: number; y: number }>());
+  const gesture = useRef<{ moved: boolean; startX: number; startY: number; pinch: number | null }>({ moved: false, startX: 0, startY: 0, pinch: null });
+  const local = (e: React.PointerEvent) => {
+    const r = canvasRef.current!.getBoundingClientRect();
+    return { x: e.clientX - r.left, y: e.clientY - r.top };
+  };
+  const onDown = (e: React.PointerEvent) => {
+    canvasRef.current?.setPointerCapture(e.pointerId);
+    const p = local(e);
+    pointers.current.set(e.pointerId, p);
+    if (pointers.current.size === 1) gesture.current = { moved: false, startX: p.x, startY: p.y, pinch: null };
+    else if (pointers.current.size === 2) {
+      const [a, b] = [...pointers.current.values()];
+      gesture.current.pinch = Math.hypot(a.x - b.x, a.y - b.y);
+      gesture.current.moved = true;
+    }
+  };
+  const onMove = (e: React.PointerEvent) => {
+    const prev = pointers.current.get(e.pointerId);
+    if (!prev) return;
+    const p = local(e);
+    pointers.current.set(e.pointerId, p);
+    const g = gesture.current;
+    if (pointers.current.size >= 2 && g.pinch) {
+      const [a, b] = [...pointers.current.values()];
+      const d = Math.hypot(a.x - b.x, a.y - b.y);
+      if (d > 0) zoomAt(d / g.pinch, (a.x + b.x) / 2, (a.y + b.y) / 2);
+      g.pinch = d;
+      return;
+    }
+    if (!g.moved && Math.hypot(p.x - g.startX, p.y - g.startY) > 7) g.moved = true;
+    if (g.moved) {
+      cam.current.x += p.x - prev.x;
+      cam.current.y += p.y - prev.y;
+      clampCam();
+      requestDraw();
+    }
+  };
+  const onUp = (e: React.PointerEvent) => {
+    const had = pointers.current.delete(e.pointerId);
+    if (!had) return;
+    if (pointers.current.size === 0 && !gesture.current.moved) {
+      const p = local(e);
+      tapAt(p.x, p.y);
+    }
+    if (pointers.current.size < 2) gesture.current.pinch = null;
+  };
+  useEffect(() => {
+    const cv = canvasRef.current;
+    if (!cv) return;
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      const r = cv.getBoundingClientRect();
+      zoomAt(Math.exp(-e.deltaY * (e.ctrlKey ? 0.01 : 0.0015)), e.clientX - r.left, e.clientY - r.top);
+    };
+    cv.addEventListener('wheel', onWheel, { passive: false });
+    return () => cv.removeEventListener('wheel', onWheel);
+  });
+
   const targetObj = target && isSeen(world, region, target.x, target.y) ? objectAt(world, region, target.x, target.y) : null;
+  const targetTerrain = target ? terrainAt(region, target.x, target.y) : null;
   const income = dailyIncome(world, region);
 
   const fight = (o: WorldObj) => {
-    const st = { ...world, res: { ...world.res } };
-    const p = { x: o.x, y: o.y };
-    st.moves = Math.max(0, st.moves - stepCost(region, p));
+    const st = copyWorld(world);
+    st.moves = Math.max(0, st.moves - stepCost(region, { x: o.x, y: o.y }));
     onChange(st);
     setNotice(null);
     onBattle(o);
   };
 
+  const btn = 'w-11 h-11 rounded-lg bg-black/65 border border-[#3b354a] text-xl font-bold text-amber-100 hover:bg-black/80 active:scale-95 flex items-center justify-center';
+
   return (
-    <div className="fixed inset-0 bg-[#0f0e14] text-[#f4f2e6] flex flex-col select-none">
+    <div className="fixed inset-0 bg-[#0b0a10] text-[#f4f2e6] flex flex-col select-none">
       {/* Верхняя полоса: регион, день, ход, ресурсы, кнопки */}
       <div className="flex items-center gap-2 px-3 py-1.5 bg-[#171520] border-b border-[#2d2938] text-xs sm:text-sm flex-wrap">
         <span className="font-black text-amber-300 tracking-wide">{region.name}</span>
         <span className="text-stone-300">День {world.day}</span>
-        <span className="text-stone-300" title="Очки хода">
+        <span className="text-stone-300" title="Очки хода: дорога 2, луг 3, лес и холмы 4">
           Ход{' '}
           <span className="text-emerald-300 font-bold">
             {world.moves}/{MOVES_PER_DAY}
@@ -488,7 +362,7 @@ export function WorldMap({ world, region, onChange, onBattle, onExit, onReset }:
           disabled={walking || !!notice}
           onClick={() => {
             sound.init();
-            const st = { ...world, res: { ...world.res } };
+            const st = copyWorld(world);
             const got = endDay(st, region);
             onChange(st);
             setTarget(null);
@@ -506,38 +380,72 @@ export function WorldMap({ world, region, onChange, onBattle, onExit, onReset }:
         </button>
       </div>
 
-      <div ref={wrapRef} className="relative flex-1 min-h-0">
+      <div ref={wrapRef} className="relative flex-1 min-h-0 overflow-hidden">
         <canvas
           ref={canvasRef}
           className="absolute inset-0 w-full h-full touch-none"
-          onPointerUp={(e) => tapAt(e.clientX, e.clientY)}
+          onPointerDown={onDown}
+          onPointerMove={onMove}
+          onPointerUp={onUp}
+          onPointerCancel={onUp}
         />
 
-        {/* Сведения о выбранном гексе */}
-        {target && !notice && (
+        {/* Приближение и «к герою» */}
+        <div className="absolute right-2 bottom-2 flex flex-col gap-1.5">
+          <button className={btn} title="Приблизить" onClick={() => zoomAt(1.25, size.w / 2, size.h / 2)}>
+            +
+          </button>
+          <button className={btn} title="Отдалить" onClick={() => zoomAt(0.8, size.w / 2, size.h / 2)}>
+            −
+          </button>
+          <button
+            className={`${btn} text-base`}
+            title="К герою"
+            onClick={() => {
+              centerOn(world.hero);
+              requestDraw();
+            }}
+          >
+            ⌖
+          </button>
+        </div>
+
+        {/* Подсказка и сведения о выбранном гексе */}
+        {!notice && (
           <div className="absolute left-2 bottom-2 max-w-[60%] bg-black/70 border border-[#3b354a] rounded-lg px-3 py-2 text-xs sm:text-sm pointer-events-none">
-            {targetObj ? (
+            {target ? (
               <>
-                <div className="font-bold text-amber-300">{targetObj.name}</div>
-                {isHostile(world, targetObj) && (
-                  <div className="text-red-300">
-                    Бой: {targetObj.waves} волн{targetObj.kind === 'fortress' ? ', босс' : ''}
+                {targetObj ? (
+                  <>
+                    <div className="font-bold text-amber-300">{targetObj.name}</div>
+                    {isHostile(world, targetObj) && (
+                      <div className="text-red-300">
+                        Бой: {targetObj.waves} волн{targetObj.kind === 'fortress' ? ', босс' : ''}
+                      </div>
+                    )}
+                    {targetObj.reward && !world.done.includes(targetObj.id) && <div>Награда: {resText(targetObj.reward)}</div>}
+                    {targetObj.income && <div>Доход: {resText(targetObj.income)} в день{world.owned.includes(targetObj.id) ? ' (наш)' : ''}</div>}
+                  </>
+                ) : !isSeen(world, region, target.x, target.y) ? (
+                  <div className="text-stone-300">Неразведанные земли</div>
+                ) : targetTerrain ? (
+                  <div className="text-stone-300">
+                    {TERRAIN_NAMES[targetTerrain]}
+                    {TERRAIN_COST[targetTerrain] ? `: ${TERRAIN_COST[targetTerrain]} хода` : ''}
                   </div>
-                )}
-                {targetObj.reward && !world.done.includes(targetObj.id) && <div>Награда: {resText(targetObj.reward)}</div>}
-                {targetObj.income && <div>Доход: {resText(targetObj.income)} в день{world.owned.includes(targetObj.id) ? ' (наш)' : ''}</div>}
+                ) : null}
+                <div className="text-stone-400 mt-0.5">
+                  {!selected ? 'Коснитесь героя, чтобы идти' : path ? 'Коснитесь ещё раз — идти' : 'Туда не пройти'}
+                </div>
               </>
-            ) : !isSeen(world, region, target.x, target.y) ? (
-              <div className="text-stone-300">Неразведанные земли</div>
             ) : (
-              <div className="text-stone-300">{{ grass: 'Луг', forest: 'Лес: 2 хода', hills: 'Холмы: 2 хода', water: 'Река', rock: 'Скалы' }[terrainAt(region, target.x, target.y)!]}</div>
+              <div className="text-stone-300">{selected ? 'Выберите, куда идти' : 'Коснитесь героя, чтобы идти. Карту можно двигать'}</div>
             )}
-            <div className="text-stone-400 mt-0.5">{path ? 'Коснитесь ещё раз — идти' : 'Туда не пройти'}</div>
           </div>
         )}
 
         {world.won && !notice && (
-          <div className="absolute right-2 bottom-2 bg-black/70 border border-amber-600/60 rounded-lg px-3 py-2 text-xs sm:text-sm text-amber-200 pointer-events-none">
+          <div className="absolute right-16 top-2 bg-black/70 border border-amber-600/60 rounded-lg px-3 py-2 text-xs sm:text-sm text-amber-200 pointer-events-none">
             Пограничье взято. Следующие регионы — в работе.
           </div>
         )}
@@ -577,6 +485,7 @@ export function WorldMap({ world, region, onChange, onBattle, onExit, onReset }:
                   onClick={() => {
                     setConfirmReset(false);
                     setTarget(null);
+                    setSelected(false);
                     onReset();
                   }}
                 >
