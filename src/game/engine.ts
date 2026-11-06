@@ -3,7 +3,7 @@
  */
 
 import { RunLog, LogTower } from './runLog';
-import { CONFIG, TowerType, TargetPriority, Difficulty, EnemyType, RaceId, TowerBaseDef, BOONS, BoonDef, pickBoons, DamageType, DAMAGE_TYPES } from './config';
+import { CONFIG, TowerType, TargetPriority, Difficulty, EnemyType, RaceId, TowerBaseDef, BOONS, BoonDef, HERO_ABILITIES, HeroAbilityDef, pickBoons, DamageType, DAMAGE_TYPES } from './config';
 import { MAPS, Point, MapDef, isHudCell } from './maps';
 import { centerX, centerY, castleX, castleY, cellPath, isHex, setHex, hexView, screenToGround, cellAt, neighbours, ring, adjacent, translate } from './grid';
 import * as gridModule from './grid';
@@ -399,6 +399,7 @@ export interface GameStateSnapshot {
   canMoveTowers: boolean; // between waves towers can be moved to a free cell
   moveCost: number | null; // price of moving a tower now: 0 free, null not now
   boons: BoonDef[]; // brawl: the artifact's boons taken
+  heroSkills: { id: string; name: string; icon: string; desc: string; left: number; cooldown: number }[]; // поход: умения героя
   boonOffer: BoonDef[] | null; // brawl: three to choose one from, while an offer waits
   rerollCost: number; // price of the next shop reroll
   race: RaceId; // the player's faction
@@ -535,6 +536,9 @@ export class GameEngine {
   public boonsOn = false;
   /** Поход: уровни пассивок лагеря (id усиления → уровень); каждый уровень — ещё одна доля усиления */
   public campLevels: Record<string, number> = {};
+  /** Поход: умения героя на этот бой и их перезарядка (игровые секунды) */
+  public heroSkills: { id: HeroAbilityDef['id']; left: number }[] = [];
+  private heroOrderLeft = 0; // «Приказ: огонь!» ещё действует, с
   /** Лог партии (runLog.ts): пишется всегда, скачивается с экрана итогов */
   public runLog: RunLog | null = null;
   /** Данные вне движка для среза волны (доска Потасовки) — задаёт App */
@@ -688,6 +692,8 @@ export class GameEngine {
     this.boonsOn = false;
     this.boons = [];
     this.campLevels = {};
+    this.heroSkills = [];
+    this.heroOrderLeft = 0;
     this.boonOffers = [];
     this.difficulty = diff;
     this.endless = endless;
@@ -1280,6 +1286,64 @@ export class GameEngine {
     return n > 0 ? (BOONS.find((b) => b.id === id)?.value ?? 0) * n : 0;
   }
 
+  /** Поход: умения героя на этот бой (после startWorldBattle / startDuel) */
+  public setHeroSkills(ids: HeroAbilityDef['id'][]) {
+    this.heroSkills = ids.filter((id) => HERO_ABILITIES.some((d) => d.id === id)).map((id) => ({ id, left: 0 }));
+    this.notifyState();
+  }
+
+  /** Умение героя: кнопка на поле. false — нет такого, перезаряжается или бой окончен */
+  public castHero(id: string): boolean {
+    const s = this.heroSkills.find((h) => h.id === id);
+    const def = HERO_ABILITIES.find((d) => d.id === id);
+    if (!s || !def || s.left > 0 || this.isGameOver || this.isVictory) return false;
+    if (def.id === 'stone' && this.lives >= this.livesMax()) {
+      this.addFloatingText('Артефакт цел', castleX(), castleY() - 0.8 * CONFIG.grid.cellSize, '#9a96a6');
+      return false;
+    }
+    const cx = castleX();
+    const cy = castleY() - 0.8 * CONFIG.grid.cellSize;
+    if (def.id === 'order') {
+      this.heroOrderLeft = def.duration ?? 8;
+      this.markModsDirty();
+      for (const t of this.towers) this.spawnRing(centerX(t), centerY(t), '#f4c06a');
+    } else if (def.id === 'stone') {
+      const heal = Math.min(def.value, Math.max(0, this.livesMax() - this.lives));
+      this.lives += heal;
+      this.spawnRing(castleX(), castleY(), '#3ed6c4');
+    } else if (def.id === 'shard') {
+      for (const e of [...this.enemies]) {
+        const frac = e.type === 'boss' || e.type === 'heavy' ? def.boss ?? def.value : def.value;
+        this.directDamage(e, (e.hp * frac) / Math.max(0.1, 1 - Math.min(0.9, e.magicResist)), 'hero', 'lightning');
+        this.spawnRing(e.x, e.y, '#3ed6c4');
+      }
+    }
+    s.left = def.cooldown;
+    this.addFloatingText(def.name, cx, cy, '#f4c06a');
+    this.logEv('hero', { id });
+    sound.playBuy();
+    this.notifyState();
+    return true;
+  }
+
+  private tickHero(dt: number) {
+    if (this.heroOrderLeft > 0) {
+      this.heroOrderLeft -= dt;
+      if (this.heroOrderLeft <= 0) {
+        this.heroOrderLeft = 0;
+        this.markModsDirty();
+      }
+    }
+    let changed = false;
+    for (const h of this.heroSkills) {
+      if (h.left <= 0) continue;
+      const before = Math.ceil(h.left);
+      h.left = Math.max(0, h.left - dt);
+      if (Math.ceil(h.left) !== before) changed = true;
+    }
+    if (changed) this.notifyState();
+  }
+
   /** Поход: пассивки лагеря на весь бой (после startWorldBattle / startDuel) */
   public setCampBoons(levels: Record<string, number>) {
     this.campLevels = { ...levels };
@@ -1792,6 +1856,7 @@ export class GameEngine {
   private update(dt: number) {
     if (!this.isGameOver && !this.isVictory) this.runStats.time += dt;
     if (this.sandbox) this.gold = SANDBOX_GOLD;
+    if (this.heroSkills.length) this.tickHero(dt);
     // 1. Spawning
     if (this.isSpawning) {
       this.spawnTimer -= dt;
@@ -2511,7 +2576,7 @@ export class GameEngine {
     }
     // Усиления артефакта (потасовка): every tower
     const dmg = this.boon('sharp');
-    const haste = this.boon('haste');
+    const haste = this.boon('haste') + (this.heroOrderLeft > 0 ? (HERO_ABILITIES.find((d) => d.id === 'order')?.value ?? 0) : 0);
     const sight = this.boon('sight');
     if (dmg > 0 || haste > 0 || sight > 0) {
       for (const t of this.towers) {
@@ -4500,6 +4565,10 @@ export class GameEngine {
       isBinding: this.bindingFromId !== null,
       canMoveTowers: this.canMoveTowers(),
       moveCost: this.moveCost(),
+      heroSkills: this.heroSkills.map((h) => {
+        const d = HERO_ABILITIES.find((x) => x.id === h.id)!;
+        return { id: h.id, name: d.name, icon: d.icon, desc: d.desc, left: Math.ceil(h.left), cooldown: d.cooldown };
+      }),
       boons: [...new Set([...this.boons, ...Object.keys(this.campLevels).filter((id) => this.campLevels[id] > 0)])].map((id) => BOONS.find((b) => b.id === id)!).filter(Boolean),
       boonOffer: this.boonOffers[0]?.map((id) => BOONS.find((b) => b.id === id)!).filter(Boolean) ?? null,
       rerollCost: this.rerollCost(),

@@ -818,6 +818,34 @@ test('world: the camp sells perk levels for resources, up to the top level, and 
   for (const id of W.CAMP_PERKS) assert.ok(BOONS.some((b) => b.id === id), `${id} is a boon`);
 });
 
+test('world: the hero gains xp and levels, finds items and wears one per slot', () => {
+  const r = W.FRONTIER;
+  const st: W.WorldState = W.newWorld(r);
+  assert.equal(W.heroLevel(st), 1);
+  assert.equal(st.equip.weapon, 'sword');
+  assert.equal(Object.keys(st.equip).length, 1);
+  W.winBattle(st, r, 'sq1'); // 3 волны — 30 опыта
+  assert.equal(st.xp, 30);
+  W.winBattle(st, r, 'warcamp'); // бой с армией — 100 опыта и знамя
+  assert.equal(W.heroLevel(st), 2);
+  assert.ok(st.items.includes('warbanner'));
+  assert.equal(st.equip.banner, 'warbanner', 'a found item goes into an empty slot');
+  W.giveItem(st, 'crossbow');
+  assert.equal(st.equip.weapon, 'sword', 'a taken slot keeps its item');
+  W.toggleEquip(st, 'crossbow');
+  assert.equal(st.equip.weapon, 'crossbow');
+  st.camp = { sight: 2 };
+  assert.deepEqual(W.battlePerks(st), { sight: 3, slayer: 1, loot: 1, envoy: 1 });
+  W.toggleEquip(st, 'crossbow');
+  assert.equal(st.equip.weapon, undefined);
+  const back = W.normalizeWorld(JSON.parse(JSON.stringify(st)))!;
+  assert.deepEqual([back.xp, back.items, back.equip], [st.xp, st.items, st.equip]);
+  // An old save without a hero gets the sword
+  const { xp: _x, items: _i, equip: _e, ...old } = st;
+  const fresh = W.normalizeWorld(JSON.parse(JSON.stringify(old)))!;
+  assert.deepEqual([fresh.xp, fresh.items, fresh.equip], [0, ['sword'], { weapon: 'sword' }]);
+});
+
 test('world: a save survives a round trip and junk is rejected', () => {
   const st = W.newWorld();
   W.winBattle(st, W.FRONTIER, 'sq1');

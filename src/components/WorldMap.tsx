@@ -31,12 +31,17 @@ import {
   saveSlot,
   SLOT_COUNT,
   upgradeCamp,
+  toggleEquip,
+  heroLevel,
+  HERO_ITEMS,
+  battleXp,
 } from '../campaign/world';
 import { bakeTerrain, drawLive, loadExtras, hexAt, wx, wy, worldW, worldH, HW, P } from '../campaign/worldRender';
 import { sprites } from '../game/sprites';
 import { loadTileset, Tileset, TILESETS } from '../game/tiles';
 import { sound } from '../game/audio';
 import { CampPanel } from './CampPanel';
+import { HeroPanel } from './HeroPanel';
 
 interface WorldMapProps {
   world: WorldState;
@@ -53,7 +58,7 @@ type Cam = { zoom: number; x: number; y: number }; // экран = мир × zoo
 const MAX_ZOOM = 2.2;
 const CAM_KEY = 'dark_frontier_world_zoom';
 
-const copyWorld = (w: WorldState): WorldState => ({ ...w, hero: { ...w.hero }, res: { ...w.res }, done: [...w.done], owned: [...w.owned], seen: [...w.seen], camp: { ...w.camp } });
+const copyWorld = (w: WorldState): WorldState => ({ ...w, hero: { ...w.hero }, res: { ...w.res }, done: [...w.done], owned: [...w.owned], seen: [...w.seen], camp: { ...w.camp }, items: [...w.items], equip: { ...w.equip } });
 
 export function WorldMap({ world, region, onChange, onBattle, onExit, onReset }: WorldMapProps) {
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -69,6 +74,7 @@ export function WorldMap({ world, region, onChange, onBattle, onExit, onReset }:
   const [confirmReset, setConfirmReset] = useState(false);
   const [savesOpen, setSavesOpen] = useState(false);
   const [campOpen, setCampOpen] = useState(false);
+  const [heroOpen, setHeroOpen] = useState(false);
   const [slots, setSlots] = useState<(WorldSlot | null)[]>(() => loadSlots());
   const stRef = useRef(world);
   stRef.current = world;
@@ -235,7 +241,7 @@ export function WorldMap({ world, region, onChange, onBattle, onExit, onReset }:
           }
           setNotice({
             title: o.name,
-            text: `${o.text ? o.text + '\n\n' : ''}${battleText(o)}${o.reward ? `\nНаграда: ${resText(o.reward)}` : ''}${o.income ? `\nДоход промысла: ${resText(o.income)} в день` : ''}`,
+            text: `${o.text ? o.text + '\n\n' : ''}${battleText(o)}${o.reward ? `\nНаграда: ${resText(o.reward)}` : ''}${itemLine(o.item)}${o.income ? `\nДоход промысла: ${resText(o.income)} в день` : ''}`,
             battle: o,
           });
           return;
@@ -251,7 +257,7 @@ export function WorldMap({ world, region, onChange, onBattle, onExit, onReset }:
         follow(p);
         if (res.kind === 'loot') {
           sound.playBuy();
-          setNotice({ title: res.obj.name, text: `${res.obj.text ? res.obj.text + '\n\n' : ''}Найдено: ${resText(res.got)}` });
+          setNotice({ title: res.obj.name, text: `${res.obj.text ? res.obj.text + '\n\n' : ''}Найдено: ${resText(res.got)}${itemLine(res.obj.item)}` });
           return stop();
         }
         if (res.kind === 'captured') {
@@ -399,6 +405,9 @@ export function WorldMap({ world, region, onChange, onBattle, onExit, onReset }:
         >
           Конец дня
         </button>
+        <button className="px-2 py-1 rounded bg-[#2a2635] hover:bg-[#3a3448] disabled:opacity-50" disabled={walking} title="Герой" onClick={() => setHeroOpen(true)}>
+          🛡<span className="hidden md:inline"> Рен · ур. {heroLevel(world)}</span>
+        </button>
         <button className="px-2 py-1 rounded bg-[#2a2635] hover:bg-[#3a3448] disabled:opacity-50" disabled={walking} title="Лагерь" onClick={() => setCampOpen(true)}>
           ⛺<span className="hidden md:inline"> Лагерь</span>
         </button>
@@ -515,6 +524,18 @@ export function WorldMap({ world, region, onChange, onBattle, onExit, onReset }:
           </div>
         )}
 
+        {heroOpen && (
+          <HeroPanel
+            world={world}
+            onClose={() => setHeroOpen(false)}
+            onToggle={(id) => {
+              const st = copyWorld(world);
+              toggleEquip(st, id);
+              onChange(st);
+            }}
+          />
+        )}
+
         {campOpen && (
           <CampPanel
             world={world}
@@ -610,6 +631,12 @@ export function WorldMap({ world, region, onChange, onBattle, onExit, onReset }:
   );
 }
 
+/** Строка о найденном предмете героя */
+function itemLine(id: string | undefined): string {
+  const def = HERO_ITEMS.find((d) => d.id === id);
+  return def ? `\nПредмет для Рена: ${def.icon} ${def.name}` : '';
+}
+
 /** Что за бой ждёт у объекта — для окна перед боем */
 function battleText(o: WorldObj): string {
   if (o.army)
@@ -626,9 +653,9 @@ export function WorldBattleResult({ obj, won, onMap, onRetry }: { obj: WorldObj;
         <h2 className={`text-2xl font-black tracking-wider mb-2 ${won ? 'text-amber-300' : 'text-red-400'}`}>
           {won ? (obj.kind === 'fortress' ? 'КРЕПОСТЬ ПАЛА!' : obj.army ? 'ЛАГЕРЬ РАЗБИТ' : 'ОТРЯД РАЗБИТ') : 'ОТСТУПЛЕНИЕ'}
         </h2>
-        <p className="text-sm text-stone-300 mb-3">
+        <p className="text-sm text-stone-300 mb-3 whitespace-pre-line">
           {won
-            ? `${obj.name}: ${obj.kind === 'mine' ? `промысел наш, каждый день ${resText(obj.income)}` : `награда ${resText(obj.reward) || 'нет'}`}`
+            ? `${obj.name}: ${obj.kind === 'mine' ? `промысел наш, каждый день ${resText(obj.income)}` : `награда ${resText(obj.reward) || 'нет'}`}. Опыт героя +${battleXp(obj)}.${itemLine(obj.item)}`
             : `${obj.name} устоял. Герой отошёл на прежнее место; отряд ждёт на месте.`}
         </p>
         <div className={`grid ${won ? 'grid-cols-1' : 'grid-cols-2'} gap-2`}>

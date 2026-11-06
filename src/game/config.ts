@@ -165,6 +165,29 @@ export function pickBoons(pool: BoonDef[], n: number, rand: () => number = Math.
   }
   return out;
 }
+/**
+ * Умения героя похода (просьба Артура 2026-11-06, выбор «умения кнопками»): кнопки на поле с перезарядкой
+ * в игровых секундах; открываются с уровнем героя (`unlock`). Числа — черновик, ждут Артура.
+ * order — все башни стреляют быстрее (value — доля) duration секунд; stone — артефакт чинится на value;
+ * shard — каждый враг на поле теряет долю value текущего здоровья (тяжёлые и боссы — boss).
+ */
+export interface HeroAbilityDef {
+  id: 'order' | 'stone' | 'shard';
+  name: string;
+  icon: string;
+  desc: string;
+  cooldown: number;
+  unlock: number; // уровень героя
+  value: number;
+  duration?: number;
+  boss?: number;
+}
+export const HERO_ABILITIES: HeroAbilityDef[] = [
+  { id: 'order', name: 'Приказ: огонь!', icon: '📯', desc: 'Все башни стреляют на 50 % быстрее 8 с', cooldown: 40, unlock: 1, value: 0.5, duration: 8 },
+  { id: 'stone', name: 'Возвратный камень', icon: '💠', desc: 'Артефакт чинится на 25', cooldown: 60, unlock: 2, value: 25 },
+  { id: 'shard', name: 'Кристальный удар', icon: '⚡', desc: 'Каждый враг на поле теряет 30 % здоровья (тяжёлые и боссы — 10 %)', cooldown: 50, unlock: 3, value: 0.3, boss: 0.1 },
+];
+
 export const BOONS: BoonDef[] = [
   { id: 'sharp', name: 'Острые клинки', desc: '+10 % урона всех башен', value: 0.1, bot: { power: 0.1 } },
   { id: 'haste', name: 'Быстрые руки', desc: '+10 % скорости атаки всех башен', value: 0.1, bot: { power: 0.1 } },

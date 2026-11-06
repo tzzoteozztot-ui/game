@@ -44,6 +44,8 @@ export interface WorldObj {
   reward?: Partial<Resources>;
   /** Промысел: что и сколько даёт каждый новый день */
   income?: Partial<Resources>;
+  /** Предмет героя: лежит в сундуке или святилище, дают за победу */
+  item?: string;
   /** Бой с армией, как в Потасовке: враги за золото уходят на поле врага, победа — когда падёт его артефакт. Сила бота врага */
   army?: 'easy' | 'normal' | 'hard';
   /** Строка хрониста при встрече */
@@ -72,6 +74,9 @@ export interface WorldState {
   seen: number[]; // открытые туманом гексы: y * ширина + x
   won: boolean; // крепость взята
   camp: Record<string, number>; // уровни пассивок лагеря: id усиления → 1..CAMP_MAX_LEVEL
+  xp: number; // опыт героя
+  items: string[]; // найденные предметы героя (id из HERO_ITEMS)
+  equip: Partial<Record<ItemSlot, string>>; // надетые: слот → id предмета
 }
 
 // -------------------------------------------------------------
@@ -150,13 +155,13 @@ const FRONTIER_OBJECTS: WorldObj[] = [
   { id: 'sq3', kind: 'squad', x: 16, y: 9, name: 'Дозор рода', waves: 4, reward: { gold: 50, crystal: 1 } },
   { id: 'chest1', kind: 'chest', x: 8, y: 10, name: 'Брошенный обоз', reward: { gold: 50 } },
   { id: 'chest2', kind: 'chest', x: 4, y: 22, name: 'Сложенный лес', reward: { wood: 20 } },
-  { id: 'chest3', kind: 'chest', x: 14, y: 4, name: 'Тайник контрабандистов', reward: { gold: 60 } },
-  { id: 'chest4', kind: 'chest', x: 17, y: 27, name: 'Разбитая телега', reward: { gold: 30, crystal: 1 } },
+  { id: 'chest3', kind: 'chest', x: 14, y: 4, name: 'Тайник контрабандистов', reward: { gold: 60 }, item: 'crossbow' },
+  { id: 'chest4', kind: 'chest', x: 17, y: 27, name: 'Разбитая телега', reward: { gold: 30, crystal: 1 }, item: 'mail' },
   { id: 'quarry', kind: 'mine', x: 6, y: 6, name: 'Каменоломня', waves: 3, income: { wood: 4 }, text: 'Старая каменоломня, орки держат здесь пост.' },
   { id: 'saw', kind: 'mine', x: 8, y: 26, name: 'Лесопилка', waves: 3, income: { wood: 5 }, text: 'Орки рубят здесь лес. Отобьём — будет дерево каждый день.' },
-  { id: 'shrine', kind: 'shrine', x: 19, y: 16, name: 'Камень предков', reward: { crystal: 2 }, text: 'Орки приносят сюда дары. Камень звенит так же, как наш узел.' },
+  { id: 'shrine', kind: 'shrine', x: 19, y: 16, name: 'Камень предков', reward: { crystal: 2 }, item: 'idol', text: 'Орки приносят сюда дары. Камень звенит так же, как наш узел.' },
   {
-    id: 'warcamp', kind: 'squad', x: 21, y: 3, name: 'Военный лагерь рода', waves: 6, army: 'easy', reward: { gold: 250, wood: 30, crystal: 4 },
+    id: 'warcamp', kind: 'squad', x: 21, y: 3, name: 'Военный лагерь рода', waves: 6, army: 'easy', reward: { gold: 250, wood: 30, crystal: 4 }, item: 'warbanner',
     text: 'Здесь орки собирают силы для набега. Бой не обязателен, но лагерь богат.',
   },
   // Переправы
@@ -164,19 +169,19 @@ const FRONTIER_OBJECTS: WorldObj[] = [
   { id: 'bridge', kind: 'squad', x: BRIDGE.x, y: BRIDGE.y, name: 'Засада у моста', waves: 5, reward: { gold: 60, wood: 10 } },
   // Восточный берег
   { id: 'goldmine', kind: 'mine', x: 31, y: 4, name: 'Рудник', waves: 5, income: { gold: 20 } },
-  { id: 'node', kind: 'mine', x: 38, y: 28, name: 'Малый узел', waves: 6, income: { crystal: 1 }, text: 'Осколок той же сети, что наш артефакт. Орки охраняют его, как святыню.' },
+  { id: 'node', kind: 'mine', x: 38, y: 28, name: 'Малый узел', waves: 6, income: { crystal: 1 }, item: 'shard', text: 'Осколок той же сети, что наш артефакт. Орки охраняют его, как святыню.' },
   { id: 'sq4', kind: 'squad', x: 33, y: 13, name: 'Боевой отряд', waves: 6, reward: { gold: 80, crystal: 1 } },
   { id: 'sq5', kind: 'squad', x: 33, y: 22, name: 'Стая гончих', waves: 6, reward: { gold: 80 } },
   { id: 'sq6', kind: 'squad', x: 40, y: 8, name: 'Шаманы ущелья', waves: 7, reward: { gold: 90, crystal: 2 } },
   { id: 'sq7', kind: 'squad', x: 41, y: 22, name: 'Всадники на волках', waves: 7, reward: { gold: 90 } },
   { id: 'guard', kind: 'squad', x: 42, y: 15, name: 'Стража Вождя', waves: 8, reward: { gold: 120, crystal: 2 } },
   {
-    id: 'stavka', kind: 'squad', x: 48, y: 6, name: 'Ставка вожака', waves: 8, army: 'easy', reward: { gold: 300, crystal: 6 },
+    id: 'stavka', kind: 'squad', x: 48, y: 6, name: 'Ставка вожака', waves: 8, army: 'easy', reward: { gold: 300, crystal: 6 }, item: 'plate',
     text: 'Шатры вожака, что водит набеги на юг. Можно обойти, можно разорить.',
   },
   { id: 'chest5', kind: 'chest', x: 35, y: 7, name: 'Сундук наёмника', reward: { gold: 80 } },
   { id: 'chest6', kind: 'chest', x: 30, y: 18, name: 'Запас брёвен', reward: { wood: 20 } },
-  { id: 'chest7', kind: 'chest', x: 45, y: 3, name: 'Добыча набега', reward: { gold: 100 } },
+  { id: 'chest7', kind: 'chest', x: 45, y: 3, name: 'Добыча набега', reward: { gold: 100 }, item: 'banner' },
   { id: 'chest8', kind: 'chest', x: 45, y: 28, name: 'Тайник шамана', reward: { crystal: 2 } },
   { id: 'shrine2', kind: 'shrine', x: 48, y: 22, name: 'Старый идол', reward: { crystal: 3 }, text: 'Идол старше орков. На его камне — те же знаки, что на нашем узле.' },
   {
@@ -393,6 +398,9 @@ export function newWorld(region: RegionDef = FRONTIER): WorldState {
     seen: [],
     won: false,
     camp: {},
+    xp: 0,
+    items: ['sword'],
+    equip: { weapon: 'sword' },
   };
   reveal(st, region);
   return st;
@@ -521,6 +529,7 @@ function arrive(st: WorldState, o: WorldObj): Arrival {
     if (st.done.includes(o.id)) return { kind: 'visit', obj: o };
     st.done.push(o.id);
     addRes(st, o.reward);
+    giveItem(st, o.item);
     return { kind: 'loot', obj: o, got: o.reward ?? {} };
   }
   if (o.kind === 'mine' && !st.owned.includes(o.id)) {
@@ -538,6 +547,8 @@ export function winBattle(st: WorldState, region: RegionDef, objId: string): Arr
     if (!st.owned.includes(o.id)) st.owned.push(o.id);
   } else if (!st.done.includes(o.id)) st.done.push(o.id);
   addRes(st, o.reward);
+  giveItem(st, o.item);
+  st.xp += battleXp(o);
   if (o.kind === 'fortress') st.won = true;
   st.hero = { x: o.x, y: o.y };
   reveal(st, region);
@@ -599,7 +610,16 @@ export function normalizeWorld(v: unknown): WorldState | null {
     camp: Object.fromEntries(
       Object.entries(o.camp ?? {}).filter(([id, n]) => CAMP_PERKS.includes(id) && Number.isInteger(n) && n > 0).map(([id, n]) => [id, Math.min(campMax(id), n as number)])
     ),
+    xp: Math.max(0, Math.floor(num(o.xp))),
+    items: [],
+    equip: {},
   };
+  const items = Array.isArray(o.items) ? o.items.filter((id, i, a) => HERO_ITEMS.some((d) => d.id === id) && a.indexOf(id) === i) : ['sword'];
+  st.items = items;
+  for (const [slot, id] of Object.entries(o.equip ?? (Array.isArray(o.items) ? {} : { weapon: 'sword' }))) {
+    const def = HERO_ITEMS.find((d) => d.id === id);
+    if (def && def.slot === slot && items.includes(def.id)) st.equip[def.slot] = def.id;
+  }
   reveal(st, region);
   return st;
 }
@@ -705,4 +725,67 @@ export function upgradeCamp(st: WorldState, perk: string): number | null {
   for (const k of Object.keys(cost) as ResKey[]) st.res[k] -= cost[k];
   st.camp = { ...st.camp, [perk]: next };
   return next;
+}
+
+// -------------------------------------------------------------
+// Герой (просьба Артура 2026-11-06, выбор «умения кнопками»): Рен Корвин не стоит на поле. Опыт за победы
+// поднимает уровень, уровень открывает умения (HERO_ABILITIES в config.ts — кнопки в бою). Предметы — 4 слота,
+// каждый даёт доли усилений, как уровни лагеря. Числа — черновик.
+// -------------------------------------------------------------
+export type ItemSlot = 'weapon' | 'armor' | 'amulet' | 'banner';
+export const SLOT_NAMES: Record<ItemSlot, string> = { weapon: 'Оружие', armor: 'Доспех', amulet: 'Амулет', banner: 'Знамя' };
+export interface HeroItem {
+  id: string;
+  slot: ItemSlot;
+  name: string;
+  icon: string;
+  text: string;
+  perks: Record<string, number>; // id усиления → доли
+}
+export const HERO_ITEMS: HeroItem[] = [
+  { id: 'sword', slot: 'weapon', name: 'Меч Корвинов', icon: '🗡', text: 'Родовой клинок. С ним Рен ушёл в первую экспедицию.', perks: { sharp: 1 } },
+  { id: 'crossbow', slot: 'weapon', name: 'Арбалет разведчика', icon: '🏹', text: 'Лёгкий, бьёт далеко. Контрабандисты знали толк в оружии.', perks: { sight: 1, slayer: 1 } },
+  { id: 'mail', slot: 'armor', name: 'Кольчуга заставы', icon: '🥋', text: 'Снята с телеги прежнего дозора людей.', perks: { walls: 2 } },
+  { id: 'plate', slot: 'armor', name: 'Латы вожака', icon: '🛡', text: 'Орочья работа, грубая и крепкая.', perks: { walls: 2, bastion: 1 } },
+  { id: 'idol', slot: 'amulet', name: 'Знак предков', icon: '🪬', text: 'Орочий оберег с Камня предков. Звенит, как узел.', perks: { pierce: 1 } },
+  { id: 'shard', slot: 'amulet', name: 'Осколок узла', icon: '💎', text: 'Кусок малого узла. Тёплый на ощупь.', perks: { ward: 1, mire: 1 } },
+  { id: 'banner', slot: 'banner', name: 'Знамя экспедиции', icon: '🚩', text: 'Под ним солдаты бьют быстрее.', perks: { haste: 1 } },
+  { id: 'warbanner', slot: 'banner', name: 'Трофейное знамя рода', icon: '🏴', text: 'Взято в военном лагере. Орки узнают его издалека.', perks: { loot: 1, envoy: 1 } },
+];
+
+/** Опыт до уровня: уровень 1 — с начала, 2 — 60, 3 — 180 */
+export const HERO_LEVELS = [0, 60, 180];
+export const heroLevel = (st: WorldState) => HERO_LEVELS.filter((x) => st.xp >= x).length;
+
+/** Опыт за победу: 10 за волну, бой с армией и крепость — 100 */
+export function battleXp(o: WorldObj): number {
+  if (o.army || o.kind === 'fortress') return 100;
+  return (o.waves ?? 0) * 10;
+}
+
+export function giveItem(st: WorldState, id: string | undefined) {
+  const def = HERO_ITEMS.find((d) => d.id === id);
+  if (!def || st.items.includes(def.id)) return;
+  st.items = [...st.items, def.id];
+  if (!st.equip[def.slot]) st.equip = { ...st.equip, [def.slot]: def.id };
+}
+
+/** Надеть предмет (в его слот) или снять, если он уже надет */
+export function toggleEquip(st: WorldState, id: string) {
+  const def = HERO_ITEMS.find((d) => d.id === id);
+  if (!def || !st.items.includes(id)) return;
+  const eq = { ...st.equip };
+  if (eq[def.slot] === id) delete eq[def.slot];
+  else eq[def.slot] = id;
+  st.equip = eq;
+}
+
+/** Все доли усилений на бой: уровни лагеря и надетые предметы */
+export function battlePerks(st: WorldState): Record<string, number> {
+  const out: Record<string, number> = { ...st.camp };
+  for (const id of Object.values(st.equip)) {
+    const def = HERO_ITEMS.find((d) => d.id === id);
+    if (def) for (const [k, n] of Object.entries(def.perks)) out[k] = (out[k] ?? 0) + n;
+  }
+  return out;
 }
