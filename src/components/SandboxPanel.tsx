@@ -27,6 +27,9 @@ interface SandboxPanelProps {
   onEnemyFaction: (faction: number) => void;
   mapName: string;
   onEditMap: () => void;
+  // Опыт (просьба Артура 2026-11-06): поле из гексов с наклоном и небом
+  hexField: boolean;
+  onHexField: (on: boolean) => void;
 }
 
 const SELECT =
@@ -35,7 +38,7 @@ const SELECT =
 const BTN =
   'min-h-[var(--h-line,24px)] px-1 rounded border text-[length:var(--fs-sm)] font-bold cursor-pointer transition-colors bg-[#221f2d] border-[#383347] text-stone-200 hover:bg-[#2c283a]';
 
-export function SandboxPanel({ race, maxLevel, selectedTower, inHand, onTake, onTakeBinder, onApplySelected, onOpenWave, onDownloadLog, summaryWave, onOpenSummary, compact, onRace, enemyFaction, onEnemyFaction, mapName, onEditMap }: SandboxPanelProps) {
+export function SandboxPanel({ race, maxLevel, selectedTower, inHand, onTake, onTakeBinder, onApplySelected, onOpenWave, onDownloadLog, summaryWave, onOpenSummary, compact, onRace, enemyFaction, onEnemyFaction, mapName, onEditMap, hexField, onHexField }: SandboxPanelProps) {
   const raceDef = CONFIG.races[race];
   const types = raceDef.towers;
   const [type, setType] = useState<TowerType>(types[0]);
@@ -99,6 +102,16 @@ export function SandboxPanel({ race, maxLevel, selectedTower, inHand, onTake, on
       <button type="button" className={`${BTN} flex items-center justify-between gap-1`} onClick={onEditMap} title="Нарисовать свою дорогу, выходы и клетки без башен; сохранить карту">
         <span className="truncate text-stone-400 font-semibold">{mapName}</span>
         <span className="shrink-0 text-amber-300">Карта ✎</span>
+      </button>
+      <button
+        type="button"
+        className={`${BTN} flex items-center justify-between gap-1`}
+        onClick={() => onHexField(!hexField)}
+        aria-pressed={hexField}
+        title="Опыт: поле из шестиугольников под наклоном, сверху небо"
+      >
+        <span className="truncate text-stone-400 font-semibold">Поле</span>
+        <span className="shrink-0 text-amber-300">{hexField ? '⬡ Гексы' : '▢ Квадраты'}</span>
       </button>
 
       <div className="grid grid-cols-4 gap-1">

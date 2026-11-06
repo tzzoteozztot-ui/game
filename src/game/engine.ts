@@ -5,6 +5,7 @@
 import { RunLog, LogTower } from './runLog';
 import { CONFIG, TowerType, TargetPriority, Difficulty, EnemyType, RaceId, TowerBaseDef, BOONS, BoonDef, pickBoons, DamageType, DAMAGE_TYPES } from './config';
 import { MAPS, Point, MapDef, isHudCell } from './maps';
+import { centerX, centerY, castleX, castleY, cellPath, isHex, setHex, hexView, screenToGround, cellAt } from './grid';
 import { generateMap } from './mapgen';
 import { MapDraft, MapEditTool, MAX_EXITS, draftToMap, mapToDraft, inField, isCastle } from './mapEditor';
 import {
@@ -30,6 +31,7 @@ import {
 } from './rules';
 import { sound } from './audio';
 import { sprites, drawSprite, PreparedSprite, SpritePose, SpriteVariant } from './sprites';
+import { bakeHexGround, bakeHexSky } from './hexScene';
 import { TILESETS, DECOR_ONLY, loadTileset, loadDecor, bakeField, bakeDecor, Tileset } from './tiles';
 // Light rim color (r, g, b) under the pedestal of the dark tower figures
 // (people's Стрелок and Маг, all dark elf towers: they sink into dark maps)
@@ -234,6 +236,8 @@ const GAIT: Partial<Record<EnemyType, { stride: number; lift: number; tilt: numb
   boss: { stride: 40, lift: 1.5, tilt: 0.04 },
 };
 const MAX_CORPSES = 30;
+const HEX_BAKE = 2; // гексовое поле запекается вдвое крупнее для чёткости
+const HEX_PREF_KEY = 'dark_frontier_hex_field'; // свободный режим: опытное гексовое поле
 const SANDBOX_GOLD = 999999; // свободный режим: золото каждый кадр возвращается к этому числу
 
 // Status marks on enemies: slowed (frost, «Оберег», the default priest) and cursed («Проклятие»)
@@ -334,6 +338,7 @@ export interface GameStateSnapshot {
   randomMap: boolean;
   /** Свободный режим: золото без счёта, состав волн вручную */
   sandbox: boolean;
+  hexField: boolean; // свободный режим: опытное гексовое поле с небом
   /** Название карты на поле (свободный режим: готовая, случайная или своя) */
   mapName: string;
   /** Свободный режим: открыт редактор карты — инструмент, местность и что мешает применить */
@@ -555,6 +560,9 @@ export class GameEngine {
   // Road geometry cached per level: ribbon polylines and unique steps for chevrons
   private roadLines: Point[][] = [];
   private roadSteps: { a: Point; b: Point }[] = [];
+  // Гексовое поле: запечённая земля (трава, дорога, контуры гексов) и небо над ней
+  private hexGround: { map: MapDef; canvas: HTMLCanvasElement } | null = null;
+  private hexSky: { level: number; canvas: HTMLCanvasElement } | null = null;
 
   constructor() {
     // Pre-allocate fixed particle pool (zero garbage collection)
@@ -644,7 +652,7 @@ export class GameEngine {
       this.binders.find((b) => b.id === this.selectedBinderId) ||
       (this.castleSelected ? CONFIG.grid.castleCells[0] : null);
     if (!sel) return null;
-    const sx = ((sel.x + 0.5) * CONFIG.grid.cellSize - this.viewX) * this.viewZoom;
+    const sx = ((isHex() ? centerX(sel) * hexView.k() : centerX(sel)) - this.viewX) * this.viewZoom;
     return sx < CONFIG.grid.totalWidth / 2 ? 'left' : 'right';
   }
 
@@ -653,6 +661,7 @@ export class GameEngine {
    * `mapSeed`: a generated road (mapgen.ts) for this level's biome instead of its fixed map; endless mode only.
    */
   public startLevel(level: number, diff: Difficulty, endless = false, faction?: number, race: RaceId = 'humans', mapSeed: number | null = null, customMap: MapDef | null = null) {
+    setHex(false); // гексовое поле — пока только опыт в свободном режиме
     this.race = CONFIG.races[race] ? race : 'humans';
     this.megas = [];
     this.fires = [];
@@ -740,6 +749,7 @@ export class GameEngine {
   public startSandbox(level: number, diff: Difficulty, faction: number, race: RaceId = 'humans', mapSeed: number | null = null, customMap: MapDef | null = null) {
     this.startLevel(customMap?.level ?? level, diff, true, faction, race, mapSeed, customMap);
     this.sandbox = true;
+    setHex(GameEngine.readHexPref());
     if (this.runLog) this.runLog.data.mode = 'sandbox';
     this.tier = 5;
     while (this.guardLevel < CONFIG.siege.guard.damage.length) this.raiseGuard();
@@ -786,6 +796,36 @@ export class GameEngine {
     this.onWaveStarted?.();
     this.notifyState();
     return true;
+  }
+
+  /** Свободный режим, опыт (просьба Артура 2026-11-06): гексовое поле с наклоном и небом, как бой «Героев 3» */
+  public setHexField(on: boolean) {
+    if (!this.sandbox) return;
+    try {
+      localStorage.setItem(HEX_PREF_KEY, on ? '1' : '0');
+    } catch {
+      /* без хранилища — только на эту партию */
+    }
+    setHex(on);
+    this.hexGround = null;
+    this.hoverCell = null;
+    this.resetView();
+    this.notifyState();
+  }
+
+  private static readHexPref(): boolean {
+    try {
+      return localStorage.getItem(HEX_PREF_KEY) === '1';
+    } catch {
+      return false;
+    }
+  }
+
+  /** Клетка поля под точкой холста (логические px, с приближением и наклоном) */
+  public cellAtScreen(sx: number, sy: number): Point {
+    const v = this.screenToField(sx, sy);
+    const g = screenToGround(v.x, v.y);
+    return cellAt(g.x, g.y);
   }
 
   /** Свободный режим: начать заново на той же карте (смена расы — тоже отсюда: башни другой расы с поля убираются) */
@@ -900,7 +940,7 @@ export class GameEngine {
       if (exitIdx >= 0) e.exits.splice(exitIdx, 1);
       else {
         if (e.exits.length >= MAX_EXITS) {
-          this.addFloatingText(`Не больше ${MAX_EXITS} выходов`, (x + 0.5) * CONFIG.grid.cellSize, y * CONFIG.grid.cellSize, '#e0452f');
+          this.addFloatingText(`Не больше ${MAX_EXITS} выходов`, centerX({ x, y }), centerY({ x, y }) - CONFIG.grid.cellSize / 2, '#e0452f');
           return;
         }
         e.exits.push(p);
@@ -1230,9 +1270,8 @@ export class GameEngine {
     this.boons.push(id);
     if (id === 'walls') this.lives += this.boon('walls');
     this.markModsDirty();
-    const c = CONFIG.grid.castleTarget;
-    this.spawnRing(c.x * CONFIG.grid.cellSize, c.y * CONFIG.grid.cellSize, '#c9a2ff');
-    this.addFloatingText(BOONS.find((b) => b.id === id)?.name ?? '', c.x * CONFIG.grid.cellSize, (c.y - 0.8) * CONFIG.grid.cellSize, '#c9a2ff');
+    this.spawnRing(castleX(), castleY(), '#c9a2ff');
+    this.addFloatingText(BOONS.find((b) => b.id === id)?.name ?? '', castleX(), castleY() - 0.8 * CONFIG.grid.cellSize, '#c9a2ff');
     sound.playBuy();
     this.notifyState();
     return true;
@@ -1641,10 +1680,10 @@ export class GameEngine {
     // Calculate path length in pixels
     let totalLen = 0;
     if (isFlyer) {
-      const startPxX = (entrance.x + 0.5) * CONFIG.grid.cellSize;
-      const startPxY = (entrance.y + 0.5) * CONFIG.grid.cellSize;
-      const targetPxX = CONFIG.grid.castleTarget.x * CONFIG.grid.cellSize;
-      const targetPxY = CONFIG.grid.castleTarget.y * CONFIG.grid.cellSize;
+      const startPxX = centerX(entrance);
+      const startPxY = centerY(entrance);
+      const targetPxX = castleX();
+      const targetPxY = castleY();
       totalLen = Math.hypot(targetPxX - startPxX, targetPxY - startPxY);
     } else {
       totalLen = path.length * CONFIG.grid.cellSize;
@@ -1665,8 +1704,8 @@ export class GameEngine {
       id: Math.random().toString(36).substring(2, 9),
       type,
       faction,
-      x: (entrance.x + 0.5) * CONFIG.grid.cellSize,
-      y: (entrance.y + 0.5) * CONFIG.grid.cellSize,
+      x: centerX(entrance),
+      y: centerY(entrance),
       maxHp: hp,
       hp,
       baseSpeed: baseDef.speed * CONFIG.grid.cellSize,
@@ -1986,8 +2025,8 @@ export class GameEngine {
 
       // Siege: within reach of the artifact the enemy stops and strikes it (Артур, 2026-10-31)
       if (e.attackAnim > 0) e.attackAnim -= dt;
-      const castlePxX = CONFIG.grid.castleTarget.x * CONFIG.grid.cellSize;
-      const castlePxY = CONFIG.grid.castleTarget.y * CONFIG.grid.cellSize;
+      const castlePxX = castleX();
+      const castlePxY = castleY();
       const toCastle = Math.hypot(castlePxX - e.x, castlePxY - e.y);
       if (toCastle <= this.siegeReach(e)) {
         if (!e.sieging) {
@@ -2052,8 +2091,8 @@ export class GameEngine {
           e.distanceTraveled += moveStep;
           if (Math.abs(dx) > 1) e.facing = dx < 0 ? -1 : 1;
         } else {
-          const targetPxX = (nextCell.x + 0.5) * CONFIG.grid.cellSize;
-          const targetPxY = (nextCell.y + 0.5) * CONFIG.grid.cellSize;
+          const targetPxX = centerX(nextCell);
+          const targetPxY = centerY(nextCell);
           const dx = targetPxX - e.x;
           const dy = targetPxY - e.y;
           const dist = Math.hypot(dx, dy);
@@ -2158,8 +2197,8 @@ export class GameEngine {
       let closestTower: Tower | null = null;
       let minDist = Infinity;
       for (const t of this.towers) {
-        const tx = (t.x + 0.5) * CONFIG.grid.cellSize;
-        const ty = (t.y + 0.5) * CONFIG.grid.cellSize;
+        const tx = centerX(t);
+        const ty = centerY(t);
         const d = Math.hypot(tx - boss.x, ty - boss.y);
         if (d < minDist) {
           minDist = d;
@@ -2169,7 +2208,7 @@ export class GameEngine {
       if (closestTower) {
         closestTower.frozenTimer = 4.0;
         this.addFloatingText('БАШНЯ ЗАМОРОЖЕНА!', boss.x, boss.y - 18, '#7fc8f0');
-        this.spawnRing((closestTower.x + 0.5) * CONFIG.grid.cellSize, (closestTower.y + 0.5) * CONFIG.grid.cellSize, '#7fc8f0');
+        this.spawnRing(centerX(closestTower), centerY(closestTower), '#7fc8f0');
       }
     }
 
@@ -2228,8 +2267,8 @@ export class GameEngine {
       let left = cells * CONFIG.grid.cellSize;
       while (left > 0) {
         const next = path[boss.pathIndex + 1];
-        const tx = next ? (next.x + 0.5) * CONFIG.grid.cellSize : CONFIG.grid.castleTarget.x * CONFIG.grid.cellSize;
-        const ty = next ? (next.y + 0.5) * CONFIG.grid.cellSize : CONFIG.grid.castleTarget.y * CONFIG.grid.cellSize;
+        const tx = next ? centerX(next) : castleX();
+        const ty = next ? centerY(next) : castleY();
         const dx = tx - boss.x;
         const dy = ty - boss.y;
         const dist = Math.hypot(dx, dy);
@@ -2263,8 +2302,8 @@ export class GameEngine {
   private towerAttack(tower: Tower, part: TowerPart) {
     this.dmgSource = tower.id;
     const baseDef = CONFIG.towers[part.type];
-    const towerPxX = (tower.x + 0.5) * CONFIG.grid.cellSize;
-    const towerPxY = (tower.y + 0.5) * CONFIG.grid.cellSize;
+    const towerPxX = centerX(tower);
+    const towerPxY = centerY(tower);
     const stats = attackStats(part.type, part.level, part.specs);
     const specs = specsOfType(part.type, part.specs);
     const mods = this.towerMods(tower);
@@ -2498,7 +2537,7 @@ export class GameEngine {
     if (Math.random() < Math.min(1, tower.critT / mech.critFull)) {
       tower.critT = 0;
       const cs = CONFIG.grid.cellSize;
-      this.addFloatingText('КРИТ!', (tower.x + 0.5) * cs, tower.y * cs + 4, '#3ed6c4');
+      this.addFloatingText('КРИТ!', centerX(tower), (centerY(tower) - CONFIG.grid.cellSize / 2 + 4), '#3ed6c4');
       return mech.critMult;
     }
     return 1;
@@ -2509,8 +2548,8 @@ export class GameEngine {
     const def = CONFIG.towers[part.type];
     const mods = this.towerMods(tower);
     const cs = CONFIG.grid.cellSize;
-    const tx = (tower.x + 0.5) * cs;
-    const ty = (tower.y + 0.5) * cs;
+    const tx = centerX(tower);
+    const ty = centerY(tower);
     const rangePx = stats.range * mods.range * cs;
     const inRange = this.enemiesNear(tx, ty, rangePx);
     const cooldown = stats.cooldown * mods.cd;
@@ -2558,8 +2597,8 @@ export class GameEngine {
   private summonImp(tower: Tower, dps: number) {
     const cs = CONFIG.grid.cellSize;
     const stats = attackStats(tower.type, tower.level, tower.specs);
-    const gx = (tower.x + 0.5) * cs;
-    const gy = (tower.y + 0.5) * cs;
+    const gx = centerX(tower);
+    const gy = centerY(tower);
     this.imps.push({ x: gx, y: gy, t: CONFIG.raceMech.impTime, dps, towerId: tower.id, gateX: gx, gateY: gy, reach: stats.range * this.towerMods(tower).range * cs, facing: 1 });
     this.spawnPuff(gx, gy, '#e0452f');
   }
@@ -2615,7 +2654,7 @@ export class GameEngine {
     for (const t of this.towers) {
       if (t.type !== 'und_crypt' && t.type !== 'und_digger') continue;
       const st = attackStats(t.type, t.level, t.specs);
-      if (Math.hypot(e.x - (t.x + 0.5) * cs, e.y - (t.y + 0.5) * cs) > st.range * this.towerMods(t).range * cs) continue;
+      if (Math.hypot(e.x - centerX(t), e.y - centerY(t)) > st.range * this.towerMods(t).range * cs) continue;
       if (t.type === 'und_crypt') t.souls = Math.min(mech.soulsMax, (t.souls ?? 0) + 1);
       else {
         for (const o of this.enemies) if (Math.hypot(o.x - e.x, o.y - e.y) <= cs) this.applySlow(o, mech.ghostSlow, mech.ghostTime);
@@ -2712,8 +2751,8 @@ export class GameEngine {
       if (target && d < cs * 0.45) this.directDamage(target, imp.dps * dt, imp.towerId, 'phys');
     }
     for (const g of this.megas) {
-      const cx = (g.center.x + 0.5) * cs;
-      const cy = (g.center.y + 0.5) * cs;
+      const cx = centerX(g.center);
+      const cy = centerY(g.center);
       if (g.shape === 'P') {
         for (const e of this.enemiesNear(cx, cy, cs * 0.55)) {
           if (e.pFrozen?.has(g.key)) continue;
@@ -2727,8 +2766,8 @@ export class GameEngine {
     for (const t of this.towers) {
       const f = t.fused;
       if (!f) continue;
-      const cx = (t.x + 0.5) * cs;
-      const cy = (t.y + 0.5) * cs;
+      const cx = centerX(t);
+      const cy = centerY(t);
       const nP = f.shapes.filter((x) => x === 'P').length;
       if (nP > 0) {
         for (const e of this.enemiesNear(cx, cy, cs * 1.1)) {
@@ -2747,8 +2786,8 @@ export class GameEngine {
         for (const t of this.towers) {
           const st = attackStats(t.type, t.level, t.specs);
           const r = st.range * this.towerMods(t).range * cs;
-          const tx = (t.x + 0.5) * cs;
-          const ty = (t.y + 0.5) * cs;
+          const tx = centerX(t);
+          const ty = centerY(t);
           for (const e of this.enemies) if (Math.hypot(e.x - tx, e.y - ty) <= r) (e.seen ??= new Set()).add(t.id);
         }
       }
@@ -2771,8 +2810,8 @@ export class GameEngine {
     const ab = tower ? CONFIG.towers[tower.type].ability : undefined;
     if (!tower || !ab || this.isGameOver || this.isVictory) return false;
     const cs = CONFIG.grid.cellSize;
-    const tx = (tower.x + 0.5) * cs;
-    const ty = (tower.y + 0.5) * cs;
+    const tx = centerX(tower);
+    const ty = centerY(tower);
     if (!this.abilityReady(tower) || this.gold < ab.cost) {
       if (!auto) {
         sound.playError();
@@ -2812,13 +2851,13 @@ export class GameEngine {
     tower.pulseT = 0.5;
     const cs = CONFIG.grid.cellSize;
     const bonus = CONFIG.raceMech.warpBonus * 2 * CONFIG.raceMech.abilityMult;
-    for (const e of this.enemiesNear((tower.x + 0.5) * cs, (tower.y + 0.5) * cs, 2 * cs)) {
+    for (const e of this.enemiesNear(centerX(tower), centerY(tower), 2 * cs)) {
       if (e.curseTimer <= 0 || bonus >= e.curseBonus) {
         e.curseBonus = bonus;
         e.curseTimer = Math.max(e.curseTimer, 1);
       }
     }
-    this.spawnRing((tower.x + 0.5) * cs, (tower.y + 0.5) * cs, CURSE_COLOR, 2 * cs - 8);
+    this.spawnRing(centerX(tower), centerY(tower), CURSE_COLOR, 2 * cs - 8);
   }
 
   /** Auto: the ability goes off when three enemies or a heavy one or a boss are in reach */
@@ -2826,7 +2865,7 @@ export class GameEngine {
     if (!this.abilityReady(tower)) return;
     const cs = CONFIG.grid.cellSize;
     const st = attackStats(tower.type, tower.level, tower.specs);
-    const near = this.enemiesNear((tower.x + 0.5) * cs, (tower.y + 0.5) * cs, st.range * this.towerMods(tower).range * cs);
+    const near = this.enemiesNear(centerX(tower), centerY(tower), st.range * this.towerMods(tower).range * cs);
     if (near.length >= 3 || near.some((e) => e.type === 'boss' || e.type === 'heavy')) this.castAbility(tower.id, true);
   }
 
@@ -2863,12 +2902,12 @@ export class GameEngine {
     const cs = CONFIG.grid.cellSize;
     if (!gate || !victim) {
       sound.playError();
-      if (gate) this.addFloatingText('Рядом нет башни для жертвы', (gate.x + 0.5) * cs, gate.y * cs, '#e0452f');
+      if (gate) this.addFloatingText('Рядом нет башни для жертвы', centerX(gate), centerY(gate) - cs / 2, '#e0452f');
       return false;
     }
     const st = attackStats(gate.type, gate.level, gate.specs);
-    const gx = (gate.x + 0.5) * cs;
-    const gy = (gate.y + 0.5) * cs;
+    const gx = centerX(gate);
+    const gy = centerY(gate);
     const hit = this.enemiesNear(gx, gy, st.range * this.towerMods(gate).range * cs);
     if (hit.length === 0) {
       sound.playError();
@@ -2879,7 +2918,7 @@ export class GameEngine {
     this.logEv('sacrifice', { id: gate.id, level: gate.level, victim: victim.type, victimLevel: victim.level, dmg: Math.round(dmg), hit: hit.length, x: gate.x, y: gate.y });
     this.towers.splice(this.towers.indexOf(victim), 1);
     this.markModsDirty();
-    this.spawnPuff((victim.x + 0.5) * cs, (victim.y + 0.5) * cs, '#ff4a2f');
+    this.spawnPuff(centerX(victim), centerY(victim), '#ff4a2f');
     this.spawnRing(gx, gy, '#ff4a2f', st.range * cs);
     this.addFloatingText('ЖЕРТВА!', gx, gy - 20, '#ff4a2f');
     sound.playBossSpawn();
@@ -2895,8 +2934,8 @@ export class GameEngine {
   // Priest Smite: pulses every 2.5s hitting all enemies in radius with damage * 2.5 (×n)
   private triggerPriestSmite(tower: Tower, part: TowerPart) {
     this.dmgSource = tower.id;
-    const towerPxX = (tower.x + 0.5) * CONFIG.grid.cellSize;
-    const towerPxY = (tower.y + 0.5) * CONFIG.grid.cellSize;
+    const towerPxX = centerX(tower);
+    const towerPxY = centerY(tower);
     const stats = attackStats('priest', part.level, part.specs);
     const rangePx = stats.range * CONFIG.grid.cellSize;
 
@@ -3188,8 +3227,8 @@ export class GameEngine {
     if (this.runLog) this.runLog.enemy(`${e.faction}:${e.type}`).castleDamage += lost;
     this.lives = Math.max(0, this.lives - dmg);
     e.attackAnim = 0.22;
-    const cx = CONFIG.grid.castleTarget.x * CONFIG.grid.cellSize;
-    const cy = (CONFIG.grid.castleTarget.y - 0.2) * CONFIG.grid.cellSize;
+    const cx = castleX();
+    const cy = (castleY() - 0.2 * CONFIG.grid.cellSize);
     const d = Math.hypot(cx - e.x, cy - e.y);
     if (d > CONFIG.grid.cellSize) this.spawnBolt(e.x, e.y - 14, cx, cy, e.type === 'shaman' ? '#b58cf0' : '#e8d9a8');
     else this.spawnSpark(cx + (e.x - cx) * 0.4, cy + (e.y - cy) * 0.4, '#e0452f');
@@ -3360,7 +3399,7 @@ export class GameEngine {
     this.logEv('tower', { id: newTower.id, type: newTower.type, level: newTower.level, specs: [...newTower.specs], x: cellX, y: cellY, paid: cost, gold: Math.round(this.gold), fromBackpack });
     this.markModsDirty();
     sound.playBuy();
-    this.spawnRing((cellX + 0.5) * CONFIG.grid.cellSize, (cellY + 0.5) * CONFIG.grid.cellSize, '#d9b44a');
+    this.spawnRing(centerX({ x: cellX, y: cellY }), centerY({ x: cellX, y: cellY }), '#d9b44a');
 
     // Reset placement
     if (this.placingSlot !== null) this.backpack.splice(this.placingSlot, 1);
@@ -3533,19 +3572,19 @@ export class GameEngine {
     if (cost > 0) {
       if (this.gold < cost) {
         sound.playError();
-        this.addFloatingText('Не хватает золота!', (cellX + 0.5) * cs, (cellY + 0.5) * cs, '#e0452f');
+        this.addFloatingText('Не хватает золота!', centerX({ x: cellX, y: cellY }), centerY({ x: cellX, y: cellY }), '#e0452f');
         return false;
       }
       this.gold -= cost;
-      this.addFloatingText(`−${cost}`, (cellX + 0.5) * cs, (cellY + 0.2) * cs, '#f4c06a');
+      this.addFloatingText(`−${cost}`, centerX({ x: cellX, y: cellY }), centerY({ x: cellX, y: cellY }) - 0.3 * cs, '#f4c06a');
     }
     this.logEv('move', { id: tower.id, type: tower.type, fromX: tower.x, fromY: tower.y, x: cellX, y: cellY, paid: cost });
-    this.spawnPuff((tower.x + 0.5) * cs, (tower.y + 0.5) * cs, '#f4c06a');
+    this.spawnPuff(centerX(tower), centerY(tower), '#f4c06a');
     tower.x = cellX;
     tower.y = cellY;
     if (off) tower.extra = off.map((o) => ({ x: cellX + o.x, y: cellY + o.y }));
     this.markModsDirty();
-    this.spawnRing((cellX + 0.5) * cs, (cellY + 0.5) * cs, '#d9b44a');
+    this.spawnRing(centerX({ x: cellX, y: cellY }), centerY({ x: cellX, y: cellY }), '#d9b44a');
     sound.playBuy();
     this.notifyState();
     return true;
@@ -3562,9 +3601,8 @@ export class GameEngine {
   private raiseGuard() {
     if (this.guardLevel >= CONFIG.siege.guard.damage.length) return;
     this.guardLevel++;
-    const c = CONFIG.grid.castleTarget;
-    this.spawnRing(c.x * CONFIG.grid.cellSize, c.y * CONFIG.grid.cellSize, '#7fd6e0');
-    this.addFloatingText(`Защита ${this.guardLevel}`, c.x * CONFIG.grid.cellSize, (c.y - 0.8) * CONFIG.grid.cellSize, '#7fd6e0');
+    this.spawnRing(castleX(), castleY(), '#7fd6e0');
+    this.addFloatingText(`Защита ${this.guardLevel}`, castleX(), castleY() - 0.8 * CONFIG.grid.cellSize, '#7fd6e0');
   }
 
   public guardUpgradeCost(): number | null {
@@ -3591,8 +3629,8 @@ export class GameEngine {
     this.guardTimer -= dt;
     if (this.guardTimer > 0) return;
     const g = CONFIG.siege.guard;
-    const cx = CONFIG.grid.castleTarget.x * CONFIG.grid.cellSize;
-    const cy = CONFIG.grid.castleTarget.y * CONFIG.grid.cellSize;
+    const cx = castleX();
+    const cy = castleY();
     let target: Enemy | null = null;
     let best = g.radius * CONFIG.grid.cellSize;
     for (const e of this.enemies) {
@@ -3632,7 +3670,7 @@ export class GameEngine {
     this.binders.push(binder);
     this.logEv('binder', { x: cellX, y: cellY, paid: price });
     sound.playBuy();
-    this.spawnRing((cellX + 0.5) * CONFIG.grid.cellSize, (cellY + 0.5) * CONFIG.grid.cellSize, CONFIG.binder.color);
+    this.spawnRing(centerX({ x: cellX, y: cellY }), centerY({ x: cellX, y: cellY }), CONFIG.binder.color);
     if (this.placingSlot !== null) this.backpack.splice(this.placingSlot, 1);
     this.clearPlacing();
     this.selectedBinderId = binder.id;
@@ -3649,7 +3687,7 @@ export class GameEngine {
     this.binders.splice(idx, 1);
     this.selectedBinderId = null;
     sound.playBuy();
-    this.addFloatingText(`+${refund} золота`, (b.x + 0.5) * CONFIG.grid.cellSize, (b.y + 0.5) * CONFIG.grid.cellSize, '#f4c06a');
+    this.addFloatingText(`+${refund} золота`, centerX(b), centerY(b), '#f4c06a');
     this.notifyState();
     return true;
   }
@@ -3712,10 +3750,10 @@ export class GameEngine {
       smiteTimer: 2.5,
     };
     const cs = CONFIG.grid.cellSize;
-    this.spawnPuff((partner.x + 0.5) * cs, (partner.y + 0.5) * cs, CONFIG.binder.color);
-    this.spawnPuff((binder.x + 0.5) * cs, (binder.y + 0.5) * cs, CONFIG.binder.color);
-    this.spawnRing((tower.x + 0.5) * cs, (tower.y + 0.5) * cs, CONFIG.binder.color);
-    this.addFloatingText('СВЯЗКА!', (tower.x + 0.5) * cs, (tower.y + 0.5) * cs - 16, CONFIG.binder.color);
+    this.spawnPuff(centerX(partner), centerY(partner), CONFIG.binder.color);
+    this.spawnPuff(centerX(binder), centerY(binder), CONFIG.binder.color);
+    this.spawnRing(centerX(tower), centerY(tower), CONFIG.binder.color);
+    this.addFloatingText('СВЯЗКА!', centerX(tower), centerY(tower) - 16, CONFIG.binder.color);
     sound.playMerge();
     this.selectedTowerId = tower.id;
     this.notifyState();
@@ -3724,7 +3762,7 @@ export class GameEngine {
 
   private warnBindLevel(at: { x: number; y: number }) {
     const cs = CONFIG.grid.cellSize;
-    this.addFloatingText('Связка — только Ур.2 и Ур.3', (at.x + 0.5) * cs, (at.y + 0.5) * cs - 16, '#e0452f');
+    this.addFloatingText('Связка — только Ур.2 и Ур.3', centerX(at), centerY(at) - 16, '#e0452f');
   }
 
   private nearest<T extends { x: number; y: number }>(list: T[], to: { x: number; y: number }): T[] {
@@ -3742,18 +3780,18 @@ export class GameEngine {
     if (!sel || !this.canMergeBinders()) {
       sound.playError();
       if (sel && !sel.triple && this.plainBinders().length >= 3 && this.tier < CONFIG.binder.tripleFromTier) {
-        this.addFloatingText(`Тройная связка — с ${CONFIG.binder.tripleFromTier}-го яруса лавки`, (sel.x + 0.5) * CONFIG.grid.cellSize, (sel.y + 0.5) * CONFIG.grid.cellSize - 16, '#e0452f');
+        this.addFloatingText(`Тройная связка — с ${CONFIG.binder.tripleFromTier}-го яруса лавки`, centerX(sel), centerY(sel) - 16, '#e0452f');
       }
       return false;
     }
     const cs = CONFIG.grid.cellSize;
     for (const b of this.nearest(this.plainBinders().filter((b) => b !== sel), sel).slice(0, 2)) {
       this.binders.splice(this.binders.indexOf(b), 1);
-      this.spawnPuff((b.x + 0.5) * cs, (b.y + 0.5) * cs, CONFIG.binder.color);
+      this.spawnPuff(centerX(b), centerY(b), CONFIG.binder.color);
     }
     sel.triple = true;
-    this.spawnRing((sel.x + 0.5) * cs, (sel.y + 0.5) * cs, CONFIG.binder.color);
-    this.addFloatingText('ТРОЙНАЯ СВЯЗКА!', (sel.x + 0.5) * cs, (sel.y + 0.5) * cs - 16, CONFIG.binder.color);
+    this.spawnRing(centerX(sel), centerY(sel), CONFIG.binder.color);
+    this.addFloatingText('ТРОЙНАЯ СВЯЗКА!', centerX(sel), centerY(sel) - 16, CONFIG.binder.color);
     sound.playMerge();
     this.notifyState();
     return true;
@@ -3821,9 +3859,9 @@ export class GameEngine {
       part.specs = part.level === 3 ? [...part.specs, ...part.specs, ...part.specs] : [];
     }
     const cs = CONFIG.grid.cellSize;
-    this.spawnPuff((binder.x + 0.5) * cs, (binder.y + 0.5) * cs, CONFIG.binder.color);
-    this.spawnRing((tower.x + 0.5) * cs, (tower.y + 0.5) * cs, '#f4c06a');
-    this.addFloatingText('УРОВЕНЬ +1!', (tower.x + 0.5) * cs, (tower.y + 0.5) * cs - 16, '#f4c06a');
+    this.spawnPuff(centerX(binder), centerY(binder), CONFIG.binder.color);
+    this.spawnRing(centerX(tower), centerY(tower), '#f4c06a');
+    this.addFloatingText('УРОВЕНЬ +1!', centerX(tower), centerY(tower) - 16, '#f4c06a');
     sound.playMerge();
     this.selectedBinderId = null;
     this.selectedTowerId = tower.id;
@@ -3878,7 +3916,7 @@ export class GameEngine {
     this.markModsDirty();
     this.selectedTowerId = null;
     sound.playBuy();
-    this.addFloatingText(`+${refund} золота`, (tower.x + 0.5) * CONFIG.grid.cellSize, (tower.y + 0.5) * CONFIG.grid.cellSize, '#f4c06a');
+    this.addFloatingText(`+${refund} золота`, centerX(tower), centerY(tower), '#f4c06a');
     this.notifyState();
     return true;
   }
@@ -4031,15 +4069,15 @@ export class GameEngine {
         sel.fused.parts.push(this.partOf(t), ...t.fused!.parts);
         sel.fused.shapes.push(...t.fused!.shapes);
         sel.fused.megas += t.fused!.megas;
-        this.spawnPuff((t.x + 0.5) * cs, (t.y + 0.5) * cs, '#d6f0ff');
+        this.spawnPuff(centerX(t), centerY(t), '#d6f0ff');
         this.towers.splice(this.towers.indexOf(t), 1);
       }
       sel.fused.level = (sel.fused.level ?? 1) + 1;
       this.logEv('fuse', { id: sel.id, kind, level: sel.fused.level, megas: sel.fused.megas, parts: sel.fused.parts.map((p) => `${p.type}${p.level}`), x: sel.x, y: sel.y });
       this.markModsDirty();
       sound.playMerge();
-      this.spawnRing((sel.x + 0.5) * cs, (sel.y + 0.5) * cs, '#d6f0ff', cs * 1.8);
-      this.addFloatingText(`ГИПЕРБАШНЯ Ур.${sel.fused.level}!`, (sel.x + 0.5) * cs, (sel.y + 0.5) * cs - 16, '#d6f0ff');
+      this.spawnRing(centerX(sel), centerY(sel), '#d6f0ff', cs * 1.8);
+      this.addFloatingText(`ГИПЕРБАШНЯ Ур.${sel.fused.level}!`, centerX(sel), centerY(sel) - 16, '#d6f0ff');
       this.notifyState();
       return true;
     }
@@ -4111,7 +4149,7 @@ export class GameEngine {
     }
     for (const t of joined) {
       if (t === main) continue;
-      this.spawnPuff((t.x + 0.5) * cs, (t.y + 0.5) * cs, '#d6f0ff');
+      this.spawnPuff(centerX(t), centerY(t), '#d6f0ff');
       this.towers.splice(this.towers.indexOf(t), 1);
     }
     if (kind === 'hyper') f.level = 1;
@@ -4126,8 +4164,8 @@ export class GameEngine {
     this.selectedTowerId = main.id;
     this.markModsDirty();
     sound.playMerge();
-    this.spawnRing((main.x + 0.5) * cs, (main.y + 0.5) * cs, '#d6f0ff', cs * 1.6);
-    this.addFloatingText(f.level !== undefined ? 'ГИПЕРБАШНЯ!' : 'МЕГАБАШНЯ!', (main.x + 0.5) * cs, (main.y + 0.5) * cs - 16, '#d6f0ff');
+    this.spawnRing(centerX(main), centerY(main), '#d6f0ff', cs * 1.6);
+    this.addFloatingText(f.level !== undefined ? 'ГИПЕРБАШНЯ!' : 'МЕГАБАШНЯ!', centerX(main), centerY(main) - 16, '#d6f0ff');
     this.notifyState();
     return true;
   }
@@ -4178,7 +4216,7 @@ export class GameEngine {
     if (standIn) {
       this.binders.splice(this.binders.indexOf(standIn), 1);
       if (this.selectedBinderId === standIn.id) this.selectedBinderId = null;
-      this.spawnPuff((standIn.x + 0.5) * CONFIG.grid.cellSize, (standIn.y + 0.5) * CONFIG.grid.cellSize, CONFIG.binder.color);
+      this.spawnPuff(centerX(standIn), centerY(standIn), CONFIG.binder.color);
     }
 
     // Remove the towers that join (two, or one when a binder stands in)
@@ -4186,7 +4224,7 @@ export class GameEngine {
       const idx = this.towers.indexOf(m);
       if (idx !== -1) {
         this.towers.splice(idx, 1);
-        this.spawnPuff((m.x + 0.5) * CONFIG.grid.cellSize, (m.y + 0.5) * CONFIG.grid.cellSize, '#f4c06a');
+        this.spawnPuff(centerX(m), centerY(m), '#f4c06a');
       }
     }
 
@@ -4196,8 +4234,8 @@ export class GameEngine {
     if (ownRace && ownRace !== 'humans') {
       // Other factions keep the selected tower's choices; орки and нежить choose once more
       sound.playMerge();
-      this.spawnRing((selected.x + 0.5) * CONFIG.grid.cellSize, (selected.y + 0.5) * CONFIG.grid.cellSize, '#f4c06a');
-      this.addFloatingText('СЛИЯНИЕ!', (selected.x + 0.5) * CONFIG.grid.cellSize, (selected.y + 0.5) * CONFIG.grid.cellSize - 16, '#f4c06a');
+      this.spawnRing(centerX(selected), centerY(selected), '#f4c06a');
+      this.addFloatingText('СЛИЯНИЕ!', centerX(selected), centerY(selected) - 16, '#f4c06a');
       this.askSpecIfNeeded(selected);
       this.notifyState();
       return true;
@@ -4208,8 +4246,8 @@ export class GameEngine {
       selected.specs = [...selected.specs, ...mergePair.flatMap((m) => m.specs), ...(standIn ? selected.specs : [])];
     }
     sound.playMerge();
-    this.spawnRing((selected.x + 0.5) * CONFIG.grid.cellSize, (selected.y + 0.5) * CONFIG.grid.cellSize, '#f4c06a');
-    this.addFloatingText(standIn ? 'СЛИЯНИЕ СО СВЯЗКОЙ!' : 'СЛИЯНИЕ!', (selected.x + 0.5) * CONFIG.grid.cellSize, (selected.y + 0.5) * CONFIG.grid.cellSize - 16, '#f4c06a');
+    this.spawnRing(centerX(selected), centerY(selected), '#f4c06a');
+    this.addFloatingText(standIn ? 'СЛИЯНИЕ СО СВЯЗКОЙ!' : 'СЛИЯНИЕ!', centerX(selected), centerY(selected) - 16, '#f4c06a');
 
     if (selected.level === 2 && selected.specs.length === 0) {
       // Immediate mandatory specialization choice modal
@@ -4344,6 +4382,7 @@ export class GameEngine {
       level: this.level,
       randomMap: this.mapSeed !== null,
       sandbox: this.sandbox,
+      hexField: isHex(),
       mapName: this.currentMap.name,
       mapEdit: this.mapEdit
         ? {
@@ -4468,23 +4507,72 @@ export class GameEngine {
     const dpr = this.dpr;
     const z = dpr * this.viewZoom;
     ctx.setTransform(z, 0, 0, z, -z * this.viewX, -z * this.viewY);
+    if (isHex()) {
+      // Небо над полем, затем само поле под наклоном: наземные px → экранные
+      this.renderHexSky(ctx);
+      const k = hexView.k();
+      ctx.transform(k, 0, 0, k * hexView.squash, 0, hexView.sky());
+    }
     this.renderField(ctx);
     if (this.mapEdit) this.renderMapEdit(ctx);
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   }
 
+  /** Фигура стоит прямо на наклонном гексовом поле: снять сжатие по высоте вокруг её точки на земле */
+  private upright(ctx: CanvasRenderingContext2D, x: number, y: number, draw: () => void) {
+    if (!isHex()) return draw();
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.scale(1, 1 / hexView.squash);
+    ctx.translate(-x, -y);
+    draw();
+    ctx.restore();
+  }
+
+  /** Гексовое поле: земля карты (запекается, когда тайлы биома загружены) */
+  private hexGroundLayer(): HTMLCanvasElement {
+    if (this.hexGround?.map === this.currentMap) return this.hexGround.canvas;
+    const set = TILESETS[this.currentMap.level];
+    let tiles = set ? this.fieldTiles.get(set) : null;
+    if (set && !tiles) {
+      this.tiledField(); // начинает загрузку тайлов; пока их нет — земля цветом палитры, без кэша
+      tiles = this.fieldTiles.get(set);
+    }
+    const ready = !set || !!tiles;
+    const canvas = bakeHexGround(this.currentMap.level, this.currentMap.paths, CONFIG.grid.castleCells[0], (e) => this.entranceInward(e), tiles ?? null, HEX_BAKE);
+    if (ready) this.hexGround = { map: this.currentMap, canvas };
+    return canvas;
+  }
+
+  /** Гексовое поле: небо и даль над ним (экранные px, до наклона) */
+  private renderHexSky(ctx: CanvasRenderingContext2D) {
+    const level = this.currentMap.level;
+    if (this.hexSky?.level !== level) this.hexSky = { level, canvas: bakeHexSky(level, HEX_BAKE) };
+    const c = this.hexSky.canvas;
+    ctx.drawImage(c, 0, 0, c.width / HEX_BAKE, c.height / HEX_BAKE);
+  }
+
+  /** Квадрат или гекс клетки (с отступом внутрь inset px) — заливка или обводка текущим стилем */
+  private cellShape(ctx: CanvasRenderingContext2D, mode: 'fill' | 'stroke', p: Point, inset: number) {
+    cellPath(ctx, p, inset);
+    if (mode === 'fill') ctx.fill();
+    else ctx.stroke();
+  }
+
   private renderField(ctx: CanvasRenderingContext2D) {
     const palette = CONFIG.palettes[this.level - 1];
     const cellSize = CONFIG.grid.cellSize;
-    const baked = this.tiledField();
-    const waiting = !baked && this.tilesPending;
+    const hexGround = isHex() ? this.hexGroundLayer() : null;
+    if (hexGround) ctx.drawImage(hexGround, 0, 0, hexGround.width / HEX_BAKE, hexGround.height / HEX_BAKE);
+    const baked = hexGround ? null : this.tiledField();
+    const waiting = !baked && !hexGround && this.tilesPending;
     if (baked) {
       ctx.drawImage(baked, 0, 0, CONFIG.grid.totalWidth, CONFIG.grid.totalHeight);
     }
 
     // 1. Background / Ground cells
     // Alternating between 2 tones (2nd tone 4% lighter)
-    if (!baked) {
+    if (!baked && !hexGround) {
       ctx.fillStyle = palette.ground;
       ctx.fillRect(0, 0, CONFIG.grid.totalWidth, CONFIG.grid.totalHeight);
     }
@@ -4497,7 +4585,7 @@ export class GameEngine {
     }
 
     // Render checkerboard ground pattern with 4% lightness difference
-    for (let cy = 0; !baked && !waiting && cy < CONFIG.grid.rows; cy++) {
+    for (let cy = 0; !baked && !waiting && !hexGround && cy < CONFIG.grid.rows; cy++) {
       for (let cx = 0; cx < CONFIG.grid.cols; cx++) {
         if ((cx + cy) % 2 === 1) {
           ctx.fillStyle = 'rgba(255, 255, 255, 0.04)';
@@ -4507,14 +4595,14 @@ export class GameEngine {
     }
 
     // Мелкий декор карты без тайлов — под дорогой, на свободных клетках
-    const decor = !baked && !waiting ? this.decorLayer() : null;
+    const decor = !baked && !waiting && !hexGround ? this.decorLayer() : null;
     if (decor) ctx.drawImage(decor, 0, 0, CONFIG.grid.totalWidth, CONFIG.grid.totalHeight);
 
     // 2. Roads: solid ribbon with a dark outline, rounded turns and running chevrons
     const outline = mixColor(palette.ground, '#000000', 0.6);
     const rim = mixColor(palette.road, '#ffffff', 0.32);
     const fill = mixColor(palette.road, '#ffffff', 0.14);
-    if (!baked && !waiting) {
+    if (!baked && !waiting && !hexGround) {
       this.strokeRoad(ctx, outline, cellSize * 0.94);
       this.strokeRoad(ctx, rim, cellSize * 0.8);
       this.strokeRoad(ctx, fill, cellSize * 0.7);
@@ -4527,7 +4615,7 @@ export class GameEngine {
     ctx.lineWidth = 2.5;
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
-    for (const st of baked || waiting ? [] : this.roadSteps) {
+    for (const st of baked || waiting || hexGround ? [] : this.roadSteps) {
       const ax = st.a.x * cellSize;
       const ay = st.a.y * cellSize;
       const dx = st.b.x * cellSize - ax;
@@ -4564,7 +4652,7 @@ export class GameEngine {
     // 4. Grass blades (swaying gently)
     ctx.strokeStyle = 'rgba(255, 255, 255, 0.07)';
     ctx.lineWidth = 1.5;
-    for (const g of baked || waiting ? [] : this.grassBlades) {
+    for (const g of baked || waiting || hexGround ? [] : this.grassBlades) {
       const sway = Math.sin(timeSec * 2.5 + g.phase) * 3 + g.bendOffset;
       ctx.beginPath();
       ctx.moveTo(g.x, g.y);
@@ -4583,7 +4671,7 @@ export class GameEngine {
         ctx.globalAlpha = pulse;
         ctx.lineWidth = 3;
         for (const el of this.getBindPartners(selectedTower)) {
-          ctx.strokeRect(el.x * cellSize + 2, el.y * cellSize + 2, cellSize - 4, cellSize - 4);
+          this.cellShape(ctx, 'stroke', el, 2);
         }
         ctx.globalAlpha = 1;
       } else {
@@ -4591,7 +4679,7 @@ export class GameEngine {
         ctx.strokeStyle = '#f4c06a';
         ctx.lineWidth = 2.5;
         for (const el of eligible) {
-          ctx.strokeRect(el.x * cellSize + 2, el.y * cellSize + 2, cellSize - 4, cellSize - 4);
+          this.cellShape(ctx, 'stroke', el, 2);
         }
       }
 
@@ -4603,7 +4691,7 @@ export class GameEngine {
         ctx.strokeStyle = part === selectedTower ? 'rgba(244, 192, 106, 0.45)' : 'rgba(62, 214, 196, 0.5)';
         ctx.lineWidth = 1.5;
         ctx.beginPath();
-        ctx.arc((selectedTower.x + 0.5) * cellSize, (selectedTower.y + 0.5) * cellSize, rangePx, 0, Math.PI * 2);
+        ctx.arc(centerX(selectedTower), centerY(selectedTower), rangePx, 0, Math.PI * 2);
         ctx.fill();
         ctx.stroke();
       }
@@ -4614,7 +4702,7 @@ export class GameEngine {
       ctx.strokeStyle = 'rgba(127, 214, 224, 0.5)';
       ctx.lineWidth = 1.5;
       ctx.beginPath();
-      ctx.arc(CONFIG.grid.castleTarget.x * cellSize, CONFIG.grid.castleTarget.y * cellSize, CONFIG.siege.guard.radius * cellSize, 0, Math.PI * 2);
+      ctx.arc(castleX(), castleY(), CONFIG.siege.guard.radius * cellSize, 0, Math.PI * 2);
       ctx.fill();
       ctx.stroke();
     }
@@ -4624,7 +4712,7 @@ export class GameEngine {
       ctx.fillStyle = 'rgba(244, 192, 106, 0.045)';
       for (let y = 0; y < CONFIG.grid.rows; y++) {
         for (let x = 0; x < CONFIG.grid.cols; x++) {
-          if (this.isCellFree(x, y)) ctx.fillRect(x * cellSize + 6, y * cellSize + 6, cellSize - 12, cellSize - 12);
+          if (this.isCellFree(x, y)) this.cellShape(ctx, 'fill', { x, y }, 6);
         }
       }
       const h = this.hoverCell;
@@ -4632,7 +4720,7 @@ export class GameEngine {
         ctx.setLineDash([6, 4]);
         ctx.strokeStyle = '#f4c06a';
         ctx.lineWidth = 2;
-        ctx.strokeRect(h.x * cellSize + 3, h.y * cellSize + 3, cellSize - 6, cellSize - 6);
+        this.cellShape(ctx, 'stroke', h, 3);
         ctx.setLineDash([]);
       }
     }
@@ -4641,7 +4729,7 @@ export class GameEngine {
     if (selectedBinder) {
       ctx.strokeStyle = CONFIG.binder.color;
       ctx.lineWidth = 2.5;
-      ctx.strokeRect(selectedBinder.x * cellSize + 2, selectedBinder.y * cellSize + 2, cellSize - 4, cellSize - 4);
+      this.cellShape(ctx, 'stroke', selectedBinder, 2);
       // Merging: the binders that would join; raising: the towers it can raise
       const marks: { x: number; y: number }[] = this.upgradingFromBinderId
         ? this.getUpgradeTargets()
@@ -4652,7 +4740,7 @@ export class GameEngine {
       ctx.strokeStyle = this.upgradingFromBinderId ? '#f4c06a' : CONFIG.binder.color;
       ctx.globalAlpha = this.upgradingFromBinderId ? pulse : 0.6;
       ctx.lineWidth = 3;
-      for (const m of marks) ctx.strokeRect(m.x * cellSize + 2, m.y * cellSize + 2, cellSize - 4, cellSize - 4);
+      for (const m of marks) this.cellShape(ctx, 'stroke', m, 2);
       ctx.globalAlpha = 1;
     }
 
@@ -4663,12 +4751,12 @@ export class GameEngine {
         for (let x = 0; x < CONFIG.grid.cols; x++) {
           if (this.hyperPlan.cells.some((c) => c.x === x && c.y === y)) {
             ctx.fillStyle = 'rgba(159, 216, 245, 0.45)';
-            ctx.fillRect(x * cellSize + 2, y * cellSize + 2, cellSize - 4, cellSize - 4);
+            this.cellShape(ctx, 'fill', { x, y }, 2);
           } else if (this.hyperCellValid(x, y)) {
             ctx.strokeStyle = '#9fd8f5';
             ctx.globalAlpha = 0.35 + 0.4 * pulse;
             ctx.lineWidth = 2;
-            ctx.strokeRect(x * cellSize + 4, y * cellSize + 4, cellSize - 8, cellSize - 8);
+            this.cellShape(ctx, 'stroke', { x, y }, 4);
             ctx.globalAlpha = 1;
           }
         }
@@ -4679,10 +4767,10 @@ export class GameEngine {
       const { x: hx, y: hy } = this.hoverCell;
       const isFree = this.isCellFree(hx, hy);
       ctx.fillStyle = isFree ? 'rgba(62, 214, 196, 0.22)' : 'rgba(224, 69, 47, 0.28)';
-      ctx.fillRect(hx * cellSize, hy * cellSize, cellSize, cellSize);
+      this.cellShape(ctx, 'fill', this.hoverCell, 0);
       ctx.strokeStyle = isFree ? CONFIG.binder.color : '#e0452f';
       ctx.lineWidth = 2;
-      ctx.strokeRect(hx * cellSize + 1, hy * cellSize + 1, cellSize - 2, cellSize - 2);
+      this.cellShape(ctx, 'stroke', this.hoverCell, 1);
     }
     if (this.placingTowerType && this.hoverCell) {
       const hx = this.hoverCell.x;
@@ -4690,10 +4778,10 @@ export class GameEngine {
       const isFree = this.isCellFree(hx, hy);
 
       ctx.fillStyle = isFree ? 'rgba(143, 163, 74, 0.28)' : 'rgba(224, 69, 47, 0.28)';
-      ctx.fillRect(hx * cellSize, hy * cellSize, cellSize, cellSize);
+      this.cellShape(ctx, 'fill', this.hoverCell, 0);
       ctx.strokeStyle = isFree ? '#8fa34a' : '#e0452f';
       ctx.lineWidth = 2;
-      ctx.strokeRect(hx * cellSize + 1, hy * cellSize + 1, cellSize - 2, cellSize - 2);
+      this.cellShape(ctx, 'stroke', this.hoverCell, 1);
 
       // Draw tower range preview
       const baseDef = CONFIG.towers[this.placingTowerType];
@@ -4701,7 +4789,7 @@ export class GameEngine {
       ctx.fillStyle = 'rgba(255, 255, 255, 0.08)';
       ctx.strokeStyle = 'rgba(255, 255, 255, 0.35)';
       ctx.beginPath();
-      ctx.arc((hx + 0.5) * cellSize, (hy + 0.5) * cellSize, rangePx, 0, Math.PI * 2);
+      ctx.arc(centerX(this.hoverCell), centerY(this.hoverCell), rangePx, 0, Math.PI * 2);
       ctx.fill();
       ctx.stroke();
     }
@@ -4712,9 +4800,9 @@ export class GameEngine {
     // Sorted by y so lower figures overlap the ones behind them; flyers on top
     // Binders, towers and the castle sprite share one depth order (castle and binders before towers of their row)
     const figures: { y: number; draw: () => void }[] = [
-      { y: CONFIG.grid.castleCells[0].y - 0.2, draw: () => this.renderCastleFigure(ctx, cellSize, timeSec) },
-      ...this.binders.map((b) => ({ y: b.y - 0.1, draw: () => this.renderBinder(ctx, b, cellSize, timeSec) })),
-      ...this.towers.map((t) => ({ y: t.y, draw: () => this.renderTower(ctx, t, cellSize, timeSec) })),
+      { y: CONFIG.grid.castleCells[0].y - 0.2, draw: () => this.upright(ctx, castleX(), castleY(), () => this.renderCastleFigure(ctx, cellSize, timeSec)) },
+      ...this.binders.map((b) => ({ y: b.y - 0.1, draw: () => this.upright(ctx, centerX(b), centerY(b), () => this.renderBinder(ctx, b, cellSize, timeSec)) })),
+      ...this.towers.map((t) => ({ y: t.y, draw: () => this.upright(ctx, centerX(t), centerY(t), () => this.renderTower(ctx, t, cellSize, timeSec)) })),
     ];
     figures.sort((a, b) => a.y - b.y);
     for (const f of figures) f.draw();
@@ -4723,7 +4811,7 @@ export class GameEngine {
     this.renderCorpses(ctx, timeSec);
     const enemiesByDepth = [...this.enemies].sort((a, b) => Number(a.isFlyer) - Number(b.isFlyer) || a.y - b.y);
     for (const e of enemiesByDepth) {
-      this.renderEnemy(ctx, e, CONFIG.palettes[e.faction - 1].enemies, timeSec);
+      this.upright(ctx, e.x, e.y, () => this.renderEnemy(ctx, e, CONFIG.palettes[e.faction - 1].enemies, timeSec));
     }
 
     if (this.race !== 'humans') this.renderRaceAir(ctx, cellSize, timeSec);
@@ -4760,12 +4848,19 @@ export class GameEngine {
     ctx.textAlign = 'center';
     for (const ft of this.floatingTexts) {
       const alpha = Math.max(0, 1 - ft.life / ft.maxLife);
+      if (isHex()) {
+        ctx.save();
+        ctx.translate(ft.x, ft.y);
+        ctx.scale(1, 1 / hexView.squash);
+        ctx.translate(-ft.x, -ft.y);
+      }
       ctx.fillStyle = `rgba(0, 0, 0, ${alpha * 0.8})`;
       ctx.fillText(ft.text, ft.x + 1, ft.y + 1);
       ctx.fillStyle = ft.color;
       ctx.globalAlpha = alpha;
       ctx.fillText(ft.text, ft.x, ft.y);
       ctx.globalAlpha = 1;
+      if (isHex()) ctx.restore();
     }
   }
 
@@ -4852,8 +4947,8 @@ export class GameEngine {
     }
     const img = GameEngine.growthImgs[(c.x * 7 + c.y * 3) % 4];
     if (!img.complete || !img.naturalWidth) return false;
-    const cx = (c.x + 0.5) * cellSize;
-    const cy = (c.y + 0.5) * cellSize;
+    const cx = centerX(c);
+    const cy = centerY(c);
     const pulse = 0.5 + 0.5 * Math.sin(timeSec * 2.2 + c.x * 1.3 + c.y * 0.7);
     const halo = ctx.createRadialGradient(cx, cy, cellSize * 0.1, cx, cy, cellSize * 0.62);
     halo.addColorStop(0, `rgba(110, 240, 235, ${0.22 + 0.2 * pulse})`);
@@ -4872,8 +4967,8 @@ export class GameEngine {
   }
 
   private hatchCell(ctx: CanvasRenderingContext2D, c: Point, cellSize: number, fill: string, line: string) {
-    const x0 = c.x * cellSize;
-    const y0 = c.y * cellSize;
+    const x0 = centerX(c) - cellSize / 2;
+    const y0 = centerY(c) - cellSize / 2;
     ctx.fillStyle = fill;
     ctx.fillRect(x0, y0, cellSize, cellSize);
     ctx.save();
@@ -4917,7 +5012,7 @@ export class GameEngine {
     for (const k of e.road) {
       const c = at(k);
       ctx.fillStyle = roadFill;
-      ctx.fillRect(c.x * cs + 3, c.y * cs + 3, cs - 6, cs - 6);
+      this.cellShape(ctx, 'fill', c, 3);
     }
     for (const k of e.blocked) this.hatchCell(ctx, at(k), cs, 'rgba(224, 69, 47, 0.12)', 'rgba(224, 69, 47, 0.6)');
     const check = this.mapEditCheck;
@@ -4930,29 +5025,29 @@ export class GameEngine {
       ctx.lineDashOffset = -timeSec * 20;
       for (const p of paths) {
         ctx.beginPath();
-        p.forEach((c, i) => (i ? ctx.lineTo((c.x + 0.5) * cs, (c.y + 0.5) * cs) : ctx.moveTo((c.x + 0.5) * cs, (c.y + 0.5) * cs)));
-        ctx.lineTo(CONFIG.grid.castleTarget.x * cs, CONFIG.grid.castleTarget.y * cs);
+        p.forEach((c, i) => (i ? ctx.lineTo(centerX(c), centerY(c)) : ctx.moveTo(centerX(c), centerY(c))));
+        ctx.lineTo(castleX(), castleY());
         ctx.stroke();
       }
       ctx.setLineDash([]);
       ctx.lineDashOffset = 0;
       ctx.strokeStyle = '#e0452f';
       ctx.lineWidth = 3;
-      for (const c of [...check.unused, ...check.broken]) ctx.strokeRect(c.x * cs + 4, c.y * cs + 4, cs - 8, cs - 8);
+      for (const c of [...check.unused, ...check.broken]) this.cellShape(ctx, 'stroke', c, 4);
     }
     // артефакт
     const cc = CONFIG.grid.castleCells[0];
     ctx.fillStyle = 'rgba(127, 214, 224, 0.35)';
-    ctx.fillRect(cc.x * cs + 3, cc.y * cs + 3, cs - 6, cs - 6);
+    this.cellShape(ctx, 'fill', cc, 3);
     ctx.fillStyle = '#e8fbff';
     ctx.font = `700 ${Math.round(cs * 0.22)}px system-ui, sans-serif`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText('Артефакт', (cc.x + 0.5) * cs, (cc.y + 0.5) * cs);
+    ctx.fillText('Артефакт', centerX(cc), centerY(cc));
     // выходы
     e.exits.forEach((c, i) => {
-      const cx = (c.x + 0.5) * cs;
-      const cy = (c.y + 0.5) * cs;
+      const cx = centerX(c);
+      const cy = centerY(c);
       ctx.fillStyle = check?.broken.some((b) => b.x === c.x && b.y === c.y) ? '#e0452f' : '#c0392b';
       ctx.beginPath();
       ctx.arc(cx, cy, cs * 0.3, 0, Math.PI * 2);
@@ -4971,7 +5066,7 @@ export class GameEngine {
       ctx.strokeStyle = '#f4c06a';
       ctx.lineWidth = 2;
       ctx.setLineDash([6, 4]);
-      ctx.strokeRect(h.x * cs + 2, h.y * cs + 2, cs - 4, cs - 4);
+      this.cellShape(ctx, 'stroke', h, 2);
       ctx.setLineDash([]);
     }
   }
@@ -5023,8 +5118,8 @@ export class GameEngine {
 
   private renderCastle(ctx: CanvasRenderingContext2D, cellSize: number, light: string, timeSec: number) {
     const c = CONFIG.grid.castleCells[0];
-    const x0 = c.x * cellSize;
-    const y0 = c.y * cellSize;
+    const x0 = centerX(c) - cellSize / 2;
+    const y0 = centerY(c) - cellSize / 2;
     const cx = x0 + cellSize / 2;
     const cy = y0 + cellSize / 2;
 
@@ -5108,7 +5203,7 @@ export class GameEngine {
     if (!spr) return;
     const c = CONFIG.grid.castleCells[0];
     const breath = Math.sin(timeSec * 1.6) * 0.008;
-    drawSprite(ctx, spr, (c.x + 0.5) * cellSize, (c.y + 0.5) * cellSize + 30, 1, undefined, { sy: 1 + breath });
+    drawSprite(ctx, spr, centerX(c), centerY(c) + 30, 1, undefined, { sy: 1 + breath });
     this.renderBoonOrbs(ctx, cellSize, timeSec);
   }
 
@@ -5117,8 +5212,8 @@ export class GameEngine {
     const n = this.boons.length;
     if (n === 0) return;
     const c = CONFIG.grid.castleCells[0];
-    const cx = (c.x + 0.5) * cellSize;
-    const cy = (c.y + 0.5) * cellSize;
+    const cx = centerX(c);
+    const cy = centerY(c);
     for (let i = 0; i < n; i++) {
       const a = timeSec * 0.8 + (i / n) * Math.PI * 2;
       const x = cx + Math.cos(a) * cellSize * 0.62;
@@ -5140,8 +5235,8 @@ export class GameEngine {
   // -------------------------------------------------------------
   // «Связка»: stone plinth with two interlocked rings slowly turning
   private renderBinder(ctx: CanvasRenderingContext2D, b: Binder, cellSize: number, timeSec: number) {
-    const cx = (b.x + 0.5) * cellSize;
-    const cy = (b.y + 0.5) * cellSize;
+    const cx = centerX(b);
+    const cy = centerY(b);
     const color = CONFIG.binder.color;
     // Sprite: a crystal pillar (plain) or a crystal crown (triple) over a pulsing glow
     const spr = sprites.get(b.triple ? 'binder_triple' : 'binder');
@@ -5279,7 +5374,7 @@ export class GameEngine {
     if (t.critT === undefined) return;
     const k = Math.min(1, t.critT / CONFIG.raceMech.critFull);
     const w = cellSize * 0.56;
-    const x = (t.x + 0.5) * cellSize - w / 2;
+    const x = centerX(t) - w / 2;
     const y = (t.y + 1) * cellSize - 5;
     ctx.save();
     ctx.fillStyle = 'rgba(0, 0, 0, 0.55)';
@@ -5467,10 +5562,10 @@ export class GameEngine {
 
     if (t.frozenTimer > 0) {
       ctx.fillStyle = 'rgba(127, 200, 240, 0.45)';
-      ctx.fillRect(t.x * cellSize + 2, t.y * cellSize + 2, cellSize - 4, cellSize - 4);
+      this.cellShape(ctx, 'fill', t, 2);
       ctx.strokeStyle = '#7fc8f0';
       ctx.lineWidth = 2;
-      ctx.strokeRect(t.x * cellSize + 2, t.y * cellSize + 2, cellSize - 4, cellSize - 4);
+      this.cellShape(ctx, 'stroke', t, 2);
     }
   }
 
@@ -5496,8 +5591,8 @@ export class GameEngine {
 
   // Fallback figure when the sprite is not loaded
   private renderTowerShape(ctx: CanvasRenderingContext2D, t: Tower, cellSize: number) {
-    const cx = (t.x + 0.5) * cellSize;
-    const cy = (t.y + 0.5) * cellSize;
+    const cx = centerX(t);
+    const cy = centerY(t);
     const baseDef = CONFIG.towers[t.type];
 
     // Tower base platform
@@ -5602,10 +5697,10 @@ export class GameEngine {
     // Frozen visual tint (Ice Priest Boss ability)
     if (t.frozenTimer > 0) {
       ctx.fillStyle = 'rgba(127, 200, 240, 0.45)';
-      ctx.fillRect(t.x * cellSize + 2, t.y * cellSize + 2, cellSize - 4, cellSize - 4);
+      this.cellShape(ctx, 'fill', t, 2);
       ctx.strokeStyle = '#7fc8f0';
       ctx.lineWidth = 2;
-      ctx.strokeRect(t.x * cellSize + 2, t.y * cellSize + 2, cellSize - 4, cellSize - 4);
+      this.cellShape(ctx, 'stroke', t, 2);
     }
   }
 
@@ -5676,10 +5771,12 @@ export class GameEngine {
       if (!spr) continue;
       const p = Math.max(0, (timeSec - c.start) / c.duration);
       ctx.globalAlpha = 1 - p * p;
-      drawSprite(ctx, spr, c.x, c.footY + p * 3, c.facing, c.h, {
-        tilt: -c.facing * Math.pow(p, 0.6) * 1.3,
-        sy: 1 - 0.15 * p,
-      });
+      this.upright(ctx, c.x, c.footY, () =>
+        drawSprite(ctx, spr, c.x, c.footY + p * 3, c.facing, c.h, {
+          tilt: -c.facing * Math.pow(p, 0.6) * 1.3,
+          sy: 1 - 0.15 * p,
+        })
+      );
     }
     ctx.globalAlpha = 1;
   }
@@ -5982,13 +6079,13 @@ export class GameEngine {
         for (const b of pts)
           if (a.id < b.id && Math.abs(a.x - b.x) + Math.abs(a.y - b.y) === 1) {
             ctx.beginPath();
-            ctx.moveTo((a.x + 0.5) * cs, (a.y + 0.75) * cs);
-            ctx.lineTo((b.x + 0.5) * cs, (b.y + 0.75) * cs);
+            ctx.moveTo(centerX(a), (centerY(a) + (0.75 - 0.5) * CONFIG.grid.cellSize));
+            ctx.lineTo(centerX(b), (centerY(b) + (0.75 - 0.5) * CONFIG.grid.cellSize));
             ctx.stroke();
           }
       if (m.shape === 'P') {
         ctx.setLineDash([5, 4]);
-        ctx.strokeRect(m.center.x * cs + 6, m.center.y * cs + 6, cs - 12, cs - 12);
+        this.cellShape(ctx, 'stroke', m.center, 6);
         ctx.setLineDash([]);
       }
       ctx.restore();
@@ -6003,7 +6100,7 @@ export class GameEngine {
     ctx.font = 'bold 11px sans-serif';
     ctx.textAlign = 'center';
     ctx.fillStyle = '#d6f0ff';
-    for (const [t, l] of labels) ctx.fillText([...l].sort().join(''), (t.x + 0.5) * cs, t.y * cs + 10);
+    for (const [t, l] of labels) ctx.fillText([...l].sort().join(''), centerX(t), (centerY(t) - CONFIG.grid.cellSize / 2 + 10));
   }
 
   // Over the enemies: imps of the abyss gate and the spheres about to burst
