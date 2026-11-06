@@ -37,6 +37,8 @@ const LEVELS = opt('levels', '1,2,3,4,5').split(',').map(Number);
 const RANDOM_MAP = args.includes('--random-map');
 // Культисты: --no-fuse — бот не собирает фигуры в мегабашни (для сравнения)
 const NO_FUSE = args.includes('--no-fuse');
+// Опыт «гексовое поле» (src/game/grid.ts): --hex — те же карты на гексах, во всех режимах
+const HEX = args.includes('--hex');
 // Раса игрока (чьи башни в лавке): humans, orcs, undead, cultists, demons, elves или all — все по очереди
 const RACE_OPT = opt('race', 'humans');
 // --boons=0: потасовка без усилений артефакта (по умолчанию бот берёт случайное из трёх)
@@ -116,6 +118,8 @@ async function runInPage(job) {
     engine.waveFactionFor = (w) => room.factionForWave(w);
     engine.boonsOn = job.boons !== false;
   } else engine.startLevel(job.level, job.difficulty, endless, job.faction || undefined, job.race || 'humans', job.mapSeed ?? null);
+  const grid = GameEngine.grid; // тот же экземпляр модуля, что у движка
+  if (job.hex) grid.setHex(true);
   const raceDef = CONFIG.races[engine.race];
   const NEED = raceDef.merge;
   if (engine.race === 'demons') engine.setAutoAbilities(true);
@@ -185,11 +189,14 @@ async function runInPage(job) {
   const map = engine.currentMap;
   const road = new Map();
   for (const path of map.paths) path.forEach((p, i) => road.set(`${p.x},${p.y}`, { x: p.x, y: p.y, i }));
-  const roadCells = [...road.values()].map((r) => ({ x: r.x, y: r.y, w: 1 }));
+  // Расстояния — в клетках по настоящим центрам (на гексах нечётные ряды сдвинуты)
+  const CS = CONFIG.grid.cellSize;
+  const pos = (c) => ({ x: grid.centerX(c) / CS - 0.5, y: grid.centerY(c) / CS - 0.5 });
+  const roadCells = [...road.values()].map((r) => ({ ...pos(r), w: 1 }));
   // Flyers go straight from each entrance to the castle: their line counts too
-  const castle = { x: CONFIG.grid.castleTarget.x - 0.5, y: CONFIG.grid.castleTarget.y - 0.5 }; // in cell indices
+  const castle = { x: grid.castleX() / CS - 0.5, y: grid.castleY() / CS - 0.5 }; // in cell units
   for (const path of map.paths) {
-    const a = path[0];
+    const a = pos(path[0]);
     const len = Math.hypot(castle.x - a.x, castle.y - a.y);
     for (let d = 0; d < len; d += 0.5) {
       roadCells.push({ x: a.x + ((castle.x - a.x) * d) / len, y: a.y + ((castle.y - a.y) * d) / len, w: 0.35 });
@@ -202,7 +209,8 @@ async function runInPage(job) {
     const k = `${x},${y},${range}`;
     if (coverCache[k] === undefined) {
       let c = 0;
-      for (const r of roadCells) if (Math.hypot(r.x - x, r.y - y) <= range) c += r.w;
+      const p = pos({ x, y });
+      for (const r of roadCells) if (Math.hypot(r.x - p.x, r.y - p.y) <= range) c += r.w;
       coverCache[k] = c;
     }
     return coverCache[k];
@@ -210,7 +218,7 @@ async function runInPage(job) {
   const rangeOf = (type) => CONFIG.towers[type].range * 1.1;
   // Культисты: клетка рядом с другими башнями культистов ценнее (так складываются фигуры мегабашен)
   const adjBonus = (x, y) =>
-    engine.race !== 'cultists' ? 1 : 1 + 0.15 * engine.towers.filter((t) => Math.abs(t.x - x) + Math.abs(t.y - y) === 1).length;
+    engine.race !== 'cultists' ? 1 : 1 + 0.15 * engine.towers.filter((t) => grid.adjacent(t, { x, y })).length;
   const freeCells = () => {
     const cells = [];
     for (let y = 0; y < CONFIG.grid.rows; y++)
@@ -562,7 +570,7 @@ async function worker() {
   await page.waitForFunction(() => window.gameEngine);
   while (next < jobs.length) {
     const job = jobs[next++];
-    const r = await page.evaluate(runInPage, { ...job, maxWave: MAXWAVE, set: SET });
+    const r = await page.evaluate(runInPage, { ...job, maxWave: MAXWAVE, set: SET, hex: HEX });
     results.push(r);
     console.log(
       `${results.length}/${jobs.length} ${job.race} ${job.kind} ур.${job.level}${job.faction ? ` фр.${job.faction}` : ''} ${job.policy} ${job.style} ${job.difficulty}: ` +

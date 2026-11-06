@@ -80,6 +80,26 @@ export function neighbours(p: P): P[] {
   ];
 }
 
+/** Соседи гекса по кругу (по часовой от правого); у квадрата — 4 соседа по кругу */
+export function ring(p: P): P[] {
+  const n = neighbours(p);
+  return hex ? [n[0], n[5], n[4], n[1], n[2], n[3]] : [n[0], n[2], n[1], n[3]];
+}
+
+/** Соседние ли клетки (по стороне) */
+export function adjacent(a: P, b: P): boolean {
+  return neighbours(a).some((n) => n.x === b.x && n.y === b.y);
+}
+
+/** Клетка p, сдвинутая так же, как from → to (на гексах — по осевым координатам, чтобы фигура не ломалась на чётных/нечётных рядах) */
+export function translate(p: P, from: P, to: P): P {
+  if (!hex) return { x: p.x + to.x - from.x, y: p.y + to.y - from.y };
+  const q = (c: P) => c.x - (c.y - (c.y & 1)) / 2;
+  const nq = q(p) + q(to) - q(from);
+  const ny = p.y + to.y - from.y;
+  return { x: nq + (ny - (ny & 1)) / 2, y: ny };
+}
+
 /** Контур клетки (с отступом внутрь inset px) на ctx — путь без stroke/fill */
 export function cellPath(ctx: CanvasRenderingContext2D, p: P, inset = 0) {
   const cs = CS();
