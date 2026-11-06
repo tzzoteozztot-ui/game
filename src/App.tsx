@@ -193,6 +193,7 @@ export default function App() {
     level: 1,
     randomMap: false,
     sandbox: false,
+    hexField: false,
     mapName: '',
     mapEdit: null,
     wave: 1,
@@ -856,8 +857,7 @@ export default function App() {
   };
   const toCell = (clientX: number, clientY: number) => {
     const c = toCanvas(clientX, clientY);
-    const p = engineRef.current!.screenToField(c.x, c.y);
-    return { x: Math.floor(p.x / CONFIG.grid.cellSize), y: Math.floor(p.y / CONFIG.grid.cellSize) };
+    return engineRef.current!.cellAtScreen(c.x, c.y);
   };
 
   const handleCanvasTap = (cellX: number, cellY: number) => {
@@ -1569,6 +1569,8 @@ export default function App() {
                   onEnemyFaction={(f) => setSandboxWave((v) => ({ ...v, faction: f }))}
                   mapName={gameState.mapName}
                   onEditMap={() => engineRef.current?.mapEditOpen()}
+                  hexField={gameState.hexField}
+                  onHexField={(on) => engineRef.current?.setHexField(on)}
                   race={gameState.race}
                   maxLevel={gameState.maxLevel}
                   selectedTower={gameState.selectedTower ? { type: gameState.selectedTower.type, level: gameState.selectedTower.level } : null}

@@ -1,3 +1,4 @@
+import { setHex, cellAt, centerX, centerY, neighbours } from './grid';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { MAPS, makePath, validateMap, validateAllMaps, MAX_ROAD_CELLS, MIN_FREE_CELLS, MIN_PATH_LENGTH, CASTLE, isHudCell, GRID_COLS, GRID_ROWS } from './maps';
@@ -706,4 +707,22 @@ test('редактор карты: ошибки черновика', () => {
   assert.equal(bad.map, null);
   assert.equal(bad.broken.length, 1);
   assert.equal(bad.unused.length, 2);
+});
+
+test('гексовое поле (опыт): центр клетки возвращает ту же клетку, все шесть соседей на расстоянии клетки', () => {
+  setHex(true);
+  try {
+    for (let y = 0; y < CONFIG.grid.rows; y++)
+      for (let x = 0; x < CONFIG.grid.cols; x++) {
+        const c = { x, y };
+        assert.deepEqual(cellAt(centerX(c), centerY(c)), c);
+        for (const n of neighbours(c)) assert.ok(Math.abs(Math.hypot(centerX(n) - centerX(c), centerY(n) - centerY(c)) - CONFIG.grid.cellSize) < 1e-6);
+      }
+    // ход по квадратной сетке (в том числе вверх-вниз) — всегда соседние гексы, поэтому старые карты годятся для опыта
+    for (const map of MAPS)
+      for (const path of map.paths)
+        for (let i = 1; i < path.length; i++) assert.ok(neighbours(path[i - 1]).some((n) => n.x === path[i].x && n.y === path[i].y));
+  } finally {
+    setHex(false);
+  }
 });
