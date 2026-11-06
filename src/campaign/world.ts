@@ -5,7 +5,7 @@
  * Числа (волны отрядов, награды, доход промыслов) — черновик прототипа, меняются по слову Артура.
  */
 
-export type Terrain = 'grass' | 'road' | 'forest' | 'hills' | 'water' | 'rock';
+export type Terrain = 'grass' | 'road' | 'forest' | 'hills' | 'water' | 'rock' | 'wood';
 export type ResKey = 'gold' | 'wood' | 'crystal';
 export type Resources = Record<ResKey, number>;
 
@@ -13,17 +13,19 @@ export const RES_NAMES: Record<ResKey, string> = { gold: 'Золото', wood: '
 export const RES_ICONS: Record<ResKey, string> = { gold: '🪙', wood: '🪵', crystal: '💎' };
 
 /** Сколько очков хода стоит войти в гекс; null — непроходимо. Дорога вдвое быстрее леса */
-export const TERRAIN_COST: Record<Terrain, number | null> = { road: 2, grass: 3, forest: 4, hills: 4, water: null, rock: null };
-export const TERRAIN_NAMES: Record<Terrain, string> = { road: 'Дорога', grass: 'Луг', forest: 'Лес', hills: 'Холмы', water: 'Вода', rock: 'Горы' };
-const TERRAIN_CHARS: Record<string, Terrain> = { '.': 'grass', '=': 'road', f: 'forest', h: 'hills', w: 'water', r: 'rock' };
+export const TERRAIN_COST: Record<Terrain, number | null> = { road: 2, grass: 3, forest: 4, hills: 4, water: null, rock: null, wood: null };
+export const TERRAIN_NAMES: Record<Terrain, string> = { road: 'Дорога', grass: 'Луг', forest: 'Лес', hills: 'Холмы', water: 'Вода', rock: 'Горы', wood: 'Чаща' };
+const TERRAIN_CHARS: Record<string, Terrain> = { '.': 'grass', '=': 'road', f: 'forest', h: 'hills', w: 'water', r: 'rock', d: 'wood' };
 
 export const MOVES_PER_DAY = 30; // ≈ 15 гексов по дороге, 10 по лугу
-export const SIGHT = 3; // радиус обзора героя, гексов
+export const SIGHT = 4; // радиус обзора героя, гексов
 
 export type WorldObjKind = 'camp' | 'squad' | 'fortress' | 'chest' | 'mine' | 'shrine';
 
 /** Украшения карты без действия: мельница, руины, могилы, костры… (только отрисовка) */
-export type PropKind = 'windmill' | 'ruins' | 'graves' | 'orcCamp' | 'stones' | 'farm' | 'wreck';
+export type PropKind = 'windmill' | 'ruins' | 'graves' | 'orcCamp' | 'stones' | 'farm' | 'wreck'
+  // крупные, в непроходимой местности
+  | 'castle' | 'cliff' | 'tower' | 'crystals' | 'deadwood' | 'statue';
 export interface WorldProp {
   kind: PropKind;
   x: number;
@@ -42,6 +44,8 @@ export interface WorldObj {
   reward?: Partial<Resources>;
   /** Промысел: что и сколько даёт каждый новый день */
   income?: Partial<Resources>;
+  /** Бой с армией, как в Потасовке: враги за золото уходят на поле врага, победа — когда падёт его артефакт. Сила бота врага */
+  army?: 'easy' | 'normal' | 'hard';
   /** Строка хрониста при встрече */
   text?: string;
 }
@@ -50,14 +54,14 @@ export interface RegionDef {
   id: string;
   name: string;
   level: number; // биом и враги: номер карты кампании (1 — Пограничье, орки)
-  terrain: string[]; // ряды символов: . трава, f лес, h холмы, w вода, r скалы
+  terrain: string[]; // ряды символов: . трава, = дорога, f лес, h холмы, w вода, r горы, d чаща
   start: { x: number; y: number };
   objects: WorldObj[];
   props?: WorldProp[];
 }
 
 export interface WorldState {
-  v: 2;
+  v: 3;
   region: string;
   hero: { x: number; y: number };
   day: number;
@@ -70,12 +74,13 @@ export interface WorldState {
 }
 
 // -------------------------------------------------------------
-// Пограничье (карта 1, орки) — первый регион прототипа. Местность строится по зерну (одна и та же
-// каждый раз): горы по краю и на северо-востоке, лес и холмы по шуму, река с двумя переправами
-// (брод и мост под охраной отрядов), дороги между лагерем, промыслами и крепостью.
+// Пограничье (карта 1, орки) — первый регион прототипа. Просьба Артура 2026-11-06: карта больше, а ходить
+// можно меньше — как в Героях: дороги и поляны вокруг объектов, всё остальное непроходимо (горы, чаща,
+// озёра) и заполнено крупными украшениями (руины замков, башни, скалы, кристаллы). Местность строится по
+// зерну — одна и та же каждый раз; река с двумя переправами (брод и мост под охраной отрядов).
 // -------------------------------------------------------------
-const FW = 36;
-const FH = 22;
+const FW = 52;
+const FH = 32;
 
 function mulberry(seed: number) {
   return () => {
@@ -108,7 +113,7 @@ function valueNoise(seed: number, step: number) {
 }
 
 /** Ось реки: по одному x на ряд, течёт с севера на юг */
-export const riverX = (y: number) => Math.round(18 + 1.6 * Math.sin(y / 3.2));
+export const riverX = (y: number) => Math.round(26 + 2 * Math.sin(y / 4.2));
 
 function hexLine(a: { x: number; y: number }, b: { x: number; y: number }): { x: number; y: number }[] {
   const n = hexDistance(a, b);
@@ -133,109 +138,207 @@ function hexLine(a: { x: number; y: number }, b: { x: number; y: number }): { x:
   return out;
 }
 
-const FRONTIER_OBJECTS: WorldObj[] = [
-  { id: 'camp', kind: 'camp', x: 4, y: 11, name: 'Лагерь экспедиции', text: 'Здесь встанут кузня, казна и стены. Пока лагерь только разбит.' },
-  // Западный берег: слабые отряды, обучение
-  { id: 'sq1', kind: 'squad', x: 8, y: 9, name: 'Разведка орков', waves: 3, reward: { gold: 40 }, text: 'Несколько разведчиков рода. Слабые, но они нас уже видели.' },
-  { id: 'sq2', kind: 'squad', x: 11, y: 14, name: 'Охотники рода', waves: 3, reward: { gold: 40, wood: 10 } },
-  { id: 'sq3', kind: 'squad', x: 13, y: 6, name: 'Дозор рода', waves: 4, reward: { gold: 50, crystal: 1 } },
-  { id: 'chest1', kind: 'chest', x: 7, y: 6, name: 'Брошенный обоз', reward: { gold: 50 } },
-  { id: 'chest2', kind: 'chest', x: 6, y: 16, name: 'Сложенный лес', reward: { wood: 20 } },
-  { id: 'chest3', kind: 'chest', x: 12, y: 3, name: 'Тайник контрабандистов', reward: { gold: 60 } },
-  { id: 'chest4', kind: 'chest', x: 14, y: 18, name: 'Разбитая телега', reward: { gold: 30, crystal: 1 } },
-  { id: 'quarry', kind: 'mine', x: 5, y: 4, name: 'Каменоломня', waves: 3, income: { wood: 4 }, text: 'Старая каменоломня, орки держат здесь пост.' },
-  { id: 'saw', kind: 'mine', x: 9, y: 18, name: 'Лесопилка', waves: 3, income: { wood: 5 }, text: 'Орки рубят здесь лес. Отобьём — будет дерево каждый день.' },
-  { id: 'shrine', kind: 'shrine', x: 15, y: 11, name: 'Камень предков', reward: { crystal: 2 }, text: 'Орки приносят сюда дары. Камень звенит так же, как наш узел.' },
-  // Переправы
-  { id: 'ford', kind: 'squad', x: riverX(7), y: 7, name: 'Застава у брода', waves: 5, reward: { gold: 70 }, text: 'Брод через реку держат воины рода. Другого пути на тот берег почти нет.' },
-  { id: 'bridge', kind: 'squad', x: riverX(15), y: 15, name: 'Засада у моста', waves: 5, reward: { gold: 60, wood: 10 } },
-  // Восточный берег
-  { id: 'goldmine', kind: 'mine', x: 22, y: 3, name: 'Рудник', waves: 5, income: { gold: 20 } },
-  { id: 'node', kind: 'mine', x: 27, y: 18, name: 'Малый узел', waves: 6, income: { crystal: 1 }, text: 'Осколок той же сети, что наш артефакт. Орки охраняют его, как святыню.' },
-  { id: 'sq4', kind: 'squad', x: 24, y: 9, name: 'Боевой отряд', waves: 6, reward: { gold: 80, crystal: 1 } },
-  { id: 'sq5', kind: 'squad', x: 24, y: 15, name: 'Стая гончих', waves: 6, reward: { gold: 80 } },
-  { id: 'sq6', kind: 'squad', x: 29, y: 6, name: 'Шаманы ущелья', waves: 7, reward: { gold: 90, crystal: 2 } },
-  { id: 'sq7', kind: 'squad', x: 29, y: 15, name: 'Всадники на волках', waves: 7, reward: { gold: 90 } },
-  { id: 'guard', kind: 'squad', x: 29, y: 11, name: 'Стража Вождя', waves: 8, reward: { gold: 120, crystal: 2 } },
-  { id: 'chest5', kind: 'chest', x: 23, y: 5, name: 'Сундук наёмника', reward: { gold: 80 } },
-  { id: 'chest6', kind: 'chest', x: 21, y: 12, name: 'Запас брёвен', reward: { wood: 20 } },
-  { id: 'chest7', kind: 'chest', x: 32, y: 4, name: 'Добыча набега', reward: { gold: 100 } },
-  { id: 'chest8', kind: 'chest', x: 31, y: 19, name: 'Тайник шамана', reward: { crystal: 2 } },
-  { id: 'shrine2', kind: 'shrine', x: 33, y: 15, name: 'Старый идол', reward: { crystal: 3 }, text: 'Идол старше орков. На его камне — те же знаки, что на нашем узле.' },
-  { id: 'fortress', kind: 'fortress', x: 32, y: 11, name: 'Крепость Вождя', waves: 12, reward: { gold: 200, crystal: 5 }, text: 'Вождь Ургаш ждёт за частоколом. Это бой на все двенадцать волн.' },
-];
+const FORD = { x: riverX(10), y: 10 };
+const BRIDGE = { x: riverX(23), y: 23 };
 
-const FRONTIER_PROPS: WorldProp[] = [
-  { kind: 'windmill', x: 2, y: 8 },
-  { kind: 'farm', x: 6, y: 13 },
-  { kind: 'farm', x: 3, y: 14 },
-  { kind: 'stones', x: 10, y: 11 },
-  { kind: 'wreck', x: 16, y: 15 },
-  { kind: 'graves', x: 20, y: 19 },
-  { kind: 'ruins', x: 21, y: 18 },
-  { kind: 'ruins', x: 26, y: 12 },
-  { kind: 'orcCamp', x: 30, y: 9 },
-  { kind: 'orcCamp', x: 31, y: 13 },
-  { kind: 'stones', x: 26, y: 4 },
-  { kind: 'graves', x: 33, y: 17 },
+const FRONTIER_OBJECTS: WorldObj[] = [
+  { id: 'camp', kind: 'camp', x: 5, y: 16, name: 'Лагерь экспедиции', text: 'Здесь встанут кузня, казна и стены. Пока лагерь только разбит.' },
+  // Западный берег: слабые отряды, обучение
+  { id: 'sq1', kind: 'squad', x: 10, y: 14, name: 'Разведка орков', waves: 3, reward: { gold: 40 }, text: 'Несколько разведчиков рода. Слабые, но они нас уже видели.' },
+  { id: 'sq2', kind: 'squad', x: 12, y: 20, name: 'Охотники рода', waves: 3, reward: { gold: 40, wood: 10 } },
+  { id: 'sq3', kind: 'squad', x: 16, y: 9, name: 'Дозор рода', waves: 4, reward: { gold: 50, crystal: 1 } },
+  { id: 'chest1', kind: 'chest', x: 8, y: 10, name: 'Брошенный обоз', reward: { gold: 50 } },
+  { id: 'chest2', kind: 'chest', x: 4, y: 22, name: 'Сложенный лес', reward: { wood: 20 } },
+  { id: 'chest3', kind: 'chest', x: 14, y: 4, name: 'Тайник контрабандистов', reward: { gold: 60 } },
+  { id: 'chest4', kind: 'chest', x: 17, y: 27, name: 'Разбитая телега', reward: { gold: 30, crystal: 1 } },
+  { id: 'quarry', kind: 'mine', x: 6, y: 6, name: 'Каменоломня', waves: 3, income: { wood: 4 }, text: 'Старая каменоломня, орки держат здесь пост.' },
+  { id: 'saw', kind: 'mine', x: 8, y: 26, name: 'Лесопилка', waves: 3, income: { wood: 5 }, text: 'Орки рубят здесь лес. Отобьём — будет дерево каждый день.' },
+  { id: 'shrine', kind: 'shrine', x: 19, y: 16, name: 'Камень предков', reward: { crystal: 2 }, text: 'Орки приносят сюда дары. Камень звенит так же, как наш узел.' },
+  {
+    id: 'warcamp', kind: 'squad', x: 21, y: 3, name: 'Военный лагерь рода', waves: 6, army: 'easy', reward: { gold: 250, wood: 30, crystal: 4 },
+    text: 'Здесь орки собирают силы для набега. Бой не обязателен, но лагерь богат.',
+  },
+  // Переправы
+  { id: 'ford', kind: 'squad', x: FORD.x, y: FORD.y, name: 'Застава у брода', waves: 5, reward: { gold: 70 }, text: 'Брод через реку держат воины рода. Другого пути на тот берег почти нет.' },
+  { id: 'bridge', kind: 'squad', x: BRIDGE.x, y: BRIDGE.y, name: 'Засада у моста', waves: 5, reward: { gold: 60, wood: 10 } },
+  // Восточный берег
+  { id: 'goldmine', kind: 'mine', x: 31, y: 4, name: 'Рудник', waves: 5, income: { gold: 20 } },
+  { id: 'node', kind: 'mine', x: 38, y: 28, name: 'Малый узел', waves: 6, income: { crystal: 1 }, text: 'Осколок той же сети, что наш артефакт. Орки охраняют его, как святыню.' },
+  { id: 'sq4', kind: 'squad', x: 33, y: 13, name: 'Боевой отряд', waves: 6, reward: { gold: 80, crystal: 1 } },
+  { id: 'sq5', kind: 'squad', x: 33, y: 22, name: 'Стая гончих', waves: 6, reward: { gold: 80 } },
+  { id: 'sq6', kind: 'squad', x: 40, y: 8, name: 'Шаманы ущелья', waves: 7, reward: { gold: 90, crystal: 2 } },
+  { id: 'sq7', kind: 'squad', x: 41, y: 22, name: 'Всадники на волках', waves: 7, reward: { gold: 90 } },
+  { id: 'guard', kind: 'squad', x: 42, y: 15, name: 'Стража Вождя', waves: 8, reward: { gold: 120, crystal: 2 } },
+  {
+    id: 'stavka', kind: 'squad', x: 48, y: 6, name: 'Ставка вожака', waves: 8, army: 'easy', reward: { gold: 300, crystal: 6 },
+    text: 'Шатры вожака, что водит набеги на юг. Можно обойти, можно разорить.',
+  },
+  { id: 'chest5', kind: 'chest', x: 35, y: 7, name: 'Сундук наёмника', reward: { gold: 80 } },
+  { id: 'chest6', kind: 'chest', x: 30, y: 18, name: 'Запас брёвен', reward: { wood: 20 } },
+  { id: 'chest7', kind: 'chest', x: 45, y: 3, name: 'Добыча набега', reward: { gold: 100 } },
+  { id: 'chest8', kind: 'chest', x: 45, y: 28, name: 'Тайник шамана', reward: { crystal: 2 } },
+  { id: 'shrine2', kind: 'shrine', x: 48, y: 22, name: 'Старый идол', reward: { crystal: 3 }, text: 'Идол старше орков. На его камне — те же знаки, что на нашем узле.' },
+  {
+    id: 'fortress', kind: 'fortress', x: 47, y: 15, name: 'Крепость Вождя', waves: 12, army: 'normal', reward: { gold: 200, crystal: 5 },
+    text: 'Вождь Ургаш ждёт за частоколом. Это последний бой главы.',
+  },
 ];
 
 /** Дороги: цепочки точек, между ними — прямые по гексам */
 const FRONTIER_ROADS: { x: number; y: number }[][] = [
-  [{ x: 4, y: 11 }, { x: 8, y: 9 }, { x: 13, y: 6 }, { x: riverX(7), y: 7 }, { x: 24, y: 9 }, { x: 29, y: 11 }, { x: 32, y: 11 }],
-  [{ x: 4, y: 11 }, { x: 11, y: 14 }, { x: riverX(15), y: 15 }, { x: 24, y: 15 }, { x: 29, y: 15 }, { x: 29, y: 11 }],
-  [{ x: 8, y: 9 }, { x: 7, y: 6 }, { x: 5, y: 4 }],
-  [{ x: 11, y: 14 }, { x: 9, y: 18 }],
-  [{ x: 11, y: 14 }, { x: 15, y: 11 }, { x: 13, y: 6 }],
-  [{ x: 24, y: 9 }, { x: 23, y: 5 }, { x: 22, y: 3 }],
-  [{ x: 24, y: 9 }, { x: 29, y: 6 }],
-  [{ x: 24, y: 15 }, { x: 27, y: 18 }],
+  [{ x: 5, y: 16 }, { x: 10, y: 14 }, { x: 16, y: 9 }, FORD, { x: 30, y: 10 }, { x: 33, y: 13 }, { x: 42, y: 15 }, { x: 47, y: 15 }],
+  [{ x: 5, y: 16 }, { x: 12, y: 20 }, { x: 18, y: 23 }, BRIDGE, { x: 33, y: 22 }, { x: 41, y: 22 }, { x: 42, y: 15 }],
+  [{ x: 10, y: 14 }, { x: 8, y: 10 }, { x: 6, y: 6 }],
+  [{ x: 12, y: 20 }, { x: 8, y: 26 }],
+  [{ x: 5, y: 16 }, { x: 4, y: 22 }],
+  [{ x: 12, y: 20 }, { x: 19, y: 16 }],
+  [{ x: 18, y: 23 }, { x: 17, y: 27 }],
+  [{ x: 16, y: 9 }, { x: 14, y: 4 }, { x: 21, y: 3 }],
+  [{ x: 30, y: 10 }, { x: 35, y: 7 }, { x: 31, y: 4 }],
+  [{ x: 35, y: 7 }, { x: 40, y: 8 }, { x: 45, y: 3 }],
+  [{ x: 40, y: 8 }, { x: 48, y: 6 }],
+  [{ x: 33, y: 13 }, { x: 30, y: 18 }, { x: 33, y: 22 }],
+  [{ x: 33, y: 22 }, { x: 38, y: 28 }, { x: 45, y: 28 }],
+  [{ x: 41, y: 22 }, { x: 48, y: 22 }],
 ];
 
-function buildFrontierTerrain(): string[] {
-  const g: string[][] = Array.from({ length: FH }, () => Array(FW).fill('.'));
-  const forest = valueNoise(11, 4);
-  const hills = valueNoise(23, 5);
-  const edge = valueNoise(37, 3);
+/** Украшения на полянах (у дорог) — мельница, хутора, костры */
+const FRONTIER_PROPS: WorldProp[] = [
+  { kind: 'windmill', x: 3, y: 14 },
+  { kind: 'farm', x: 7, y: 18 },
+  { kind: 'stones', x: 13, y: 15 },
+  { kind: 'wreck', x: 21, y: 22 },
+  { kind: 'graves', x: 36, y: 25 },
+  { kind: 'orcCamp', x: 45, y: 13 },
+  { kind: 'orcCamp', x: 46, y: 18 },
+  { kind: 'ruins', x: 37, y: 9 },
+];
+
+/** Крупные украшения в непроходимой местности: занимают гекс и соседей (`BIG_PROPS` — радиус 1) */
+const BIG_PROPS: PropKind[] = ['castle', 'cliff'];
+const WILD_KINDS: PropKind[] = ['castle', 'cliff', 'tower', 'crystals', 'deadwood', 'statue', 'cliff', 'tower', 'castle', 'deadwood'];
+
+function buildFrontier(): { terrain: string[]; props: WorldProp[] } {
+  const g: string[][] = Array.from({ length: FH }, () => Array(FW).fill(''));
+  const inside = (x: number, y: number) => x > 0 && y > 0 && x < FW - 1 && y < FH - 1;
+  const isRiver = (x: number, y: number) => {
+    const rx = riverX(y);
+    return x === rx || x === rx + 1 || (y > 0 && riverX(y - 1) !== rx && x === Math.min(rx, riverX(y - 1)) + 1);
+  };
+  // 1. Дороги
+  for (const chain of FRONTIER_ROADS)
+    for (let i = 0; i + 1 < chain.length; i++) for (const p of hexLine(chain[i], chain[i + 1])) if (inside(p.x, p.y)) g[p.y][p.x] = '=';
+  // 2. Обочины: дорога шириной в 1–3 гекса (по шуму), поляны вокруг объектов
+  const wide = valueNoise(51, 3);
   for (let y = 0; y < FH; y++)
     for (let x = 0; x < FW; x++) {
-      const d = Math.min(x, y, FW - 1 - x, FH - 1 - y);
-      const mtnNE = x > 24 && x < 33 && y > 1 && y < 6 && hills(x, y) > 0.45;
-      if (d === 0 || (d === 1 && edge(x, y) > 0.45) || (d === 2 && edge(x, y) > 0.78) || mtnNE) g[y][x] = 'r';
-      else if (forest(x, y) > 0.56) g[y][x] = 'f';
-      else if (hills(x, y) > 0.7) g[y][x] = 'h';
+      if (g[y][x] !== '=') continue;
+      for (const n of hexNeighbours(x, y)) if (inside(n.x, n.y) && !g[n.y][n.x] && !isRiver(n.x, n.y) && wide(n.x, n.y) > 0.42) g[n.y][n.x] = '.';
     }
-  // Река в два гекса шириной и озеро на юго-востоке
-  for (let y = 0; y < FH; y++) {
-    const rx = riverX(y);
-    g[y][rx] = 'w';
-    g[y][rx + 1] = 'w';
-    if (y > 0 && riverX(y - 1) !== rx) g[y][Math.min(rx, riverX(y - 1)) + 1] = 'w';
-  }
-  for (let y = 0; y < FH; y++)
-    for (let x = 0; x < FW; x++) if (hexDistance({ x, y }, { x: 25, y: 20 }) <= 1 && y < FH - 1) g[y][x] = 'w';
-  // Дороги: с переправами (гекс воды под дорогой становится бродом или мостом)
-  for (const chain of FRONTIER_ROADS)
-    for (let i = 0; i + 1 < chain.length; i++)
-      for (const p of hexLine(chain[i], chain[i + 1])) if (p.y > 0 && p.y < FH - 1 && p.x > 0 && p.x < FW - 1) g[p.y][p.x] = '=';
-  // Вода рядом с переправой, по которой дорога прошла лишь краем, остаётся водой; сами объекты и их соседи — проходимы
   for (const o of FRONTIER_OBJECTS) {
+    const rad = o.kind === 'camp' || o.kind === 'fortress' ? 2 : 1;
+    for (let y = o.y - rad; y <= o.y + rad; y++)
+      for (let x = o.x - rad - 1; x <= o.x + rad + 1; x++)
+        if (inside(x, y) && !g[y][x] && !isRiver(x, y) && hexDistance(o, { x, y }) <= rad) g[y][x] = '.';
     if (g[o.y][o.x] !== '=') g[o.y][o.x] = '.';
-    if (o.kind === 'fortress' || o.kind === 'camp')
-      for (const n of hexNeighbours(o.x, o.y)) if (g[n.y]?.[n.x] === 'r' || g[n.y]?.[n.x] === 'f') g[n.y][n.x] = '.';
   }
-  return g.map((row) => row.join(''));
+  for (const p of FRONTIER_PROPS) if (!g[p.y][p.x]) g[p.y][p.x] = '.';
+  // 3. Всё прочее непроходимо: река, озёра, горы, чаща
+  const mtn = valueNoise(23, 5);
+  const lake = valueNoise(77, 4);
+  for (let y = 0; y < FH; y++)
+    for (let x = 0; x < FW; x++) {
+      if (g[y][x]) continue;
+      if (isRiver(x, y)) g[y][x] = 'w';
+      else if (!inside(x, y)) g[y][x] = 'r';
+      else if (lake(x, y) > 0.8) g[y][x] = 'w';
+      else g[y][x] = mtn(x, y) > 0.5 ? 'r' : 'd';
+    }
+  // 4. Проходимое разнообразим: лес и холмы (дороже по ходу)
+  const forest = valueNoise(11, 4);
+  const hills = valueNoise(31, 5);
+  const busy = new Set([...FRONTIER_OBJECTS, ...FRONTIER_PROPS].map((o) => `${o.x},${o.y}`));
+  for (let y = 0; y < FH; y++)
+    for (let x = 0; x < FW; x++) {
+      if (g[y][x] !== '.' || busy.has(`${x},${y}`)) continue;
+      if (forest(x, y) > 0.66) g[y][x] = 'f';
+      else if (hills(x, y) > 0.68) g[y][x] = 'h';
+    }
+  // 4б. Переправы: на тот берег — только через гекс отряда у брода или моста. Гексы берега, через которые
+  // дорога в реке обходит отряд, зарастают чащей
+  const crossing = new Set([`${FORD.x},${FORD.y}`, `${BRIDGE.x},${BRIDGE.y}`]);
+  const walkable = (x: number, y: number) => '.=fh'.includes(g[y]?.[x] ?? 'r');
+  for (let guard = 0; guard < 20; guard++) {
+    const seen = new Set<string>();
+    const start = FRONTIER_OBJECTS[0];
+    const queue = [{ x: start.x, y: start.y }];
+    seen.add(`${start.x},${start.y}`);
+    let leak: { x: number; y: number } | null = null;
+    while (queue.length && !leak) {
+      const c = queue.shift()!;
+      for (const n of hexNeighbours(c.x, c.y)) {
+        const k = `${n.x},${n.y}`;
+        if (seen.has(k) || crossing.has(k) || !walkable(n.x, n.y)) continue;
+        if (isRiver(n.x, n.y)) {
+          leak = c;
+          break;
+        }
+        seen.add(k);
+        queue.push(n);
+      }
+    }
+    if (!leak) break;
+    if (g[leak.y][leak.x] === '=') throw new Error(`Пограничье: дорога обходит переправу у ${leak.x},${leak.y}`);
+    g[leak.y][leak.x] = 'd';
+  }
+  // 5. Крупные украшения: в глуши, но в 2–3 гексах от проходимого, чтобы их было видно с дороги
+  const passable = (x: number, y: number) => '.=fh'.includes(g[y]?.[x] ?? 'r');
+  const near = (x: number, y: number, d: number) => {
+    for (let j = y - d; j <= y + d; j++) for (let i = x - d - 1; i <= x + d + 1; i++) if (passable(i, j) && hexDistance({ x, y }, { x: i, y: j }) <= d) return true;
+    return false;
+  };
+  const rnd = mulberry(97);
+  const props: WorldProp[] = [];
+  const cand: { x: number; y: number }[] = [];
+  for (let y = 2; y < FH - 2; y++)
+    for (let x = 2; x < FW - 2; x++) {
+      const solid = [{ x, y }, ...hexNeighbours(x, y)].every((p) => g[p.y][p.x] === 'r' || g[p.y][p.x] === 'd');
+      if (solid && !near(x, y, 1) && near(x, y, 3)) cand.push({ x, y });
+    }
+  for (let i = cand.length - 1; i > 0; i--) {
+    const j = Math.floor(rnd() * (i + 1));
+    [cand[i], cand[j]] = [cand[j], cand[i]];
+  }
+  for (const c of cand) {
+    if (props.some((p) => hexDistance(p, c) < 5)) continue;
+    props.push({ kind: WILD_KINDS[props.length % WILD_KINDS.length], x: c.x, y: c.y });
+  }
+  return { terrain: g.map((row) => row.join('')), props: [...FRONTIER_PROPS, ...props] };
 }
+
+const FRONTIER_BUILT = buildFrontier();
 
 export const FRONTIER: RegionDef = {
   id: 'frontier',
   name: 'Пограничье',
   level: 1,
-  terrain: buildFrontierTerrain(),
-  start: { x: 5, y: 11 },
+  terrain: FRONTIER_BUILT.terrain,
+  start: { x: 6, y: 16 },
   objects: FRONTIER_OBJECTS,
-  props: FRONTIER_PROPS,
+  props: FRONTIER_BUILT.props,
 };
+
+/** Гекс занят крупным украшением (само украшение и, для замка и скалы, соседи) — там не рисуются деревья и горы */
+export function bigPropHexes(r: RegionDef): Set<string> {
+  const out = new Set<string>();
+  for (const p of r.props ?? []) {
+    if (!WILD.includes(p.kind)) continue;
+    out.add(`${p.x},${p.y}`);
+    if (BIG_PROPS.includes(p.kind)) for (const n of hexNeighbours(p.x, p.y)) out.add(`${n.x},${n.y}`);
+  }
+  return out;
+}
+const WILD: PropKind[] = ['castle', 'cliff', 'tower', 'crystals', 'deadwood', 'statue'];
 
 export const REGIONS: Record<string, RegionDef> = { frontier: FRONTIER };
 
@@ -278,7 +381,7 @@ export function hexDistance(a: { x: number; y: number }, b: { x: number; y: numb
 // -------------------------------------------------------------
 export function newWorld(region: RegionDef = FRONTIER): WorldState {
   const st: WorldState = {
-    v: 2,
+    v: 3,
     region: region.id,
     hero: { ...region.start },
     day: 1,
@@ -301,8 +404,11 @@ export function reveal(st: WorldState, region: RegionDef) {
   st.seen = [...seen].sort((a, b) => a - b);
 }
 
+const seenSets = new WeakMap<number[], Set<number>>();
 export function isSeen(st: WorldState, region: RegionDef, x: number, y: number): boolean {
-  return st.seen.includes(y * regionW(region) + x);
+  let set = seenSets.get(st.seen);
+  if (!set) seenSets.set(st.seen, (set = new Set(st.seen)));
+  return set.has(y * regionW(region) + x);
 }
 
 /** Объект в гексе, который ещё что-то значит (разбитые отряды и пустые сундуки исчезают; промыслы и лагерь остаются) */
@@ -472,13 +578,13 @@ export function normalizeWorld(v: unknown): WorldState | null {
   if (!v || typeof v !== 'object') return null;
   const o = v as Partial<WorldState>;
   const region = REGIONS[o.region ?? ''];
-  if (o.v !== 2 || !region || !o.hero || !o.res) return null;
+  if (o.v !== 3 || !region || !o.hero || !o.res) return null;
   const inside = (p: { x: number; y: number }) => terrainAt(region, p.x, p.y) !== null;
   if (!inside(o.hero)) return null;
   const num = (n: unknown, d = 0) => (typeof n === 'number' && isFinite(n) ? n : d);
   const ids = new Set(region.objects.map((ob) => ob.id));
   const st: WorldState = {
-    v: 2,
+    v: 3,
     region: region.id,
     hero: { x: o.hero.x, y: o.hero.y },
     day: Math.max(1, Math.floor(num(o.day, 1))),
@@ -508,5 +614,41 @@ export function saveWorld(st: WorldState | null) {
     else localStorage.removeItem(WORLD_KEY);
   } catch {
     // нет хранилища — поход живёт до закрытия страницы
+  }
+}
+
+// -------------------------------------------------------------
+// Ячейки сохранения (просьба Артура 2026-11-06): поход сохраняется сам, а в ячейку — по кнопке
+// -------------------------------------------------------------
+export const SLOTS_KEY = 'dark_frontier_world_slots';
+export const SLOT_COUNT = 3;
+export interface WorldSlot {
+  at: number; // время сохранения, мс
+  day: number;
+  state: WorldState;
+}
+
+export function loadSlots(): (WorldSlot | null)[] {
+  let raw: unknown = null;
+  try {
+    raw = JSON.parse(localStorage.getItem(SLOTS_KEY) ?? 'null');
+  } catch {
+    raw = null;
+  }
+  const arr = Array.isArray(raw) ? raw : [];
+  return Array.from({ length: SLOT_COUNT }, (_, i) => {
+    const v = arr[i] as Partial<WorldSlot> | null;
+    const state = v ? normalizeWorld(v.state) : null;
+    return v && state ? { at: Number(v.at) || 0, day: state.day, state } : null;
+  });
+}
+
+export function saveSlot(i: number, st: WorldState) {
+  const slots = loadSlots();
+  slots[i] = { at: Date.now(), day: st.day, state: JSON.parse(JSON.stringify(st)) };
+  try {
+    localStorage.setItem(SLOTS_KEY, JSON.stringify(slots));
+  } catch {
+    // нет хранилища
   }
 }

@@ -763,6 +763,21 @@ test('world: the river is crossed only through the ford or the bridge squad', ()
   assert.ok(toFort, 'the ford opens the way');
 });
 
+test('world: the region is mostly wild — the hero walks roads and clearings, every object is reachable', () => {
+  const r = W.FRONTIER;
+  let open = 0;
+  for (const row of r.terrain) for (const c of row) if ('.=fh'.includes(c)) open++;
+  assert.ok(open / (W.regionW(r) * W.regionH(r)) < 0.4, `walkable share ${open}`);
+  assert.ok(r.objects.filter((o) => o.army).length >= 2, 'battles with an army exist');
+  assert.ok((r.props ?? []).filter((p) => p.kind === 'castle').length >= 2, 'castles fill the wild');
+  // Without enemies every object can be reached from the camp
+  const st = W.newWorld(r);
+  st.seen = r.terrain.flatMap((row, y) => [...row].map((_, x) => y * row.length + x));
+  st.done = r.objects.map((o) => o.id);
+  st.owned = r.objects.filter((o) => o.kind === 'mine').map((o) => o.id);
+  for (const o of r.objects) if (o.id !== 'camp') assert.ok(W.findPath(st, r, o), `${o.id} is reachable`);
+});
+
 test('world: moves, battle, loot, mines and days', () => {
   const r = W.FRONTIER;
   const st = W.newWorld(r);

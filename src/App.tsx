@@ -5,6 +5,7 @@
 
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { CONFIG, Difficulty, TowerType, RaceId } from './game/config';
+import { createBotLink } from './duelBot';
 import { validateAllMaps } from './game/maps';
 import { newMapSeed } from './game/mapgen';
 import { sound, AudioSettings } from './game/audio';
@@ -441,7 +442,7 @@ export default function App() {
 
   const [opponentArmy, setOpponentArmy] = useState(1);
   const [myArmy, setMyArmy] = useState(1); // the army I send: its enemies' names in «Армия»
-  const handleDuelStart = (link: DuelLink, level: number, startAt: number, army: number, myArmy: number, roundLength = CONFIG.duel.roundLength, mapSeed: number | null = null) => {
+  const handleDuelStart = (link: DuelLink, level: number, startAt: number, army: number, myArmy: number, roundLength = CONFIG.duel.roundLength, mapSeed: number | null = null, asRace: RaceId = race) => {
     duelLinkRef.current = link;
     duelSeenRef.current = performance.now();
     duelOutcomeRef.current = null;
@@ -463,7 +464,7 @@ export default function App() {
     setTimeout(() => {
       if (canvasRef.current && engineRef.current) {
         engineRef.current.setCanvas(canvasRef.current);
-        engineRef.current.startDuel(level, startAt, army, race, roundLength, mapSeed);
+        engineRef.current.startDuel(level, startAt, army, asRace, roundLength, mapSeed);
         const eng = engineRef.current;
         eng.onDuelSend = (enemies) => link.send({ t: 'send', enemies, wave: eng.wavesLaunched + 1 });
         if (link instanceof BrawlRoom) {
@@ -662,6 +663,13 @@ export default function App() {
     sound.init();
     setWorldBattle(obj);
     setSpecModalTower(null);
+    if (obj.army) {
+      // Бой с армией (просьба Артура 2026-11-06): как дуэль с ботом — волны идут без конца, пока не падёт артефакт вражеского лагеря
+      closeDuel();
+      const region = REGIONS[world?.region ?? 'frontier'] ?? FRONTIER;
+      handleDuelStart(createBotLink(region.level, obj.army), region.level, performance.now(), region.level, CONFIG.races.humans.faction, CONFIG.duel.roundLength, battleSeed(obj), 'humans');
+      return;
+    }
     setScreen('playing');
     setTimeout(() => {
       if (canvasRef.current && engineRef.current) {
@@ -686,6 +694,11 @@ export default function App() {
     }
     setSpecModalTower(null);
     setWorldBattle(null);
+    if (obj?.army) {
+      closeDuel();
+      setDuelOutcome(null);
+      setOpponent(null);
+    }
     if (won && obj && world) {
       const st = { ...world, res: { ...world.res }, done: [...world.done], owned: [...world.owned], seen: [...world.seen] };
       winBattle(st, REGIONS[st.region] ?? FRONTIER, obj.id);
@@ -703,6 +716,10 @@ export default function App() {
     if (!engine) return;
 
     const seed = engine.mapSeed; // «Повторить» — та же случайная дорога
+    if (worldBattle?.army) {
+      startWorldBattle(worldBattle);
+      return;
+    }
     if (worldBattle) {
       if (canvasRef.current) engine.setCanvas(canvasRef.current);
       engine.startWorldBattle(FRONTIER.level, worldBattle.waves ?? 3, battleSeed(worldBattle));
@@ -1736,7 +1753,7 @@ export default function App() {
       {screen === 'playing' && brawl && duelOutcome && (gameState.isVictory || gameState.isGameOver) && (
         <BrawlResultModal snap={brawl} wave={gameState.wave} stats={gameState.runSummary} onToMenu={handleToMenu} />
       )}
-      {screen === 'playing' && !brawl && gameState.duel && duelOutcome && (gameState.isVictory || gameState.isGameOver) && (
+      {screen === 'playing' && !brawl && !worldBattle && gameState.duel && duelOutcome && (gameState.isVictory || gameState.isGameOver) && (
         <DuelResultModal outcome={duelOutcome} wave={gameState.wave} stats={gameState.runSummary} onToMenu={handleToMenu} />
       )}
 

@@ -26,6 +26,10 @@ import {
   TERRAIN_NAMES,
   TERRAIN_COST,
   dailyIncome,
+  WorldSlot,
+  loadSlots,
+  saveSlot,
+  SLOT_COUNT,
 } from '../campaign/world';
 import { bakeTerrain, drawLive, loadExtras, hexAt, wx, wy, worldW, worldH, HW, P } from '../campaign/worldRender';
 import { sprites } from '../game/sprites';
@@ -61,6 +65,8 @@ export function WorldMap({ world, region, onChange, onBattle, onExit, onReset }:
   const [walking, setWalking] = useState(false);
   const [notice, setNotice] = useState<Notice | null>(null);
   const [confirmReset, setConfirmReset] = useState(false);
+  const [savesOpen, setSavesOpen] = useState(false);
+  const [slots, setSlots] = useState<(WorldSlot | null)[]>(() => loadSlots());
   const stRef = useRef(world);
   stRef.current = world;
   const cam = useRef<Cam>({ zoom: 1, x: 0, y: 0 });
@@ -190,7 +196,8 @@ export function WorldMap({ world, region, onChange, onBattle, onExit, onReset }:
 
   // ---------------------------------------------------------------- ход
   const walk = useCallback(
-    (steps: P[]) => {
+    (route: P[]) => {
+      let steps = route;
       setWalking(true);
       let i = 0;
       const stop = () => {
@@ -199,8 +206,22 @@ export function WorldMap({ world, region, onChange, onBattle, onExit, onReset }:
       };
       const next = () => {
         const st = copyWorld(stRef.current);
-        const p = steps[i++];
+        let p = steps[i++];
         if (!p) return stop();
+        // Туман рассеялся, а впереди непроходимо — путь заново до той же цели
+        const tp = terrainAt(region, p.x, p.y);
+        if (!tp || TERRAIN_COST[tp] === null) {
+          const goal = steps[steps.length - 1];
+          const again = findPath(st, region, goal);
+          if (!again) {
+            stop();
+            setNotice({ title: 'Туда не пройти', text: 'Разведка показала: дальше пути нет.' });
+            return;
+          }
+          steps = again;
+          i = 0;
+          p = steps[i++];
+        }
         // Перед боем — вопрос; ход тратится, только если игрок согласится
         const o = objectAt(st, region, p.x, p.y);
         if (o && isHostile(st, o)) {
@@ -211,7 +232,7 @@ export function WorldMap({ world, region, onChange, onBattle, onExit, onReset }:
           }
           setNotice({
             title: o.name,
-            text: `${o.text ? o.text + '\n\n' : ''}Бой: ${o.waves} ${o.waves === 1 ? 'волна' : o.waves! < 5 ? 'волны' : 'волн'}${o.kind === 'fortress' ? ', в последней — босс' : ''}.${o.reward ? `\nНаграда: ${resText(o.reward)}` : ''}${o.income ? `\nДоход промысла: ${resText(o.income)} в день` : ''}`,
+            text: `${o.text ? o.text + '\n\n' : ''}${battleText(o)}${o.reward ? `\nНаграда: ${resText(o.reward)}` : ''}${o.income ? `\nДоход промысла: ${resText(o.income)} в день` : ''}`,
             battle: o,
           });
           return;
@@ -372,6 +393,16 @@ export function WorldMap({ world, region, onChange, onBattle, onExit, onReset }:
         >
           Конец дня
         </button>
+        <button
+          className="px-2 py-1 rounded bg-[#2a2635] hover:bg-[#3a3448] disabled:opacity-50"
+          disabled={walking}
+          onClick={() => {
+            setSlots(loadSlots());
+            setSavesOpen(true);
+          }}
+        >
+          💾 Сохранения
+        </button>
         <button className="px-2 py-1 rounded bg-[#2a2635] hover:bg-[#3a3448]" onClick={() => setConfirmReset(true)}>
           Заново
         </button>
@@ -420,7 +451,7 @@ export function WorldMap({ world, region, onChange, onBattle, onExit, onReset }:
                     <div className="font-bold text-amber-300">{targetObj.name}</div>
                     {isHostile(world, targetObj) && (
                       <div className="text-red-300">
-                        Бой: {targetObj.waves} волн{targetObj.kind === 'fortress' ? ', босс' : ''}
+                        {targetObj.army ? 'Бой с армией, как в Потасовке' : `Бой: ${targetObj.waves} волн${targetObj.kind === 'fortress' ? ', босс' : ''}`}
                       </div>
                     )}
                     {targetObj.reward && !world.done.includes(targetObj.id) && <div>Награда: {resText(targetObj.reward)}</div>}
@@ -474,6 +505,58 @@ export function WorldMap({ world, region, onChange, onBattle, onExit, onReset }:
           </div>
         )}
 
+        {savesOpen && (
+          <div className="absolute inset-0 bg-black/60 flex items-center justify-center p-4 z-10" onClick={() => setSavesOpen(false)}>
+            <div className="bg-[#171520] border border-[#3b354a] rounded-xl p-4 max-w-md w-full shadow-2xl" onClick={(e) => e.stopPropagation()}>
+              <h3 className="text-lg font-black text-amber-300 mb-1">Сохранения</h3>
+              <p className="text-xs text-stone-400 mb-3">Поход и так сохраняется сам после каждого шага. Ячейки — чтобы вернуться к нужному дню.</p>
+              <div className="flex flex-col gap-2">
+                {Array.from({ length: SLOT_COUNT }, (_, i) => {
+                  const sl = slots[i];
+                  return (
+                    <div key={i} className="flex items-center gap-2 bg-black/30 border border-[#2d2938] rounded-lg px-3 py-2">
+                      <div className="flex-1 min-w-0 text-sm">
+                        <div className="font-bold">Ячейка {i + 1}</div>
+                        <div className="text-xs text-stone-400 truncate">
+                          {sl ? `День ${sl.day} · ${new Date(sl.at).toLocaleString('ru-RU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}` : 'пусто'}
+                        </div>
+                      </div>
+                      <button
+                        className="px-3 py-1.5 rounded bg-amber-700/80 hover:bg-amber-600 text-sm font-bold"
+                        onClick={() => {
+                          saveSlot(i, world);
+                          setSlots(loadSlots());
+                          sound.playBuy();
+                        }}
+                      >
+                        Сохранить
+                      </button>
+                      <button
+                        className="px-3 py-1.5 rounded bg-[#2a2635] hover:bg-[#3a3448] text-sm font-bold disabled:opacity-40"
+                        disabled={!sl}
+                        onClick={() => {
+                          if (!sl) return;
+                          setSavesOpen(false);
+                          setTarget(null);
+                          setSelected(false);
+                          onChange(sl.state);
+                          centerOn(sl.state.hero);
+                          requestDraw();
+                        }}
+                      >
+                        Загрузить
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+              <button className="w-full mt-3 py-2 rounded bg-[#2a2635] hover:bg-[#3a3448] font-bold" onClick={() => setSavesOpen(false)}>
+                Закрыть
+              </button>
+            </div>
+          </div>
+        )}
+
         {confirmReset && (
           <div className="absolute inset-0 bg-black/60 flex items-center justify-center p-4 z-10">
             <div className="bg-[#171520] border border-[#3b354a] rounded-xl p-4 max-w-sm w-full shadow-2xl">
@@ -503,13 +586,21 @@ export function WorldMap({ world, region, onChange, onBattle, onExit, onReset }:
   );
 }
 
+/** Что за бой ждёт у объекта — для окна перед боем */
+function battleText(o: WorldObj): string {
+  if (o.army)
+    return 'Бой с армией, как в Потасовке: во вкладке «Армия» покупайте врагов и отправляйте их на поле противника — он шлёт своих в ответ. Победа — когда падёт его артефакт.';
+  const n = o.waves ?? 3;
+  return `Бой: ${n} ${n === 1 ? 'волна' : n < 5 ? 'волны' : 'волн'}${o.kind === 'fortress' ? ', в последней — босс' : ''}.`;
+}
+
 /** Итог боя похода поверх поля: победа — награда и «На карту», поражение — «Ещё раз» или «На карту» */
 export function WorldBattleResult({ obj, won, onMap, onRetry }: { obj: WorldObj; won: boolean; onMap: () => void; onRetry: () => void }) {
   return (
     <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50">
       <div className={`bg-[#171520] border-2 ${won ? 'border-amber-500/70' : 'border-red-800/70'} rounded-xl p-4 max-w-sm w-full text-center text-[#f4f2e6]`}>
         <h2 className={`text-2xl font-black tracking-wider mb-2 ${won ? 'text-amber-300' : 'text-red-400'}`}>
-          {won ? (obj.kind === 'fortress' ? 'КРЕПОСТЬ ПАЛА!' : 'ОТРЯД РАЗБИТ') : 'ОТСТУПЛЕНИЕ'}
+          {won ? (obj.kind === 'fortress' ? 'КРЕПОСТЬ ПАЛА!' : obj.army ? 'ЛАГЕРЬ РАЗБИТ' : 'ОТРЯД РАЗБИТ') : 'ОТСТУПЛЕНИЕ'}
         </h2>
         <p className="text-sm text-stone-300 mb-3">
           {won
