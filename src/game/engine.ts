@@ -32,7 +32,7 @@ import {
 } from './rules';
 import { sound } from './audio';
 import { sprites, drawSprite, PreparedSprite, SpritePose, SpriteVariant } from './sprites';
-import { bakeHexGround, bakeHexSky } from './hexScene';
+import { bakeHexGround, bakeHexSky, backdropImage } from './hexScene';
 import { TILESETS, DECOR_ONLY, loadTileset, loadDecor, bakeField, bakeDecor, Tileset } from './tiles';
 // Light rim color (r, g, b) under the pedestal of the dark tower figures
 // (people's Стрелок and Маг, all dark elf towers: they sink into dark maps)
@@ -563,7 +563,7 @@ export class GameEngine {
   private roadSteps: { a: Point; b: Point }[] = [];
   // Гексовое поле: запечённая земля (трава, дорога, контуры гексов) и небо над ней
   private hexGround: { map: MapDef; canvas: HTMLCanvasElement } | null = null;
-  private hexSky: { level: number; canvas: HTMLCanvasElement } | null = null;
+  private hexSky: { level: number; img: HTMLImageElement | null; canvas: HTMLCanvasElement } | null = null;
 
   constructor() {
     // Pre-allocate fixed particle pool (zero garbage collection)
@@ -4571,10 +4571,12 @@ export class GameEngine {
   /** Гексовое поле: небо и даль над ним (экранные px, до наклона) */
   private renderHexSky(ctx: CanvasRenderingContext2D) {
     const level = this.currentMap.level;
-    if (this.hexSky?.level !== level) this.hexSky = { level, canvas: bakeHexSky(level, HEX_BAKE) };
+    const img = backdropImage(level);
+    if (this.hexSky?.level !== level || this.hexSky.img !== img) this.hexSky = { level, img, canvas: bakeHexSky(level, HEX_BAKE, img) };
     const c = this.hexSky.canvas;
     ctx.drawImage(c, 0, 0, c.width / HEX_BAKE, c.height / HEX_BAKE);
   }
+
 
   /** Квадрат или гекс клетки (с отступом внутрь inset px) — заливка или обводка текущим стилем */
   private cellShape(ctx: CanvasRenderingContext2D, mode: 'fill' | 'stroke', p: Point, inset: number) {

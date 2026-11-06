@@ -122,8 +122,29 @@ function front(g: CanvasRenderingContext2D, w: number, base: number, look: SkyLo
   }
 }
 
+/** Задники из конвейера графики (art-pipeline/gpt-backdrops.md): полоса у горизонта, вырезанная из картинки GPT
+ *  (исходник — art/concepts/backdrops/), `horizon` — где в файле горизонт, доля высоты. Без задника небо рисуется кодом */
+const BACKDROPS: Record<number, { file: string; horizon: number }> = {
+  1: { file: 'backdrops/frontier.jpg', horizon: 260 / 265 },
+};
+const backdropImgs = new Map<number, HTMLImageElement | null>();
+
+/** Картинка задника биома, если она есть и уже загружена (загрузка начинается с первого вызова) */
+export function backdropImage(level: number): HTMLImageElement | null {
+  const def = BACKDROPS[level];
+  if (!def) return null;
+  if (!backdropImgs.has(level)) {
+    backdropImgs.set(level, null);
+    const img = new Image();
+    img.onload = () => backdropImgs.set(level, img);
+    img.onerror = () => setTimeout(() => backdropImgs.delete(level), 15000); // сбой — попробовать позже
+    img.src = def.file;
+  }
+  return backdropImgs.get(level) ?? null;
+}
+
 /** Небо и даль над полем для биома карты; высота — полоса неба плюс запас, ширина — экран */
-export function bakeHexSky(level: number, scale: number): HTMLCanvasElement {
+export function bakeHexSky(level: number, scale: number, img: HTMLImageElement | null = null): HTMLCanvasElement {
   const look = LOOKS[level] ?? LOOKS[1];
   const w = CONFIG.grid.totalWidth;
   const h = Math.ceil(hexView.sky()) + 2;
@@ -133,6 +154,13 @@ export function bakeHexSky(level: number, scale: number): HTMLCanvasElement {
   const g = cv.getContext('2d')!;
   g.scale(scale, scale);
   const rand = rng(level * 7919 + 13);
+  const def = BACKDROPS[level];
+  if (img && def) {
+    // картинка во всю ширину, горизонт — по нижнему краю полосы
+    const ih = (img.height * w) / img.width;
+    g.drawImage(img, 0, h - 2 - def.horizon * ih, w, ih);
+    return cv;
+  }
 
   const sky = g.createLinearGradient(0, 0, 0, h);
   sky.addColorStop(0, look.top);
