@@ -726,3 +726,76 @@ test('гексовое поле (опыт): центр клетки возвра
     setHex(false);
   }
 });
+
+// -------------------------------------------------------------
+// Поход по глобальной карте (src/campaign/world.ts)
+// -------------------------------------------------------------
+import * as W from '../campaign/world';
+
+test('world: every object of a region stands on passable ground, ids are unique', () => {
+  for (const r of Object.values(W.REGIONS)) {
+    const ids = new Set<string>();
+    for (const o of r.objects) {
+      const t = W.terrainAt(r, o.x, o.y);
+      assert.ok(t && W.TERRAIN_COST[t] !== null, `${r.id}/${o.id} on ${t}`);
+      assert.ok(!ids.has(o.id), `duplicate ${o.id}`);
+      ids.add(o.id);
+    }
+    assert.ok(r.terrain.every((row) => row.length === r.terrain[0].length), `${r.id}: ragged rows`);
+  }
+});
+
+test('world: the river is crossed only through the ford or the bridge squad', () => {
+  const r = W.FRONTIER;
+  const st = W.newWorld(r);
+  st.seen = r.terrain.flatMap((row, y) => [...row].map((_, x) => y * row.length + x)); // без тумана
+  const fort = r.objects.find((o) => o.kind === 'fortress')!;
+  assert.equal(W.findPath(st, r, fort), null, 'the east bank is closed while the ford and the bridge stand');
+  const toFord = W.findPath(st, r, r.objects.find((o) => o.id === 'ford')!)!;
+  assert.ok(toFord);
+  for (const p of toFord.slice(0, -1)) {
+    const o = W.objectAt(st, r, p.x, p.y);
+    assert.ok(!o || !W.isHostile(st, o), 'a path never goes through an enemy');
+  }
+  W.winBattle(st, r, 'ford');
+  st.hero = { ...r.start };
+  const toFort = W.findPath(st, r, fort);
+  assert.ok(toFort, 'the ford opens the way');
+});
+
+test('world: moves, battle, loot, mines and days', () => {
+  const r = W.FRONTIER;
+  const st = W.newWorld(r);
+  assert.equal(st.moves, W.MOVES_PER_DAY);
+  const sq = r.objects.find((o) => o.id === 'sq1')!;
+  const path = W.findPath(st, r, sq)!;
+  let res: W.Arrival | null = null;
+  for (const p of path) res = W.stepHero(st, r, p);
+  assert.equal(res?.kind, 'battle');
+  assert.notDeepEqual(st.hero, { x: sq.x, y: sq.y }, 'the hero waits next to the squad until the battle ends');
+  W.winBattle(st, r, 'sq1');
+  assert.deepEqual(st.hero, { x: sq.x, y: sq.y });
+  assert.equal(st.res.gold, 40);
+  assert.equal(W.objectAt(st, r, sq.x, sq.y), null);
+  W.winBattle(st, r, 'saw');
+  const inc = W.endDay(st, r);
+  assert.equal(inc.wood, 5);
+  assert.equal(st.day, 2);
+  assert.equal(st.moves, W.MOVES_PER_DAY);
+  // Without moves left the hero does not step
+  st.moves = 0;
+  assert.equal(W.stepHero(st, r, W.hexNeighbours(st.hero.x, st.hero.y).find((p) => { const t = W.terrainAt(r, p.x, p.y); return !!t && W.TERRAIN_COST[t] !== null; })!), null);
+});
+
+test('world: a save survives a round trip and junk is rejected', () => {
+  const st = W.newWorld();
+  W.winBattle(st, W.FRONTIER, 'sq1');
+  const back = W.normalizeWorld(JSON.parse(JSON.stringify(st)));
+  assert.deepEqual(back, st);
+  assert.equal(W.normalizeWorld({ v: 1 }), null);
+  assert.equal(W.normalizeWorld({ v: 2, region: 'frontier', hero: { x: 99, y: 0 }, res: {} }), null);
+  assert.equal(W.hexDistance({ x: 0, y: 0 }, { x: 0, y: 1 }), 1);
+  assert.equal(W.hexDistance({ x: 0, y: 0 }, { x: 3, y: 0 }), 3);
+  assert.ok(W.battleSeed(W.FRONTIER.objects[3])! > 0);
+  assert.equal(W.battleSeed(W.FRONTIER.objects.find((o) => o.kind === 'fortress')!), null);
+});

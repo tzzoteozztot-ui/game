@@ -40,6 +40,8 @@ import { BoonPicker } from './components/BoonPicker';
 import { LevelBriefing } from './components/LevelBriefing';
 import { PauseModal, VictoryModal, DefeatModal, HowToPlayModal, DuelResultModal, BrawlResultModal, DuelOutcome } from './components/StatusModals';
 import { OrientationWarning } from './components/OrientationWarning';
+import { WorldMap, WorldBattleResult } from './components/WorldMap';
+import { WorldState, WorldObj, REGIONS, FRONTIER, newWorld, loadWorld, saveWorld, winBattle, battleSeed } from './campaign/world';
 import { fullscreenSupported, toggleFullscreen } from './fullscreen';
 import { AccountModal, SyncState } from './components/AccountModal';
 import { downloadRunLog } from './game/runLog';
@@ -47,7 +49,7 @@ import { Progress, EMPTY_PROGRESS, readLocalProgress, writeLocalProgress, mergeP
 import { cloudEnabled, onUserChange, loadCloudProgress, saveCloudProgress } from './cloud';
 import type { User } from '@supabase/supabase-js';
 
-type ScreenState = 'menu' | 'briefing' | 'duelLobby' | 'brawlLobby' | 'playing';
+type ScreenState = 'menu' | 'briefing' | 'duelLobby' | 'brawlLobby' | 'playing' | 'world';
 
 // The side column is never narrower than this (a phone minimum, an eighth of a wide screen): the field gives way to it
 const SIDE_MIN_W = 'max(132px, 12cqw)';
@@ -129,6 +131,13 @@ export default function App() {
   const [difficulty, setDifficulty] = useState<Difficulty>('normal');
   const [mode, setMode] = useState<GameMode>('campaign');
   const [menuPage, setMenuPage] = useState<MenuPage>('home'); // which page of the main menu is open
+  // Поход по глобальной карте (прототип, вариант В): состояние на устройстве и бой, который сейчас идёт
+  const [world, setWorldState] = useState<WorldState | null>(() => loadWorld());
+  const [worldBattle, setWorldBattle] = useState<WorldObj | null>(null);
+  const setWorld = (st: WorldState | null) => {
+    setWorldState(st);
+    saveWorld(st);
+  };
   const endless = mode === 'endless';
   // Endless mode: enemies are picked apart from the map (Артур, 2026-10-31); 0 — the map's own faction
   const [endlessEnemies, setEndlessEnemies] = useState<number>(0);
@@ -198,6 +207,7 @@ export default function App() {
     mapEdit: null,
     wave: 1,
     maxWaves: 12,
+    waveLimit: null,
     tier: 1,
     isWaveActive: false,
     isSpawning: false,
@@ -360,7 +370,7 @@ export default function App() {
 
   // When victory triggers, save unlocked level and stars (a duel win gives neither)
   useEffect(() => {
-    if (gameState.isVictory && !gameState.duel) {
+    if (gameState.isVictory && !gameState.duel && gameState.waveLimit === null) {
       const starsEarned = calculateStars(gameState.lives);
       const nextLvl = Math.min(5, gameState.level + 1);
       const diff = engineRef.current?.difficulty ?? 'normal';
@@ -372,7 +382,7 @@ export default function App() {
         })
       );
     }
-  }, [gameState.isVictory, gameState.duel, gameState.lives, gameState.level]);
+  }, [gameState.isVictory, gameState.duel, gameState.lives, gameState.level, gameState.waveLimit]);
 
   // Endless mode: the best wave reached is kept the moment a wave starts, so leaving to the menu
   // (or closing the page) in the middle of a run loses nothing; defeat counts the wave that broke through
@@ -647,6 +657,43 @@ export default function App() {
     }
   };
 
+  // Поход: бой отряда или крепости на обычном поле — первые N волн уровня биома
+  const startWorldBattle = (obj: WorldObj) => {
+    sound.init();
+    setWorldBattle(obj);
+    setSpecModalTower(null);
+    setScreen('playing');
+    setTimeout(() => {
+      if (canvasRef.current && engineRef.current) {
+        engineRef.current.setCanvas(canvasRef.current);
+        const region = REGIONS[world?.region ?? 'frontier'] ?? FRONTIER;
+        engineRef.current.startWorldBattle(region.level, obj.waves ?? 3, battleSeed(obj));
+        setShopCards(generateShopCards(1));
+      }
+    }, 50);
+  };
+
+  // Конец боя похода: победа отдаёт награду и пускает героя в гекс, иначе герой остаётся рядом
+  const leaveWorldBattle = (won: boolean) => {
+    const obj = worldBattle;
+    const engine = engineRef.current;
+    if (engine) {
+      engine.stopLoop();
+      engine.isVictory = false;
+      engine.isGameOver = false;
+      engine.isPaused = false;
+      engine.notifyState();
+    }
+    setSpecModalTower(null);
+    setWorldBattle(null);
+    if (won && obj && world) {
+      const st = { ...world, res: { ...world.res }, done: [...world.done], owned: [...world.owned], seen: [...world.seen] };
+      winBattle(st, REGIONS[st.region] ?? FRONTIER, obj.id);
+      setWorld(st);
+    }
+    setScreen('world');
+  };
+
   // Outcome screen action: Restart level with clean state
   const handleRestartLevel = () => {
     sound.init();
@@ -656,6 +703,11 @@ export default function App() {
     if (!engine) return;
 
     const seed = engine.mapSeed; // «Повторить» — та же случайная дорога
+    if (worldBattle) {
+      if (canvasRef.current) engine.setCanvas(canvasRef.current);
+      engine.startWorldBattle(FRONTIER.level, worldBattle.waves ?? 3, battleSeed(worldBattle));
+      return;
+    }
     if (engine.sandbox) {
       // «Заново» в свободном режиме — та же карта (и своя), та же раса
       engine.sandboxRestart();
@@ -678,6 +730,10 @@ export default function App() {
   // Outcome screen action: Return to main menu
   const handleToMenu = () => {
     sound.init();
+    if (worldBattle) {
+      leaveWorldBattle(false);
+      return;
+    }
     closeDuel();
     setBrawl(null);
     setSpecModalTower(null);
@@ -1296,6 +1352,11 @@ export default function App() {
             setMode('duel');
             setScreen('duelLobby');
           }}
+          onOpenWorld={() => {
+            sound.init();
+            if (!world) setWorld(newWorld());
+            setScreen('world');
+          }}
           onStartSandbox={(level, enemies, randomRoad) => handleSandboxStart(level, enemies, randomRoad)}
           onStartBrawl={handleBrawlStart}
           onOpenBrawlLobby={(m, level, bots, randomRoad) => {
@@ -1679,7 +1740,26 @@ export default function App() {
         <DuelResultModal outcome={duelOutcome} wave={gameState.wave} stats={gameState.runSummary} onToMenu={handleToMenu} />
       )}
 
-      {screen === 'playing' && gameState.isVictory && !gameState.duel && (
+      {screen === 'world' && world && (
+        <WorldMap
+          world={world}
+          region={REGIONS[world.region] ?? FRONTIER}
+          onChange={setWorld}
+          onBattle={startWorldBattle}
+          onExit={() => setScreen('menu')}
+          onReset={() => setWorld(newWorld())}
+        />
+      )}
+      {screen === 'playing' && worldBattle && (gameState.isVictory || gameState.isGameOver) && (
+        <WorldBattleResult
+          obj={worldBattle}
+          won={gameState.isVictory}
+          onMap={() => leaveWorldBattle(gameState.isVictory)}
+          onRetry={handleRestartLevel}
+        />
+      )}
+
+      {screen === 'playing' && gameState.isVictory && !gameState.duel && !worldBattle && (
         <VictoryModal
           stats={gameState.runSummary}
           level={gameState.level}
@@ -1692,7 +1772,7 @@ export default function App() {
       )}
 
       {/* 8. Defeat Modal */}
-      {screen === 'playing' && gameState.isGameOver && !gameState.duel && (
+      {screen === 'playing' && gameState.isGameOver && !gameState.duel && !worldBattle && (
         <DefeatModal
           stats={gameState.runSummary}
           wave={gameState.wave}
