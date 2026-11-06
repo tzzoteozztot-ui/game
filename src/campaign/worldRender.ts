@@ -3,7 +3,7 @@
  * украшения) и живой слой (объекты, герой, путь, сетка, туман). Пробный вид «как карта в Героях»:
  * всё из того, что уже есть — тайлы и декор биомов, спрайты; деревья, горы и постройки — кодом.
  */
-import { RegionDef, WorldState, WorldObj, WorldProp, terrainAt, regionW, regionH, hexNeighbours, isSeen, objectAt, stepCost, RES_ICONS, ResKey } from './world';
+import { RegionDef, WorldState, WorldObj, WorldProp, bigPropHexes, terrainAt, regionW, regionH, hexNeighbours, isSeen, objectAt, stepCost, RES_ICONS, ResKey, TERRAIN_COST } from './world';
 import { sprites, drawSprite } from '../game/sprites';
 import type { Tileset } from '../game/tiles';
 
@@ -12,7 +12,12 @@ export type P = { x: number; y: number };
 /** Ширина гекса на карте, мировые px; высота — по правильному шестиугольнику */
 export const HW = 64;
 export const HH = (HW * 2) / Math.sqrt(3);
-export const BAKE = 1.5; // запас резкости запечённого слоя при приближении
+export const BAKE_MAX = 1.5; // запас резкости запечённого слоя при приближении
+const BAKE_AREA = 9_000_000; // не больше стольких px у запечённого холста (память телефона)
+/** Масштаб запечённого слоя: на большой карте меньше, чтобы холст влез в память телефона */
+export function bakeScale(r: RegionDef): number {
+  return Math.min(BAKE_MAX, Math.sqrt(BAKE_AREA / (worldW(r) * worldH(r))));
+}
 
 export const wx = (p: P) => (p.x + 0.5 + 0.5 * (p.y & 1)) * HW;
 export const wy = (p: P) => HH / 2 + p.y * 0.75 * HH;
@@ -218,6 +223,309 @@ function tent(ctx: CanvasRenderingContext2D, x: number, y: number, s: number, c1
   ctx.fill();
 }
 
+// -------------------------------------------------------------
+// Крупные украшения глуши: руины замка, скала, сторожевая башня, кристалл, мёртвые деревья, статуя
+// -------------------------------------------------------------
+function stoneBlock(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, light: string, dark: string) {
+  ctx.fillStyle = dark;
+  ctx.fillRect(x, y, w, h);
+  ctx.fillStyle = light;
+  ctx.fillRect(x, y, w * 0.45, h);
+  ctx.strokeStyle = 'rgba(15,12,18,0.45)';
+  ctx.lineWidth = 1;
+  const rows = Math.max(2, Math.round(h / 9));
+  for (let i = 1; i < rows; i++) {
+    const yy = y + (h * i) / rows;
+    ctx.beginPath();
+    ctx.moveTo(x, yy);
+    ctx.lineTo(x + w, yy);
+    ctx.stroke();
+  }
+}
+
+function battlements(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, tooth: number, color: string, broken: number) {
+  ctx.fillStyle = color;
+  const n = Math.max(2, Math.floor(w / (tooth * 2)));
+  for (let i = 0; i < n; i++) {
+    if ((i * 7 + broken) % 5 === 0) continue; // выбитый зубец
+    ctx.fillRect(x + i * tooth * 2, y - tooth, tooth, tooth);
+  }
+}
+
+/** Руины замка: стена с воротами, две башни (одна обрушена), тёмные окна, плющ */
+function ruinedCastle(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, k: number) {
+  const L = '#6d6873';
+  const D = '#48434f';
+  const wallH = w * 0.26;
+  // тень у подножия
+  ctx.fillStyle = 'rgba(0,0,0,0.35)';
+  ctx.beginPath();
+  ctx.ellipse(x, y, w * 0.55, w * 0.1, 0, 0, Math.PI * 2);
+  ctx.fill();
+  // задняя высокая башня (донжон)
+  const kx = x + (k - 1) * w * 0.08;
+  stoneBlock(ctx, kx - w * 0.12, y - wallH - w * 0.42, w * 0.24, w * 0.44, L, D);
+  battlements(ctx, kx - w * 0.12, y - wallH - w * 0.42, w * 0.24, w * 0.035, D, k);
+  ctx.fillStyle = '#16131a';
+  ctx.fillRect(kx - w * 0.02, y - wallH - w * 0.32, w * 0.04, w * 0.07);
+  // стена
+  stoneBlock(ctx, x - w * 0.42, y - wallH, w * 0.84, wallH, L, D);
+  battlements(ctx, x - w * 0.42, y - wallH, w * 0.84, w * 0.035, D, k + 2);
+  // ворота
+  ctx.fillStyle = '#17141b';
+  ctx.beginPath();
+  ctx.moveTo(x - w * 0.07, y);
+  ctx.lineTo(x - w * 0.07, y - wallH * 0.55);
+  ctx.arc(x, y - wallH * 0.55, w * 0.07, Math.PI, 0);
+  ctx.lineTo(x + w * 0.07, y);
+  ctx.closePath();
+  ctx.fill();
+  // боковые башни: левая целая, правая обрушена
+  stoneBlock(ctx, x - w * 0.5, y - wallH - w * 0.16, w * 0.16, wallH + w * 0.16, L, D);
+  battlements(ctx, x - w * 0.5, y - wallH - w * 0.16, w * 0.16, w * 0.03, D, k + 1);
+  ctx.fillStyle = '#5a2a2a';
+  ctx.beginPath();
+  ctx.moveTo(x - w * 0.52, y - wallH - w * 0.19);
+  ctx.lineTo(x - w * 0.42, y - wallH - w * 0.36);
+  ctx.lineTo(x - w * 0.32, y - wallH - w * 0.19);
+  ctx.closePath();
+  ctx.fill();
+  stoneBlock(ctx, x + w * 0.34, y - wallH - w * 0.05, w * 0.16, wallH + w * 0.05, L, D);
+  ctx.fillStyle = D;
+  ctx.beginPath();
+  ctx.moveTo(x + w * 0.34, y - wallH - w * 0.05);
+  ctx.lineTo(x + w * 0.38, y - wallH - w * 0.13);
+  ctx.lineTo(x + w * 0.43, y - wallH - w * 0.07);
+  ctx.lineTo(x + w * 0.47, y - wallH - w * 0.15);
+  ctx.lineTo(x + w * 0.5, y - wallH - w * 0.05);
+  ctx.closePath();
+  ctx.fill();
+  // обломки у стены
+  ctx.fillStyle = '#5a5560';
+  for (let i = 0; i < 5; i++) {
+    const bx = x + w * (0.25 + i * 0.06);
+    ctx.beginPath();
+    ctx.ellipse(bx, y - 2, w * 0.03, w * 0.018, 0, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  // окна и плющ
+  ctx.fillStyle = '#16131a';
+  for (const ox of [-0.3, -0.18, 0.15, 0.27]) ctx.fillRect(x + w * ox, y - wallH * 0.75, w * 0.025, w * 0.045);
+  ctx.fillStyle = 'rgba(40,70,35,0.8)';
+  for (let i = 0; i < 6; i++) {
+    ctx.beginPath();
+    ctx.arc(x - w * 0.42 + w * 0.05 * i, y - wallH * (0.2 + (i % 3) * 0.2), w * 0.03, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
+/** Скала: слоистый утёс с уступами */
+function cliff(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, k: number) {
+  ctx.fillStyle = 'rgba(0,0,0,0.35)';
+  ctx.beginPath();
+  ctx.ellipse(x, y, w * 0.5, w * 0.1, 0, 0, Math.PI * 2);
+  ctx.fill();
+  const shapes = [
+    [-0.45, 0, -0.38, -0.32, -0.2, -0.45, -0.05, -0.38, 0.05, 0],
+    [-0.12, 0, -0.05, -0.55, 0.1, -0.68 - k * 0.04, 0.22, -0.5, 0.3, 0],
+    [0.15, 0, 0.25, -0.35, 0.38, -0.4, 0.48, -0.2, 0.5, 0],
+  ];
+  const tones = [
+    ['#55505c', '#6f6a76'],
+    ['#4b4652', '#77717f'],
+    ['#5a5561', '#6a6570'],
+  ];
+  shapes.forEach((sh, i) => {
+    ctx.fillStyle = tones[i][0];
+    ctx.beginPath();
+    ctx.moveTo(x + sh[0] * w, y + sh[1] * w);
+    for (let j = 2; j < sh.length; j += 2) ctx.lineTo(x + sh[j] * w, y + sh[j + 1] * w);
+    ctx.closePath();
+    ctx.fill();
+    // светлая грань
+    ctx.fillStyle = tones[i][1];
+    ctx.beginPath();
+    ctx.moveTo(x + sh[0] * w, y + sh[1] * w);
+    ctx.lineTo(x + sh[2] * w, y + sh[3] * w);
+    ctx.lineTo(x + sh[4] * w, y + sh[5] * w);
+    ctx.lineTo(x + (sh[4] - 0.04) * w, y);
+    ctx.closePath();
+    ctx.fill();
+  });
+  // слои и трещины
+  ctx.strokeStyle = 'rgba(20,18,24,0.5)';
+  ctx.lineWidth = Math.max(1, w * 0.012);
+  for (let i = 1; i < 4; i++) {
+    ctx.beginPath();
+    ctx.moveTo(x - w * 0.3, y - w * 0.09 * i);
+    ctx.lineTo(x + w * 0.35, y - w * 0.09 * i + w * 0.02);
+    ctx.stroke();
+  }
+  // мох у подножия
+  ctx.fillStyle = 'rgba(45,75,38,0.75)';
+  for (let i = 0; i < 7; i++) {
+    ctx.beginPath();
+    ctx.arc(x - w * 0.4 + i * w * 0.13, y - w * 0.015, w * 0.035, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
+/** Сторожевая башня: круглая, каменная, с остроконечной крышей или обрушенным верхом */
+function watchtower(ctx: CanvasRenderingContext2D, x: number, y: number, s: number, whole: boolean) {
+  const w = s * 0.32;
+  const h = s * 0.95;
+  ctx.fillStyle = 'rgba(0,0,0,0.35)';
+  ctx.beginPath();
+  ctx.ellipse(x, y, w * 0.9, w * 0.25, 0, 0, Math.PI * 2);
+  ctx.fill();
+  const g = ctx.createLinearGradient(x - w / 2, 0, x + w / 2, 0);
+  g.addColorStop(0, '#7a7480');
+  g.addColorStop(1, '#45404b');
+  ctx.fillStyle = g;
+  ctx.fillRect(x - w / 2, y - h, w, h);
+  ctx.strokeStyle = 'rgba(20,18,24,0.45)';
+  ctx.lineWidth = 1;
+  for (let i = 1; i < 7; i++) {
+    ctx.beginPath();
+    ctx.moveTo(x - w / 2, y - (h * i) / 7);
+    ctx.lineTo(x + w / 2, y - (h * i) / 7);
+    ctx.stroke();
+  }
+  ctx.fillStyle = '#16131a';
+  ctx.fillRect(x - w * 0.1, y - h * 0.7, w * 0.2, h * 0.12);
+  ctx.fillRect(x - w * 0.15, y - h * 0.22, w * 0.3, h * 0.22);
+  if (whole) {
+    ctx.fillStyle = '#4b2a2a';
+    ctx.beginPath();
+    ctx.moveTo(x - w * 0.7, y - h);
+    ctx.lineTo(x, y - h - s * 0.45);
+    ctx.lineTo(x + w * 0.7, y - h);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = '#6b3a32';
+    ctx.beginPath();
+    ctx.moveTo(x - w * 0.7, y - h);
+    ctx.lineTo(x, y - h - s * 0.45);
+    ctx.lineTo(x - w * 0.1, y - h);
+    ctx.closePath();
+    ctx.fill();
+  } else {
+    ctx.fillStyle = '#45404b';
+    ctx.beginPath();
+    ctx.moveTo(x - w / 2, y - h);
+    ctx.lineTo(x - w * 0.3, y - h - s * 0.1);
+    ctx.lineTo(x - w * 0.05, y - h - s * 0.03);
+    ctx.lineTo(x + w * 0.2, y - h - s * 0.14);
+    ctx.lineTo(x + w / 2, y - h);
+    ctx.closePath();
+    ctx.fill();
+  }
+}
+
+/** Кристалл: бирюзовые грани, как у осколков сети узлов */
+function crystalSpire(ctx: CanvasRenderingContext2D, x: number, y: number, s: number) {
+  const glow = ctx.createRadialGradient(x, y - s * 0.4, 2, x, y - s * 0.4, s * 0.7);
+  glow.addColorStop(0, 'rgba(62,214,196,0.35)');
+  glow.addColorStop(1, 'rgba(62,214,196,0)');
+  ctx.fillStyle = glow;
+  ctx.fillRect(x - s, y - s * 1.2, s * 2, s * 1.4);
+  const shards = [
+    [0, 0.95, 0.16],
+    [-0.2, 0.6, 0.11],
+    [0.22, 0.7, 0.12],
+    [-0.33, 0.35, 0.08],
+    [0.34, 0.4, 0.08],
+  ];
+  for (const [dx, hh, ww] of shards) {
+    const bx = x + dx * s;
+    ctx.fillStyle = '#1f6f6a';
+    ctx.beginPath();
+    ctx.moveTo(bx - ww * s, y);
+    ctx.lineTo(bx - ww * s * 0.7, y - hh * s * 0.75);
+    ctx.lineTo(bx, y - hh * s);
+    ctx.lineTo(bx + ww * s * 0.7, y - hh * s * 0.75);
+    ctx.lineTo(bx + ww * s, y);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = '#5fe0d2';
+    ctx.beginPath();
+    ctx.moveTo(bx - ww * s, y);
+    ctx.lineTo(bx - ww * s * 0.7, y - hh * s * 0.75);
+    ctx.lineTo(bx, y - hh * s);
+    ctx.lineTo(bx, y);
+    ctx.closePath();
+    ctx.fill();
+  }
+  ctx.fillStyle = '#4a4550';
+  ctx.beginPath();
+  ctx.ellipse(x, y, s * 0.42, s * 0.08, 0, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+/** Мёртвое дерево: голый ствол с ветвями */
+function deadTree(ctx: CanvasRenderingContext2D, x: number, y: number, s: number, k: number) {
+  ctx.strokeStyle = k % 2 ? '#2e2620' : '#3a3027';
+  ctx.lineCap = 'round';
+  const branch = (bx: number, by: number, len: number, a: number, wd: number, depth: number) => {
+    const ex = bx + Math.cos(a) * len;
+    const ey = by + Math.sin(a) * len;
+    ctx.lineWidth = wd;
+    ctx.beginPath();
+    ctx.moveTo(bx, by);
+    ctx.lineTo(ex, ey);
+    ctx.stroke();
+    if (depth > 0) {
+      branch(ex, ey, len * 0.62, a - 0.5 - k * 0.05, wd * 0.6, depth - 1);
+      branch(ex, ey, len * 0.55, a + 0.45, wd * 0.6, depth - 1);
+    }
+  };
+  branch(x, y, s * 0.42, -Math.PI / 2 + (k - 1) * 0.08, s * 0.08, 3);
+}
+
+/** Статуя древнего короля на постаменте, с отбитой рукой */
+function statue(ctx: CanvasRenderingContext2D, x: number, y: number, s: number) {
+  ctx.fillStyle = 'rgba(0,0,0,0.35)';
+  ctx.beginPath();
+  ctx.ellipse(x, y, s * 0.35, s * 0.08, 0, 0, Math.PI * 2);
+  ctx.fill();
+  stoneBlock(ctx, x - s * 0.22, y - s * 0.22, s * 0.44, s * 0.22, '#706a76', '#4d4855');
+  const L = '#87818d';
+  const D = '#5d5864';
+  ctx.fillStyle = D;
+  ctx.beginPath();
+  ctx.moveTo(x - s * 0.13, y - s * 0.22);
+  ctx.lineTo(x - s * 0.1, y - s * 0.7);
+  ctx.lineTo(x + s * 0.1, y - s * 0.7);
+  ctx.lineTo(x + s * 0.14, y - s * 0.22);
+  ctx.closePath();
+  ctx.fill();
+  ctx.fillStyle = L;
+  ctx.beginPath();
+  ctx.moveTo(x - s * 0.13, y - s * 0.22);
+  ctx.lineTo(x - s * 0.1, y - s * 0.7);
+  ctx.lineTo(x - s * 0.01, y - s * 0.7);
+  ctx.lineTo(x - s * 0.02, y - s * 0.22);
+  ctx.closePath();
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(x, y - s * 0.78, s * 0.08, 0, Math.PI * 2);
+  ctx.fill();
+  // корона и меч
+  ctx.fillStyle = D;
+  ctx.fillRect(x - s * 0.07, y - s * 0.88, s * 0.14, s * 0.04);
+  ctx.strokeStyle = L;
+  ctx.lineWidth = s * 0.03;
+  ctx.beginPath();
+  ctx.moveTo(x + s * 0.16, y - s * 0.25);
+  ctx.lineTo(x + s * 0.16, y - s * 0.66);
+  ctx.stroke();
+  ctx.fillStyle = 'rgba(45,75,38,0.75)';
+  ctx.beginPath();
+  ctx.arc(x - s * 0.18, y - s * 0.03, s * 0.05, 0, Math.PI * 2);
+  ctx.arc(x + s * 0.2, y - s * 0.02, s * 0.04, 0, Math.PI * 2);
+  ctx.fill();
+}
+
 type Drawable = { y: number; draw: () => void };
 
 /** Украшения карты: то, что стоит на земле, — в общий список по глубине */
@@ -313,6 +621,18 @@ function propDrawables(ctx: CanvasRenderingContext2D, p: WorldProp, img: (n: str
         { y: y - s * 0.05, draw: () => tent(ctx, x + s * 0.25, y - s * 0.05, s * 0.7, '#6b4a2c', '#46301d') },
         { y: y + s * 0.2, draw: () => (put('firepit', 0, s * 0.2, s * 0.35), put('spear', s * 0.3, s * 0.2, s * 0.2)) },
       ];
+    case 'castle':
+      return [{ y: y + HH * 0.6, draw: () => ruinedCastle(ctx, x, y + HH * 0.55, s * 2.3, (p.x * 7 + p.y) % 3) }];
+    case 'cliff':
+      return [{ y: y + HH * 0.6, draw: () => cliff(ctx, x, y + HH * 0.6, s * 2.2, (p.x * 3 + p.y * 5) % 4) }];
+    case 'tower':
+      return [{ y: y + HH * 0.3, draw: () => watchtower(ctx, x, y + HH * 0.3, s * 1.1, (p.x + p.y) % 2 === 0) }];
+    case 'crystals':
+      return [{ y: y + HH * 0.3, draw: () => crystalSpire(ctx, x, y + HH * 0.3, s * 1.0) }];
+    case 'deadwood':
+      return [-0.25, 0.2, 0].map((d, i) => ({ y: y + HH * (0.1 + i * 0.12), draw: () => deadTree(ctx, x + d * s, y + HH * (0.1 + i * 0.12), s * (0.8 - i * 0.12), i) }));
+    case 'statue':
+      return [{ y: y + HH * 0.3, draw: () => statue(ctx, x, y + HH * 0.3, s * 1.0) }];
   }
 }
 
@@ -321,10 +641,12 @@ function propDrawables(ctx: CanvasRenderingContext2D, p: WorldProp, img: (n: str
  */
 export function bakeTerrain(r: RegionDef, tiles: Tileset | null, extras: Map<string, HTMLImageElement> | null): HTMLCanvasElement {
   const cv = document.createElement('canvas');
+  const BAKE = bakeScale(r);
   cv.width = Math.ceil(worldW(r) * BAKE);
   cv.height = Math.ceil(worldH(r) * BAKE);
   const ctx = cv.getContext('2d')!;
   ctx.scale(BAKE, BAKE);
+  const big = bigPropHexes(r);
   const img = (n: string) => tiles?.get(`decor/${n}`) ?? extras?.get(n) ?? null;
   const grass = tiles?.get('grass') ?? null;
   const dirt = tiles?.get('dirt') ?? null;
@@ -344,7 +666,7 @@ export function bakeTerrain(r: RegionDef, tiles: Tileset | null, extras: Map<str
       ctx.save();
       hexPath(ctx, px, py, HW + 1.5, HH + 1.5);
       ctx.clip();
-      const tile = t === 'hills' || t === 'rock' ? dirt ?? grass : grass;
+      const tile = t === 'hills' || t === 'rock' || big.has(`${x},${y}`) ? dirt ?? grass : grass;
       if (tile) {
         const sx = rnd(x, y, 1) * tile.width * 0.45;
         const sy = rnd(x, y, 2) * tile.height * 0.45;
@@ -353,7 +675,7 @@ export function bakeTerrain(r: RegionDef, tiles: Tileset | null, extras: Map<str
         ctx.fillStyle = '#3e5530';
         ctx.fillRect(px - HW, py - HH, HW * 2, HH * 2);
       }
-      const tint = t === 'rock' ? 'rgba(30,26,34,0.55)' : t === 'forest' ? 'rgba(12,30,12,0.35)' : t === 'hills' ? 'rgba(70,80,40,0.25)' : `rgba(0,0,0,${rnd(x, y, 3) * 0.12})`;
+      const tint = big.has(`${x},${y}`) ? 'rgba(30,24,20,0.35)' : t === 'rock' ? 'rgba(30,26,34,0.55)' : t === 'wood' ? 'rgba(6,20,8,0.55)' : t === 'forest' ? 'rgba(12,30,12,0.35)' : t === 'hills' ? 'rgba(70,80,40,0.25)' : `rgba(0,0,0,${rnd(x, y, 3) * 0.12})`;
       ctx.fillStyle = tint;
       ctx.fillRect(px - HW, py - HH, HW * 2, HH * 2);
       ctx.restore();
@@ -453,18 +775,18 @@ export function bakeTerrain(r: RegionDef, tiles: Tileset | null, extras: Map<str
       const t = T(x, y)!;
       const px = wx({ x, y });
       const py = wy({ x, y });
-      const busy = occupied.has(`${x},${y}`);
-      if (t === 'forest' && !busy) {
-        const n = 4 + Math.floor(rnd(x, y, 7) * 3);
+      const busy = occupied.has(`${x},${y}`) || big.has(`${x},${y}`);
+      if ((t === 'forest' || t === 'wood') && !busy) {
+        const n = t === 'wood' ? 6 + Math.floor(rnd(x, y, 7) * 3) : 3 + Math.floor(rnd(x, y, 7) * 3);
         for (let i = 0; i < n; i++) {
-          const tx = px + (rnd(x, y, 10 + i) - 0.5) * HW * 0.85;
-          const ty = py + (rnd(x, y, 20 + i) - 0.5) * HH * 0.7 + HH * 0.15;
-          const s = HW * (0.55 + rnd(x, y, 30 + i) * 0.3);
+          const tx = px + (rnd(x, y, 10 + i) - 0.5) * HW * 0.95;
+          const ty = py + (rnd(x, y, 20 + i) - 0.5) * HH * 0.8 + HH * 0.15;
+          const s = HW * (t === 'wood' ? 0.62 + rnd(x, y, 30 + i) * 0.35 : 0.55 + rnd(x, y, 30 + i) * 0.3);
           const tone = rnd(x, y, 40 + i);
           const isPine = rnd(x, y, 50 + i) > 0.35;
           items.push({ y: ty, draw: () => (isPine ? pine(ctx, tx, ty, s, tone) : oak(ctx, tx, ty, s * 0.9, tone)) });
         }
-      } else if (t === 'rock') {
+      } else if (t === 'rock' && !busy) {
         const n = 1 + Math.floor(rnd(x, y, 8) * 2);
         for (let i = 0; i < n; i++) {
           const tx = px + (rnd(x, y, 60 + i) - 0.5) * HW * 0.5;
@@ -503,7 +825,7 @@ export function bakeTerrain(r: RegionDef, tiles: Tileset | null, extras: Map<str
           items.push({ y: dy, draw: () => put(name, dx, dy, w, rnd(x, y, 140 + i) > 0.5) });
         }
         // Лес по краю: редкие деревья на лугу у опушки
-        if (t === 'grass' && hexNeighbours(x, y).some((nb) => T(nb.x, nb.y) === 'forest') && rnd(x, y, 15) > 0.55) {
+        if (t === 'grass' && hexNeighbours(x, y).some((nb) => T(nb.x, nb.y) === 'forest' || T(nb.x, nb.y) === 'wood') && rnd(x, y, 15) > 0.55) {
           const tx = px + (rnd(x, y, 16) - 0.5) * HW * 0.5;
           const ty = py + (rnd(x, y, 17) - 0.5) * HH * 0.4;
           items.push({ y: ty, draw: () => oak(ctx, tx, ty, HW * 0.55, rnd(x, y, 18)) });
@@ -562,7 +884,7 @@ export function drawLive(
       for (let x = 0; x < W; x++) {
         if (!isSeen(st, r, x, y)) continue;
         const t = terrainAt(r, x, y);
-        if (t === 'water' || t === 'rock') continue;
+        if (!t || TERRAIN_COST[t] === null) continue;
         hexPath(ctx, wx({ x, y }), wy({ x, y }), HW - 2, HH - 2);
         ctx.stroke();
       }
@@ -689,7 +1011,7 @@ export function drawLive(
         }
         // Сила врага — число волн на табличке
         if ((o.kind === 'squad' || o.kind === 'fortress' || (o.kind === 'mine' && !st.owned.includes(o.id))) && o.waves) {
-          const label = `⚔${o.waves}`;
+          const label = o.army ? '⚑ Армия' : `⚔${o.waves}`;
           ctx.font = `bold ${HW * 0.2}px sans-serif`;
           ctx.textAlign = 'center';
           const bw = ctx.measureText(label).width + 8;
