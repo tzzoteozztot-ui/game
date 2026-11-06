@@ -126,6 +126,10 @@ function front(g: CanvasRenderingContext2D, w: number, base: number, look: SkyLo
  *  (исходник — art/concepts/backdrops/), `horizon` — где в файле горизонт, доля высоты. Без задника небо рисуется кодом */
 const BACKDROPS: Record<number, { file: string; horizon: number }> = {
   1: { file: 'backdrops/frontier.jpg', horizon: 260 / 265 },
+  2: { file: 'backdrops/swamp.jpg', horizon: 260 / 265 },
+  3: { file: 'backdrops/ice.jpg', horizon: 260 / 265 },
+  4: { file: 'backdrops/scorched.jpg', horizon: 260 / 265 },
+  5: { file: 'backdrops/citadel.jpg', horizon: 260 / 265 },
 };
 const backdropImgs = new Map<number, HTMLImageElement | null>();
 
