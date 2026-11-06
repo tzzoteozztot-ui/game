@@ -4590,6 +4590,13 @@ export class GameEngine {
     const cellSize = CONFIG.grid.cellSize;
     const hexGround = isHex() ? this.hexGroundLayer() : null;
     if (hexGround) ctx.drawImage(hexGround, 0, 0, hexGround.width / HEX_BAKE, hexGround.height / HEX_BAKE);
+    // Контуры гексов — только пока башня или связка в руке либо выбираются клетки гипербашни (просьба Артура 2026-11-06)
+    if (hexGround && (this.placingTowerType || this.placingBinder || this.hyperPlan)) {
+      ctx.strokeStyle = 'rgba(255, 236, 170, 0.3)';
+      ctx.lineWidth = 1.3;
+      for (let y = 0; y < CONFIG.grid.rows; y++)
+        for (let x = 0; x < CONFIG.grid.cols; x++) if (this.isCellFree(x, y)) this.cellShape(ctx, 'stroke', { x, y }, 1);
+    }
     const baked = hexGround ? null : this.tiledField();
     const waiting = !baked && !hexGround && this.tilesPending;
     if (baked) {

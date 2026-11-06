@@ -126,6 +126,10 @@ function front(g: CanvasRenderingContext2D, w: number, base: number, look: SkyLo
  *  (исходник — art/concepts/backdrops/), `horizon` — где в файле горизонт, доля высоты. Без задника небо рисуется кодом */
 const BACKDROPS: Record<number, { file: string; horizon: number }> = {
   1: { file: 'backdrops/frontier.jpg', horizon: 260 / 265 },
+  2: { file: 'backdrops/swamp.jpg', horizon: 260 / 265 },
+  3: { file: 'backdrops/ice.jpg', horizon: 260 / 265 },
+  4: { file: 'backdrops/scorched.jpg', horizon: 260 / 265 },
+  5: { file: 'backdrops/citadel.jpg', horizon: 260 / 265 },
 };
 const backdropImgs = new Map<number, HTMLImageElement | null>();
 
@@ -246,7 +250,7 @@ export function bakeHexSky(level: number, scale: number, img: HTMLImageElement |
   return cv;
 }
 
-/** Земля гексового поля в наземных px (× scale): трава, дорога полосой, контуры гексов, дымка у горизонта */
+/** Земля гексового поля в наземных px (× scale): трава, дорога полосой, дымка у горизонта (контуры гексов рисует движок, пока башня в руке) */
 export function bakeHexGround(
   level: number,
   paths: Point[][],
@@ -307,17 +311,6 @@ export function bakeHexGround(
   stroke('rgba(0, 0, 0, 0.4)', cs * 0.98, 'blur(5px)');
   stroke(pattern(tiles?.get('dirt'), cs * 1.6) ?? palette.road, cs * 0.76, 'blur(1.2px)');
   stroke('rgba(0, 0, 0, 0.12)', cs * 0.3, 'blur(6px)'); // колея посередине
-
-  // Контуры гексов вне дороги, как размеченное поле боя
-  const road = new Set(paths.flatMap((p) => p.map((c) => `${c.x},${c.y}`)));
-  g.strokeStyle = 'rgba(255, 236, 170, 0.24)';
-  g.lineWidth = 1.3;
-  for (let y = 0; y < CONFIG.grid.rows; y++)
-    for (let x = 0; x < CONFIG.grid.cols; x++) {
-      if (road.has(`${x},${y}`) || (x === castle.x && y === castle.y)) continue;
-      cellPath(g, { x, y }, 1);
-      g.stroke();
-    }
 
   // Дымка у горизонта и тень по краям
   const fog = g.createLinearGradient(0, 0, 0, h * 0.35);
