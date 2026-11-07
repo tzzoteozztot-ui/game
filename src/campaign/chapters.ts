@@ -83,6 +83,10 @@ interface ChapterDef {
   wild: PropKind[];
   next?: string;
   fill: Record<string, Fill>;
+  /** Свои объекты главы сверх схемы (сопровождение Корха): место в координатах схемы, до поворота; `needs` — ключи слотов */
+  extra?: (Fill & { key: string; at: P; kind: WorldObj['kind']; needs?: string[] })[];
+  /** Свои дороги главы сверх схемы */
+  extraRoads?: (string | P)[][];
   /** Свои замки слота вместо схемы (ключи слотов): строгий порядок там, где у Лороведа нет развилки */
   needs?: Record<string, { needs?: string[]; needsAny?: string[] }>;
 }
@@ -90,7 +94,8 @@ interface ChapterDef {
 function makeChapter(d: ChapterDef): RegionSpec {
   const tx = (p: P): P => ({ x: d.flipX ? W - 1 - p.x : p.x, y: d.flipY ? H - 1 - p.y : p.y });
   const id = (key: string) => (key === 'camp' ? `${d.prefix}camp` : `${d.prefix}${key}`);
-  const at = (k: string | P): P => tx(typeof k === 'string' ? SLOTS.find((s) => s.key === k)!.at : k);
+  const slotAt = (k: string) => (SLOTS.find((s) => s.key === k) ?? d.extra?.find((e) => e.key === k))!.at;
+  const at = (k: string | P): P => tx(typeof k === 'string' ? slotAt(k) : k);
   const objects: WorldObj[] = SLOTS.map((s) => {
     const lock = d.needs?.[s.key] ?? s;
     return {
@@ -102,6 +107,7 @@ function makeChapter(d: ChapterDef): RegionSpec {
       ...(lock.needsAny ? { needsAny: lock.needsAny.map(id) } : {}),
     };
   });
+  for (const { key, at: p, needs, ...fill } of d.extra ?? []) objects.push({ ...fill, id: id(key), ...tx(p), ...(needs ? { needs: needs.map(id) } : {}) });
   const fortress = objects.find((o) => o.kind === 'fortress')!;
   fortress.weakenedBy = id('node');
   const river = (y: number) => {
@@ -119,7 +125,7 @@ function makeChapter(d: ChapterDef): RegionSpec {
     h: H,
     start: { x: camp.x + (d.flipX ? -1 : 1), y: camp.y },
     objects,
-    roads: ROADS.map((chain) => chain.map(at)),
+    roads: [...ROADS, ...(d.extraRoads ?? [])].map((chain) => chain.map(at)),
     props: PROPS.map((p) => ({ kind: p.kind, ...tx(p.at) }) as WorldProp),
     river,
     crossings: [at('cross')],
@@ -231,7 +237,7 @@ const ICE = makeChapter({
       name: 'Замёрзший караван',
       text: 'Люди замёрзли на ходу, с поклажей. Вокруг каждого — круг из инея.',
       choices: [
-        { label: 'Похоронить', text: 'Гарт работал до темноты. Мельхиор переписал имена с жетонов.', flag: 'buried-caravan' },
+        { label: 'Похоронить', text: 'Рен велел не задерживаться. Тела наскоро укрыли снегом, Мельхиор переписал имена с жетонов.', flag: 'buried-caravan' },
         { label: 'Забрать поклажу', text: 'Осип внёс в опись: меха, сталь, соль. Каллен долго молчал.', reward: { gold: 120 } },
       ],
     },
@@ -252,6 +258,8 @@ const ICE = makeChapter({
       kind: 'squad',
       name: 'Нападение порабощённых',
       waves: 8,
+      faction: 6, // порабощённые солдаты экспедиции — враги людей
+      bossLast: true, // Каллен — босс последней волны
       reward: { gold: 120, crystal: 2 },
       text: 'На лагерь идут наши: доспехи экспедиции, иней на лицах. Последняя волна — Каллен.',
     },
@@ -287,6 +295,21 @@ const ASH = makeChapter({
   wild: ['cliff', 'deadwood', 'statue', 'castle', 'cliff', 'crystals'],
   next: 'dusk',
   needs: { forkB: { needs: ['forkA'] }, cross: { needs: ['forkA', 'forkB'] }, rich: { needs: ['event3'] }, guard: { needs: ['rich'] } },
+  // «Обменяться и сопроводить отряд» (Г4-04, Артур 2026-11-07): бой из 6 волн демонов у дороги к малому артефакту
+  extra: [
+    {
+      key: 'escort',
+      at: { x: 16, y: 28 },
+      kind: 'squad',
+      name: 'Сопровождение Корха',
+      waves: 6,
+      reward: { gold: 120, crystal: 2 },
+      needs: ['forkA'],
+      needsFlag: 'korh-escort',
+      text: 'Отряд Корха идёт к малому артефакту. Демоны ждут на дороге: удержать позиции, пока чужаки проходят.',
+    },
+  ],
+  extraRoads: [['forkA', { x: 18, y: 27 }, 'escort']],
   fill: {
     camp: { name: 'Лагерь у четвёртого узла', text: 'Земля тёплая под ногами. Пепел оседает на палатках, кристалл мутнеет.' },
     sq1: { name: 'Жаровня', waves: 6, reward: { gold: 100 }, text: 'Первые демоны. Огонь для них родной.' },
@@ -304,22 +327,23 @@ const ASH = makeChapter({
     forkA: {
       kind: 'event',
       name: 'Командор Корх',
-      text: 'Чужая экспедиция. Командор Айден Корх предлагает обмен: сведения о Мал\'кеше за сведения о двух наших узлах.',
+      text: 'Разбитый лагерь чужой экспедиции. Командор Айден Корх уводит людей домой и предлагает обмен: сведения о Мал\'кеше за сведения о двух наших узлах.',
       choices: [
-        { label: 'Торговля: обменяться сведениями', text: 'Корх поделился картой бездны. Он придёт к последнему узлу как союзник по необходимости.', reward: { crystal: 2 }, flag: 'korh-trade' },
-        { label: 'Бой: прогнать', text: 'Короткая стычка. Корх отступил и запомнил. У последнего узла он будет врагом.', reward: { gold: 120 }, flag: 'korh-fight' },
-        { label: 'Отказать без боя', text: 'Корх ушёл. «Тогда каждый сам по себе, капитан».' },
+        { label: 'Обменяться разведданными', text: 'Корх передал сведения о Мал\'кеше. Туман над Вратами рассеялся. Его отряд готовится к возвращению.', flag: 'korh-trade', scout: 6 },
+        {
+          label: 'Обменяться и сопроводить отряд',
+          text: 'Корх передал сведения о Мал\'кеше, туман над Вратами рассеялся. Его отряд ждёт у дороги к малому артефакту: путь держат демоны.',
+          flags: ['korh-trade', 'korh-escort'],
+          scout: 6,
+        },
+        { label: 'Отказаться от сделки', text: 'Рен не стал делиться и задерживаться. Экспедиция Корха отступает сама.' },
       ],
     },
     forkB: {
       kind: 'event',
       name: 'Старец вершин',
       text: 'Бо-Рок, старец обезьянолюдей: наш лагерь стоит на камне, где его деды говорили с небом.',
-      choices: [
-        { label: 'Торговля сведениями', text: 'Бо-Рок рассказал о тропах через вершины. Мельхиор переводил до вечера.', reward: { crystal: 2 }, flag: 'borok-trade' },
-        { label: 'Поручение: вернуть камень предков', text: 'Камень вернули из пещеры. Вершины открыты для наших людей.', reward: { gold: 100, crystal: 1 }, flag: 'borok-task' },
-        { label: 'Пройти мимо', text: 'Старец смотрел вслед. Хронист промолчал.' },
-      ],
+      choices: [{ label: 'Пройти, не трогая камней', text: 'Бо-Рок уступил тропу. Камни на вершине остались на своих местах.' }],
     },
     cross: { name: 'Застава у лавовой реки', waves: 8, reward: { gold: 160 }, text: 'Через лаву ведёт один каменный мост.' },
     node: { name: 'Малый узел', waves: 8, income: { crystal: 1 }, text: 'Узел искажён, но держит. Взятый, он ослабит Врата и заглушит голоса.' },
