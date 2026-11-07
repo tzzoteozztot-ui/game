@@ -128,6 +128,37 @@ export const biomeOf = (r: RegionDef): Biome => BIOMES[r.level] ?? BIOMES[1];
 let TREE = BIOMES[1].tree;
 let SNOW = false;
 
+/**
+ * Сила захватчика в гексе (Артур, 2026-11-07: «карты перетекают друг в друга»): демоны, культисты и прочие пришлые
+ * не переделывают весь край, а искажают его вокруг узла. 0 — природа континента (у лагеря главы), 1 — биом
+ * захватчика (у крепости). Пограничье — родной край орков: там всё своё, 1 везде.
+ */
+export function invasion(r: RegionDef): (x: number, y: number) => number {
+  const f = r.objects.find((o) => o.kind === 'fortress');
+  const c = r.objects.find((o) => o.kind === 'camp');
+  if (r.level === 1 || !f || !c) return () => 1;
+  return (x, y) => {
+    const df = Math.hypot(x - f.x, (y - f.y) * 0.87);
+    const dc = Math.hypot(x - c.x, (y - c.y) * 0.87);
+    const t = dc / (dc + df + 1e-6) + (rnd(x >> 1, y >> 1, 7777) - 0.5) * 0.12;
+    const k = Math.max(0, Math.min(1, (t - 0.32) / 0.55));
+    return k * k * (3 - 2 * k);
+  };
+}
+const hexRgb = (h: string) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
+/** Цвет между двумя #rrggbb */
+const mixHex = (a: string, b: string, t: number) => {
+  const A = hexRgb(a);
+  const B = hexRgb(b);
+  return `rgb(${A.map((v, i) => Math.round(v + (B[i] - v) * t)).join(',')})`;
+};
+/** Тройка «r,g,b» между двумя тройками */
+const mixTriple = (a: string, b: string, t: number) => {
+  const A = a.split(',').map(Number);
+  const B = b.split(',').map(Number);
+  return A.map((v, i) => Math.round(v + (B[i] - v) * t)).join(',');
+};
+
 // -------------------------------------------------------------
 // Деревья, горы и постройки кодом
 // -------------------------------------------------------------
@@ -677,7 +708,7 @@ function propDrawables(ctx: CanvasRenderingContext2D, p: WorldProp, img: (n: str
 /**
  * Запекает местность в холст (BAKE × мировой размер). `img(name)` — декор набора («decor/имя») и дополнительные картинки.
  */
-export function bakeTerrain(r: RegionDef, tiles: Tileset | null, extras: Map<string, HTMLImageElement> | null): HTMLCanvasElement {
+export function bakeTerrain(r: RegionDef, tiles: Tileset | null, extras: Map<string, HTMLImageElement> | null, baseTiles: Tileset | null = null): HTMLCanvasElement {
   const cv = document.createElement('canvas');
   const BAKE = bakeScale(r);
   cv.width = Math.ceil(worldW(r) * BAKE);
@@ -685,16 +716,26 @@ export function bakeTerrain(r: RegionDef, tiles: Tileset | null, extras: Map<str
   const ctx = cv.getContext('2d')!;
   ctx.scale(BAKE, BAKE);
   const big = bigPropHexes(r);
-  const img = (n: string) => tiles?.get(`decor/${n}`) ?? extras?.get(n) ?? null;
+  // Два набора: природа континента (тайлы Пограничья) и биом захватчика; в Пограничье это один набор
+  const base = r.level === 1 ? tiles : baseTiles;
+  const img = (n: string, own = true) => (own ? tiles : base)?.get(`decor/${n}`) ?? extras?.get(n) ?? null;
   const grass = tiles?.get('grass') ?? null;
   const dirt = tiles?.get('dirt') ?? null;
+  const grass0 = base?.get('grass') ?? null;
+  const dirt0 = base?.get('dirt') ?? null;
+  const inv = invasion(r);
+  const N = BIOMES[1];
   const W = regionW(r);
   const H = regionH(r);
   const T = (x: number, y: number) => terrainAt(r, x, y);
   const B = biomeOf(r);
-  TREE = B.tree;
-  SNOW = B.snow === 'all';
-  const SMALL = r.level === 1 ? ['tuft', 'clover', 'flowers', 'burdock', 'thistle', 'berries', 'strawberry', 'fern', 'molehill'] : smallDecor(TILESETS[r.level] ?? 'frontier');
+  const SMALL0 = ['tuft', 'clover', 'flowers', 'burdock', 'thistle', 'berries', 'strawberry', 'fern', 'molehill'];
+  const SMALL = r.level === 1 ? SMALL0 : smallDecor(TILESETS[r.level] ?? 'frontier');
+  /** Деревья гекса: цвет хвои и снег — по силе захватчика */
+  const treeAt = (k: number, snowRoll: number) => {
+    TREE = { hue: B.tree.hue * k, sat: B.tree.sat * k, light: B.tree.light * k };
+    SNOW = B.snow === 'all' && snowRoll < k;
+  };
 
   ctx.fillStyle = '#1a1716';
   ctx.fillRect(0, 0, worldW(r), worldH(r));
@@ -708,15 +749,23 @@ export function bakeTerrain(r: RegionDef, tiles: Tileset | null, extras: Map<str
       ctx.save();
       hexPath(ctx, px, py, HW + 1.5, HH + 1.5);
       ctx.clip();
-      const tile = t === 'hills' || t === 'rock' || big.has(`${x},${y}`) ? dirt ?? grass : grass;
-      if (tile) {
-        const sx = rnd(x, y, 1) * tile.width * 0.45;
-        const sy = rnd(x, y, 2) * tile.height * 0.45;
-        ctx.drawImage(tile, sx, sy, tile.width * 0.55, tile.height * 0.55, px - HW / 2 - 1, py - HH / 2 - 1, HW + 2, HH + 2);
-      } else {
-        ctx.fillStyle = B.ground;
-        ctx.fillRect(px - HW, py - HH, HW * 2, HH * 2);
-      }
+      const rough = t === 'hills' || t === 'rock' || big.has(`${x},${y}`);
+      const k = inv(x, y);
+      const layer = (tile: HTMLImageElement | null, fill: string, alpha: number) => {
+        if (alpha <= 0.01) return;
+        ctx.globalAlpha = alpha;
+        if (tile) {
+          const sx = rnd(x, y, 1) * tile.width * 0.45;
+          const sy = rnd(x, y, 2) * tile.height * 0.45;
+          ctx.drawImage(tile, sx, sy, tile.width * 0.55, tile.height * 0.55, px - HW / 2 - 1, py - HH / 2 - 1, HW + 2, HH + 2);
+        } else {
+          ctx.fillStyle = fill;
+          ctx.fillRect(px - HW, py - HH, HW * 2, HH * 2);
+        }
+        ctx.globalAlpha = 1;
+      };
+      if (k < 0.99) layer(rough ? dirt0 ?? grass0 : grass0, N.ground, 1);
+      layer(rough ? dirt ?? grass : grass, B.ground, k < 0.99 ? k : 1);
       const tint = big.has(`${x},${y}`) ? 'rgba(30,24,20,0.35)' : t === 'rock' ? 'rgba(30,26,34,0.55)' : t === 'wood' ? 'rgba(6,20,8,0.55)' : t === 'forest' ? 'rgba(12,30,12,0.35)' : t === 'hills' ? 'rgba(70,80,40,0.25)' : `rgba(0,0,0,${rnd(x, y, 3) * 0.12})`;
       ctx.fillStyle = tint;
       ctx.fillRect(px - HW, py - HH, HW * 2, HH * 2);
@@ -729,7 +778,7 @@ export function bakeTerrain(r: RegionDef, tiles: Tileset | null, extras: Map<str
   for (let y = 0; y < H; y++)
     for (let x = 0; x < W; x++)
       if (isWater(x, y) || bridgeHex(x, y)) {
-        ctx.fillStyle = B.shore;
+        ctx.fillStyle = mixHex(N.shore, B.shore, inv(x, y));
         hexPath(ctx, wx({ x, y }), wy({ x, y }), HW * 1.18, HH * 1.18);
         ctx.fill();
       }
@@ -739,12 +788,13 @@ export function bakeTerrain(r: RegionDef, tiles: Tileset | null, extras: Map<str
         const px = wx({ x, y });
         const py = wy({ x, y });
         const g = ctx.createLinearGradient(px, py - HH / 2, px, py + HH / 2);
-        g.addColorStop(0, B.water[0]);
-        g.addColorStop(1, B.water[1]);
+        const k = inv(x, y);
+        g.addColorStop(0, mixHex(N.water[0], B.water[0], k));
+        g.addColorStop(1, mixHex(N.water[1], B.water[1], k));
         ctx.fillStyle = g;
         hexPath(ctx, px, py, HW + 2, HH + 2);
         ctx.fill();
-        if (B.lava && rnd(x, y, 9) > 0.55) {
+        if (B.lava && k > 0.5 && rnd(x, y, 9) > 0.55) {
           // Лава: светлые жилы
           const lg = ctx.createRadialGradient(px, py, 2, px, py, HW * 0.5);
           lg.addColorStop(0, 'rgba(255,210,90,0.55)');
@@ -752,7 +802,7 @@ export function bakeTerrain(r: RegionDef, tiles: Tileset | null, extras: Map<str
           ctx.fillStyle = lg;
           ctx.fillRect(px - HW * 0.5, py - HH * 0.5, HW, HH);
         }
-        ctx.strokeStyle = B.ripple;
+        ctx.strokeStyle = k > 0.5 ? B.ripple : N.ripple;
         ctx.lineWidth = 1.2;
         for (let i = 0; i < 3; i++) {
           const ry = py - HH * 0.22 + i * HH * 0.2 + rnd(x, y, i) * 4;
@@ -787,7 +837,25 @@ export function bakeTerrain(r: RegionDef, tiles: Tileset | null, extras: Map<str
   stroke('rgba(40,30,18,0.55)', HW * 0.46);
   const pat = dirt ? ctx.createPattern(dirt, 'repeat') : null;
   if (pat) pat.setTransform(new DOMMatrix().scale(0.35));
-  stroke(pat ?? B.road, HW * 0.36);
+  // Дорога: земля континента, а ближе к узлу её всё сильнее перекрывает дорога захватчика
+  const pat0 = r.level !== 1 && dirt0 ? ctx.createPattern(dirt0, 'repeat') : null;
+  if (pat0) pat0.setTransform(new DOMMatrix().scale(0.35));
+  if (r.level === 1) stroke(pat ?? B.road, HW * 0.36);
+  else {
+    stroke(pat0 ?? N.road, HW * 0.36);
+    ctx.strokeStyle = pat ?? B.road;
+    for (const [a, b] of roads) {
+      if (bridgeHex(a.x, a.y) && bridgeHex(b.x, b.y)) continue;
+      const k = (inv(a.x, a.y) + inv(b.x, b.y)) / 2;
+      if (k <= 0.02) continue;
+      ctx.globalAlpha = k;
+      ctx.beginPath();
+      ctx.moveTo(wx(a), wy(a));
+      ctx.lineTo(wx(b), wy(b));
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+  }
   for (let y = 0; y < H; y++)
     for (let x = 0; x < W; x++) {
       if (!bridgeHex(x, y)) continue;
@@ -808,8 +876,8 @@ export function bakeTerrain(r: RegionDef, tiles: Tileset | null, extras: Map<str
 
   // 4. Всё, что стоит на земле, — по глубине: деревья, горы, декор, украшения
   const items: Drawable[] = [];
-  const put = (n: string, x: number, y: number, w: number, flip = false) => {
-    const im = img(n);
+  const put = (n: string, x: number, y: number, w: number, flip = false, own = true) => {
+    const im = img(n, own);
     if (!im) return;
     const dh = (im.height / im.width) * w;
     ctx.save();
@@ -825,6 +893,7 @@ export function bakeTerrain(r: RegionDef, tiles: Tileset | null, extras: Map<str
       const px = wx({ x, y });
       const py = wy({ x, y });
       const busy = occupied.has(`${x},${y}`) || big.has(`${x},${y}`);
+      const k = inv(x, y);
       if ((t === 'forest' || t === 'wood') && !busy) {
         const n = t === 'wood' ? 6 + Math.floor(rnd(x, y, 7) * 3) : 3 + Math.floor(rnd(x, y, 7) * 3);
         for (let i = 0; i < n; i++) {
@@ -833,8 +902,9 @@ export function bakeTerrain(r: RegionDef, tiles: Tileset | null, extras: Map<str
           const s = HW * (t === 'wood' ? 0.62 + rnd(x, y, 30 + i) * 0.35 : 0.55 + rnd(x, y, 30 + i) * 0.3);
           const tone = rnd(x, y, 40 + i);
           const isPine = rnd(x, y, 50 + i) > 0.35;
-          const dead = rnd(x, y, 55 + i) < B.dead;
-          items.push({ y: ty, draw: () => (dead ? deadTree(ctx, tx, ty, s * 0.9, Math.floor(tone * 10)) : isPine ? pine(ctx, tx, ty, s, tone) : oak(ctx, tx, ty, s * 0.9, tone)) });
+          const dead = rnd(x, y, 55 + i) < B.dead * k;
+          const snowRoll = rnd(x, y, 57 + i);
+          items.push({ y: ty, draw: () => (treeAt(k, snowRoll), dead ? deadTree(ctx, tx, ty, s * 0.9, Math.floor(tone * 10)) : isPine ? pine(ctx, tx, ty, s, tone) : oak(ctx, tx, ty, s * 0.9, tone)) });
         }
       } else if (t === 'rock' && !busy) {
         const n = 1 + Math.floor(rnd(x, y, 8) * 2);
@@ -842,9 +912,10 @@ export function bakeTerrain(r: RegionDef, tiles: Tileset | null, extras: Map<str
           const tx = px + (rnd(x, y, 60 + i) - 0.5) * HW * 0.5;
           const ty = py + HH * 0.3 + (rnd(x, y, 70 + i) - 0.5) * HH * 0.2;
           const s = HW * (0.7 + rnd(x, y, 80 + i) * 0.4);
-          const k = rnd(x, y, 90 + i);
-          const snow = B.snow === 'all' ? k > 0.15 : B.snow === 'top' && y < H * 0.45 && k > 0.4;
-          items.push({ y: ty, draw: () => peak(ctx, tx, ty, s, snow, k) });
+          const kk = rnd(x, y, 90 + i);
+          const top = y < H * 0.45 && kk > 0.4 && (B.snow !== 'none' || k < 0.5);
+          const snow = top || (B.snow === 'all' && kk > 1 - 0.85 * k);
+          items.push({ y: ty, draw: () => peak(ctx, tx, ty, s, snow, kk) });
         }
       } else if (t === 'hills') {
         items.push({
@@ -854,14 +925,17 @@ export function bakeTerrain(r: RegionDef, tiles: Tileset | null, extras: Map<str
               const mx = px + (i ? 0.18 : -0.15) * HW;
               const my = py + (i ? 0.15 : -0.05) * HH;
               const g = ctx.createRadialGradient(mx - HW * 0.08, my - HH * 0.12, 2, mx, my, HW * 0.32);
-              g.addColorStop(0, `rgba(${B.hill},0.85)`);
-              g.addColorStop(1, `rgba(${B.hill},0)`);
+              const hill = mixTriple(N.hill, B.hill, k);
+              g.addColorStop(0, `rgba(${hill},0.85)`);
+              g.addColorStop(1, `rgba(${hill},0)`);
               ctx.fillStyle = g;
               ctx.beginPath();
               ctx.ellipse(mx, my, HW * 0.32, HH * 0.2, 0, 0, Math.PI * 2);
               ctx.fill();
             }
-            if (rnd(x, y, 11) > 0.4) put(B.rocks[Math.floor(rnd(x, y, 12) * B.rocks.length)], px + (rnd(x, y, 13) - 0.5) * HW * 0.4, py + HH * 0.25, HW * 0.32);
+            const own = rnd(x, y, 10) < k;
+            const rocks = own ? B.rocks : N.rocks;
+            if (rnd(x, y, 11) > 0.4) put(rocks[Math.floor(rnd(x, y, 12) * rocks.length)], px + (rnd(x, y, 13) - 0.5) * HW * 0.4, py + HH * 0.25, HW * 0.32, false, own);
           },
         });
       } else if ((t === 'grass' || t === 'road') && !busy) {
@@ -871,27 +945,35 @@ export function bakeTerrain(r: RegionDef, tiles: Tileset | null, extras: Map<str
           const rr = HW * (t === 'road' ? 0.36 : 0.12 + rnd(x, y, 110 + i) * 0.25);
           const dx = px + Math.cos(a) * rr;
           const dy = py + Math.sin(a) * rr * 0.8 + HH * 0.1;
-          const name = SMALL[Math.floor(rnd(x, y, 120 + i) * SMALL.length)];
+          const own = rnd(x, y, 150 + i) < k;
+          const set = own ? SMALL : SMALL0;
+          const name = set[Math.floor(rnd(x, y, 120 + i) * set.length)];
           const w = HW * (0.18 + rnd(x, y, 130 + i) * 0.12);
-          items.push({ y: dy, draw: () => put(name, dx, dy, w, rnd(x, y, 140 + i) > 0.5) });
+          items.push({ y: dy, draw: () => put(name, dx, dy, w, rnd(x, y, 140 + i) > 0.5, own) });
         }
         // Лес по краю: редкие деревья на лугу у опушки
         if (t === 'grass' && hexNeighbours(x, y).some((nb) => T(nb.x, nb.y) === 'forest' || T(nb.x, nb.y) === 'wood') && rnd(x, y, 15) > 0.55) {
           const tx = px + (rnd(x, y, 16) - 0.5) * HW * 0.5;
           const ty = py + (rnd(x, y, 17) - 0.5) * HH * 0.4;
-          const dead = rnd(x, y, 54) < B.dead;
-          items.push({ y: ty, draw: () => (dead ? deadTree(ctx, tx, ty, HW * 0.5, 3) : oak(ctx, tx, ty, HW * 0.55, rnd(x, y, 18))) });
+          const dead = rnd(x, y, 54) < B.dead * k;
+          const snowRoll = rnd(x, y, 53);
+          items.push({ y: ty, draw: () => (treeAt(k, snowRoll), dead ? deadTree(ctx, tx, ty, HW * 0.5, 3) : oak(ctx, tx, ty, HW * 0.55, rnd(x, y, 18))) });
         }
-        if (t === 'grass' && rnd(x, y, 19) > 0.88) items.push({ y: py + HH * 0.2, draw: () => put(B.bush[Math.floor(rnd(x, y, 20) * B.bush.length)], px, py + HH * 0.2, HW * 0.35) });
+        if (t === 'grass' && rnd(x, y, 19) > 0.88) {
+          const own = rnd(x, y, 23) < k;
+          const bush = own ? B.bush : N.bush;
+          items.push({ y: py + HH * 0.2, draw: () => put(bush[Math.floor(rnd(x, y, 20) * bush.length)], px, py + HH * 0.2, HW * 0.35, false, own) });
+        }
       }
       // Тростник у воды, кувшинки на воде
-      if (B.reeds && t !== 'water' && t !== 'rock' && !busy && hexNeighbours(x, y).some((nb) => isWater(nb.x, nb.y)) && rnd(x, y, 21) > 0.45) {
+      const reeds = k < 0.5 ? N.reeds : B.reeds;
+      if (reeds && t !== 'water' && t !== 'rock' && !busy && hexNeighbours(x, y).some((nb) => isWater(nb.x, nb.y)) && rnd(x, y, 21) > 0.45) {
         const w = hexNeighbours(x, y).find((nb) => isWater(nb.x, nb.y))!;
         const rx2 = (px + wx(w)) / 2;
         const ry2 = (py + wy(w)) / 2 + HH * 0.1;
         items.push({ y: ry2, draw: () => put('reeds', rx2, ry2, HW * 0.3) });
       }
-      if (B.reeds && t === 'water' && rnd(x, y, 22) > 0.75) items.push({ y: py, draw: () => put('lily', px, py + HH * 0.1, HW * 0.28) });
+      if (reeds && t === 'water' && rnd(x, y, 22) > 0.75) items.push({ y: py, draw: () => put('lily', px, py + HH * 0.1, HW * 0.28) });
     }
   for (const p of r.props ?? []) items.push(...propDrawables(ctx, p, img));
   items.sort((a, b) => a.y - b.y);

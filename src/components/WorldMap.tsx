@@ -73,6 +73,7 @@ export function WorldMap({ world, region, onChange, onBattle, onExit, onReset }:
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [size, setSize] = useState({ w: 0, h: 0 });
   const [tiles, setTiles] = useState<Tileset | null>(null);
+  const [baseTiles, setBaseTiles] = useState<Tileset | null>(null); // природа континента у лагеря главы
   const [extras, setExtras] = useState<Map<string, HTMLImageElement> | null>(null);
   const [spritesReady, setSpritesReady] = useState(false);
   const [selected, setSelected] = useState(false);
@@ -94,6 +95,7 @@ export function WorldMap({ world, region, onChange, onBattle, onExit, onReset }:
     let alive = true;
     sprites.load().then(() => alive && setSpritesReady(true));
     loadTileset(TILESETS[region.level] ?? 'frontier').then((t) => alive && setTiles(t));
+    loadTileset('frontier').then((t) => alive && setBaseTiles(t));
     loadExtras().then((m) => alive && setExtras(m));
     return () => {
       alive = false;
@@ -109,7 +111,7 @@ export function WorldMap({ world, region, onChange, onBattle, onExit, onReset }:
   }, []);
 
   // Запечённая местность: заново, когда догрузились тайлы и картинки
-  const baked = useMemo(() => (typeof document === 'undefined' ? null : bakeTerrain(region, tiles, extras)), [region, tiles, extras]);
+  const baked = useMemo(() => (typeof document === 'undefined' ? null : bakeTerrain(region, tiles, extras, baseTiles)), [region, tiles, extras, baseTiles]);
   const path = useMemo(() => (selected && target ? findPath(world, region, target) : null), [selected, target, world, region]);
 
   // ---------------------------------------------------------------- камера
