@@ -1,5 +1,6 @@
 /**
  * Backpack for «Тёмный рубеж»: bought towers and binders wait here until they are placed.
+ * Identical towers of one level stack in a slot (up to the merge count); a full stack can be assembled («Собрать»).
  * Tap a slot to take the item in hand (tap again to put it back); while it is in hand the header line offers «Продать».
  */
 
@@ -7,14 +8,15 @@ import { CONFIG, TowerType } from '../game/config';
 import { TowerSpriteIcon, BinderIcon } from './Icons';
 
 interface BackpackProps {
-  items: { kind: 'tower' | 'binder'; type: TowerType | null; triplet: boolean; startLevel: number; sell: number }[];
+  items: { kind: 'tower' | 'binder'; type: TowerType | null; triplet: boolean; startLevel: number; sell: number; count: number; canMerge: boolean }[];
   slots: number;
   placingSlot: number | null;
   onSelect: (slot: number) => void;
   onSell: (slot: number) => void;
+  onMerge: (slot: number) => void;
 }
 
-export function Backpack({ items, slots, placingSlot, onSelect, onSell }: BackpackProps) {
+export function Backpack({ items, slots, placingSlot, onSelect, onSell, onMerge }: BackpackProps) {
   const overflow = items.length > slots; // a purchase that found no free slot
   const inHand = placingSlot !== null && placingSlot < slots ? items[placingSlot] : null;
   return (
@@ -30,14 +32,26 @@ export function Backpack({ items, slots, placingSlot, onSelect, onSell }: Backpa
           Рюкзак
         </span>
         {inHand && placingSlot !== null ? (
+          <div className="flex h-full gap-1 ml-auto">
+          {inHand.canMerge && (
+            <button
+              type="button"
+              onClick={() => onMerge(placingSlot)}
+              title="Собрать стопку в башню следующего уровня (как слияние на поле)"
+              className="h-full px-1.5 rounded border border-amber-500 bg-amber-950/50 hover:bg-amber-900/50 text-[length:var(--fs-xs)] font-semibold text-amber-200 cursor-pointer whitespace-nowrap"
+            >
+              Собрать
+            </button>
+          )}
           <button
             type="button"
             onClick={() => onSell(placingSlot)}
             title="Продать из рюкзака за столько же, сколько заплатили"
-            className="h-full px-1.5 rounded border border-[#383347] bg-[#221f2d] hover:bg-[#2c283a] text-[length:var(--fs-xs)] font-semibold text-stone-200 cursor-pointer whitespace-nowrap ml-auto"
+            className="h-full px-1.5 rounded border border-[#383347] bg-[#221f2d] hover:bg-[#2c283a] text-[length:var(--fs-xs)] font-semibold text-stone-200 cursor-pointer whitespace-nowrap"
           >
             Продать <span className="text-amber-300 tabular-nums">+{inHand.sell}</span>
           </button>
+          </div>
         ) : overflow ? (
           <span className="text-[length:var(--fs-xs)] font-semibold text-amber-300 truncate">поставьте или замените</span>
         ) : null}
@@ -66,6 +80,13 @@ export function Backpack({ items, slots, placingSlot, onSelect, onSell }: Backpa
             }`}
           >
             {item.triplet && <span className="absolute top-0 right-1 text-amber-400 font-black text-[length:var(--fs-md)] leading-none">{item.startLevel === 3 ? '★★' : '★'}</span>}
+            {item.count > 1 && (
+              <span
+                className={`absolute bottom-0 right-1 font-black text-[length:var(--fs-sm)] leading-none tabular-nums ${item.canMerge ? 'text-amber-300' : 'text-stone-300'}`}
+              >
+                ×{item.count}
+              </span>
+            )}
             <div className="h-[85%] aspect-square">
               {item.kind === 'binder' ? <BinderIcon size="100%" /> : <TowerSpriteIcon type={item.type!} size="100%" color={color} />}
             </div>

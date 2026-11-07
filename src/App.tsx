@@ -1712,6 +1712,7 @@ export default function App() {
                     engineRef.current?.selectBackpack(i);
                   }}
                   onSell={(i) => engineRef.current?.sellBackpack(i)}
+                  onMerge={(i) => engineRef.current?.mergeBackpack(i)}
                 />
                 </div>
               )}
