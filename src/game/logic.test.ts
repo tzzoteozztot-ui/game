@@ -911,3 +911,49 @@ test('world: the tutorial trail — locks open in order and the whole chapter ca
   const old = W.normalizeWorld({ ...W.newWorld(r), done: ['sq1'], scenes: undefined });
   assert.ok(old && old.scenes.includes('start') && old.scenes.includes('sq1-after'));
 });
+
+test('world: chapters 2–5 — each region builds, is mostly wild and its trail leads to the fortress', () => {
+  const ids = Object.keys(W.REGIONS);
+  assert.deepEqual(ids, ['frontier', 'bog', 'ice', 'ash', 'dusk']);
+  let prev: string | undefined = 'frontier';
+  for (const id of ids.slice(1)) {
+    assert.equal(W.REGIONS[prev!].next, id, `${prev} leads to ${id}`);
+    prev = id;
+    const r = W.REGIONS[id];
+    let open = 0;
+    for (const row of r.terrain) for (const c of row) if ('.=fh'.includes(c)) open++;
+    assert.ok(open / (W.regionW(r) * W.regionH(r)) < 0.45, `${id}: walkable share ${open}`);
+    for (const o of r.objects) assert.ok(W.terrainAt(r, o.x, o.y) && '.=fh'.includes(r.terrain[o.y][o.x]), `${o.id} stands on passable ground`);
+    assert.equal(new Set(r.objects.map((o) => o.id)).size, r.objects.length);
+    // The whole chapter can be cleared in trail order
+    const st = W.newWorld(r);
+    st.seen = r.terrain.flatMap((row, y) => [...row].map((_, x) => y * row.length + x));
+    const order: string[] = [];
+    for (let g = 0; g < 100 && order.length < r.objects.length - 1; g++) {
+      const next = r.objects.find((o) => o.kind !== 'camp' && !W.isCleared(st, o.id) && !W.isLocked(st, o) && W.findPath(st, r, o));
+      assert.ok(next, `${id}: stuck after ${order.join(', ')}`);
+      order.push(next.id);
+      if (W.isHostile(st, next)) W.winBattle(st, r, next.id);
+      else if (next.kind === 'event') {
+        assert.ok(W.chooseEvent(st, r, next.id, 0));
+        st.hero = { x: next.x, y: next.y };
+      } else {
+        st.done.push(next.id);
+        st.hero = { x: next.x, y: next.y };
+      }
+    }
+    assert.ok(st.won, `${id}: the fortress falls`);
+    assert.ok(order.length === r.objects.length - 1, `${id}: every object was reached (${order.length})`);
+    assert.deepEqual(W.allowedTowers(st, r, null).length, 4, 'all towers after the tutorial');
+  }
+  // Moving on keeps the hero and the camp
+  const st = W.newWorld(W.FRONTIER);
+  st.camp = { sharp: 2 };
+  st.xp = 99;
+  st.done = ['sq1'];
+  W.enterRegion(st, W.REGIONS.bog);
+  assert.equal(st.region, 'bog');
+  assert.deepEqual(st.done, []);
+  assert.equal(st.camp.sharp, 2);
+  assert.equal(st.xp, 99);
+});
