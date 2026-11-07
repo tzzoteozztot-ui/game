@@ -1,26 +1,25 @@
 /**
  * Main Menu Screen for «Тёмный рубеж».
- * Home: four big buttons — Кампания, Бесконечный режим, Дуэль, Настройки (просьба Артура 2026-11-01).
- * Кампания: map and difficulty; Бесконечный: map, enemies and difficulty; Дуэль opens its lobby
- * (player or bot); Настройки: account, sound, bestiary, how to play, full screen.
+ * Home: Кампания (поход по главам на глобальной карте; старая кампания из 5 уровней убрана — Артур 2026-11-07),
+ * Бесконечный режим (map, enemies, difficulty), Потасовка, Свободный режим, Дуэль (its lobby: player or bot),
+ * Настройки (account, sound, bestiary, how to play, full screen).
  */
 
 import React, { useState } from 'react';
 import { CONFIG, Difficulty, RaceId } from '../game/config';
 import { RacePicker } from './RacePicker';
 import { endlessRecordKey } from '../progress';
-import { StarIcon, LockIcon, SoundIcon, FullscreenIcon } from './Icons';
+import { LockIcon, SoundIcon, FullscreenIcon } from './Icons';
 import { useFullscreen, isStandalone, HOME_SCREEN_HINT } from '../fullscreen';
 import { downloadRunLog, hasSavedRunLog } from '../game/runLog';
 
-export type GameMode = 'campaign' | 'endless' | 'duel';
-export type MenuPage = 'home' | 'campaign' | 'endless' | 'brawl' | 'sandbox' | 'settings';
+export type GameMode = 'endless' | 'duel';
+export type MenuPage = 'home' | 'endless' | 'brawl' | 'sandbox' | 'settings';
 
 interface MainMenuProps {
   page: MenuPage;
   onChangePage: (page: MenuPage) => void;
-  unlockedLevel: number; // 1..5
-  levelStars: Record<number, number>; // level -> stars
+  unlockedLevel: number; // maps open to pick, 1..5
   selectedDifficulty: Difficulty;
   duelAvailable: boolean; // duel needs the server (or ?duel=local)
   endlessBest: Record<number, number>; // endlessRecordKey(level, faction) -> best wave reached in endless mode
@@ -37,7 +36,7 @@ interface MainMenuProps {
   onSelectLevel: (lvl: number) => void; // highlights the card; the game starts with onPlay
   onPlay: () => void;
   onOpenDuel: () => void;
-  onOpenWorld: () => void; // поход по глобальной карте (прототип)
+  onOpenWorld: () => void; // кампания: поход по глобальной карте
   onStartSandbox: (level: number, enemies: number, randomRoad: boolean) => void; // свободный режим: карта, чьи враги (0 — хозяева карты), дорога
   onStartBrawl: (level: number, bots: Difficulty, randomRoad: boolean) => void;
   onOpenBrawlLobby: (mode: 'host' | 'join', level: number, bots: Difficulty, randomRoad: boolean) => void; // network brawl (needs the server)
@@ -95,7 +94,7 @@ export function MainMenu(props: MainMenuProps) {
       {/* my-auto centres the page and lets a screen that is still too low scroll to its top */}
       <div className="my-auto w-full flex flex-col items-center">
         {page === 'home' && <HomePage {...props} />}
-        {(page === 'campaign' || page === 'endless') && <LevelPage {...props} endless={page === 'endless'} onBack={home} />}
+        {page === 'endless' && <LevelPage {...props} onBack={home} />}
         {page === 'brawl' && <BrawlPage {...props} onBack={home} />}
         {page === 'sandbox' && <SandboxPage {...props} onBack={home} />}
         {page === 'settings' && <SettingsPage {...props} onBack={home} />}
@@ -107,19 +106,12 @@ export function MainMenu(props: MainMenuProps) {
 // -------------------------------------------------------------
 // Home: the four modes
 // -------------------------------------------------------------
-function HomePage({ onChangePage, onOpenDuel, onOpenWorld, duelAvailable, unlockedLevel, accountLabel }: MainMenuProps) {
+function HomePage({ onChangePage, onOpenDuel, onOpenWorld, duelAvailable, accountLabel }: MainMenuProps) {
   const fullscreen = useFullscreen();
   const [hint, setHint] = useState(false);
   const standalone = isStandalone();
   const items: { key: string; title: string; hint: string; onClick: () => void; main?: boolean }[] = [
-    {
-      key: 'campaign',
-      title: 'Кампания',
-      hint: `5 рубежей по 12 волн · открыто ${Math.min(5, unlockedLevel)} из 5`,
-      onClick: () => onChangePage('campaign'),
-      main: true,
-    },
-    { key: 'world', title: 'Поход (проба)', hint: 'Глобальная карта: Пограничье, отряды, промыслы, крепость Вождя', onClick: onOpenWorld },
+    { key: 'campaign', title: 'Кампания', hint: 'Поход Рена: пять глав, пять узлов на глобальной карте', onClick: onOpenWorld, main: true },
     { key: 'endless', title: 'Бесконечный режим', hint: 'Волны без конца, рекорд волны', onClick: () => onChangePage('endless') },
     { key: 'brawl', title: 'Потасовка', hint: 'Восемь рубежей, соперник меняется каждую волну', onClick: () => onChangePage('brawl') },
     { key: 'sandbox', title: 'Свободный режим', hint: 'Золото без счёта, башни любого уровня, волны вручную, лог', onClick: () => onChangePage('sandbox') },
@@ -364,13 +356,11 @@ function SandboxPage({ onBack, selectedDifficulty, onChangeDifficulty, selectedL
 }
 
 // -------------------------------------------------------------
-// Campaign and endless: the map, (endless) the enemies, the difficulty
+// Endless: the map, the enemies, the road, the difficulty
 // -------------------------------------------------------------
 function LevelPage({
-  endless,
   onBack,
   unlockedLevel,
-  levelStars,
   endlessBest,
   endlessEnemies,
   onChangeEnemies,
@@ -383,25 +373,23 @@ function LevelPage({
   onChangeDifficulty,
   race,
   onChangeRace,
-}: MainMenuProps & { endless: boolean; onBack: () => void }) {
+}: MainMenuProps & { onBack: () => void }) {
   return (
     <div className="w-full max-w-2xl short:max-w-3xl flex flex-col items-center">
-      <PageHeader title={endless ? 'Бесконечный режим' : 'Кампания'} onBack={onBack} />
+      <PageHeader title="Бесконечный режим" onBack={onBack} />
       <div className="w-full flex flex-col gap-2 short:gap-1.5">
         {/* Map cards */}
         <div className="w-full">
           <div className="flex items-center justify-between mb-1 px-1">
             <span className="text-[10px] sm:text-xs uppercase font-bold text-stone-400 tracking-wider">
-              {endless ? 'Карта' : 'Рубеж обороны'}
+              Карта
             </span>
-            <span className="text-[10px] sm:text-xs text-amber-400 font-semibold">Открыто {Math.min(5, unlockedLevel)} / 5</span>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-5 short:grid-cols-5 gap-1.5 sm:gap-2">
             {CONFIG.factions.slice(0, CONFIG.levelCount).map((f, idx) => {
               const lvl = idx + 1;
               const best = endlessBest[endlessRecordKey(lvl, endlessEnemies || lvl, randomMap)];
               const isUnlocked = lvl <= unlockedLevel;
-              const stars = levelStars[lvl] || 0;
               const isSelected = isUnlocked && lvl === selectedLevel;
               return (
                 <button
@@ -430,17 +418,9 @@ function LevelPage({
                     <div className="text-[9px] sm:text-[10px] text-stone-400 mt-0.5">{f.name}</div>
                   </div>
                   <div className="mt-1.5 pt-1 border-t border-[#262233] flex items-center justify-between">
-                    {endless ? (
-                      <span className="text-[9px] sm:text-[10px] font-semibold text-amber-300">
-                        {best ? `Рекорд: волна ${best}` : 'Рекорда нет'}
-                      </span>
-                    ) : (
-                      <div className="flex items-center gap-0.5">
-                        <StarIcon filled={stars >= 1} size={12} />
-                        <StarIcon filled={stars >= 2} size={12} />
-                        <StarIcon filled={stars >= 3} size={12} />
-                      </div>
-                    )}
+                    <span className="text-[9px] sm:text-[10px] font-semibold text-amber-300">
+                      {best ? `Рекорд: волна ${best}` : 'Рекорда нет'}
+                    </span>
                     <div
                       className="w-2 h-2 sm:w-2.5 sm:h-2.5 rounded-full border border-black/40"
                       style={{ backgroundColor: CONFIG.palettes[idx].enemies }}
@@ -457,10 +437,9 @@ function LevelPage({
           <RacePicker race={race} onChange={onChangeRace} />
         </div>
 
-        {/* Enemies (endless), difficulty and the start */}
+        {/* Enemies, road, difficulty and the start */}
         {/* A phone on its side: a row of two under the cards */}
         <div className="w-full max-w-md mx-auto flex flex-col gap-2 short:max-w-none short:grid short:grid-cols-2 short:gap-1.5">
-          {endless && (
             <label className={`${PANEL} w-full flex items-center justify-between gap-2 p-1`}>
               <span className="text-xs font-semibold text-stone-400 pl-3 short:pl-2">Враги:</span>
               <select
@@ -481,9 +460,7 @@ function LevelPage({
                 ))}
               </select>
             </label>
-          )}
 
-          {endless && (
             <div
               className={`${PANEL} w-full flex items-center justify-between p-1`}
               title="Случайная дорога: каждый забег новая, по тем же правилам, что и у готовых карт; рекорд отдельный"
@@ -507,7 +484,6 @@ function LevelPage({
                 ))}
               </div>
             </div>
-          )}
 
           <div className={`${PANEL} w-full flex items-center justify-between p-1`}>
             <span className="text-xs font-semibold text-stone-400 pl-3 short:pl-2 pr-1">Сложность:</span>
@@ -535,7 +511,7 @@ function LevelPage({
             className={`w-full min-h-[48px] short:min-h-[42px] py-2 px-4 short:px-2 rounded bg-amber-500 hover:bg-amber-400 text-stone-950 font-black text-sm short:text-xs tracking-wider uppercase transition-all shadow-lg shadow-amber-950/50 cursor-pointer active:translate-y-0.5`}
           >
             В бой: {CONFIG.factions[selectedLevel - 1].location}
-            {endless && endlessEnemies > 0 && endlessEnemies !== selectedLevel && ` · ${CONFIG.factions[endlessEnemies - 1].name}`}
+            {endlessEnemies > 0 && endlessEnemies !== selectedLevel && ` · ${CONFIG.factions[endlessEnemies - 1].name}`}
           </button>
           <p className="text-center text-[11px] text-stone-500 short:hidden">Enter — в бой, Esc — назад</p>
         </div>

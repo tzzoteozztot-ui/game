@@ -11,7 +11,6 @@ import { validateAllMaps } from './game/maps';
 import { newMapSeed } from './game/mapgen';
 import { sound, AudioSettings } from './game/audio';
 import { GameEngine, GameStateSnapshot, Tower } from './game/engine';
-import { calculateStars } from './game/rules';
 import { sprites } from './game/sprites';
 
 import { FieldStats } from './components/FieldStats';
@@ -40,7 +39,7 @@ import { BrawlLobby } from './components/BrawlLobby';
 import { BrawlBoard } from './components/BrawlBoard';
 import { BoonPicker } from './components/BoonPicker';
 import { LevelBriefing } from './components/LevelBriefing';
-import { PauseModal, VictoryModal, DefeatModal, HowToPlayModal, DuelResultModal, BrawlResultModal, DuelOutcome } from './components/StatusModals';
+import { PauseModal, DefeatModal, HowToPlayModal, DuelResultModal, BrawlResultModal, DuelOutcome } from './components/StatusModals';
 import { OrientationWarning } from './components/OrientationWarning';
 import { WorldMap, WorldBattleResult } from './components/WorldMap';
 import { WorldState, WorldObj, REGIONS, FRONTIER, newWorld, loadWorld, saveWorld, winBattle, battleSeed, battlePerks, heroLevel, allowedTowers, armyLevel, invasion } from './campaign/world';
@@ -134,7 +133,7 @@ export default function App() {
   const [screen, setScreen] = useState<ScreenState>('menu');
   const [selectedLevel, setSelectedLevel] = useState<number>(1);
   const [difficulty, setDifficulty] = useState<Difficulty>('normal');
-  const [mode, setMode] = useState<GameMode>('campaign');
+  const [mode, setMode] = useState<GameMode>('endless');
   const [menuPage, setMenuPage] = useState<MenuPage>('home'); // which page of the main menu is open
   // Поход по глобальной карте (прототип, вариант В): состояние на устройстве и бой, который сейчас идёт
   const [world, setWorldState] = useState<WorldState | null>(() => loadWorld());
@@ -191,7 +190,9 @@ export default function App() {
   // Progress: localStorage, plus the account when signed in (see progress.ts, cloud.ts)
   const [progress, setProgress] = useState<Progress>(() => readLocalProgress(null));
   const [progressOwner, setProgressOwner] = useState<string | null>(null); // whose progress is in `progress`: guest (null) or an account
-  const { unlocked: unlockedLevel, stars: levelStars, endlessBest } = progress;
+  const { endlessBest } = progress;
+  // Старой кампании нет (Артур 2026-11-07), все карты открыты во всех режимах (его выбор «Все карты открыты»)
+  const unlockedLevel = CONFIG.levelCount;
   const [user, setUser] = useState<User | null>(null);
   const [syncState, setSyncState] = useState<SyncState>('idle');
   const [showAccount, setShowAccount] = useState<boolean>(false);
@@ -377,22 +378,6 @@ export default function App() {
       document.body.dataset.state = 'playing';
     }
   }, [screen, gameState.isGameOver, gameState.isVictory, gameState.isPaused]);
-
-  // When victory triggers, save unlocked level and stars (a duel win gives neither)
-  useEffect(() => {
-    if (gameState.isVictory && !gameState.duel && gameState.waveLimit === null) {
-      const starsEarned = calculateStars(gameState.lives);
-      const nextLvl = Math.min(5, gameState.level + 1);
-      const diff = engineRef.current?.difficulty ?? 'normal';
-      setProgress((prev) =>
-        mergeProgress(prev, {
-          unlocked: nextLvl,
-          stars: { ...EMPTY_PROGRESS.stars, [diff]: { [gameState.level]: starsEarned } },
-          endlessBest: EMPTY_PROGRESS.endlessBest,
-        })
-      );
-    }
-  }, [gameState.isVictory, gameState.duel, gameState.lives, gameState.level, gameState.waveLimit]);
 
   // Endless mode: the best wave reached is kept the moment a wave starts, so leaving to the menu
   // (or closing the page) in the middle of a run loses nothing; defeat counts the wave that broke through
@@ -646,26 +631,6 @@ export default function App() {
         setShopCards(generateShopCards(1));
       }
     }, 50);
-  };
-
-  // Outcome screen action: Next level
-  const handleNextLevel = () => {
-    sound.init();
-    setSpecModalTower(null);
-    if (engineRef.current) {
-      engineRef.current.stopLoop();
-      engineRef.current.isVictory = false;
-      engineRef.current.isGameOver = false;
-      engineRef.current.isPaused = false;
-      engineRef.current.notifyState();
-    }
-    const nextLvl = gameState.level + 1;
-    if (nextLvl <= 5) {
-      setSelectedLevel(nextLvl);
-      setScreen('briefing');
-    } else {
-      setScreen('menu');
-    }
   };
 
   // Поход: пассивки лагеря и предметы героя, умения по его уровню
@@ -1174,7 +1139,7 @@ export default function App() {
         handleStartWave();
       }
     } else if (e.key === 'Enter') {
-      if (screen === 'menu' && (menuPage === 'campaign' || menuPage === 'endless') && !showHowToPlay && !showBestiary && !showAccount) {
+      if (screen === 'menu' && menuPage === 'endless' && !showHowToPlay && !showBestiary && !showAccount) {
         e.preventDefault();
         handleOpenBriefing();
       } else if (screen === 'briefing') {
@@ -1372,13 +1337,12 @@ export default function App() {
       {screen === 'menu' && (
         <MainMenu
           unlockedLevel={unlockedLevel}
-          levelStars={levelStars[difficulty] || {}}
           selectedDifficulty={difficulty}
           page={menuPage}
           onChangePage={(p) => {
             sound.init();
             setMenuPage(p);
-            if (p === 'campaign' || p === 'endless') setMode(p);
+            if (p === 'endless') setMode(p);
           }}
           duelAvailable={duelAvailable}
           endlessBest={endlessBest[difficulty] || {}}
@@ -1826,17 +1790,6 @@ export default function App() {
         />
       )}
 
-      {screen === 'playing' && gameState.isVictory && !gameState.duel && !worldBattle && (
-        <VictoryModal
-          stats={gameState.runSummary}
-          level={gameState.level}
-          stars={calculateStars(gameState.lives)}
-          lives={gameState.lives}
-          onNext={handleNextLevel}
-          onRestart={handleRestartLevel}
-          onToMenu={handleToMenu}
-        />
-      )}
 
       {/* 8. Defeat Modal */}
       {screen === 'playing' && gameState.isGameOver && !gameState.duel && !worldBattle && (
