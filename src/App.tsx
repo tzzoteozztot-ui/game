@@ -43,7 +43,7 @@ import { LevelBriefing } from './components/LevelBriefing';
 import { PauseModal, VictoryModal, DefeatModal, HowToPlayModal, DuelResultModal, BrawlResultModal, DuelOutcome } from './components/StatusModals';
 import { OrientationWarning } from './components/OrientationWarning';
 import { WorldMap, WorldBattleResult } from './components/WorldMap';
-import { WorldState, WorldObj, REGIONS, FRONTIER, newWorld, loadWorld, saveWorld, winBattle, battleSeed, battlePerks, heroLevel, allowedTowers, armyLevel } from './campaign/world';
+import { WorldState, WorldObj, REGIONS, FRONTIER, newWorld, loadWorld, saveWorld, winBattle, battleSeed, battlePerks, heroLevel, allowedTowers, armyLevel, invasion } from './campaign/world';
 import { Scene, sceneFor } from './campaign/dialogs';
 import { DialogBox } from './components/DialogBox';
 import { HERO_ABILITIES } from './game/config';
@@ -669,8 +669,10 @@ export default function App() {
   };
 
   // Поход: пассивки лагеря и предметы героя, умения по его уровню
-  const heroIntoBattle = (eng: GameEngine) => {
+  const heroIntoBattle = (eng: GameEngine, obj: WorldObj) => {
     if (!world) return;
+    const region = REGIONS[world.region] ?? FRONTIER;
+    eng.setInvasion(invasion(region)(obj.x, obj.y)); // у лагеря главы — природа континента, к крепости — биом захватчика
     eng.setCampBoons(battlePerks(world));
     eng.setHeroSkills(HERO_ABILITIES.filter((d) => d.unlock <= heroLevel(world)).map((d) => d.id));
   };
@@ -704,7 +706,7 @@ export default function App() {
       // Бой с армией (просьба Артура 2026-11-06): как дуэль с ботом — волны идут без конца, пока не падёт артефакт вражеского лагеря
       closeDuel();
       const region = REGIONS[world?.region ?? 'frontier'] ?? FRONTIER;
-      handleDuelStart(createBotLink(region.level, (world && armyLevel(world, obj)) || obj.army), region.level, performance.now(), region.level, CONFIG.races.humans.faction, CONFIG.duel.roundLength, battleSeed(obj), 'humans', (eng) => heroIntoBattle(eng));
+      handleDuelStart(createBotLink(region.level, (world && armyLevel(world, obj)) || obj.army), region.level, performance.now(), region.level, CONFIG.races.humans.faction, CONFIG.duel.roundLength, battleSeed(obj), 'humans', (eng) => heroIntoBattle(eng, obj));
       return;
     }
     setScreen('playing');
@@ -713,7 +715,7 @@ export default function App() {
         engineRef.current.setCanvas(canvasRef.current);
         const region = REGIONS[world?.region ?? 'frontier'] ?? FRONTIER;
         engineRef.current.startWorldBattle(region.level, obj.waves ?? 3, battleSeed(obj));
-        heroIntoBattle(engineRef.current);
+        heroIntoBattle(engineRef.current, obj);
         setShopCards(generateShopCards(1));
       }
     }, 50);
@@ -763,7 +765,7 @@ export default function App() {
     if (worldBattle) {
       if (canvasRef.current) engine.setCanvas(canvasRef.current);
       engine.startWorldBattle((REGIONS[world?.region ?? 'frontier'] ?? FRONTIER).level, worldBattle.waves ?? 3, battleSeed(worldBattle));
-      heroIntoBattle(engine);
+      heroIntoBattle(engine, worldBattle);
       return;
     }
     if (engine.sandbox) {
