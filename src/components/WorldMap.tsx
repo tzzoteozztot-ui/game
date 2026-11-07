@@ -439,9 +439,13 @@ export function WorldMap({ world, region, onChange, onBattle, onExit, onReset }:
     const c = chooseEvent(st, region, o.id, i);
     if (!c) return setNotice(null);
     sound.playBuy();
+    stRef.current = st;
     onChange(st);
     const got = c.reward ? resText(c.reward) : '';
-    setNotice({ title: o.name, text: `${c.text}${got ? `\n\nПолучено: ${got}` : ''}${itemLine(c.item)}` });
+    const n = { title: o.name, text: `${c.text}${got ? `\n\nПолучено: ${got}` : ''}${itemLine(c.item)}` };
+    // Реплики этого выбора (`choice:<объект>:<номер>`), потом итог
+    setNotice(null);
+    play(`choice:${o.id}:${i + 1}`, () => setNotice(n));
   };
   const nextRegion = region.next ? REGIONS[region.next] : null;
   const goNext = (to: RegionDef) => {

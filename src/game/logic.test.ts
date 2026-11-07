@@ -961,7 +961,7 @@ test('world: chapters 2–5 — each region builds, is mostly wild and its trail
 
 test('dialogs: every chapter scene points at a real object, and conditional lines follow the choice flags', () => {
   const ids = new Set(Object.values(W.REGIONS).flatMap((r) => [r.id, ...r.objects.map((o) => o.id)]));
-  const kinds = ['start', 'camp', 'before', 'after', 'loot', 'event', 'wave'];
+  const kinds = ['start', 'camp', 'before', 'after', 'loot', 'event', 'wave', 'choice'];
   for (const sc of D.SCENES) {
     if (!sc.id.includes(':')) continue; // глава 1: id через SCENE_AT
     const [kind, obj] = sc.id.split(':');
@@ -970,6 +970,19 @@ test('dialogs: every chapter scene points at a real object, and conditional line
     assert.ok(sc.lines.length > 0, `${sc.id}: has lines`);
   }
   for (const id of Object.keys(W.REGIONS)) assert.ok(D.sceneFor(D.startTrigger(id), []), `${id}: opening scene`);
+  // Реплики выбора есть только у вариантов, которые есть в событии
+  for (const sc of D.SCENES.filter((s) => s.id.startsWith('choice:'))) {
+    const [, obj, n] = sc.id.split(':');
+    const o = Object.values(W.REGIONS).flatMap((r) => r.objects).find((ob) => ob.id === obj)!;
+    assert.ok(o.choices && Number(n) >= 1 && Number(n) <= o.choices.length, `${sc.id}: choice exists`);
+  }
+  // Глава 2: у Феллы четыре исхода, все со своими репликами; переправа ждёт рощу, святилище — по желанию
+  const bog = W.REGIONS.bog;
+  const fella = bog.objects.find((o) => o.id === 'bog_forkB')!;
+  assert.equal(fella.choices!.length, 4);
+  for (let i = 1; i <= 4; i++) assert.ok(D.sceneFor(`choice:bog_forkB:${i}`, []), `Фелла, исход ${i}`);
+  assert.deepEqual(bog.objects.find((o) => o.id === 'bog_cross')!.needs, ['bog_forkB']);
+  assert.ok(!bog.objects.some((o) => o.needs?.includes('bog_forkA') || o.needsAny?.includes('bog_forkA')), 'святилище ничего не закрывает');
   // Корх в главе 5 говорит по выбору главы 4
   const korh = (flags: string[]) => D.sceneFor('event:dusk_forkA', [], flags)!.lines.map((l) => l.text);
   assert.equal(korh(['korh-trade']).length, 1);
