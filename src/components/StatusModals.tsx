@@ -6,7 +6,6 @@ import { RunStats } from './RunStats';
 import type { RunSummary } from '../game/engine';
 import type { BrawlSnapshot } from '../brawl';
 import React, { useState } from 'react';
-import { StarIcon } from './Icons';
 import { sound } from '../game/audio';
 import { CONFIG } from '../game/config';
 import { useFullscreen, isStandalone, HOME_SCREEN_HINT } from '../fullscreen';
@@ -239,87 +238,6 @@ export function BrawlResultModal({ snap, wave, stats, onToMenu }: { snap: BrawlS
 }
 
 // -------------------------------------------------------------
-// Victory Modal
-// -------------------------------------------------------------
-interface VictoryModalProps {
-  stats?: RunSummary | null;
-  level: number;
-  stars: number;
-  lives: number;
-  onNext: () => void;
-  onRestart: () => void;
-  onToMenu: () => void;
-}
-
-export function VictoryModal({
-  stats,
-  level,
-  stars,
-  lives,
-  onNext,
-  onRestart,
-  onToMenu,
-}: VictoryModalProps) {
-  const isFinal = level >= 5;
-
-  return (
-    <div className="fixed inset-0 bg-black/85 flex items-center justify-center p-4 z-50">
-      <div className="bg-[#171520] border-2 border-amber-500/70 rounded-xl p-4 short:p-3 max-w-sm w-full max-h-[94vh] flex flex-col overflow-hidden shadow-2xl text-center text-[#f4f2e6]">
-        <div className="min-h-0 flex-1 overflow-y-auto pr-1 -mr-1">
-        <h2 className="text-2xl font-black text-amber-300 tracking-wider mb-1">
-          {isFinal ? 'ВЕЛИКАЯ ПОБЕДА!' : 'РУБЕЖ УДЕРЖАН!'}
-        </h2>
-        <p className="text-xs text-stone-400 mb-4">
-          {isFinal
-            ? 'Все 5 рубежей защищены, Цитадель сумерек пала!'
-            : `Уровень ${level} успешно пройден. Все 12 волн отбиты.`}
-        </p>
-
-        {/* Star Rating */}
-        <div className="flex items-center justify-center gap-2 mb-4">
-          <StarIcon filled={stars >= 1} size={32} />
-          <StarIcon filled={stars >= 2} size={38} />
-          <StarIcon filled={stars >= 3} size={32} />
-        </div>
-
-        <div className="text-xs text-stone-300 mb-5 bg-[#121118] py-2 px-3 rounded border border-[#2d2938]">
-          Прочность артефакта: <span className="font-bold text-red-400">{lives} / {CONFIG.lives.start}</span>
-        </div>
-        <RunStats stats={stats ?? null} />
-
-        </div>
-        {/* Actions */}
-        <div className="grid grid-cols-2 gap-2 shrink-0 pt-2">
-          {!isFinal && (
-            <button
-              type="button"
-              onClick={onNext}
-              className="col-span-2 w-full min-h-[44px] py-2 px-4 rounded bg-amber-500 hover:bg-amber-400 text-stone-950 font-black text-sm tracking-wide transition-colors cursor-pointer"
-            >
-              Далее →
-            </button>
-          )}
-          <button
-            type="button"
-            onClick={onRestart}
-            className="w-full min-h-[40px] py-2 px-4 rounded bg-[#221f2d] hover:bg-[#2c283a] text-stone-200 border border-[#383347] font-semibold text-xs cursor-pointer"
-          >
-            Повторить
-          </button>
-          <button
-            type="button"
-            onClick={onToMenu}
-            className="w-full min-h-[40px] py-2 px-4 rounded bg-[#181622] hover:bg-[#221f2d] text-stone-400 hover:text-stone-200 border border-[#2a2636] font-semibold text-xs cursor-pointer"
-          >
-            В меню
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// -------------------------------------------------------------
 // Defeat Modal
 // -------------------------------------------------------------
 interface DefeatModalProps {
@@ -402,7 +320,7 @@ export function HowToPlayModal({ onClose }: { onClose: () => void }) {
           <section>
             <h3 className="font-bold text-amber-200 text-sm mb-1">Цель игры</h3>
             <p className="text-stone-300">
-              Защитить артефакт в центре лагеря от 12 волн чудовищ и победить босса каждой фракции. У артефакта {CONFIG.lives.start} прочности. Дошедший враг не исчезает, а стоит и бьёт: ближние — в упор, лучники и шаманы — с 1–3 клеток, пока башни их не добьют. Звёзды: от 75 % прочности — три, от 40 % — две.
+              Защитить артефакт в центре лагеря от волн чудовищ и их боссов. В кампании Рен ведёт экспедицию по глобальной карте: бои за отряды, промыслы и крепости глав. У артефакта {CONFIG.lives.start} прочности. Дошедший враг не исчезает, а стоит и бьёт: ближние — в упор, лучники и шаманы — с 1–3 клеток, пока башни их не добьют.
             </p>
           </section>
 
