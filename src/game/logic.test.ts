@@ -898,6 +898,12 @@ test('world: the tutorial trail — locks open in order and the whole chapter ca
     const obj = t.split(':')[1];
     if (obj) assert.ok(r.objects.some((o) => o.id === obj), `${t}: object exists`);
   }
+  // The small node weakens the fortress camp (Г1-18б)
+  const fort = r.objects.find((o) => o.id === 'fortress')!;
+  assert.equal(W.armyLevel({ ...st, owned: [] }, fort), 'normal');
+  assert.equal(W.armyLevel({ ...st, owned: ['node'] }, fort), 'easy');
+  // Scenes come from the Lore Keeper's script: every scene has lines
+  for (const sc of D.SCENES) assert.ok(sc.lines.length > 0, sc.id);
   // A scene plays once
   assert.ok(D.sceneFor('before:ford', []));
   assert.equal(D.sceneFor('before:bridge', ['levels']), null, 'the river fork shares one lesson');

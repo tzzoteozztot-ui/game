@@ -58,6 +58,8 @@ export interface WorldObj {
   teach?: string[];
   /** Бой с армией: вкладка «Армия» закрыта до этой волны, потом врывается Каллен (сцена `wave:<id>:<N>`) */
   armyAt?: number;
+  /** Промысел, захват которого ослабляет защиту этого лагеря: бот армии на ступень слабее (малый узел и крепость, сценарий Г1-18б) */
+  weakenedBy?: string;
 }
 
 export interface RegionDef {
@@ -194,7 +196,7 @@ const FRONTIER_OBJECTS: WorldObj[] = [
   { id: 'chest8', kind: 'chest', x: 45, y: 28, name: 'Тайник шамана', reward: { crystal: 2 } },
   { id: 'shrine2', kind: 'shrine', x: 48, y: 22, name: 'Старый идол', reward: { crystal: 3 }, text: 'Идол старше орков. На его камне — те же знаки, что на нашем узле.' },
   {
-    id: 'fortress', kind: 'fortress', x: 47, y: 15, name: 'Крепость Вождя', waves: 12, army: 'normal', armyAt: 8, reward: { gold: 200, crystal: 5 }, needs: ['guard'],
+    id: 'fortress', kind: 'fortress', x: 47, y: 15, name: 'Крепость Вождя', waves: 12, army: 'normal', armyAt: 8, weakenedBy: 'node', reward: { gold: 200, crystal: 5 }, needs: ['guard'],
     text: 'Вождь Ургаш ждёт за частоколом. Это последний бой главы.',
   },
 ];
@@ -469,6 +471,13 @@ export function allowedTowers(st: WorldState, region: RegionDef, battle: WorldOb
   const out = new Set(['archer']);
   for (const o of region.objects) if (o.teach && (isCleared(st, o.id) || o.id === battle?.id)) o.teach.forEach((t) => out.add(t));
   return [...out];
+}
+
+/** Сила бота вражеского лагеря в бою с армией: захваченный `weakenedBy` снимает одну ступень */
+export function armyLevel(st: WorldState, o: WorldObj): 'easy' | 'normal' | 'hard' | undefined {
+  if (!o.army) return undefined;
+  if (!o.weakenedBy || !st.owned.includes(o.weakenedBy)) return o.army;
+  return o.army === 'hard' ? 'normal' : 'easy';
 }
 
 /**

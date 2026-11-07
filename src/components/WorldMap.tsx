@@ -284,7 +284,7 @@ export function WorldMap({ world, region, onChange, onBattle, onExit, onReset }:
           play(`before:${o.id}`, () =>
             setNotice({
               title: o.name,
-              text: `${o.text ? o.text + '\n\n' : ''}${battleText(o)}${o.reward ? `\nНаграда: ${resText(o.reward)}` : ''}${itemLine(o.item)}${o.income ? `\nДоход промысла: ${resText(o.income)} в день` : ''}`,
+              text: `${o.text ? o.text + '\n\n' : ''}${battleText(o, st)}${o.reward ? `\nНаграда: ${resText(o.reward)}` : ''}${itemLine(o.item)}${o.income ? `\nДоход промысла: ${resText(o.income)} в день` : ''}`,
               battle: o,
             })
           );
@@ -693,7 +693,10 @@ function itemLine(id: string | undefined): string {
 }
 
 /** Что за бой ждёт у объекта — для окна перед боем */
-function battleText(o: WorldObj): string {
+function battleText(o: WorldObj, st?: WorldState): string {
+  const weak = st && o.weakenedBy && st.owned.includes(o.weakenedBy) ? '\nМалый узел наш: защита лагеря ослаблена.' : '';
+  if (o.army && o.armyAt)
+    return `Волны идут без конца, пока стоит лагерь врага. Армию на него выставить пока некому: держите линию.${weak}`;
   if (o.army)
     return 'Бой с армией, как в Потасовке: во вкладке «Армия» покупайте врагов и отправляйте их на поле противника — он шлёт своих в ответ. Победа — когда падёт его артефакт.';
   const n = o.waves ?? 3;
