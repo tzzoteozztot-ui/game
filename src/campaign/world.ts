@@ -4,6 +4,7 @@
  * Гексы «остриём вверх», нечётные ряды сдвинуты на полклетки вправо (как поле боя в grid.ts).
  * Числа (волны отрядов, награды, доход промыслов) — черновик прототипа, меняются по слову Артура.
  */
+import { SCENE_AT } from './dialogs';
 
 export type Terrain = 'grass' | 'road' | 'forest' | 'hills' | 'water' | 'rock' | 'wood';
 export type ResKey = 'gold' | 'wood' | 'crystal';
@@ -50,6 +51,13 @@ export interface WorldObj {
   army?: 'easy' | 'normal' | 'hard';
   /** Строка хрониста при встрече */
   text?: string;
+  /** Тропа обучения (глава 1 — обучение, решение Артура 2026-11-06): объект закрыт, пока не пройдены все `needs` и хотя бы один из `needsAny` */
+  needs?: string[];
+  needsAny?: string[];
+  /** Башни, которые открываются с боя здесь (до того в лавке похода их нет); Стрелок открыт всегда */
+  teach?: string[];
+  /** Бой с армией: вкладка «Армия» закрыта до этой волны, потом врывается Каллен (сцена `wave:<id>:<N>`) */
+  armyAt?: number;
 }
 
 export interface RegionDef {
@@ -77,6 +85,7 @@ export interface WorldState {
   xp: number; // опыт героя
   items: string[]; // найденные предметы героя (id из HERO_ITEMS)
   equip: Partial<Record<ItemSlot, string>>; // надетые: слот → id предмета
+  scenes: string[]; // показанные сцены диалогов (src/campaign/dialogs.ts)
 }
 
 // -------------------------------------------------------------
@@ -151,32 +160,32 @@ const FRONTIER_OBJECTS: WorldObj[] = [
   { id: 'camp', kind: 'camp', x: 5, y: 16, name: 'Лагерь экспедиции', text: 'Здесь встанут кузня, казна и стены. Пока лагерь только разбит.' },
   // Западный берег: слабые отряды, обучение
   { id: 'sq1', kind: 'squad', x: 10, y: 14, name: 'Разведка орков', waves: 3, reward: { gold: 40 }, text: 'Несколько разведчиков рода. Слабые, но они нас уже видели.' },
-  { id: 'sq2', kind: 'squad', x: 12, y: 20, name: 'Охотники рода', waves: 3, reward: { gold: 40, wood: 10 } },
-  { id: 'sq3', kind: 'squad', x: 16, y: 9, name: 'Дозор рода', waves: 4, reward: { gold: 50, crystal: 1 } },
-  { id: 'chest1', kind: 'chest', x: 8, y: 10, name: 'Брошенный обоз', reward: { gold: 50 } },
-  { id: 'chest2', kind: 'chest', x: 4, y: 22, name: 'Сложенный лес', reward: { wood: 20 } },
-  { id: 'chest3', kind: 'chest', x: 14, y: 4, name: 'Тайник контрабандистов', reward: { gold: 60 }, item: 'crossbow' },
+  { id: 'sq2', kind: 'squad', x: 12, y: 20, name: 'Охотники рода', waves: 3, reward: { gold: 40, wood: 10 }, needs: ['sq1'], teach: ['priest'] },
+  { id: 'sq3', kind: 'squad', x: 16, y: 9, name: 'Дозор рода', waves: 4, reward: { gold: 50, crystal: 1 }, needs: ['shrine'], teach: ['ballista'] },
+  { id: 'chest1', kind: 'chest', x: 8, y: 10, name: 'Брошенный обоз', reward: { gold: 50 }, needs: ['sq1'] },
+  { id: 'chest2', kind: 'chest', x: 4, y: 22, name: 'Сложенный лес', reward: { wood: 20 }, needs: ['sq2'] },
+  { id: 'chest3', kind: 'chest', x: 14, y: 4, name: 'Тайник контрабандистов', reward: { gold: 60 }, item: 'crossbow', needs: ['sq3'] },
   { id: 'chest4', kind: 'chest', x: 17, y: 27, name: 'Разбитая телега', reward: { gold: 30, crystal: 1 }, item: 'mail' },
-  { id: 'quarry', kind: 'mine', x: 6, y: 6, name: 'Каменоломня', waves: 3, income: { wood: 4 }, text: 'Старая каменоломня, орки держат здесь пост.' },
-  { id: 'saw', kind: 'mine', x: 8, y: 26, name: 'Лесопилка', waves: 3, income: { wood: 5 }, text: 'Орки рубят здесь лес. Отобьём — будет дерево каждый день.' },
-  { id: 'shrine', kind: 'shrine', x: 19, y: 16, name: 'Камень предков', reward: { crystal: 2 }, item: 'idol', text: 'Орки приносят сюда дары. Камень звенит так же, как наш узел.' },
+  { id: 'quarry', kind: 'mine', x: 6, y: 6, name: 'Каменоломня', waves: 3, income: { wood: 4 }, needs: ['sq2'], text: 'Старая каменоломня, орки держат здесь пост.' },
+  { id: 'saw', kind: 'mine', x: 8, y: 26, name: 'Лесопилка', waves: 3, income: { wood: 5 }, needs: ['quarry'], teach: ['mage'], text: 'Орки рубят здесь лес. Отобьём — будет дерево каждый день.' },
+  { id: 'shrine', kind: 'shrine', x: 19, y: 16, name: 'Камень предков', reward: { crystal: 2 }, item: 'idol', needs: ['saw'], text: 'Орки приносят сюда дары. Камень звенит так же, как наш узел.' },
   {
-    id: 'warcamp', kind: 'squad', x: 21, y: 3, name: 'Военный лагерь рода', waves: 6, army: 'easy', reward: { gold: 250, wood: 30, crystal: 4 }, item: 'warbanner',
+    id: 'warcamp', kind: 'squad', x: 21, y: 3, name: 'Военный лагерь рода', waves: 6, reward: { gold: 250, wood: 30, crystal: 4 }, item: 'warbanner', needsAny: ['ford', 'bridge'], // ярус лавки и защита — после уроков уровней (Лоровед, 2026-11-06)
     text: 'Здесь орки собирают силы для набега. Бой не обязателен, но лагерь богат.',
   },
   // Переправы
-  { id: 'ford', kind: 'squad', x: FORD.x, y: FORD.y, name: 'Застава у брода', waves: 5, reward: { gold: 70 }, text: 'Брод через реку держат воины рода. Другого пути на тот берег почти нет.' },
-  { id: 'bridge', kind: 'squad', x: BRIDGE.x, y: BRIDGE.y, name: 'Засада у моста', waves: 5, reward: { gold: 60, wood: 10 } },
+  { id: 'ford', kind: 'squad', x: FORD.x, y: FORD.y, name: 'Застава у брода', waves: 5, reward: { gold: 70 }, needs: ['sq3'], text: 'Брод через реку держат воины рода. Другого пути на тот берег почти нет.' },
+  { id: 'bridge', kind: 'squad', x: BRIDGE.x, y: BRIDGE.y, name: 'Засада у моста', waves: 5, reward: { gold: 60, wood: 10 }, needs: ['sq3'] },
   // Восточный берег
-  { id: 'goldmine', kind: 'mine', x: 31, y: 4, name: 'Рудник', waves: 5, income: { gold: 20 } },
-  { id: 'node', kind: 'mine', x: 38, y: 28, name: 'Малый узел', waves: 6, income: { crystal: 1 }, item: 'shard', text: 'Осколок той же сети, что наш артефакт. Орки охраняют его, как святыню.' },
-  { id: 'sq4', kind: 'squad', x: 33, y: 13, name: 'Боевой отряд', waves: 6, reward: { gold: 80, crystal: 1 } },
-  { id: 'sq5', kind: 'squad', x: 33, y: 22, name: 'Стая гончих', waves: 6, reward: { gold: 80 } },
-  { id: 'sq6', kind: 'squad', x: 40, y: 8, name: 'Шаманы ущелья', waves: 7, reward: { gold: 90, crystal: 2 } },
-  { id: 'sq7', kind: 'squad', x: 41, y: 22, name: 'Всадники на волках', waves: 7, reward: { gold: 90 } },
-  { id: 'guard', kind: 'squad', x: 42, y: 15, name: 'Стража Вождя', waves: 8, reward: { gold: 120, crystal: 2 } },
+  { id: 'goldmine', kind: 'mine', x: 31, y: 4, name: 'Рудник', waves: 5, income: { gold: 20 }, needs: ['sq4'] },
+  { id: 'node', kind: 'mine', x: 38, y: 28, name: 'Малый узел', waves: 6, income: { crystal: 1 }, item: 'shard', needs: ['sq5'], needsAny: ['goldmine', 'shrine2'], text: 'Осколок той же сети, что наш артефакт. Орки охраняют его, как святыню.' },
+  { id: 'sq4', kind: 'squad', x: 33, y: 13, name: 'Боевой отряд', waves: 6, reward: { gold: 80, crystal: 1 }, needsAny: ['ford', 'bridge'] },
+  { id: 'sq5', kind: 'squad', x: 33, y: 22, name: 'Стая гончих', waves: 6, reward: { gold: 80 }, needsAny: ['ford', 'bridge'] },
+  { id: 'sq6', kind: 'squad', x: 40, y: 8, name: 'Шаманы ущелья', waves: 7, reward: { gold: 90, crystal: 2 }, needs: ['node'] },
+  { id: 'sq7', kind: 'squad', x: 41, y: 22, name: 'Всадники на волках', waves: 7, reward: { gold: 90 }, needs: ['sq5'] },
+  { id: 'guard', kind: 'squad', x: 42, y: 15, name: 'Стража Вождя', waves: 8, reward: { gold: 120, crystal: 2 }, needs: ['sq6', 'sq7'] },
   {
-    id: 'stavka', kind: 'squad', x: 48, y: 6, name: 'Ставка вожака', waves: 8, army: 'easy', reward: { gold: 300, crystal: 6 }, item: 'plate',
+    id: 'stavka', kind: 'squad', x: 48, y: 6, name: 'Ставка вожака', waves: 8, reward: { gold: 300, crystal: 6 }, item: 'plate', needs: ['sq6'],
     text: 'Шатры вожака, что водит набеги на юг. Можно обойти, можно разорить.',
   },
   { id: 'chest5', kind: 'chest', x: 35, y: 7, name: 'Сундук наёмника', reward: { gold: 80 } },
@@ -185,7 +194,7 @@ const FRONTIER_OBJECTS: WorldObj[] = [
   { id: 'chest8', kind: 'chest', x: 45, y: 28, name: 'Тайник шамана', reward: { crystal: 2 } },
   { id: 'shrine2', kind: 'shrine', x: 48, y: 22, name: 'Старый идол', reward: { crystal: 3 }, text: 'Идол старше орков. На его камне — те же знаки, что на нашем узле.' },
   {
-    id: 'fortress', kind: 'fortress', x: 47, y: 15, name: 'Крепость Вождя', waves: 12, army: 'normal', reward: { gold: 200, crystal: 5 },
+    id: 'fortress', kind: 'fortress', x: 47, y: 15, name: 'Крепость Вождя', waves: 12, army: 'normal', armyAt: 8, reward: { gold: 200, crystal: 5 }, needs: ['guard'],
     text: 'Вождь Ургаш ждёт за частоколом. Это последний бой главы.',
   },
 ];
@@ -401,6 +410,7 @@ export function newWorld(region: RegionDef = FRONTIER): WorldState {
     xp: 0,
     items: ['sword'],
     equip: { weapon: 'sword' },
+    scenes: [],
   };
   reveal(st, region);
   return st;
@@ -436,6 +446,31 @@ export function isHostile(st: WorldState, o: WorldObj): boolean {
   return false;
 }
 
+/** Пройден ли объект: отряд разбит, промысел захвачен, сундук открыт */
+export const isCleared = (st: WorldState, id: string) => st.done.includes(id) || st.owned.includes(id);
+
+/** Закрыт ли объект тропой обучения: не пройдены его `needs` или ни один из `needsAny`. Пройденный не закрывается */
+export function isLocked(st: WorldState, o: WorldObj): boolean {
+  if (isCleared(st, o.id)) return false;
+  if (o.needs?.some((id) => !isCleared(st, id))) return true;
+  return !!o.needsAny && !o.needsAny.some((id) => isCleared(st, id));
+}
+
+/** Что ещё нужно пройти, чтобы открыть объект: «Дозор рода», «Рудник или Старый идол» */
+export function lockText(st: WorldState, region: RegionDef, o: WorldObj): string {
+  const name = (id: string) => region.objects.find((ob) => ob.id === id)?.name ?? id;
+  const parts = (o.needs ?? []).filter((id) => !isCleared(st, id)).map(name);
+  if (o.needsAny && !o.needsAny.some((id) => isCleared(st, id))) parts.push(o.needsAny.map(name).join(' или '));
+  return parts.join(', ');
+}
+
+/** Башни людей в бою похода: Стрелок и всё, чему учили пройденные бои и этот бой (`teach`) */
+export function allowedTowers(st: WorldState, region: RegionDef, battle: WorldObj | null): string[] {
+  const out = new Set(['archer']);
+  for (const o of region.objects) if (o.teach && (isCleared(st, o.id) || o.id === battle?.id)) o.teach.forEach((t) => out.add(t));
+  return [...out];
+}
+
 /**
  * Кратчайший путь героя до гекса (без самого старта). Сквозь враждебные объекты путь не идёт —
  * только в них самих последним шагом. Неоткрытые туманом гексы считаются травой: что там, герой узнает, дойдя.
@@ -462,7 +497,7 @@ export function findPath(st: WorldState, region: RegionDef, to: { x: number; y: 
     const cy = Math.floor(cur.k / w);
     if (cur.k !== key(st.hero.x, st.hero.y)) {
       const o = objectAt(st, region, cx, cy);
-      if (o && isHostile(st, o)) continue; // сквозь врага не пройти
+      if (o && (isHostile(st, o) || isLocked(st, o))) continue; // сквозь врага и закрытое не пройти
     }
     for (const n of hexNeighbours(cx, cy)) {
       const c = cost(n.x, n.y);
@@ -506,7 +541,8 @@ export type Arrival =
   | { kind: 'battle'; obj: WorldObj; from: { x: number; y: number } }
   | { kind: 'loot'; obj: WorldObj; got: Partial<Resources> }
   | { kind: 'captured'; obj: WorldObj }
-  | { kind: 'visit'; obj: WorldObj };
+  | { kind: 'visit'; obj: WorldObj }
+  | { kind: 'locked'; obj: WorldObj };
 
 /**
  * Один шаг героя по пути. Возвращает null, если не хватает очков хода. Шаг во враждебный гекс тратит ход,
@@ -516,6 +552,7 @@ export function stepHero(st: WorldState, region: RegionDef, to: { x: number; y: 
   const c = stepCost(region, to);
   if (st.moves < c) return null;
   const o = objectAt(st, region, to.x, to.y);
+  if (o && isLocked(st, o)) return { kind: 'locked', obj: o };
   st.moves -= c;
   if (o && isHostile(st, o)) return { kind: 'battle', obj: o, from: { ...st.hero } };
   st.hero = { ...to };
@@ -613,7 +650,14 @@ export function normalizeWorld(v: unknown): WorldState | null {
     xp: Math.max(0, Math.floor(num(o.xp))),
     items: [],
     equip: {},
+    scenes: Array.isArray(o.scenes) ? o.scenes.filter((x): x is string => typeof x === 'string') : [],
   };
+  // Сохранение до диалогов: пролог уже позади
+  if (!Array.isArray(o.scenes) && (st.done.length || st.day > 1)) {
+    // …и сцены уже пройденного не догоняют игрока все разом
+    const old = ['start', ...region.objects.filter((ob) => isCleared(st, ob.id)).flatMap((ob) => [`before:${ob.id}`, `after:${ob.id}`, `loot:${ob.id}`])];
+    st.scenes = [...new Set(old.map((t) => SCENE_AT[t]).filter(Boolean))];
+  }
   const items = Array.isArray(o.items) ? o.items.filter((id, i, a) => HERO_ITEMS.some((d) => d.id === id) && a.indexOf(id) === i) : ['sword'];
   st.items = items;
   for (const [slot, id] of Object.entries(o.equip ?? (Array.isArray(o.items) ? {} : { weapon: 'sword' }))) {

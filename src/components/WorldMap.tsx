@@ -35,7 +35,12 @@ import {
   heroLevel,
   HERO_ITEMS,
   battleXp,
+  isLocked,
+  isCleared,
+  lockText,
 } from '../campaign/world';
+import { Scene, sceneFor } from '../campaign/dialogs';
+import { DialogBox } from './DialogBox';
 import { bakeTerrain, drawLive, loadExtras, hexAt, wx, wy, worldW, worldH, HW, P } from '../campaign/worldRender';
 import { sprites } from '../game/sprites';
 import { loadTileset, Tileset, TILESETS } from '../game/tiles';
@@ -58,7 +63,7 @@ type Cam = { zoom: number; x: number; y: number }; // экран = мир × zoo
 const MAX_ZOOM = 2.2;
 const CAM_KEY = 'dark_frontier_world_zoom';
 
-const copyWorld = (w: WorldState): WorldState => ({ ...w, hero: { ...w.hero }, res: { ...w.res }, done: [...w.done], owned: [...w.owned], seen: [...w.seen], camp: { ...w.camp }, items: [...w.items], equip: { ...w.equip } });
+const copyWorld = (w: WorldState): WorldState => ({ ...w, hero: { ...w.hero }, res: { ...w.res }, done: [...w.done], owned: [...w.owned], seen: [...w.seen], camp: { ...w.camp }, items: [...w.items], equip: { ...w.equip }, scenes: [...w.scenes] });
 
 export function WorldMap({ world, region, onChange, onBattle, onExit, onReset }: WorldMapProps) {
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -75,6 +80,7 @@ export function WorldMap({ world, region, onChange, onBattle, onExit, onReset }:
   const [savesOpen, setSavesOpen] = useState(false);
   const [campOpen, setCampOpen] = useState(false);
   const [heroOpen, setHeroOpen] = useState(false);
+  const [dialog, setDialog] = useState<{ scene: Scene; then?: () => void } | null>(null);
   const [slots, setSlots] = useState<(WorldSlot | null)[]>(() => loadSlots());
   const stRef = useRef(world);
   stRef.current = world;
@@ -203,6 +209,36 @@ export function WorldMap({ world, region, onChange, onBattle, onExit, onReset }:
     if (sx < m || sy < m || sx > size.w - m || sy > size.h - m) centerOn(p);
   };
 
+  // ---------------------------------------------------------------- диалоги (глава 1 — обучение)
+  /** Сцена повода, если её ещё не было, потом `then` */
+  const play = (trigger: string, then?: () => void) => {
+    const sc = sceneFor(trigger, stRef.current.scenes);
+    if (sc) setDialog({ scene: sc, then });
+    else then?.();
+  };
+  const closeDialog = () => {
+    const d = dialog;
+    if (!d) return;
+    const st = copyWorld(stRef.current);
+    if (!st.scenes.includes(d.scene.id)) st.scenes.push(d.scene.id);
+    stRef.current = st;
+    onChange(st);
+    setDialog(null);
+    d.then?.();
+  };
+  // Пролог и сцены после побед (бой идёт в App, сюда возвращаемся уже с наградой)
+  useEffect(() => {
+    if (dialog || notice || walking || campOpen || heroOpen || savesOpen) return;
+    const triggers = ['start', ...region.objects.filter((o) => isCleared(world, o.id)).map((o) => `after:${o.id}`)];
+    for (const t of triggers) {
+      const sc = sceneFor(t, world.scenes);
+      if (sc) {
+        setDialog({ scene: sc });
+        return;
+      }
+    }
+  }, [world, region, dialog, notice, walking, campOpen, heroOpen, savesOpen]);
+
   // ---------------------------------------------------------------- ход
   const walk = useCallback(
     (route: P[]) => {
@@ -231,19 +267,27 @@ export function WorldMap({ world, region, onChange, onBattle, onExit, onReset }:
           i = 0;
           p = steps[i++];
         }
-        // Перед боем — вопрос; ход тратится, только если игрок согласится
+        // Тропа обучения: объект ещё закрыт
         const o = objectAt(st, region, p.x, p.y);
+        if (o && isLocked(st, o)) {
+          stop();
+          setNotice({ title: o.name, text: `Эхо: «Рано, капитан. Сначала — ${lockText(st, region, o)}».` });
+          return;
+        }
+        // Перед боем — сцена и вопрос; ход тратится, только если игрок согласится
         if (o && isHostile(st, o)) {
           stop();
           if (st.moves < stepCost(region, p)) {
             setNotice({ title: 'Ходы кончились', text: 'До врага не хватает очков хода. Завершите день.' });
             return;
           }
-          setNotice({
-            title: o.name,
-            text: `${o.text ? o.text + '\n\n' : ''}${battleText(o)}${o.reward ? `\nНаграда: ${resText(o.reward)}` : ''}${itemLine(o.item)}${o.income ? `\nДоход промысла: ${resText(o.income)} в день` : ''}`,
-            battle: o,
-          });
+          play(`before:${o.id}`, () =>
+            setNotice({
+              title: o.name,
+              text: `${o.text ? o.text + '\n\n' : ''}${battleText(o)}${o.reward ? `\nНаграда: ${resText(o.reward)}` : ''}${itemLine(o.item)}${o.income ? `\nДоход промысла: ${resText(o.income)} в день` : ''}`,
+              battle: o,
+            })
+          );
           return;
         }
         const res: Arrival | null = stepHero(st, region, p);
@@ -257,7 +301,8 @@ export function WorldMap({ world, region, onChange, onBattle, onExit, onReset }:
         follow(p);
         if (res.kind === 'loot') {
           sound.playBuy();
-          setNotice({ title: res.obj.name, text: `${res.obj.text ? res.obj.text + '\n\n' : ''}Найдено: ${resText(res.got)}${itemLine(res.obj.item)}` });
+          const n = { title: res.obj.name, text: `${res.obj.text ? res.obj.text + '\n\n' : ''}Найдено: ${resText(res.got)}${itemLine(res.obj.item)}` };
+          play(`loot:${res.obj.id}`, () => setNotice(n));
           return stop();
         }
         if (res.kind === 'captured') {
@@ -266,7 +311,8 @@ export function WorldMap({ world, region, onChange, onBattle, onExit, onReset }:
           return stop();
         }
         if (res.kind === 'visit' && res.obj.kind === 'camp' && i === steps.length) {
-          setCampOpen(true);
+          if (st.owned.includes('quarry')) play('camp', () => setCampOpen(true));
+          else setCampOpen(true);
           return stop();
         }
         setTimeout(next, 140);
@@ -278,7 +324,7 @@ export function WorldMap({ world, region, onChange, onBattle, onExit, onReset }:
   );
 
   const tapAt = (sx: number, sy: number) => {
-    if (walking || notice) return;
+    if (walking || notice || dialog) return;
     const c = cam.current;
     const h = hexAt(region, (sx - c.x) / c.zoom, (sy - c.y) / c.zoom);
     if (!h) return;
@@ -286,6 +332,13 @@ export function WorldMap({ world, region, onChange, onBattle, onExit, onReset }:
     if (h.x === world.hero.x && h.y === world.hero.y) {
       setSelected((s) => !s);
       setTarget(null);
+      return;
+    }
+    // Закрытый тропой обучения объект: сразу сказать, что раньше, а не вести к нему героя
+    const lo = isSeen(world, region, h.x, h.y) ? objectAt(world, region, h.x, h.y) : null;
+    if (selected && lo && isLocked(world, lo)) {
+      setTarget(null);
+      setNotice({ title: lo.name, text: `Эхо: «Рано, капитан. Сначала — ${lockText(world, region, lo)}».` });
       return;
     }
     if (selected && target && target.x === h.x && target.y === h.y && path) {
@@ -601,6 +654,8 @@ export function WorldMap({ world, region, onChange, onBattle, onExit, onReset }:
             </div>
           </div>
         )}
+
+        {dialog && <DialogBox scene={dialog.scene} onDone={closeDialog} />}
 
         {confirmReset && (
           <div className="absolute inset-0 bg-black/60 flex items-center justify-center p-4 z-10">

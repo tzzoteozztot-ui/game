@@ -3,7 +3,7 @@
  * украшения) и живой слой (объекты, герой, путь, сетка, туман). Пробный вид «как карта в Героях»:
  * всё из того, что уже есть — тайлы и декор биомов, спрайты; деревья, горы и постройки — кодом.
  */
-import { RegionDef, WorldState, WorldObj, WorldProp, bigPropHexes, terrainAt, regionW, regionH, hexNeighbours, isSeen, objectAt, stepCost, RES_ICONS, ResKey, TERRAIN_COST } from './world';
+import { RegionDef, WorldState, WorldObj, WorldProp, bigPropHexes, terrainAt, regionW, regionH, hexNeighbours, isSeen, objectAt, isLocked, stepCost, RES_ICONS, ResKey, TERRAIN_COST } from './world';
 import { sprites, drawSprite } from '../game/sprites';
 import type { Tileset } from '../game/tiles';
 
@@ -1021,6 +1021,16 @@ export function drawLive(
           ctx.fillRect(bx, by, bw, HW * 0.26);
           ctx.fillStyle = '#ffb4a0';
           ctx.fillText(label, bx + bw / 2, by + HW * 0.2);
+        }
+        // Тропа обучения: закрытый объект — замок над ним
+        if (isLocked(st, o)) {
+          ctx.fillStyle = 'rgba(10,10,16,0.8)';
+          ctx.beginPath();
+          ctx.arc(px - HW * 0.3, py - HH * 0.35, HW * 0.16, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.font = `${HW * 0.18}px sans-serif`;
+          ctx.textAlign = 'center';
+          ctx.fillText('🔒', px - HW * 0.3, py - HH * 0.35 + HW * 0.065);
         }
       },
     });

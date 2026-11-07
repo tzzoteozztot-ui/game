@@ -43,7 +43,9 @@ import { LevelBriefing } from './components/LevelBriefing';
 import { PauseModal, VictoryModal, DefeatModal, HowToPlayModal, DuelResultModal, BrawlResultModal, DuelOutcome } from './components/StatusModals';
 import { OrientationWarning } from './components/OrientationWarning';
 import { WorldMap, WorldBattleResult } from './components/WorldMap';
-import { WorldState, WorldObj, REGIONS, FRONTIER, newWorld, loadWorld, saveWorld, winBattle, battleSeed, battlePerks, heroLevel } from './campaign/world';
+import { WorldState, WorldObj, REGIONS, FRONTIER, newWorld, loadWorld, saveWorld, winBattle, battleSeed, battlePerks, heroLevel, allowedTowers } from './campaign/world';
+import { Scene, sceneFor } from './campaign/dialogs';
+import { DialogBox } from './components/DialogBox';
 import { HERO_ABILITIES } from './game/config';
 import { fullscreenSupported, toggleFullscreen } from './fullscreen';
 import { AccountModal, SyncState } from './components/AccountModal';
@@ -141,6 +143,9 @@ export default function App() {
     setWorldState(st);
     saveWorld(st);
   };
+  // Поход, глава 1 — обучение: башни, открытые тропой (`allowedTowers`), и сцена диалога посреди боя (Каллен в крепости)
+  const worldTowersRef = useRef<string[] | null>(null);
+  const [battleScene, setBattleScene] = useState<Scene | null>(null);
   const endless = mode === 'endless';
   // Endless mode: enemies are picked apart from the map (Артур, 2026-10-31); 0 — the map's own faction
   const [endlessEnemies, setEndlessEnemies] = useState<number>(0);
@@ -291,7 +296,8 @@ export default function App() {
   const generateShopCards = useCallback((currentTier: number): (ShopCard | null)[] => {
     // The player's faction: its own towers (some only from a higher tier), binders and ★ cards where it has them
     const raceDef = CONFIG.races[engineRef.current?.race ?? 'humans'];
-    const towerTypes: TowerType[] = raceDef.towers.filter((t) => (CONFIG.towers[t].minTier ?? 1) <= currentTier);
+    const allowed = worldTowersRef.current;
+    const towerTypes: TowerType[] = raceDef.towers.filter((t) => (CONFIG.towers[t].minTier ?? 1) <= currentTier && (!allowed || allowed.includes(t)));
     return rollShop(currentTier, towerTypes, { triplets: !!raceDef.triplets, binders: !!raceDef.binders }, shopPityRef.current).map((c) => ({
       id: Math.random().toString(36).substring(2, 9),
       ...c,
@@ -669,10 +675,30 @@ export default function App() {
     eng.setHeroSkills(HERO_ABILITIES.filter((d) => d.unlock <= heroLevel(world)).map((d) => d.id));
   };
 
+  // Поход: бой с армией, где вкладка «Армия» открывается по сюжету (крепость: на волне `armyAt` врывается Каллен)
+  const armyLocked = !!worldBattle?.armyAt && gameState.wave < worldBattle.armyAt;
+  useEffect(() => {
+    if (armyLocked && sideTab === 'army') setSideTab('towers');
+  }, [armyLocked, sideTab]);
+  // Сцены посреди боя похода: `wave:<объект>:<N>`; бой с армией не встаёт на паузу, плашка просто поверх поля
+  useEffect(() => {
+    if (!worldBattle || !world || screen !== 'playing') return;
+    const sc = sceneFor(`wave:${worldBattle.id}:${gameState.wave}`, world.scenes);
+    if (sc && battleScene?.id !== sc.id) setBattleScene(sc);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [worldBattle, gameState.wave, screen]);
+  const closeBattleScene = () => {
+    if (battleScene && world && !world.scenes.includes(battleScene.id)) setWorld({ ...world, scenes: [...world.scenes, battleScene.id] });
+    setBattleScene(null);
+  };
+
   // Поход: бой отряда или крепости на обычном поле — первые N волн уровня биома
   const startWorldBattle = (obj: WorldObj) => {
     sound.init();
     setWorldBattle(obj);
+    setBattleScene(null);
+    setSideTab('towers');
+    if (world) worldTowersRef.current = allowedTowers(world, REGIONS[world.region] ?? FRONTIER, obj);
     setSpecModalTower(null);
     if (obj.army) {
       // Бой с армией (просьба Артура 2026-11-06): как дуэль с ботом — волны идут без конца, пока не падёт артефакт вражеского лагеря
@@ -706,13 +732,15 @@ export default function App() {
     }
     setSpecModalTower(null);
     setWorldBattle(null);
+    setBattleScene(null);
+    worldTowersRef.current = null;
     if (obj?.army) {
       closeDuel();
       setDuelOutcome(null);
       setOpponent(null);
     }
     if (won && obj && world) {
-      const st = { ...world, res: { ...world.res }, done: [...world.done], owned: [...world.owned], seen: [...world.seen] };
+      const st = { ...world, res: { ...world.res }, done: [...world.done], owned: [...world.owned], seen: [...world.seen], scenes: [...world.scenes] };
       winBattle(st, REGIONS[st.region] ?? FRONTIER, obj.id);
       setWorld(st);
     }
@@ -1596,6 +1624,8 @@ export default function App() {
                       type="button"
                       role="tab"
                       aria-selected={sideTab === tab}
+                      disabled={tab === 'army' && armyLocked}
+                      title={tab === 'army' && armyLocked ? 'Армия откроется по ходу боя' : undefined}
                       onClick={() => setSideTab(tab)}
                       className={`h-[var(--h-line)] min-h-[24px] rounded text-[length:var(--fs-sm)] font-bold transition-colors cursor-pointer ${
                         sideTab === tab
@@ -1603,7 +1633,7 @@ export default function App() {
                           : 'bg-[#221f2d] hover:bg-[#2c283a] text-stone-300 border border-[#383347]'
                       }`}
                     >
-                      {tab === 'towers' ? 'Башни' : `Армия${gameState.duelOutgoingCost > 0 ? ' •' : ''}`}
+                      {tab === 'towers' ? 'Башни' : armyLocked ? '🔒 Армия' : `Армия${gameState.duelOutgoingCost > 0 ? ' •' : ''}`}
                     </button>
                   ))}
                 </div>
@@ -1784,6 +1814,7 @@ export default function App() {
           onReset={() => setWorld(newWorld())}
         />
       )}
+      {screen === 'playing' && worldBattle && battleScene && !(gameState.isVictory || gameState.isGameOver) && <DialogBox scene={battleScene} onDone={closeBattleScene} />}
       {screen === 'playing' && worldBattle && (gameState.isVictory || gameState.isGameOver) && (
         <WorldBattleResult
           obj={worldBattle}
