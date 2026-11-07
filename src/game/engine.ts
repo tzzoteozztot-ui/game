@@ -378,7 +378,7 @@ export interface GameStateSnapshot {
   supplyMult: number; // price multiplier of buying towers and binders, 1 outside endless mode
   supplyActive: boolean;
   sellRatio: number;
-  backpack: { kind: 'tower' | 'binder'; type: TowerType | null; triplet: boolean; startLevel: number; sell: number }[];
+  backpack: { kind: 'tower' | 'binder'; type: TowerType | null; triplet: boolean; startLevel: number; sell: number; count: number; canMerge: boolean }[]; // одна запись — одна ячейка (стопка одинаковых башен)
   backpackSlots: number;
   faction: number; // whose enemies come (boss picture)
   nextWaveFaction: number; // whose enemies the coming wave brings (in a brawl, the current opponent's)
@@ -3529,7 +3529,7 @@ export class GameEngine {
     this.spawnRing(centerX({ x: cellX, y: cellY }), centerY({ x: cellX, y: cellY }), '#d9b44a');
 
     // Reset placement
-    if (this.placingSlot !== null) this.backpack.splice(this.placingSlot, 1);
+    if (this.placingSlot !== null) this.backpack.splice(this.stackItem(this.placingSlot), 1);
     this.clearPlacing();
     this.selectedTowerId = newTower.id;
     // Орки: the new tower picks its tempering
@@ -3592,7 +3592,62 @@ export class GameEngine {
 
   // A purchase made with a full backpack waits as one extra item: it must be placed or swapped with a slot
   public overflowPending(): boolean {
-    return this.backpack.length > CONFIG.backpack.slots;
+    return this.backpackStacks().length > CONFIG.backpack.slots;
+  }
+
+  /**
+   * Ячейки рюкзака (просьба Артура 2026-11-07): одинаковые башни одного уровня и свойства лежат стопкой до `mergeNeed()` штук
+   * (люди 3), связки — по одной. Хранится плоский список, ячейки считаются по порядку первого появления; значения — индексы в `backpack`.
+   */
+  private backpackStacks(): number[][] {
+    const cap = this.mergeNeed();
+    const stacks: number[][] = [];
+    const open = new Map<string, number[]>();
+    this.backpack.forEach((it, i) => {
+      const key = it.kind === 'binder' ? `b${it.id}` : `${it.type}|${it.startLevel}|${it.spec ?? ''}`;
+      let st = open.get(key);
+      if (!st || st.length >= cap) {
+        st = [];
+        open.set(key, st);
+        stacks.push(st);
+      }
+      st.push(i);
+    });
+    return stacks;
+  }
+
+  /** Индекс в `backpack` той башни ячейки, что берётся в руку, продаётся или ставится (последняя из стопки) */
+  private stackItem(slot: number): number {
+    const st = this.backpackStacks()[slot];
+    return st ? st[st.length - 1] : -1;
+  }
+
+  private stackSlotOf(itemIndex: number): number {
+    return this.backpackStacks().findIndex((st) => st.includes(itemIndex));
+  }
+
+  /** Стопка из `mergeNeed()` одинаковых башен, которую можно собрать в башню следующего уровня */
+  private canMergeStack(st: number[]): boolean {
+    const first = this.backpack[st[0]];
+    return first.kind === 'tower' && st.length >= this.mergeNeed() && first.startLevel < this.maxLevel();
+  }
+
+  /** Собрать полную стопку в рюкзаке в одну башню следующего уровня: правила и цена слияния те же, что на поле (уплаченное складывается) */
+  public mergeBackpack(slot: number): boolean {
+    if (this.overflowPending()) return false;
+    const st = this.backpackStacks()[slot];
+    if (!st || !this.canMergeStack(st)) return false;
+    const first = this.backpack[st[0]];
+    const paid = st.reduce((sum, i) => sum + this.backpack[i].paid, 0);
+    const level = first.startLevel + 1;
+    const gone = new Set(st);
+    this.backpack = this.backpack.filter((_, i) => !gone.has(i));
+    this.backpack.push({ id: Math.random().toString(36).substring(2, 9), kind: 'tower', type: first.type, triplet: true, startLevel: level, spec: first.spec, paid });
+    this.logEv('backpack-merge', { type: first.type, from: first.startLevel, to: level, spec: first.spec, paid });
+    sound.playMerge();
+    this.clearPlacing();
+    this.notifyState();
+    return true;
   }
 
   // Pays at once and puts the purchase into the backpack, ready to be placed
@@ -3612,19 +3667,21 @@ export class GameEngine {
     this.backpack.push({ id: Math.random().toString(36).substring(2, 9), kind, type, triplet: startLevel >= 2, startLevel, spec, paid: price });
     this.logEv('buy', { kind, type, triplet: startLevel >= 2, startLevel, spec, paid: price });
     sound.playBuy();
-    this.takeInHand(this.backpack.length - 1);
+    this.takeInHand(this.stackSlotOf(this.backpack.length - 1));
     return true;
   }
 
   // Takes the item in hand for placing; the same slot again puts it back
   public selectBackpack(slot: number) {
-    const item = this.backpack[slot];
-    if (!item) return;
+    const stacks = this.backpackStacks();
+    const st = stacks[slot];
+    if (!st) return;
     if (this.overflowPending()) {
-      // The bought item has no room: a tap on a slot sells what lies there (all paid back) and takes its place
+      // The bought item has no room: a tap on a slot sells what lies there (all paid back, the whole stack) and takes its place
       if (slot >= CONFIG.backpack.slots) return;
-      this.gold += item.paid;
-      this.backpack[slot] = this.backpack.pop()!;
+      const gone = new Set(st);
+      for (const i of st) this.gold += this.backpack[i].paid;
+      this.backpack = this.backpack.filter((_, i) => !gone.has(i));
       this.clearPlacing();
       sound.playBuy();
       this.notifyState();
@@ -3638,7 +3695,7 @@ export class GameEngine {
   }
 
   private takeInHand(slot: number) {
-    const item = this.backpack[slot];
+    const item = this.backpack[this.stackItem(slot)];
     if (!item) return;
     this.selectedTowerId = null;
     this.selectedBinderId = null;
@@ -3659,10 +3716,11 @@ export class GameEngine {
 
   // Returns what was paid
   public sellBackpack(slot: number): boolean {
-    const item = this.backpack[slot];
+    const idx = this.stackItem(slot);
+    const item = this.backpack[idx];
     if (!item || this.overflowPending()) return false;
     this.gold += item.paid;
-    this.backpack.splice(slot, 1);
+    this.backpack.splice(idx, 1);
     this.clearPlacing();
     sound.playBuy();
     this.notifyState();
@@ -3800,7 +3858,7 @@ export class GameEngine {
     this.logEv('binder', { x: cellX, y: cellY, paid: price });
     sound.playBuy();
     this.spawnRing(centerX({ x: cellX, y: cellY }), centerY({ x: cellX, y: cellY }), CONFIG.binder.color);
-    if (this.placingSlot !== null) this.backpack.splice(this.placingSlot, 1);
+    if (this.placingSlot !== null) this.backpack.splice(this.stackItem(this.placingSlot), 1);
     this.clearPlacing();
     this.selectedBinderId = binder.id;
     this.notifyState();
@@ -4557,7 +4615,10 @@ export class GameEngine {
       supplyMult: this.supplyMult(),
       supplyActive: this.supplyActive(),
       sellRatio: this.sellRatio(),
-      backpack: this.backpack.map((i) => ({ kind: i.kind, type: i.type, triplet: i.triplet, startLevel: i.startLevel, sell: i.paid })),
+      backpack: this.backpackStacks().map((st) => {
+        const top = this.backpack[st[st.length - 1]];
+        return { kind: top.kind, type: top.type, triplet: top.triplet, startLevel: top.startLevel, sell: top.paid, count: st.length, canMerge: this.canMergeStack(st) };
+      }),
       backpackSlots: CONFIG.backpack.slots,
       faction: this.faction,
       nextWaveFaction: this.factionOfWave(this.wavesLaunched + 1),
