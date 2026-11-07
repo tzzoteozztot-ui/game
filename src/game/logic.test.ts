@@ -931,12 +931,12 @@ test('world: chapters 2–5 — each region builds, is mostly wild and its trail
     st.seen = r.terrain.flatMap((row, y) => [...row].map((_, x) => y * row.length + x));
     const order: string[] = [];
     for (let g = 0; g < 100 && order.length < r.objects.length - 1; g++) {
-      const next = r.objects.find((o) => o.kind !== 'camp' && !W.isCleared(st, o.id) && !W.isLocked(st, o) && W.findPath(st, r, o));
+      const next = r.objects.find((o) => o.kind !== 'camp' && !W.isCleared(st, o.id) && !W.isHidden(st, o) && !W.isLocked(st, o) && W.findPath(st, r, o));
       assert.ok(next, `${id}: stuck after ${order.join(', ')}`);
       order.push(next.id);
       if (W.isHostile(st, next)) W.winBattle(st, r, next.id);
       else if (next.kind === 'event') {
-        assert.ok(W.chooseEvent(st, r, next.id, 0));
+        assert.ok(W.chooseEvent(st, r, next.id, next.id === 'ash_forkA' ? 1 : 0)); // Корх: обмен и сопровождение — открывает бой сопровождения
         st.hero = { x: next.x, y: next.y };
       } else {
         st.done.push(next.id);
@@ -957,6 +957,32 @@ test('world: chapters 2–5 — each region builds, is mostly wild and its trail
   assert.deepEqual(st.done, []);
   assert.equal(st.camp.sharp, 2);
   assert.equal(st.xp, 99);
+});
+
+test('world: chapter 3 and 4 encounters follow the script — Korh, Bo-Rok, Kallen leads the enslaved', () => {
+  const ash = W.REGIONS.ash;
+  const korh = ash.objects.find((o) => o.id === 'ash_forkA')!;
+  assert.deepEqual(korh.choices!.map((c) => c.label), ['Обменяться разведданными', 'Обменяться и сопроводить отряд', 'Отказаться от сделки']);
+  assert.equal(ash.objects.find((o) => o.id === 'ash_forkB')!.choices!.length, 1, 'Bo-Rok: acquaintance only');
+  const escort = ash.objects.find((o) => o.id === 'ash_escort')!;
+  assert.equal(escort.waves, 6);
+  assert.deepEqual(escort.reward, { gold: 120, crystal: 2 });
+  const fort = ash.objects.find((o) => o.kind === 'fortress')!;
+  for (const pick of [0, 1, 2]) {
+    const st = W.newWorld(ash);
+    assert.ok(W.isHidden(st, escort));
+    assert.equal(W.objectAt(st, ash, escort.x, escort.y), null, 'no escort before the choice');
+    assert.ok(!W.isSeen(st, ash, fort.x, fort.y));
+    W.chooseEvent(st, ash, korh.id, pick);
+    assert.equal(W.isHidden(st, escort), pick !== 1, `choice ${pick}: escort shows only after «сопроводить»`);
+    assert.equal(W.isSeen(st, ash, fort.x, fort.y), pick !== 2, `choice ${pick}: the scouting report clears the fog over the Gates`);
+    assert.ok(!st.flags.includes('korh-fight'));
+  }
+  const raid = W.REGIONS.ice.objects.find((o) => o.id === 'ice_event3')!;
+  assert.equal(raid.kind, 'squad');
+  assert.equal(raid.waves, 8);
+  assert.equal(raid.faction, 6, 'enslaved expedition soldiers are humans');
+  assert.ok(raid.bossLast, 'Kallen leads the last wave');
 });
 
 test('dialogs: every chapter scene points at a real object, and conditional lines follow the choice flags', () => {

@@ -679,7 +679,7 @@ export default function App() {
       if (canvasRef.current && engineRef.current) {
         engineRef.current.setCanvas(canvasRef.current);
         const region = REGIONS[world?.region ?? 'frontier'] ?? FRONTIER;
-        engineRef.current.startWorldBattle(region.level, obj.waves ?? 3, battleSeed(obj));
+        engineRef.current.startWorldBattle(region.level, obj.waves ?? 3, battleSeed(obj), 'normal', { faction: obj.faction, bossLast: obj.bossLast });
         heroIntoBattle(engineRef.current, obj);
         setShopCards(generateShopCards(1));
       }
@@ -729,7 +729,7 @@ export default function App() {
     }
     if (worldBattle) {
       if (canvasRef.current) engine.setCanvas(canvasRef.current);
-      engine.startWorldBattle((REGIONS[world?.region ?? 'frontier'] ?? FRONTIER).level, worldBattle.waves ?? 3, battleSeed(worldBattle));
+      engine.startWorldBattle((REGIONS[world?.region ?? 'frontier'] ?? FRONTIER).level, worldBattle.waves ?? 3, battleSeed(worldBattle), 'normal', { faction: worldBattle.faction, bossLast: worldBattle.bossLast });
       heroIntoBattle(engine, worldBattle);
       return;
     }

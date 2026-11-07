@@ -491,6 +491,8 @@ export class GameEngine {
   public wavesLaunched: number = 0; // how many of the 12 waves have been started
   /** Поход по глобальной карте: стычка из первых N волн уровня вместо 12 (null — обычный бой) */
   public waveLimit: number | null = null;
+  /** Поход: босс выходит в последней волне боя, даже если она не 12-я (`WorldObj.bossLast`) */
+  private worldBossLast = false;
 
   /** Последняя волна обычного боя: 12, в стычке похода — её N */
   private lastWave(): number {
@@ -705,6 +707,7 @@ export class GameEngine {
     this.endless = endless;
     this.sandbox = false;
     this.waveLimit = null;
+    this.worldBossLast = false;
     this.duelStart = null;
     this.resetView();
     this.duelOutgoing = {};
@@ -775,9 +778,12 @@ export class GameEngine {
    * Бой похода по глобальной карте (просьба Артура 2026-11-06): уровень биома, первые `waves` волн,
    * своя дорога из генератора по зерну отряда (крепость — готовая карта уровня, `seed` = null).
    */
-  public startWorldBattle(level: number, waves: number, seed: number | null, diff: Difficulty = 'normal') {
+  public startWorldBattle(level: number, waves: number, seed: number | null, diff: Difficulty = 'normal', opts: { faction?: number; bossLast?: boolean } = {}) {
     this.startLevel(level, diff, false, undefined, 'humans', null, seed ? generateMap(level, seed) : null);
     this.waveLimit = Math.max(1, Math.min(CONFIG.waves.length, Math.floor(waves)));
+    // Поход: чужие враги на биоме карты (порабощённые солдаты экспедиции в главе 3 — люди) и босс последней волны боя (Каллен)
+    if (opts.faction && opts.faction >= 1 && opts.faction <= CONFIG.factions.length) this.faction = Math.floor(opts.faction);
+    this.worldBossLast = !!opts.bossLast;
     if (this.runLog) this.runLog.data.mode = 'world';
     this.notifyState();
   }
@@ -1563,7 +1569,7 @@ export class GameEngine {
     }
 
     // Boss always last
-    const hasBoss = !!waveDef.boss;
+    const hasBoss = !!waveDef.boss || this.bossInWave(this.wave);
 
     // Assign entrances in round-robin
     const entrancesCount = this.currentMap.entrances.length;
@@ -1597,6 +1603,11 @@ export class GameEngine {
     return true;
   }
 
+  /** Поход: босс в последней волне боя, где волн меньше 12 (`startWorldBattle(..., { bossLast })`) */
+  private bossInWave(wave: number): boolean {
+    return this.worldBossLast && this.waveLimit !== null && wave === this.waveLimit && !waveDefinition(wave).boss;
+  }
+
   // What the coming wave brings (the numbers startNextWave will queue), shown while the timer runs
   /** Whose enemies wave N brings: in a brawl the opponent's, elsewhere `faction` */
   private factionOfWave(wave: number): number {
@@ -1622,7 +1633,7 @@ export class GameEngine {
     add('flyer', count(def.flyer));
     add('shaman', count(def.shaman));
     add('swarm', count(def.swarm) * CONFIG.swarmGroupCount);
-    if (def.boss) add('boss', 1);
+    if (def.boss || this.bossInWave(number)) add('boss', 1);
     return out;
   }
 

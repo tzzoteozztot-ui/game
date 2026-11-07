@@ -30,7 +30,11 @@ export interface EventChoice {
   text: string;
   reward?: Partial<Resources>;
   flag?: string;
+  /** Ещё отметки сразу (Корх: обмен и сопровождение) */
+  flags?: string[];
   item?: string; // предмет героя (HERO_ITEMS)
+  /** Разведданные: туман рассеивается в этом радиусе вокруг крепости и её стражи */
+  scout?: number;
 }
 
 /** Украшения карты без действия: мельница, руины, могилы, костры… (только отрисовка) */
@@ -72,6 +76,12 @@ export interface WorldObj {
   weakenedBy?: string;
   /** Событие: выборы (глава 2+, сценарий Лороведа) */
   choices?: EventChoice[];
+  /** Объект есть на карте, только если сделан выбор с этой отметкой (сопровождение Корха) */
+  needsFlag?: string;
+  /** Бой: враги этой фракции вместо хозяев карты (6 — порабощённые солдаты экспедиции, люди) */
+  faction?: number;
+  /** Бой: в последней волне выходит босс, даже если волн меньше 12 (Каллен в обороне лагеря) */
+  bossLast?: boolean;
 }
 
 export interface RegionDef {
@@ -491,6 +501,15 @@ export function reveal(st: WorldState, region: RegionDef) {
   st.seen = [...seen].sort((a, b) => a - b);
 }
 
+/** Открыть туман вокруг точек (разведданные события) */
+export function revealAround(st: WorldState, region: RegionDef, points: { x: number; y: number }[], radius: number) {
+  const w = regionW(region);
+  const seen = new Set(st.seen);
+  for (let y = 0; y < regionH(region); y++)
+    for (let x = 0; x < w; x++) if (points.some((p) => hexDistance(p, { x, y }) <= radius)) seen.add(y * w + x);
+  st.seen = [...seen].sort((a, b) => a - b);
+}
+
 const seenSets = new WeakMap<number[], Set<number>>();
 export function isSeen(st: WorldState, region: RegionDef, x: number, y: number): boolean {
   let set = seenSets.get(st.seen);
@@ -498,9 +517,12 @@ export function isSeen(st: WorldState, region: RegionDef, x: number, y: number):
   return set.has(y * regionW(region) + x);
 }
 
+/** Объект ещё не появился: нужен выбор с отметкой `needsFlag` */
+export const isHidden = (st: WorldState, o: WorldObj) => !!o.needsFlag && !st.flags.includes(o.needsFlag);
+
 /** Объект в гексе, который ещё что-то значит (разбитые отряды и пустые сундуки исчезают; промыслы и лагерь остаются) */
 export function objectAt(st: WorldState, region: RegionDef, x: number, y: number): WorldObj | null {
-  const o = region.objects.find((ob) => ob.x === x && ob.y === y);
+  const o = region.objects.find((ob) => ob.x === x && ob.y === y && !isHidden(st, ob));
   if (!o) return null;
   if (st.done.includes(o.id) && (o.kind === 'squad' || o.kind === 'chest' || o.kind === 'fortress' || o.kind === 'event')) return null;
   return o;
@@ -660,8 +682,12 @@ export function chooseEvent(st: WorldState, region: RegionDef, objId: string, i:
   if (!o || !c || st.done.includes(o.id)) return null;
   st.done.push(o.id);
   addRes(st, c.reward);
-  if (c.flag && !st.flags.includes(c.flag)) st.flags.push(c.flag);
+  for (const f of [c.flag, ...(c.flags ?? [])]) if (f && !st.flags.includes(f)) st.flags.push(f);
   giveItem(st, c.item);
+  if (c.scout) {
+    const f = region.objects.find((ob) => ob.kind === 'fortress');
+    if (f) revealAround(st, region, [f, ...region.objects.filter((ob) => f.needs?.includes(ob.id))], c.scout);
+  }
   return c;
 }
 
