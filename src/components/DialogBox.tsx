@@ -3,7 +3,7 @@
  * свечением кристалла связи. Касание, Пробел или Enter — следующая реплика, «Пропустить» (Esc) — вся сцена.
  */
 import { useEffect, useState } from 'react';
-import { Scene, SPEAKER_COLORS } from '../campaign/dialogs';
+import { Scene, SPEAKER_COLORS, SPEAKER_ROLES } from '../campaign/dialogs';
 
 interface DialogBoxProps {
   scene: Scene;
@@ -47,6 +47,7 @@ export function DialogBox({ scene, onDone }: DialogBoxProps) {
           <span className="font-black tracking-wide text-sm sm:text-base" style={{ color }}>
             {line.who}
           </span>
+          {SPEAKER_ROLES[line.who] && <span className="text-[11px] sm:text-xs text-stone-400">({SPEAKER_ROLES[line.who]})</span>}
           <span className="flex-1" />
           <span className="text-[11px] text-stone-500">
             {i + 1}/{scene.lines.length}
