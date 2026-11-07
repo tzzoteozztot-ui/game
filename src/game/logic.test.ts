@@ -730,6 +730,7 @@ test('гексовое поле (опыт): центр клетки возвра
 // -------------------------------------------------------------
 // Поход по глобальной карте (src/campaign/world.ts)
 // -------------------------------------------------------------
+import * as D from '../campaign/dialogs';
 import * as W from '../campaign/world';
 
 test('world: every object of a region stands on passable ground, ids are unique', () => {
@@ -956,4 +957,23 @@ test('world: chapters 2–5 — each region builds, is mostly wild and its trail
   assert.deepEqual(st.done, []);
   assert.equal(st.camp.sharp, 2);
   assert.equal(st.xp, 99);
+});
+
+test('dialogs: every chapter scene points at a real object, and conditional lines follow the choice flags', () => {
+  const ids = new Set(Object.values(W.REGIONS).flatMap((r) => [r.id, ...r.objects.map((o) => o.id)]));
+  const kinds = ['start', 'camp', 'before', 'after', 'loot', 'event', 'wave'];
+  for (const sc of D.SCENES) {
+    if (!sc.id.includes(':')) continue; // глава 1: id через SCENE_AT
+    const [kind, obj] = sc.id.split(':');
+    assert.ok(kinds.includes(kind), `${sc.id}: known trigger`);
+    assert.ok(ids.has(obj), `${sc.id}: object ${obj} exists`);
+    assert.ok(sc.lines.length > 0, `${sc.id}: has lines`);
+  }
+  for (const id of Object.keys(W.REGIONS)) assert.ok(D.sceneFor(D.startTrigger(id), []), `${id}: opening scene`);
+  // Корх в главе 5 говорит по выбору главы 4
+  const korh = (flags: string[]) => D.sceneFor('event:dusk_forkA', [], flags)!.lines.map((l) => l.text);
+  assert.equal(korh(['korh-trade']).length, 1);
+  assert.match(korh(['korh-trade'])[0], /держу слово/);
+  assert.match(korh(['korh-fight'])[0], /не забыл/);
+  assert.match(korh([])[0], /сам по себе/);
 });

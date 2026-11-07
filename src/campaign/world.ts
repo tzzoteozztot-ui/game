@@ -30,6 +30,7 @@ export interface EventChoice {
   text: string;
   reward?: Partial<Resources>;
   flag?: string;
+  item?: string; // предмет героя (HERO_ITEMS)
 }
 
 /** Украшения карты без действия: мельница, руины, могилы, костры… (только отрисовка) */
@@ -659,7 +660,8 @@ export function chooseEvent(st: WorldState, region: RegionDef, objId: string, i:
   if (!o || !c || st.done.includes(o.id)) return null;
   st.done.push(o.id);
   addRes(st, c.reward);
-  if (c.flag) st.flags.push(c.flag);
+  if (c.flag && !st.flags.includes(c.flag)) st.flags.push(c.flag);
+  giveItem(st, c.item);
   return c;
 }
 
@@ -894,6 +896,8 @@ export const HERO_ITEMS: HeroItem[] = [
   { id: 'idol', slot: 'amulet', name: 'Знак предков', icon: '🪬', text: 'Орочий оберег с Камня предков. Звенит, как узел.', perks: { pierce: 1 } },
   { id: 'shard', slot: 'amulet', name: 'Осколок узла', icon: '💎', text: 'Кусок малого узла. Тёплый на ощупь.', perks: { ward: 1, mire: 1 } },
   { id: 'banner', slot: 'banner', name: 'Знамя экспедиции', icon: '🚩', text: 'Под ним солдаты бьют быстрее.', perks: { haste: 1 } },
+  { id: 'token', slot: 'amulet', name: 'Жетон чужого знамени', icon: '🔰', text: 'Лейтенант Сорн оставил его в болоте. Чужая экспедиция узнает этот знак.', perks: { envoy: 1, loot: 1 } },
+  { id: 'mirror', slot: 'amulet', name: 'Тёмное зеркало', icon: '🪞', text: 'Трофей из Цитадели сумерек. Показывает ту сторону, что не хочется видеть.', perks: { pierce: 1, slayer: 1, sight: 1 } },
   { id: 'warbanner', slot: 'banner', name: 'Трофейное знамя рода', icon: '🏴', text: 'Взято в военном лагере. Орки узнают его издалека.', perks: { loot: 1, envoy: 1 } },
 ];
 
