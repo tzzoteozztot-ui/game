@@ -47,7 +47,9 @@ export function DialogBox({ scene, onDone }: DialogBoxProps) {
           <span className="font-black tracking-wide text-sm sm:text-base" style={{ color }}>
             {line.who}
           </span>
-          {SPEAKER_ROLES[line.who] && <span className="text-[11px] sm:text-xs text-stone-400">({SPEAKER_ROLES[line.who]})</span>}
+          {(line.role ?? SPEAKER_ROLES[line.who]) && (
+            <span className="text-[11px] sm:text-xs text-stone-400">({line.role ?? SPEAKER_ROLES[line.who]})</span>
+          )}
           <span className="flex-1" />
           <span className="text-[11px] text-stone-500">
             {i + 1}/{scene.lines.length}

@@ -5,7 +5,7 @@
  */
 import { RegionDef, WorldState, WorldObj, WorldProp, bigPropHexes, terrainAt, regionW, regionH, hexNeighbours, isSeen, objectAt, isLocked, stepCost, RES_ICONS, ResKey, TERRAIN_COST } from './world';
 import { sprites, drawSprite } from '../game/sprites';
-import type { Tileset } from '../game/tiles';
+import { smallDecor, TILESETS, type Tileset } from '../game/tiles';
 
 export type P = { x: number; y: number };
 
@@ -100,13 +100,42 @@ export function loadExtras(): Promise<Map<string, HTMLImageElement>> {
 }
 
 // -------------------------------------------------------------
+// Биомы глав: вода, берег, деревья и горы (земля и мелкий декор — из тайлов биома, src/game/tiles.ts)
+// -------------------------------------------------------------
+interface Biome {
+  ground: string; // земля, пока тайлы грузятся
+  shore: string;
+  water: [string, string];
+  ripple: string;
+  road: string;
+  hill: string;
+  tree: { hue: number; sat: number; light: number }; // сдвиг цвета хвои и листвы
+  snow: 'top' | 'all' | 'none'; // снег на вершинах гор и елей
+  dead: number; // доля сухих деревьев
+  lava?: boolean;
+  reeds: boolean;
+  rocks: string[]; // камни на холмах
+  bush: string[];
+}
+const BIOMES: Record<number, Biome> = {
+  1: { ground: '#3e5530', shore: '#5b4a33', water: ['#24495a', '#183441'], ripple: 'rgba(170,215,225,0.22)', road: '#7a6243', hill: '120,130,70', tree: { hue: 0, sat: 0, light: 0 }, snow: 'top', dead: 0, reeds: true, rocks: ['rock2', 'rock3', 'rock1'], bush: ['bush1', 'bush2'] },
+  2: { ground: '#34452c', shore: '#3d3a26', water: ['#2f4a33', '#1b3021'], ripple: 'rgba(170,220,160,0.18)', road: '#5a4b36', hill: '85,100,60', tree: { hue: -28, sat: -14, light: -4 }, snow: 'none', dead: 0.35, reeds: true, rocks: ['rock1', 'rock2'], bush: ['bush'] },
+  3: { ground: '#9fb0b8', shore: '#c9d4da', water: ['#a6cad9', '#6f9ab0'], ripple: 'rgba(255,255,255,0.5)', road: '#8a8a8e', hill: '225,232,240', tree: { hue: 40, sat: -18, light: 2 }, snow: 'all', dead: 0.1, reeds: false, rocks: ['rock1', 'rock2'], bush: ['bush'] },
+  4: { ground: '#3a2a22', shore: '#1e1512', water: ['#e3651e', '#8a200c'], ripple: 'rgba(255,225,130,0.55)', road: '#4a3a30', hill: '95,62,45', tree: { hue: -90, sat: -25, light: -6 }, snow: 'none', dead: 0.85, lava: true, reeds: false, rocks: ['rock1', 'rock2'], bush: ['bush'] },
+  5: { ground: '#2e2a3e', shore: '#231d30', water: ['#3e2d64', '#211638'], ripple: 'rgba(200,170,255,0.28)', road: '#4e4660', hill: '95,85,125', tree: { hue: 150, sat: -6, light: -2 }, snow: 'none', dead: 0.15, reeds: true, rocks: ['slab1', 'slab2'], bush: ['bush'] },
+};
+export const biomeOf = (r: RegionDef): Biome => BIOMES[r.level] ?? BIOMES[1];
+let TREE = BIOMES[1].tree;
+let SNOW = false;
+
+// -------------------------------------------------------------
 // Деревья, горы и постройки кодом
 // -------------------------------------------------------------
 function pine(ctx: CanvasRenderingContext2D, x: number, y: number, s: number, tone: number) {
   ctx.fillStyle = '#3a2a1c';
   ctx.fillRect(x - s * 0.06, y - s * 0.18, s * 0.12, s * 0.2);
-  const dark = `hsl(${128 + tone * 14}, ${28 + tone * 10}%, ${13 + tone * 5}%)`;
-  const mid = `hsl(${118 + tone * 14}, ${30 + tone * 8}%, ${20 + tone * 6}%)`;
+  const dark = `hsl(${128 + TREE.hue + tone * 14}, ${Math.max(4, 28 + TREE.sat + tone * 10)}%, ${13 + TREE.light + tone * 5}%)`;
+  const mid = `hsl(${118 + TREE.hue + tone * 14}, ${Math.max(4, 30 + TREE.sat + tone * 8)}%, ${20 + TREE.light + tone * 6}%)`;
   for (let i = 0; i < 3; i++) {
     const by = y - s * (0.12 + i * 0.26);
     const w = s * (0.42 - i * 0.1);
@@ -125,6 +154,15 @@ function pine(ctx: CanvasRenderingContext2D, x: number, y: number, s: number, to
     ctx.lineTo(x - w * 0.1, by);
     ctx.closePath();
     ctx.fill();
+    if (SNOW) {
+      ctx.fillStyle = 'rgba(236,242,248,0.85)';
+      ctx.beginPath();
+      ctx.moveTo(x - w * 0.45, by - h * 0.55);
+      ctx.lineTo(x, by - h);
+      ctx.lineTo(x + w * 0.45, by - h * 0.55);
+      ctx.closePath();
+      ctx.fill();
+    }
   }
 }
 
@@ -138,13 +176,13 @@ function oak(ctx: CanvasRenderingContext2D, x: number, y: number, s: number, ton
     [0, -0.75, 0.2],
   ];
   for (const [bx, by, br] of blobs) {
-    ctx.fillStyle = `hsl(${95 + tone * 20}, 32%, ${16 + tone * 4}%)`;
+    ctx.fillStyle = `hsl(${95 + TREE.hue + tone * 20}, ${Math.max(4, 32 + TREE.sat)}%, ${16 + TREE.light + tone * 4}%)`;
     ctx.beginPath();
     ctx.arc(x + bx * s, y + by * s, br * s, 0, Math.PI * 2);
     ctx.fill();
   }
   for (const [bx, by, br] of blobs) {
-    ctx.fillStyle = `hsla(${90 + tone * 20}, 36%, ${26 + tone * 6}%, 0.9)`;
+    ctx.fillStyle = SNOW ? 'rgba(232,238,246,0.85)' : `hsla(${90 + TREE.hue + tone * 20}, ${Math.max(4, 36 + TREE.sat)}%, ${26 + TREE.light + tone * 6}%, 0.9)`;
     ctx.beginPath();
     ctx.arc(x + bx * s - br * s * 0.25, y + by * s - br * s * 0.25, br * s * 0.6, 0, Math.PI * 2);
     ctx.fill();
@@ -653,6 +691,10 @@ export function bakeTerrain(r: RegionDef, tiles: Tileset | null, extras: Map<str
   const W = regionW(r);
   const H = regionH(r);
   const T = (x: number, y: number) => terrainAt(r, x, y);
+  const B = biomeOf(r);
+  TREE = B.tree;
+  SNOW = B.snow === 'all';
+  const SMALL = r.level === 1 ? ['tuft', 'clover', 'flowers', 'burdock', 'thistle', 'berries', 'strawberry', 'fern', 'molehill'] : smallDecor(TILESETS[r.level] ?? 'frontier');
 
   ctx.fillStyle = '#1a1716';
   ctx.fillRect(0, 0, worldW(r), worldH(r));
@@ -672,7 +714,7 @@ export function bakeTerrain(r: RegionDef, tiles: Tileset | null, extras: Map<str
         const sy = rnd(x, y, 2) * tile.height * 0.45;
         ctx.drawImage(tile, sx, sy, tile.width * 0.55, tile.height * 0.55, px - HW / 2 - 1, py - HH / 2 - 1, HW + 2, HH + 2);
       } else {
-        ctx.fillStyle = '#3e5530';
+        ctx.fillStyle = B.ground;
         ctx.fillRect(px - HW, py - HH, HW * 2, HH * 2);
       }
       const tint = big.has(`${x},${y}`) ? 'rgba(30,24,20,0.35)' : t === 'rock' ? 'rgba(30,26,34,0.55)' : t === 'wood' ? 'rgba(6,20,8,0.55)' : t === 'forest' ? 'rgba(12,30,12,0.35)' : t === 'hills' ? 'rgba(70,80,40,0.25)' : `rgba(0,0,0,${rnd(x, y, 3) * 0.12})`;
@@ -687,7 +729,7 @@ export function bakeTerrain(r: RegionDef, tiles: Tileset | null, extras: Map<str
   for (let y = 0; y < H; y++)
     for (let x = 0; x < W; x++)
       if (isWater(x, y) || bridgeHex(x, y)) {
-        ctx.fillStyle = '#5b4a33';
+        ctx.fillStyle = B.shore;
         hexPath(ctx, wx({ x, y }), wy({ x, y }), HW * 1.18, HH * 1.18);
         ctx.fill();
       }
@@ -697,12 +739,20 @@ export function bakeTerrain(r: RegionDef, tiles: Tileset | null, extras: Map<str
         const px = wx({ x, y });
         const py = wy({ x, y });
         const g = ctx.createLinearGradient(px, py - HH / 2, px, py + HH / 2);
-        g.addColorStop(0, '#24495a');
-        g.addColorStop(1, '#183441');
+        g.addColorStop(0, B.water[0]);
+        g.addColorStop(1, B.water[1]);
         ctx.fillStyle = g;
         hexPath(ctx, px, py, HW + 2, HH + 2);
         ctx.fill();
-        ctx.strokeStyle = 'rgba(170,215,225,0.22)';
+        if (B.lava && rnd(x, y, 9) > 0.55) {
+          // Лава: светлые жилы
+          const lg = ctx.createRadialGradient(px, py, 2, px, py, HW * 0.5);
+          lg.addColorStop(0, 'rgba(255,210,90,0.55)');
+          lg.addColorStop(1, 'rgba(255,120,30,0)');
+          ctx.fillStyle = lg;
+          ctx.fillRect(px - HW * 0.5, py - HH * 0.5, HW, HH);
+        }
+        ctx.strokeStyle = B.ripple;
         ctx.lineWidth = 1.2;
         for (let i = 0; i < 3; i++) {
           const ry = py - HH * 0.22 + i * HH * 0.2 + rnd(x, y, i) * 4;
@@ -737,7 +787,7 @@ export function bakeTerrain(r: RegionDef, tiles: Tileset | null, extras: Map<str
   stroke('rgba(40,30,18,0.55)', HW * 0.46);
   const pat = dirt ? ctx.createPattern(dirt, 'repeat') : null;
   if (pat) pat.setTransform(new DOMMatrix().scale(0.35));
-  stroke(pat ?? '#7a6243', HW * 0.36);
+  stroke(pat ?? B.road, HW * 0.36);
   for (let y = 0; y < H; y++)
     for (let x = 0; x < W; x++) {
       if (!bridgeHex(x, y)) continue;
@@ -769,7 +819,6 @@ export function bakeTerrain(r: RegionDef, tiles: Tileset | null, extras: Map<str
     ctx.restore();
   };
   const occupied = new Set([...r.objects, ...(r.props ?? [])].map((o) => `${o.x},${o.y}`));
-  const SMALL = ['tuft', 'clover', 'flowers', 'burdock', 'thistle', 'berries', 'strawberry', 'fern', 'molehill'];
   for (let y = 0; y < H; y++)
     for (let x = 0; x < W; x++) {
       const t = T(x, y)!;
@@ -784,7 +833,8 @@ export function bakeTerrain(r: RegionDef, tiles: Tileset | null, extras: Map<str
           const s = HW * (t === 'wood' ? 0.62 + rnd(x, y, 30 + i) * 0.35 : 0.55 + rnd(x, y, 30 + i) * 0.3);
           const tone = rnd(x, y, 40 + i);
           const isPine = rnd(x, y, 50 + i) > 0.35;
-          items.push({ y: ty, draw: () => (isPine ? pine(ctx, tx, ty, s, tone) : oak(ctx, tx, ty, s * 0.9, tone)) });
+          const dead = rnd(x, y, 55 + i) < B.dead;
+          items.push({ y: ty, draw: () => (dead ? deadTree(ctx, tx, ty, s * 0.9, Math.floor(tone * 10)) : isPine ? pine(ctx, tx, ty, s, tone) : oak(ctx, tx, ty, s * 0.9, tone)) });
         }
       } else if (t === 'rock' && !busy) {
         const n = 1 + Math.floor(rnd(x, y, 8) * 2);
@@ -793,7 +843,8 @@ export function bakeTerrain(r: RegionDef, tiles: Tileset | null, extras: Map<str
           const ty = py + HH * 0.3 + (rnd(x, y, 70 + i) - 0.5) * HH * 0.2;
           const s = HW * (0.7 + rnd(x, y, 80 + i) * 0.4);
           const k = rnd(x, y, 90 + i);
-          items.push({ y: ty, draw: () => peak(ctx, tx, ty, s, y < H * 0.45 && k > 0.4, k) });
+          const snow = B.snow === 'all' ? k > 0.15 : B.snow === 'top' && y < H * 0.45 && k > 0.4;
+          items.push({ y: ty, draw: () => peak(ctx, tx, ty, s, snow, k) });
         }
       } else if (t === 'hills') {
         items.push({
@@ -803,14 +854,14 @@ export function bakeTerrain(r: RegionDef, tiles: Tileset | null, extras: Map<str
               const mx = px + (i ? 0.18 : -0.15) * HW;
               const my = py + (i ? 0.15 : -0.05) * HH;
               const g = ctx.createRadialGradient(mx - HW * 0.08, my - HH * 0.12, 2, mx, my, HW * 0.32);
-              g.addColorStop(0, 'rgba(120,130,70,0.85)');
-              g.addColorStop(1, 'rgba(50,55,30,0.0)');
+              g.addColorStop(0, `rgba(${B.hill},0.85)`);
+              g.addColorStop(1, `rgba(${B.hill},0)`);
               ctx.fillStyle = g;
               ctx.beginPath();
               ctx.ellipse(mx, my, HW * 0.32, HH * 0.2, 0, 0, Math.PI * 2);
               ctx.fill();
             }
-            if (rnd(x, y, 11) > 0.4) put(['rock2', 'rock3', 'rock1'][Math.floor(rnd(x, y, 12) * 3)], px + (rnd(x, y, 13) - 0.5) * HW * 0.4, py + HH * 0.25, HW * 0.32);
+            if (rnd(x, y, 11) > 0.4) put(B.rocks[Math.floor(rnd(x, y, 12) * B.rocks.length)], px + (rnd(x, y, 13) - 0.5) * HW * 0.4, py + HH * 0.25, HW * 0.32);
           },
         });
       } else if ((t === 'grass' || t === 'road') && !busy) {
@@ -828,18 +879,19 @@ export function bakeTerrain(r: RegionDef, tiles: Tileset | null, extras: Map<str
         if (t === 'grass' && hexNeighbours(x, y).some((nb) => T(nb.x, nb.y) === 'forest' || T(nb.x, nb.y) === 'wood') && rnd(x, y, 15) > 0.55) {
           const tx = px + (rnd(x, y, 16) - 0.5) * HW * 0.5;
           const ty = py + (rnd(x, y, 17) - 0.5) * HH * 0.4;
-          items.push({ y: ty, draw: () => oak(ctx, tx, ty, HW * 0.55, rnd(x, y, 18)) });
+          const dead = rnd(x, y, 54) < B.dead;
+          items.push({ y: ty, draw: () => (dead ? deadTree(ctx, tx, ty, HW * 0.5, 3) : oak(ctx, tx, ty, HW * 0.55, rnd(x, y, 18))) });
         }
-        if (t === 'grass' && rnd(x, y, 19) > 0.88) items.push({ y: py + HH * 0.2, draw: () => put(rnd(x, y, 20) > 0.5 ? 'bush1' : 'bush2', px, py + HH * 0.2, HW * 0.35) });
+        if (t === 'grass' && rnd(x, y, 19) > 0.88) items.push({ y: py + HH * 0.2, draw: () => put(B.bush[Math.floor(rnd(x, y, 20) * B.bush.length)], px, py + HH * 0.2, HW * 0.35) });
       }
       // Тростник у воды, кувшинки на воде
-      if (t !== 'water' && t !== 'rock' && !busy && hexNeighbours(x, y).some((nb) => isWater(nb.x, nb.y)) && rnd(x, y, 21) > 0.45) {
+      if (B.reeds && t !== 'water' && t !== 'rock' && !busy && hexNeighbours(x, y).some((nb) => isWater(nb.x, nb.y)) && rnd(x, y, 21) > 0.45) {
         const w = hexNeighbours(x, y).find((nb) => isWater(nb.x, nb.y))!;
         const rx2 = (px + wx(w)) / 2;
         const ry2 = (py + wy(w)) / 2 + HH * 0.1;
         items.push({ y: ry2, draw: () => put('reeds', rx2, ry2, HW * 0.3) });
       }
-      if (t === 'water' && rnd(x, y, 22) > 0.75) items.push({ y: py, draw: () => put('lily', px, py + HH * 0.1, HW * 0.28) });
+      if (B.reeds && t === 'water' && rnd(x, y, 22) > 0.75) items.push({ y: py, draw: () => put('lily', px, py + HH * 0.1, HW * 0.28) });
     }
   for (const p of r.props ?? []) items.push(...propDrawables(ctx, p, img));
   items.sort((a, b) => a.y - b.y);
@@ -948,6 +1000,30 @@ export function drawLive(
           ctx.fill();
           spr(squadSprite(o, lvl), px - HW * 0.12, foot - 2, HH * 0.8);
           spr(`enemy_${(o.waves ?? 3) <= 4 ? 'infantry' : 'scout'}_${lvl}`, px + HW * 0.16, foot + 2, HH * 0.7);
+        } else if (o.kind === 'event') {
+          // Встреча или находка: камень с пульсирующим знаком «?»
+          ctx.fillStyle = 'rgba(0,0,0,0.3)';
+          ctx.beginPath();
+          ctx.ellipse(px, foot, HW * 0.22, HH * 0.07, 0, 0, Math.PI * 2);
+          ctx.fill();
+          stoneBlock(ctx, px - HW * 0.14, foot - HH * 0.32, HW * 0.28, HH * 0.32, '#6d6873', '#48434f');
+          const glow = 0.55 + 0.35 * Math.sin(opts.time / 320 + o.y);
+          ctx.fillStyle = `rgba(244,192,106,${glow * 0.35})`;
+          ctx.beginPath();
+          ctx.arc(px, foot - HH * 0.62, HW * 0.2, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = '#1b1a22';
+          ctx.beginPath();
+          ctx.arc(px, foot - HH * 0.62, HW * 0.13, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.strokeStyle = `rgba(244,192,106,${0.6 + glow * 0.4})`;
+          ctx.lineWidth = 2;
+          ctx.stroke();
+          ctx.fillStyle = '#f4c06a';
+          ctx.font = `bold ${Math.round(HW * 0.2)}px sans-serif`;
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText('?', px, foot - HH * 0.61);
         } else if (o.kind === 'chest') {
           const bw = HW * 0.34;
           const bh = HW * 0.22;

@@ -730,6 +730,7 @@ test('гексовое поле (опыт): центр клетки возвра
 // -------------------------------------------------------------
 // Поход по глобальной карте (src/campaign/world.ts)
 // -------------------------------------------------------------
+import * as D from '../campaign/dialogs';
 import * as W from '../campaign/world';
 
 test('world: every object of a region stands on passable ground, ids are unique', () => {
@@ -898,10 +899,81 @@ test('world: the tutorial trail — locks open in order and the whole chapter ca
     const obj = t.split(':')[1];
     if (obj) assert.ok(r.objects.some((o) => o.id === obj), `${t}: object exists`);
   }
+  // The small node weakens the fortress camp (Г1-18б)
+  const fort = r.objects.find((o) => o.id === 'fortress')!;
+  assert.equal(W.armyLevel({ ...st, owned: [] }, fort), 'normal');
+  assert.equal(W.armyLevel({ ...st, owned: ['node'] }, fort), 'easy');
+  // Scenes come from the Lore Keeper's script: every scene has lines
+  for (const sc of D.SCENES) assert.ok(sc.lines.length > 0, sc.id);
   // A scene plays once
   assert.ok(D.sceneFor('before:ford', []));
   assert.equal(D.sceneFor('before:bridge', ['levels']), null, 'the river fork shares one lesson');
   // Old saves: the prologue and scenes of cleared objects count as seen
   const old = W.normalizeWorld({ ...W.newWorld(r), done: ['sq1'], scenes: undefined });
   assert.ok(old && old.scenes.includes('start') && old.scenes.includes('sq1-after'));
+});
+
+test('world: chapters 2–5 — each region builds, is mostly wild and its trail leads to the fortress', () => {
+  const ids = Object.keys(W.REGIONS);
+  assert.deepEqual(ids, ['frontier', 'bog', 'ice', 'ash', 'dusk']);
+  let prev: string | undefined = 'frontier';
+  for (const id of ids.slice(1)) {
+    assert.equal(W.REGIONS[prev!].next, id, `${prev} leads to ${id}`);
+    prev = id;
+    const r = W.REGIONS[id];
+    let open = 0;
+    for (const row of r.terrain) for (const c of row) if ('.=fh'.includes(c)) open++;
+    assert.ok(open / (W.regionW(r) * W.regionH(r)) < 0.45, `${id}: walkable share ${open}`);
+    for (const o of r.objects) assert.ok(W.terrainAt(r, o.x, o.y) && '.=fh'.includes(r.terrain[o.y][o.x]), `${o.id} stands on passable ground`);
+    assert.equal(new Set(r.objects.map((o) => o.id)).size, r.objects.length);
+    // The whole chapter can be cleared in trail order
+    const st = W.newWorld(r);
+    st.seen = r.terrain.flatMap((row, y) => [...row].map((_, x) => y * row.length + x));
+    const order: string[] = [];
+    for (let g = 0; g < 100 && order.length < r.objects.length - 1; g++) {
+      const next = r.objects.find((o) => o.kind !== 'camp' && !W.isCleared(st, o.id) && !W.isLocked(st, o) && W.findPath(st, r, o));
+      assert.ok(next, `${id}: stuck after ${order.join(', ')}`);
+      order.push(next.id);
+      if (W.isHostile(st, next)) W.winBattle(st, r, next.id);
+      else if (next.kind === 'event') {
+        assert.ok(W.chooseEvent(st, r, next.id, 0));
+        st.hero = { x: next.x, y: next.y };
+      } else {
+        st.done.push(next.id);
+        st.hero = { x: next.x, y: next.y };
+      }
+    }
+    assert.ok(st.won, `${id}: the fortress falls`);
+    assert.ok(order.length === r.objects.length - 1, `${id}: every object was reached (${order.length})`);
+    assert.deepEqual(W.allowedTowers(st, r, null).length, 4, 'all towers after the tutorial');
+  }
+  // Moving on keeps the hero and the camp
+  const st = W.newWorld(W.FRONTIER);
+  st.camp = { sharp: 2 };
+  st.xp = 99;
+  st.done = ['sq1'];
+  W.enterRegion(st, W.REGIONS.bog);
+  assert.equal(st.region, 'bog');
+  assert.deepEqual(st.done, []);
+  assert.equal(st.camp.sharp, 2);
+  assert.equal(st.xp, 99);
+});
+
+test('dialogs: every chapter scene points at a real object, and conditional lines follow the choice flags', () => {
+  const ids = new Set(Object.values(W.REGIONS).flatMap((r) => [r.id, ...r.objects.map((o) => o.id)]));
+  const kinds = ['start', 'camp', 'before', 'after', 'loot', 'event', 'wave'];
+  for (const sc of D.SCENES) {
+    if (!sc.id.includes(':')) continue; // глава 1: id через SCENE_AT
+    const [kind, obj] = sc.id.split(':');
+    assert.ok(kinds.includes(kind), `${sc.id}: known trigger`);
+    assert.ok(ids.has(obj), `${sc.id}: object ${obj} exists`);
+    assert.ok(sc.lines.length > 0, `${sc.id}: has lines`);
+  }
+  for (const id of Object.keys(W.REGIONS)) assert.ok(D.sceneFor(D.startTrigger(id), []), `${id}: opening scene`);
+  // Корх в главе 5 говорит по выбору главы 4
+  const korh = (flags: string[]) => D.sceneFor('event:dusk_forkA', [], flags)!.lines.map((l) => l.text);
+  assert.equal(korh(['korh-trade']).length, 1);
+  assert.match(korh(['korh-trade'])[0], /держу слово/);
+  assert.match(korh(['korh-fight'])[0], /не забыл/);
+  assert.match(korh([])[0], /сам по себе/);
 });

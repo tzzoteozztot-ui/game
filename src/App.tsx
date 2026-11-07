@@ -43,7 +43,7 @@ import { LevelBriefing } from './components/LevelBriefing';
 import { PauseModal, VictoryModal, DefeatModal, HowToPlayModal, DuelResultModal, BrawlResultModal, DuelOutcome } from './components/StatusModals';
 import { OrientationWarning } from './components/OrientationWarning';
 import { WorldMap, WorldBattleResult } from './components/WorldMap';
-import { WorldState, WorldObj, REGIONS, FRONTIER, newWorld, loadWorld, saveWorld, winBattle, battleSeed, battlePerks, heroLevel, allowedTowers } from './campaign/world';
+import { WorldState, WorldObj, REGIONS, FRONTIER, newWorld, loadWorld, saveWorld, winBattle, battleSeed, battlePerks, heroLevel, allowedTowers, armyLevel } from './campaign/world';
 import { Scene, sceneFor } from './campaign/dialogs';
 import { DialogBox } from './components/DialogBox';
 import { HERO_ABILITIES } from './game/config';
@@ -683,7 +683,7 @@ export default function App() {
   // Сцены посреди боя похода: `wave:<объект>:<N>`; бой с армией не встаёт на паузу, плашка просто поверх поля
   useEffect(() => {
     if (!worldBattle || !world || screen !== 'playing') return;
-    const sc = sceneFor(`wave:${worldBattle.id}:${gameState.wave}`, world.scenes);
+    const sc = sceneFor(`wave:${worldBattle.id}:${gameState.wave}`, world.scenes, world.flags);
     if (sc && battleScene?.id !== sc.id) setBattleScene(sc);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [worldBattle, gameState.wave, screen]);
@@ -704,7 +704,7 @@ export default function App() {
       // Бой с армией (просьба Артура 2026-11-06): как дуэль с ботом — волны идут без конца, пока не падёт артефакт вражеского лагеря
       closeDuel();
       const region = REGIONS[world?.region ?? 'frontier'] ?? FRONTIER;
-      handleDuelStart(createBotLink(region.level, obj.army), region.level, performance.now(), region.level, CONFIG.races.humans.faction, CONFIG.duel.roundLength, battleSeed(obj), 'humans', (eng) => heroIntoBattle(eng));
+      handleDuelStart(createBotLink(region.level, (world && armyLevel(world, obj)) || obj.army), region.level, performance.now(), region.level, CONFIG.races.humans.faction, CONFIG.duel.roundLength, battleSeed(obj), 'humans', (eng) => heroIntoBattle(eng));
       return;
     }
     setScreen('playing');
@@ -740,7 +740,7 @@ export default function App() {
       setOpponent(null);
     }
     if (won && obj && world) {
-      const st = { ...world, res: { ...world.res }, done: [...world.done], owned: [...world.owned], seen: [...world.seen], scenes: [...world.scenes] };
+      const st = { ...world, res: { ...world.res }, done: [...world.done], owned: [...world.owned], seen: [...world.seen], scenes: [...world.scenes], flags: [...world.flags] };
       winBattle(st, REGIONS[st.region] ?? FRONTIER, obj.id);
       setWorld(st);
     }
@@ -762,7 +762,7 @@ export default function App() {
     }
     if (worldBattle) {
       if (canvasRef.current) engine.setCanvas(canvasRef.current);
-      engine.startWorldBattle(FRONTIER.level, worldBattle.waves ?? 3, battleSeed(worldBattle));
+      engine.startWorldBattle((REGIONS[world?.region ?? 'frontier'] ?? FRONTIER).level, worldBattle.waves ?? 3, battleSeed(worldBattle));
       heroIntoBattle(engine);
       return;
     }

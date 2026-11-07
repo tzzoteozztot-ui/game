@@ -5,6 +5,7 @@
  * Числа (волны отрядов, награды, доход промыслов) — черновик прототипа, меняются по слову Артура.
  */
 import { SCENE_AT } from './dialogs';
+import { CHAPTER_SPECS } from './chapters';
 
 export type Terrain = 'grass' | 'road' | 'forest' | 'hills' | 'water' | 'rock' | 'wood';
 export type ResKey = 'gold' | 'wood' | 'crystal';
@@ -21,7 +22,16 @@ const TERRAIN_CHARS: Record<string, Terrain> = { '.': 'grass', '=': 'road', f: '
 export const MOVES_PER_DAY = 30; // ≈ 15 гексов по дороге, 10 по лугу
 export const SIGHT = 4; // радиус обзора героя, гексов
 
-export type WorldObjKind = 'camp' | 'squad' | 'fortress' | 'chest' | 'mine' | 'shrine';
+export type WorldObjKind = 'camp' | 'squad' | 'fortress' | 'chest' | 'mine' | 'shrine' | 'event';
+
+/** Выбор в событии: что сделать, что вышло, награда и отметка для будущих глав (`WorldState.flags`) */
+export interface EventChoice {
+  label: string;
+  text: string;
+  reward?: Partial<Resources>;
+  flag?: string;
+  item?: string; // предмет героя (HERO_ITEMS)
+}
 
 /** Украшения карты без действия: мельница, руины, могилы, костры… (только отрисовка) */
 export type PropKind = 'windmill' | 'ruins' | 'graves' | 'orcCamp' | 'stones' | 'farm' | 'wreck'
@@ -58,6 +68,10 @@ export interface WorldObj {
   teach?: string[];
   /** Бой с армией: вкладка «Армия» закрыта до этой волны, потом врывается Каллен (сцена `wave:<id>:<N>`) */
   armyAt?: number;
+  /** Промысел, захват которого ослабляет защиту этого лагеря: бот армии на ступень слабее (малый узел и крепость, сценарий Г1-18б) */
+  weakenedBy?: string;
+  /** Событие: выборы (глава 2+, сценарий Лороведа) */
+  choices?: EventChoice[];
 }
 
 export interface RegionDef {
@@ -68,6 +82,8 @@ export interface RegionDef {
   start: { x: number; y: number };
   objects: WorldObj[];
   props?: WorldProp[];
+  chapter?: number; // номер главы похода
+  next?: string; // регион следующей главы
 }
 
 export interface WorldState {
@@ -86,6 +102,7 @@ export interface WorldState {
   items: string[]; // найденные предметы героя (id из HERO_ITEMS)
   equip: Partial<Record<ItemSlot, string>>; // надетые: слот → id предмета
   scenes: string[]; // показанные сцены диалогов (src/campaign/dialogs.ts)
+  flags: string[]; // выборы в событиях — для будущих глав
 }
 
 // -------------------------------------------------------------
@@ -97,6 +114,33 @@ export interface WorldState {
 const FW = 52;
 const FH = 32;
 
+/** Как строить местность региона: размер, зерна шума и пороги (глава 1 — числа Пограничья) */
+export interface RegionSpec {
+  id: string;
+  name: string;
+  level: number;
+  chapter: number;
+  w: number;
+  h: number;
+  start: { x: number; y: number };
+  objects: WorldObj[];
+  roads: { x: number; y: number }[][];
+  props: WorldProp[];
+  /** Ось реки по рядам (нет — без реки); перейти её можно только через гексы `crossings` */
+  river?: (y: number) => number;
+  crossings?: { x: number; y: number }[];
+  /** Зерно и доли: lake — порог озёр (меньше — больше воды), rock — порог гор (меньше — больше гор), forest/hills — пороги леса и холмов */
+  seed?: number;
+  lake?: number;
+  rock?: number;
+  forest?: number;
+  hills?: number;
+  /** Крупные украшения глуши, по кругу */
+  wild?: PropKind[];
+  /** Следующая глава после взятия крепости */
+  next?: string;
+}
+
 function mulberry(seed: number) {
   return () => {
     seed = (seed + 0x6d2b79f5) | 0;
@@ -107,10 +151,10 @@ function mulberry(seed: number) {
 }
 
 /** Гладкий шум 0..1 по сетке узлов шага `step` */
-function valueNoise(seed: number, step: number) {
+function valueNoise(seed: number, step: number, w = FW, h = FH) {
   const r = mulberry(seed);
-  const gw = Math.ceil(FW / step) + 2;
-  const gh = Math.ceil(FH / step) + 2;
+  const gw = Math.ceil(w / step) + 2;
+  const gh = Math.ceil(h / step) + 2;
   const g = Array.from({ length: gw * gh }, () => r());
   const sm = (t: number) => t * t * (3 - 2 * t);
   return (x: number, y: number) => {
@@ -130,7 +174,8 @@ function valueNoise(seed: number, step: number) {
 /** Ось реки: по одному x на ряд, течёт с севера на юг */
 export const riverX = (y: number) => Math.round(26 + 2 * Math.sin(y / 4.2));
 
-function hexLine(a: { x: number; y: number }, b: { x: number; y: number }): { x: number; y: number }[] {
+/** Прямая по гексам. `legacy` — прежнее округление с ошибкой (бывают пропуски гекса): по нему построено Пограничье, менять нельзя — сдвинутся дороги в сохранениях */
+export function hexLine(a: { x: number; y: number }, b: { x: number; y: number }, legacy = false): { x: number; y: number }[] {
   const n = hexDistance(a, b);
   const A = toCube(a.x, a.y);
   const B = toCube(b.x, b.y);
@@ -147,7 +192,7 @@ function hexLine(a: { x: number; y: number }, b: { x: number; y: number }): { x:
     const dr = Math.abs(rr - r);
     const ds = Math.abs(rs - s);
     if (dq > dr && dq > ds) rq = -rr - rs;
-    else if (!(dr > ds)) rr = -rq - rs;
+    else if (legacy ? !(dr > ds) : dr > ds) rr = -rq - rs;
     out.push({ x: rq + (rr - (rr & 1)) / 2, y: rr });
   }
   return out;
@@ -194,7 +239,7 @@ const FRONTIER_OBJECTS: WorldObj[] = [
   { id: 'chest8', kind: 'chest', x: 45, y: 28, name: 'Тайник шамана', reward: { crystal: 2 } },
   { id: 'shrine2', kind: 'shrine', x: 48, y: 22, name: 'Старый идол', reward: { crystal: 3 }, text: 'Идол старше орков. На его камне — те же знаки, что на нашем узле.' },
   {
-    id: 'fortress', kind: 'fortress', x: 47, y: 15, name: 'Крепость Вождя', waves: 12, army: 'normal', armyAt: 8, reward: { gold: 200, crystal: 5 }, needs: ['guard'],
+    id: 'fortress', kind: 'fortress', x: 47, y: 15, name: 'Крепость Вождя', waves: 12, army: 'normal', armyAt: 8, weakenedBy: 'node', reward: { gold: 200, crystal: 5 }, needs: ['guard'],
     text: 'Вождь Ургаш ждёт за частоколом. Это последний бой главы.',
   },
 ];
@@ -233,59 +278,65 @@ const FRONTIER_PROPS: WorldProp[] = [
 const BIG_PROPS: PropKind[] = ['castle', 'cliff'];
 const WILD_KINDS: PropKind[] = ['castle', 'cliff', 'tower', 'crystals', 'deadwood', 'statue', 'cliff', 'tower', 'castle', 'deadwood'];
 
-function buildFrontier(): { terrain: string[]; props: WorldProp[] } {
+/** Местность региона по описанию: дороги, обочины и поляны проходимы, остальное — горы, чаща, озёра, река */
+export function buildRegion(spec: RegionSpec): RegionDef {
+  const FW = spec.w;
+  const FH = spec.h;
+  const sd = spec.seed ?? 0;
   const g: string[][] = Array.from({ length: FH }, () => Array(FW).fill(''));
   const inside = (x: number, y: number) => x > 0 && y > 0 && x < FW - 1 && y < FH - 1;
+  const rv = spec.river;
   const isRiver = (x: number, y: number) => {
-    const rx = riverX(y);
-    return x === rx || x === rx + 1 || (y > 0 && riverX(y - 1) !== rx && x === Math.min(rx, riverX(y - 1)) + 1);
+    if (!rv) return false;
+    const rx = rv(y);
+    return x === rx || x === rx + 1 || (y > 0 && rv(y - 1) !== rx && x === Math.min(rx, rv(y - 1)) + 1);
   };
   // 1. Дороги
-  for (const chain of FRONTIER_ROADS)
-    for (let i = 0; i + 1 < chain.length; i++) for (const p of hexLine(chain[i], chain[i + 1])) if (inside(p.x, p.y)) g[p.y][p.x] = '=';
+  for (const chain of spec.roads)
+    for (let i = 0; i + 1 < chain.length; i++) for (const p of hexLine(chain[i], chain[i + 1], spec.id === 'frontier')) if (inside(p.x, p.y)) g[p.y][p.x] = '=';
   // 2. Обочины: дорога шириной в 1–3 гекса (по шуму), поляны вокруг объектов
-  const wide = valueNoise(51, 3);
+  const wide = valueNoise(51 + sd, 3, FW, FH);
   for (let y = 0; y < FH; y++)
     for (let x = 0; x < FW; x++) {
       if (g[y][x] !== '=') continue;
       for (const n of hexNeighbours(x, y)) if (inside(n.x, n.y) && !g[n.y][n.x] && !isRiver(n.x, n.y) && wide(n.x, n.y) > 0.42) g[n.y][n.x] = '.';
     }
-  for (const o of FRONTIER_OBJECTS) {
+  for (const o of spec.objects) {
     const rad = o.kind === 'camp' || o.kind === 'fortress' ? 2 : 1;
     for (let y = o.y - rad; y <= o.y + rad; y++)
       for (let x = o.x - rad - 1; x <= o.x + rad + 1; x++)
         if (inside(x, y) && !g[y][x] && !isRiver(x, y) && hexDistance(o, { x, y }) <= rad) g[y][x] = '.';
     if (g[o.y][o.x] !== '=') g[o.y][o.x] = '.';
   }
-  for (const p of FRONTIER_PROPS) if (!g[p.y][p.x]) g[p.y][p.x] = '.';
+  for (const p of spec.props) if (!g[p.y][p.x]) g[p.y][p.x] = '.';
   // 3. Всё прочее непроходимо: река, озёра, горы, чаща
-  const mtn = valueNoise(23, 5);
-  const lake = valueNoise(77, 4);
+  const mtn = valueNoise(23 + sd, 5, FW, FH);
+  const lake = valueNoise(77 + sd, 4, FW, FH);
   for (let y = 0; y < FH; y++)
     for (let x = 0; x < FW; x++) {
       if (g[y][x]) continue;
       if (isRiver(x, y)) g[y][x] = 'w';
       else if (!inside(x, y)) g[y][x] = 'r';
-      else if (lake(x, y) > 0.8) g[y][x] = 'w';
-      else g[y][x] = mtn(x, y) > 0.5 ? 'r' : 'd';
+      else if (lake(x, y) > (spec.lake ?? 0.8)) g[y][x] = 'w';
+      else g[y][x] = mtn(x, y) > (spec.rock ?? 0.5) ? 'r' : 'd';
     }
   // 4. Проходимое разнообразим: лес и холмы (дороже по ходу)
-  const forest = valueNoise(11, 4);
-  const hills = valueNoise(31, 5);
-  const busy = new Set([...FRONTIER_OBJECTS, ...FRONTIER_PROPS].map((o) => `${o.x},${o.y}`));
+  const forest = valueNoise(11 + sd, 4, FW, FH);
+  const hills = valueNoise(31 + sd, 5, FW, FH);
+  const busy = new Set([...spec.objects, ...spec.props].map((o) => `${o.x},${o.y}`));
   for (let y = 0; y < FH; y++)
     for (let x = 0; x < FW; x++) {
       if (g[y][x] !== '.' || busy.has(`${x},${y}`)) continue;
-      if (forest(x, y) > 0.66) g[y][x] = 'f';
-      else if (hills(x, y) > 0.68) g[y][x] = 'h';
+      if (forest(x, y) > (spec.forest ?? 0.66)) g[y][x] = 'f';
+      else if (hills(x, y) > (spec.hills ?? 0.68)) g[y][x] = 'h';
     }
   // 4б. Переправы: на тот берег — только через гекс отряда у брода или моста. Гексы берега, через которые
   // дорога в реке обходит отряд, зарастают чащей
-  const crossing = new Set([`${FORD.x},${FORD.y}`, `${BRIDGE.x},${BRIDGE.y}`]);
+  const crossing = new Set((spec.crossings ?? []).map((c) => `${c.x},${c.y}`));
   const walkable = (x: number, y: number) => '.=fh'.includes(g[y]?.[x] ?? 'r');
-  for (let guard = 0; guard < 20; guard++) {
+  for (let guard = 0; rv && guard < 20; guard++) {
     const seen = new Set<string>();
-    const start = FRONTIER_OBJECTS[0];
+    const start = spec.objects[0];
     const queue = [{ x: start.x, y: start.y }];
     seen.add(`${start.x},${start.y}`);
     let leak: { x: number; y: number } | null = null;
@@ -303,7 +354,7 @@ function buildFrontier(): { terrain: string[]; props: WorldProp[] } {
       }
     }
     if (!leak) break;
-    if (g[leak.y][leak.x] === '=') throw new Error(`Пограничье: дорога обходит переправу у ${leak.x},${leak.y}`);
+    if (g[leak.y][leak.x] === '=') throw new Error(`${spec.name}: дорога обходит переправу у ${leak.x},${leak.y}`);
     g[leak.y][leak.x] = 'd';
   }
   // 5. Крупные украшения: в глуши, но в 2–3 гексах от проходимого, чтобы их было видно с дороги
@@ -312,7 +363,8 @@ function buildFrontier(): { terrain: string[]; props: WorldProp[] } {
     for (let j = y - d; j <= y + d; j++) for (let i = x - d - 1; i <= x + d + 1; i++) if (passable(i, j) && hexDistance({ x, y }, { x: i, y: j }) <= d) return true;
     return false;
   };
-  const rnd = mulberry(97);
+  const rnd = mulberry(97 + sd);
+  const wild = spec.wild ?? WILD_KINDS;
   const props: WorldProp[] = [];
   const cand: { x: number; y: number }[] = [];
   for (let y = 2; y < FH - 2; y++)
@@ -326,22 +378,36 @@ function buildFrontier(): { terrain: string[]; props: WorldProp[] } {
   }
   for (const c of cand) {
     if (props.some((p) => hexDistance(p, c) < 5)) continue;
-    props.push({ kind: WILD_KINDS[props.length % WILD_KINDS.length], x: c.x, y: c.y });
+    props.push({ kind: wild[props.length % wild.length], x: c.x, y: c.y });
   }
-  return { terrain: g.map((row) => row.join('')), props: [...FRONTIER_PROPS, ...props] };
+  return {
+    id: spec.id,
+    name: spec.name,
+    level: spec.level,
+    chapter: spec.chapter,
+    next: spec.next,
+    terrain: g.map((row) => row.join('')),
+    start: spec.start,
+    objects: spec.objects,
+    props: [...spec.props, ...props],
+  };
 }
 
-const FRONTIER_BUILT = buildFrontier();
-
-export const FRONTIER: RegionDef = {
+export const FRONTIER: RegionDef = buildRegion({
   id: 'frontier',
   name: 'Пограничье',
   level: 1,
-  terrain: FRONTIER_BUILT.terrain,
+  chapter: 1,
+  w: FW,
+  h: FH,
   start: { x: 6, y: 16 },
   objects: FRONTIER_OBJECTS,
-  props: FRONTIER_BUILT.props,
-};
+  roads: FRONTIER_ROADS,
+  props: FRONTIER_PROPS,
+  river: riverX,
+  crossings: [FORD, BRIDGE],
+  next: 'bog',
+});
 
 /** Гекс занят крупным украшением (само украшение и, для замка и скалы, соседи) — там не рисуются деревья и горы */
 export function bigPropHexes(r: RegionDef): Set<string> {
@@ -355,7 +421,7 @@ export function bigPropHexes(r: RegionDef): Set<string> {
 }
 const WILD: PropKind[] = ['castle', 'cliff', 'tower', 'crystals', 'deadwood', 'statue'];
 
-export const REGIONS: Record<string, RegionDef> = { frontier: FRONTIER };
+export const REGIONS: Record<string, RegionDef> = Object.fromEntries([FRONTIER, ...CHAPTER_SPECS.map(buildRegion)].map((r) => [r.id, r]));
 
 // -------------------------------------------------------------
 // Геометрия гексов (odd-r)
@@ -411,6 +477,7 @@ export function newWorld(region: RegionDef = FRONTIER): WorldState {
     items: ['sword'],
     equip: { weapon: 'sword' },
     scenes: [],
+    flags: [],
   };
   reveal(st, region);
   return st;
@@ -435,7 +502,7 @@ export function isSeen(st: WorldState, region: RegionDef, x: number, y: number):
 export function objectAt(st: WorldState, region: RegionDef, x: number, y: number): WorldObj | null {
   const o = region.objects.find((ob) => ob.x === x && ob.y === y);
   if (!o) return null;
-  if (st.done.includes(o.id) && (o.kind === 'squad' || o.kind === 'chest' || o.kind === 'fortress')) return null;
+  if (st.done.includes(o.id) && (o.kind === 'squad' || o.kind === 'chest' || o.kind === 'fortress' || o.kind === 'event')) return null;
   return o;
 }
 
@@ -466,9 +533,17 @@ export function lockText(st: WorldState, region: RegionDef, o: WorldObj): string
 
 /** Башни людей в бою похода: Стрелок и всё, чему учили пройденные бои и этот бой (`teach`) */
 export function allowedTowers(st: WorldState, region: RegionDef, battle: WorldObj | null): string[] {
+  if ((region.chapter ?? 1) > 1) return ['archer', 'priest', 'mage', 'ballista']; // обучение — только в главе 1
   const out = new Set(['archer']);
   for (const o of region.objects) if (o.teach && (isCleared(st, o.id) || o.id === battle?.id)) o.teach.forEach((t) => out.add(t));
   return [...out];
+}
+
+/** Сила бота вражеского лагеря в бою с армией: захваченный `weakenedBy` снимает одну ступень */
+export function armyLevel(st: WorldState, o: WorldObj): 'easy' | 'normal' | 'hard' | undefined {
+  if (!o.army) return undefined;
+  if (!o.weakenedBy || !st.owned.includes(o.weakenedBy)) return o.army;
+  return o.army === 'hard' ? 'normal' : 'easy';
 }
 
 /**
@@ -542,7 +617,8 @@ export type Arrival =
   | { kind: 'loot'; obj: WorldObj; got: Partial<Resources> }
   | { kind: 'captured'; obj: WorldObj }
   | { kind: 'visit'; obj: WorldObj }
-  | { kind: 'locked'; obj: WorldObj };
+  | { kind: 'locked'; obj: WorldObj }
+  | { kind: 'event'; obj: WorldObj };
 
 /**
  * Один шаг героя по пути. Возвращает null, если не хватает очков хода. Шаг во враждебный гекс тратит ход,
@@ -562,6 +638,7 @@ export function stepHero(st: WorldState, region: RegionDef, to: { x: number; y: 
 }
 
 function arrive(st: WorldState, o: WorldObj): Arrival {
+  if (o.kind === 'event') return st.done.includes(o.id) ? { kind: 'visit', obj: o } : { kind: 'event', obj: o };
   if (o.kind === 'chest' || o.kind === 'shrine') {
     if (st.done.includes(o.id)) return { kind: 'visit', obj: o };
     st.done.push(o.id);
@@ -574,6 +651,30 @@ function arrive(st: WorldState, o: WorldObj): Arrival {
     return { kind: 'captured', obj: o };
   }
   return { kind: 'visit', obj: o };
+}
+
+/** Выбор в событии: событие пройдено, награда, отметка выбора */
+export function chooseEvent(st: WorldState, region: RegionDef, objId: string, i: number): EventChoice | null {
+  const o = region.objects.find((ob) => ob.id === objId);
+  const c = o?.choices?.[i];
+  if (!o || !c || st.done.includes(o.id)) return null;
+  st.done.push(o.id);
+  addRes(st, c.reward);
+  if (c.flag && !st.flags.includes(c.flag)) st.flags.push(c.flag);
+  giveItem(st, c.item);
+  return c;
+}
+
+/** Переход в следующую главу: новый регион, герой у его лагеря; лагерь, герой, предметы, ресурсы и выборы остаются */
+export function enterRegion(st: WorldState, region: RegionDef) {
+  st.region = region.id;
+  st.hero = { ...region.start };
+  st.done = [];
+  st.owned = [];
+  st.seen = [];
+  st.won = false;
+  st.moves = MOVES_PER_DAY;
+  reveal(st, region);
 }
 
 /** Победа в бою: объект разбит (промысел — захвачен), награда, герой входит в гекс */
@@ -651,6 +752,7 @@ export function normalizeWorld(v: unknown): WorldState | null {
     items: [],
     equip: {},
     scenes: Array.isArray(o.scenes) ? o.scenes.filter((x): x is string => typeof x === 'string') : [],
+    flags: Array.isArray(o.flags) ? o.flags.filter((x): x is string => typeof x === 'string') : [],
   };
   // Сохранение до диалогов: пролог уже позади
   if (!Array.isArray(o.scenes) && (st.done.length || st.day > 1)) {
@@ -794,6 +896,8 @@ export const HERO_ITEMS: HeroItem[] = [
   { id: 'idol', slot: 'amulet', name: 'Знак предков', icon: '🪬', text: 'Орочий оберег с Камня предков. Звенит, как узел.', perks: { pierce: 1 } },
   { id: 'shard', slot: 'amulet', name: 'Осколок узла', icon: '💎', text: 'Кусок малого узла. Тёплый на ощупь.', perks: { ward: 1, mire: 1 } },
   { id: 'banner', slot: 'banner', name: 'Знамя экспедиции', icon: '🚩', text: 'Под ним солдаты бьют быстрее.', perks: { haste: 1 } },
+  { id: 'token', slot: 'amulet', name: 'Жетон чужого знамени', icon: '🔰', text: 'Лейтенант Сорн оставил его в болоте. Чужая экспедиция узнает этот знак.', perks: { envoy: 1, loot: 1 } },
+  { id: 'mirror', slot: 'amulet', name: 'Тёмное зеркало', icon: '🪞', text: 'Трофей из Цитадели сумерек. Показывает ту сторону, что не хочется видеть.', perks: { pierce: 1, slayer: 1, sight: 1 } },
   { id: 'warbanner', slot: 'banner', name: 'Трофейное знамя рода', icon: '🏴', text: 'Взято в военном лагере. Орки узнают его издалека.', perks: { loot: 1, envoy: 1 } },
 ];
 

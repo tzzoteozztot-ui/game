@@ -38,8 +38,11 @@ import {
   isLocked,
   isCleared,
   lockText,
+  chooseEvent,
+  enterRegion,
+  REGIONS,
 } from '../campaign/world';
-import { Scene, sceneFor } from '../campaign/dialogs';
+import { Scene, sceneFor, startTrigger, CAMP_SCENES } from '../campaign/dialogs';
 import { DialogBox } from './DialogBox';
 import { bakeTerrain, drawLive, loadExtras, hexAt, wx, wy, worldW, worldH, HW, P } from '../campaign/worldRender';
 import { sprites } from '../game/sprites';
@@ -57,13 +60,13 @@ interface WorldMapProps {
   onReset: () => void;
 }
 
-type Notice = { title: string; text: string; battle?: WorldObj };
+type Notice = { title: string; text: string; battle?: WorldObj; event?: WorldObj };
 type Cam = { zoom: number; x: number; y: number }; // экран = мир × zoom + (x, y)
 
 const MAX_ZOOM = 2.2;
 const CAM_KEY = 'dark_frontier_world_zoom';
 
-const copyWorld = (w: WorldState): WorldState => ({ ...w, hero: { ...w.hero }, res: { ...w.res }, done: [...w.done], owned: [...w.owned], seen: [...w.seen], camp: { ...w.camp }, items: [...w.items], equip: { ...w.equip }, scenes: [...w.scenes] });
+const copyWorld = (w: WorldState): WorldState => ({ ...w, hero: { ...w.hero }, res: { ...w.res }, done: [...w.done], owned: [...w.owned], seen: [...w.seen], camp: { ...w.camp }, items: [...w.items], equip: { ...w.equip }, scenes: [...w.scenes], flags: [...w.flags] });
 
 export function WorldMap({ world, region, onChange, onBattle, onExit, onReset }: WorldMapProps) {
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -193,6 +196,17 @@ export function WorldMap({ world, region, onChange, onBattle, onExit, onReset }:
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [baked, spritesReady, world, selected, path, target]);
 
+  // Новая глава — камера к герою у нового лагеря
+  const shownRegion = useRef(region.id);
+  useEffect(() => {
+    if (shownRegion.current === region.id || !camReady.current) return;
+    shownRegion.current = region.id;
+    clampCam();
+    centerOn(stRef.current.hero);
+    requestDraw();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [region.id]);
+
   // Мерцание сундуков и узлов — редкая перерисовка
   useEffect(() => {
     const t = setInterval(requestDraw, 120);
@@ -212,7 +226,7 @@ export function WorldMap({ world, region, onChange, onBattle, onExit, onReset }:
   // ---------------------------------------------------------------- диалоги (глава 1 — обучение)
   /** Сцена повода, если её ещё не было, потом `then` */
   const play = (trigger: string, then?: () => void) => {
-    const sc = sceneFor(trigger, stRef.current.scenes);
+    const sc = sceneFor(trigger, stRef.current.scenes, stRef.current.flags);
     if (sc) setDialog({ scene: sc, then });
     else then?.();
   };
@@ -229,9 +243,9 @@ export function WorldMap({ world, region, onChange, onBattle, onExit, onReset }:
   // Пролог и сцены после побед (бой идёт в App, сюда возвращаемся уже с наградой)
   useEffect(() => {
     if (dialog || notice || walking || campOpen || heroOpen || savesOpen) return;
-    const triggers = ['start', ...region.objects.filter((o) => isCleared(world, o.id)).map((o) => `after:${o.id}`)];
+    const triggers = [startTrigger(region.id), ...region.objects.filter((o) => isCleared(world, o.id)).map((o) => `after:${o.id}`)];
     for (const t of triggers) {
-      const sc = sceneFor(t, world.scenes);
+      const sc = sceneFor(t, world.scenes, world.flags);
       if (sc) {
         setDialog({ scene: sc });
         return;
@@ -284,7 +298,7 @@ export function WorldMap({ world, region, onChange, onBattle, onExit, onReset }:
           play(`before:${o.id}`, () =>
             setNotice({
               title: o.name,
-              text: `${o.text ? o.text + '\n\n' : ''}${battleText(o)}${o.reward ? `\nНаграда: ${resText(o.reward)}` : ''}${itemLine(o.item)}${o.income ? `\nДоход промысла: ${resText(o.income)} в день` : ''}`,
+              text: `${o.text ? o.text + '\n\n' : ''}${battleText(o, st)}${o.reward ? `\nНаграда: ${resText(o.reward)}` : ''}${itemLine(o.item)}${o.income ? `\nДоход промысла: ${resText(o.income)} в день` : ''}`,
               battle: o,
             })
           );
@@ -305,13 +319,19 @@ export function WorldMap({ world, region, onChange, onBattle, onExit, onReset }:
           play(`loot:${res.obj.id}`, () => setNotice(n));
           return stop();
         }
+        if (res.kind === 'event') {
+          const n: Notice = { title: res.obj.name, text: res.obj.text ?? '', event: res.obj };
+          play(`event:${res.obj.id}`, () => setNotice(n));
+          return stop();
+        }
         if (res.kind === 'captured') {
           sound.playBuy();
           setNotice({ title: res.obj.name, text: `Промысел наш. Каждый день: ${resText(res.obj.income)}` });
           return stop();
         }
         if (res.kind === 'visit' && res.obj.kind === 'camp' && i === steps.length) {
-          if (st.owned.includes('quarry')) play('camp', () => setCampOpen(true));
+          const cs = CAMP_SCENES[region.id];
+          if (cs && isCleared(st, cs.after)) play(cs.trigger, () => setCampOpen(true));
           else setCampOpen(true);
           return stop();
         }
@@ -411,6 +431,24 @@ export function WorldMap({ world, region, onChange, onBattle, onExit, onReset }:
   const targetObj = target && isSeen(world, region, target.x, target.y) ? objectAt(world, region, target.x, target.y) : null;
   const targetTerrain = target ? terrainAt(region, target.x, target.y) : null;
   const income = dailyIncome(world, region);
+
+  const choose = (o: WorldObj, i: number) => {
+    const st = copyWorld(world);
+    const c = chooseEvent(st, region, o.id, i);
+    if (!c) return setNotice(null);
+    sound.playBuy();
+    onChange(st);
+    const got = c.reward ? resText(c.reward) : '';
+    setNotice({ title: o.name, text: `${c.text}${got ? `\n\nПолучено: ${got}` : ''}${itemLine(c.item)}` });
+  };
+  const nextRegion = region.next ? REGIONS[region.next] : null;
+  const goNext = (to: RegionDef) => {
+    const st = copyWorld(world);
+    enterRegion(st, to);
+    setTarget(null);
+    setSelected(false);
+    onChange(st);
+  };
 
   const fight = (o: WorldObj) => {
     const st = copyWorld(world);
@@ -547,9 +585,18 @@ export function WorldMap({ world, region, onChange, onBattle, onExit, onReset }:
           </div>
         )}
 
-        {world.won && !notice && (
-          <div className="absolute right-16 top-2 bg-black/70 border border-amber-600/60 rounded-lg px-3 py-2 text-xs sm:text-sm text-amber-200 pointer-events-none">
-            Пограничье взято. Следующие регионы — в работе.
+        {world.won && !notice && !dialog && (
+          <div className="absolute right-16 top-2 bg-black/75 border border-amber-600/60 rounded-lg px-3 py-2 text-xs sm:text-sm text-amber-200 max-w-[60%]">
+            {nextRegion ? (
+              <div className="flex items-center gap-3 flex-wrap">
+                <span>{region.name}: узел наш.</span>
+                <button className="px-3 py-1.5 rounded bg-amber-700/90 hover:bg-amber-600 text-white font-bold" onClick={() => goNext(nextRegion)}>
+                  Дальше: {nextRegion.name} ▸
+                </button>
+              </div>
+            ) : (
+              <span>Пять узлов горят. Поход пройден.</span>
+            )}
           </div>
         )}
 
@@ -559,7 +606,15 @@ export function WorldMap({ world, region, onChange, onBattle, onExit, onReset }:
             <div className="bg-[#171520] border border-[#3b354a] rounded-xl p-4 max-w-sm w-full shadow-2xl">
               <h3 className="text-lg font-black text-amber-300 mb-2">{notice.title}</h3>
               <p className="text-sm text-stone-200 whitespace-pre-line mb-4">{notice.text}</p>
-              {notice.battle ? (
+              {notice.event?.choices ? (
+                <div className="flex flex-col gap-2">
+                  {notice.event.choices.map((c, i) => (
+                    <button key={i} className="py-2 px-3 rounded bg-[#2f2a40] hover:bg-[#3e3654] border border-[#4a4260] font-bold text-left" onClick={() => choose(notice.event!, i)}>
+                      {c.label}
+                    </button>
+                  ))}
+                </div>
+              ) : notice.battle ? (
                 <div className="grid grid-cols-2 gap-2">
                   <button className="py-2 rounded bg-red-800 hover:bg-red-700 font-bold" onClick={() => fight(notice.battle!)}>
                     В бой
@@ -648,6 +703,22 @@ export function WorldMap({ world, region, onChange, onBattle, onExit, onReset }:
                   );
                 })}
               </div>
+              <div className="mt-3 text-xs text-stone-400">Перейти к главе (для проверки: лагерь, герой и ресурсы остаются)</div>
+              <div className="mt-1 grid grid-cols-5 gap-1.5">
+                {Object.values(REGIONS).map((r) => (
+                  <button
+                    key={r.id}
+                    title={r.name}
+                    className={`py-1.5 rounded text-sm font-bold ${r.id === region.id ? 'bg-amber-800/70' : 'bg-[#2a2635] hover:bg-[#3a3448]'}`}
+                    onClick={() => {
+                      setSavesOpen(false);
+                      goNext(r);
+                    }}
+                  >
+                    {r.chapter ?? 1}
+                  </button>
+                ))}
+              </div>
               <button className="w-full mt-3 py-2 rounded bg-[#2a2635] hover:bg-[#3a3448] font-bold" onClick={() => setSavesOpen(false)}>
                 Закрыть
               </button>
@@ -693,7 +764,10 @@ function itemLine(id: string | undefined): string {
 }
 
 /** Что за бой ждёт у объекта — для окна перед боем */
-function battleText(o: WorldObj): string {
+function battleText(o: WorldObj, st?: WorldState): string {
+  const weak = st && o.weakenedBy && st.owned.includes(o.weakenedBy) ? '\nМалый узел наш: защита лагеря ослаблена.' : '';
+  if (o.army && o.armyAt)
+    return `Волны идут без конца, пока стоит лагерь врага. Армию на него выставить пока некому: держите линию.${weak}`;
   if (o.army)
     return 'Бой с армией, как в Потасовке: во вкладке «Армия» покупайте врагов и отправляйте их на поле противника — он шлёт своих в ответ. Победа — когда падёт его артефакт.';
   const n = o.waves ?? 3;
