@@ -3,7 +3,7 @@
  * украшения) и живой слой (объекты, герой, путь, сетка, туман). Пробный вид «как карта в Героях»:
  * всё из того, что уже есть — тайлы и декор биомов, спрайты; деревья, горы и постройки — кодом.
  */
-import { RegionDef, WorldState, WorldObj, WorldProp, bigPropHexes, terrainAt, regionW, regionH, hexNeighbours, isSeen, objectAt, isLocked, stepCost, RES_ICONS, ResKey, TERRAIN_COST } from './world';
+import { invasion, RegionDef, WorldState, WorldObj, WorldProp, bigPropHexes, terrainAt, regionW, regionH, hexNeighbours, isSeen, objectAt, isLocked, stepCost, RES_ICONS, ResKey, TERRAIN_COST } from './world';
 import { sprites, drawSprite } from '../game/sprites';
 import { smallDecor, TILESETS, type Tileset } from '../game/tiles';
 
@@ -128,23 +128,6 @@ export const biomeOf = (r: RegionDef): Biome => BIOMES[r.level] ?? BIOMES[1];
 let TREE = BIOMES[1].tree;
 let SNOW = false;
 
-/**
- * Сила захватчика в гексе (Артур, 2026-11-07: «карты перетекают друг в друга»): демоны, культисты и прочие пришлые
- * не переделывают весь край, а искажают его вокруг узла. 0 — природа континента (у лагеря главы), 1 — биом
- * захватчика (у крепости). Пограничье — родной край орков: там всё своё, 1 везде.
- */
-export function invasion(r: RegionDef): (x: number, y: number) => number {
-  const f = r.objects.find((o) => o.kind === 'fortress');
-  const c = r.objects.find((o) => o.kind === 'camp');
-  if (r.level === 1 || !f || !c) return () => 1;
-  return (x, y) => {
-    const df = Math.hypot(x - f.x, (y - f.y) * 0.87);
-    const dc = Math.hypot(x - c.x, (y - c.y) * 0.87);
-    const t = dc / (dc + df + 1e-6) + (rnd(x >> 1, y >> 1, 7777) - 0.5) * 0.12;
-    const k = Math.max(0, Math.min(1, (t - 0.32) / 0.55));
-    return k * k * (3 - 2 * k);
-  };
-}
 const hexRgb = (h: string) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
 /** Цвет между двумя #rrggbb */
 const mixHex = (a: string, b: string, t: number) => {

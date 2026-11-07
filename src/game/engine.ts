@@ -577,8 +577,13 @@ export class GameEngine {
   private roadLines: Point[][] = [];
   private roadSteps: { a: Point; b: Point }[] = [];
   // Гексовое поле: запечённая земля (трава, дорога, контуры гексов) и небо над ней
-  private hexGround: { map: MapDef; canvas: HTMLCanvasElement } | null = null;
-  private hexSky: { level: number; img: HTMLImageElement | null; canvas: HTMLCanvasElement } | null = null;
+  private hexGround: { map: MapDef; k: number; canvas: HTMLCanvasElement } | null = null;
+  private hexSky: { level: number; k: number; img: HTMLImageElement | null; base: HTMLImageElement | null; canvas: HTMLCanvasElement } | null = null;
+  /**
+   * Поход: сила захватчика в месте боя (0 — природа континента, 1 — биом карты; Артур 2026-11-07: «сделай и там» —
+   * как на карте похода, у лагеря главы земля и небо как в Пограничье, к крепости проступает биом). Вне похода — 1.
+   */
+  private invasion = 1;
 
   constructor() {
     // Pre-allocate fixed particle pool (zero garbage collection)
@@ -677,6 +682,7 @@ export class GameEngine {
    * `mapSeed`: a generated road (mapgen.ts) for this level's biome instead of its fixed map; endless mode only.
    */
   public startLevel(level: number, diff: Difficulty, endless = false, faction?: number, race: RaceId = 'humans', mapSeed: number | null = null, customMap: MapDef | null = null) {
+    this.invasion = 1;
     setHex(true); // гексовое поле во всех режимах (выбор Артура 2026-11-06); квадраты — только в свободном режиме по кнопке
     this.race = CONFIG.races[race] ? race : 'humans';
     this.megas = [];
@@ -4657,18 +4663,54 @@ export class GameEngine {
     ctx.restore();
   }
 
+  /** Поход: сила захватчика в месте боя (вызывать после старта боя) */
+  public setInvasion(k: number) {
+    this.invasion = Math.max(0, Math.min(1, k));
+    this.hexGround = null;
+    this.hexSky = null;
+  }
+
+  /** Тайлы набора, если уже загружены; иначе начинает загрузку */
+  private tilesOf(set: string): Tileset | null {
+    const t = this.fieldTiles.get(set);
+    if (t !== undefined) return t;
+    this.fieldTiles.set(set, null);
+    loadTileset(set).then((x) => {
+      if (x) this.fieldTiles.set(set, x);
+      else this.fieldTiles.delete(set);
+      this.hexGround = null;
+    });
+    return null;
+  }
+
+  /** Природа континента под биомом: показывается, если бой похода идёт вдали от узла захватчика */
+  private get natural(): number {
+    return this.currentMap.level === 1 ? 0 : 1 - this.invasion;
+  }
+
   /** Гексовое поле: земля карты (запекается, когда тайлы биома загружены) */
   private hexGroundLayer(): HTMLCanvasElement {
-    if (this.hexGround?.map === this.currentMap) return this.hexGround.canvas;
+    if (this.hexGround?.map === this.currentMap && this.hexGround.k === this.invasion) return this.hexGround.canvas;
     const set = TILESETS[this.currentMap.level];
     let tiles = set ? this.fieldTiles.get(set) : null;
     if (set && !tiles) {
       this.tiledField(); // начинает загрузку тайлов; пока их нет — земля цветом палитры, без кэша
       tiles = this.fieldTiles.get(set);
     }
-    const ready = !set || !!tiles;
-    const canvas = bakeHexGround(this.currentMap.level, this.currentMap.paths, CONFIG.grid.castleCells[0], (e) => this.entranceInward(e), tiles ?? null, HEX_BAKE);
-    if (ready) this.hexGround = { map: this.currentMap, canvas };
+    let ready = !set || !!tiles;
+    const bake = (level: number, t: Tileset | null) => bakeHexGround(level, this.currentMap.paths, CONFIG.grid.castleCells[0], (e) => this.entranceInward(e), t, HEX_BAKE);
+    let canvas = bake(this.currentMap.level, tiles ?? null);
+    if (this.natural > 0.01) {
+      // Земля Пограничья, поверх — биом карты с долей захватчика
+      const base = this.tilesOf(TILESETS[1]);
+      ready = ready && !!base;
+      const nat = bake(1, base);
+      const g = nat.getContext('2d')!;
+      g.globalAlpha = this.invasion;
+      g.drawImage(canvas, 0, 0);
+      canvas = nat;
+    }
+    if (ready) this.hexGround = { map: this.currentMap, k: this.invasion, canvas };
     return canvas;
   }
 
@@ -4676,7 +4718,20 @@ export class GameEngine {
   private renderHexSky(ctx: CanvasRenderingContext2D) {
     const level = this.currentMap.level;
     const img = backdropImage(level);
-    if (this.hexSky?.level !== level || this.hexSky.img !== img) this.hexSky = { level, img, canvas: bakeHexSky(level, HEX_BAKE, img) };
+    const base = this.natural > 0.01 ? backdropImage(1) : null;
+    const k = this.invasion;
+    if (this.hexSky?.level !== level || this.hexSky.img !== img || this.hexSky.base !== base || this.hexSky.k !== k) {
+      let canvas = bakeHexSky(level, HEX_BAKE, img);
+      if (this.natural > 0.01) {
+        // Небо Пограничья, поверх — даль биома с долей захватчика
+        const nat = bakeHexSky(1, HEX_BAKE, base);
+        const g = nat.getContext('2d')!;
+        g.globalAlpha = k;
+        g.drawImage(canvas, 0, 0);
+        canvas = nat;
+      }
+      this.hexSky = { level, k, img, base, canvas };
+    }
     const c = this.hexSky.canvas;
     ctx.drawImage(c, 0, 0, c.width / HEX_BAKE, c.height / HEX_BAKE);
   }

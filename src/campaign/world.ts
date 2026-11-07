@@ -937,3 +937,29 @@ export function battlePerks(st: WorldState): Record<string, number> {
   }
   return out;
 }
+
+// -------------------------------------------------------------
+// Захватчик и природа края
+// -------------------------------------------------------------
+const hash01 = (x: number, y: number) => {
+  const s = Math.sin(x * 127.1 + y * 311.7 + 7777 * 74.7) * 43758.5453;
+  return s - Math.floor(s);
+};
+
+/**
+ * Сила захватчика в гексе (Артур, 2026-11-07: «карты перетекают друг в друга»): демоны, культисты и прочие пришлые
+ * не переделывают весь край, а искажают его вокруг узла. 0 — природа континента (у лагеря главы), 1 — биом
+ * захватчика (у крепости). Пограничье — родной край орков: там всё своё, 1 везде.
+ */
+export function invasion(r: RegionDef): (x: number, y: number) => number {
+  const f = r.objects.find((o) => o.kind === 'fortress');
+  const c = r.objects.find((o) => o.kind === 'camp');
+  if (r.level === 1 || !f || !c) return () => 1;
+  return (x, y) => {
+    const df = Math.hypot(x - f.x, (y - f.y) * 0.87);
+    const dc = Math.hypot(x - c.x, (y - c.y) * 0.87);
+    const t = dc / (dc + df + 1e-6) + (hash01(x >> 1, y >> 1) - 0.5) * 0.12;
+    const k = Math.max(0, Math.min(1, (t - 0.32) / 0.55));
+    return k * k * (3 - 2 * k);
+  };
+}

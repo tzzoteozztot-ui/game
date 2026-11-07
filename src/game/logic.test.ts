@@ -977,3 +977,17 @@ test('dialogs: every chapter scene points at a real object, and conditional line
   assert.match(korh(['korh-fight'])[0], /не забыл/);
   assert.match(korh([])[0], /сам по себе/);
 });
+
+test('world: the invader shows near the fortress, the continent near the camp', () => {
+  for (const r of Object.values(W.REGIONS)) {
+    const k = W.invasion(r);
+    const camp = r.objects.find((o) => o.kind === 'camp')!;
+    const fort = r.objects.find((o) => o.kind === 'fortress')!;
+    if (r.level === 1) {
+      assert.equal(k(camp.x, camp.y), 1, 'Пограничье — родной край орков');
+      continue;
+    }
+    assert.ok(k(camp.x, camp.y) < 0.05, `${r.id}: nature at the camp`);
+    assert.ok(k(fort.x, fort.y) > 0.95, `${r.id}: invader at the fortress`);
+  }
+});
