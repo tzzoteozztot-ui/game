@@ -58,6 +58,9 @@ const DECOR: Record<string, [string, number][]> = {
     ['pool', 0.3], ['bells', 0.26], ['web', 0.28], ['carving', 0.3], ['petals', 0.3], ['mirror', 0.26], ['vine', 0.3], ['bowl', 0.26],
   ],
 };
+/** Мелкие предметы набора (не шире 0,3 клетки) — ими же усыпана глобальная карта похода */
+export const smallDecor = (set: string): string[] => (DECOR[set] ?? []).filter(([, w]) => w <= 0.3).map(([n]) => n);
+
 const DECOR_SHARE = 0.32; // доля свободных клеток с декором
 
 export type Tileset = Map<string, HTMLImageElement>;
