@@ -683,7 +683,7 @@ export default function App() {
   // Сцены посреди боя похода: `wave:<объект>:<N>`; бой с армией не встаёт на паузу, плашка просто поверх поля
   useEffect(() => {
     if (!worldBattle || !world || screen !== 'playing') return;
-    const sc = sceneFor(`wave:${worldBattle.id}:${gameState.wave}`, world.scenes);
+    const sc = sceneFor(`wave:${worldBattle.id}:${gameState.wave}`, world.scenes, world.flags);
     if (sc && battleScene?.id !== sc.id) setBattleScene(sc);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [worldBattle, gameState.wave, screen]);
@@ -740,7 +740,7 @@ export default function App() {
       setOpponent(null);
     }
     if (won && obj && world) {
-      const st = { ...world, res: { ...world.res }, done: [...world.done], owned: [...world.owned], seen: [...world.seen], scenes: [...world.scenes] };
+      const st = { ...world, res: { ...world.res }, done: [...world.done], owned: [...world.owned], seen: [...world.seen], scenes: [...world.scenes], flags: [...world.flags] };
       winBattle(st, REGIONS[st.region] ?? FRONTIER, obj.id);
       setWorld(st);
     }
@@ -762,7 +762,7 @@ export default function App() {
     }
     if (worldBattle) {
       if (canvasRef.current) engine.setCanvas(canvasRef.current);
-      engine.startWorldBattle(FRONTIER.level, worldBattle.waves ?? 3, battleSeed(worldBattle));
+      engine.startWorldBattle((REGIONS[world?.region ?? 'frontier'] ?? FRONTIER).level, worldBattle.waves ?? 3, battleSeed(worldBattle));
       heroIntoBattle(engine);
       return;
     }
