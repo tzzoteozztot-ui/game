@@ -923,7 +923,7 @@ export const HERO_ITEMS: HeroItem[] = [
   { id: 'shard', slot: 'amulet', name: 'Осколок узла', icon: '💎', text: 'Кусок малого узла. Тёплый на ощупь.', perks: { ward: 1, mire: 1 } },
   { id: 'banner', slot: 'banner', name: 'Знамя экспедиции', icon: '🚩', text: 'Под ним солдаты бьют быстрее.', perks: { haste: 1 } },
   { id: 'token', slot: 'amulet', name: 'Жетон чужого знамени', icon: '🔰', text: 'Лейтенант Сорн оставил его в болоте. Чужая экспедиция узнает этот знак.', perks: { envoy: 1, loot: 1 } },
-  { id: 'mirror', slot: 'amulet', name: 'Тёмное зеркало', icon: '🪞', text: 'Трофей из Цитадели сумерек. Показывает ту сторону, что не хочется видеть.', perks: { pierce: 1, slayer: 1, sight: 1 } },
+  { id: 'mirror', slot: 'amulet', name: 'Тёмное зеркало', icon: '🪞', text: 'Трофей из Цитадели сумерек. Его свойства ещё не изучены.', perks: { pierce: 1, slayer: 1, sight: 1 } },
   { id: 'warbanner', slot: 'banner', name: 'Трофейное знамя рода', icon: '🏴', text: 'Взято в военном лагере. Орки узнают его издалека.', perks: { loot: 1, envoy: 1 } },
 ];
 
