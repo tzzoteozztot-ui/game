@@ -1011,10 +1011,15 @@ test('dialogs: every chapter scene points at a real object, and conditional line
   assert.ok(!bog.objects.some((o) => o.needs?.includes('bog_forkA') || o.needsAny?.includes('bog_forkA')), 'святилище ничего не закрывает');
   // Корх в главе 5 говорит по выбору главы 4
   const korh = (flags: string[]) => D.sceneFor('event:dusk_forkA', [], flags)!.lines.map((l) => l.text);
-  assert.equal(korh(['korh-trade']).length, 1);
-  assert.match(korh(['korh-trade'])[0], /держу слово/);
-  assert.match(korh(['korh-fight'])[0], /не забыл/);
-  assert.match(korh([])[0], /сам по себе/);
+  const trade = korh(['korh-trade']);
+  const escort = korh(['korh-trade', 'korh-escort']);
+  const refused = korh([]);
+  assert.match(trade[0], /обмен сведениями/);
+  assert.ok(trade.some((t) => /не стали рисковать/.test(t)) && !trade.some((t) => /помогли моим людям/.test(t)), 'обмен без сопровождения');
+  assert.ok(escort.some((t) => /помогли моим людям/.test(t)) && !escort.some((t) => /не стали рисковать/.test(t)), 'сопровождение');
+  assert.match(refused[0], /не заключали соглашений/);
+  assert.ok(!refused.some((t) => /обмен сведениями/.test(t)));
+  for (const lines of [trade, escort, refused]) assert.match(lines[lines.length - 1], /не решил, кому достанется/);
 });
 
 test('world: the invader shows near the fortress, the continent near the camp', () => {
