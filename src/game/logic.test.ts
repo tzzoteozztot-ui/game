@@ -978,6 +978,12 @@ test('world: chapter 3 and 4 encounters follow the script — Korh, Bo-Rok, Kall
     assert.equal(W.isSeen(st, ash, fort.x, fort.y), pick !== 2, `choice ${pick}: the scouting report clears the fog over the Gates`);
     assert.ok(!st.flags.includes('korh-fight'));
   }
+  const dusk = W.REGIONS.dusk.objects;
+  const mirror = dusk.find((o) => o.id === 'dusk_forkB')!.choices!;
+  assert.equal(mirror.length, 1, 'the Dark Mirror is a required trophy, no choice');
+  assert.equal(mirror[0].item, 'mirror');
+  assert.equal(dusk.find((o) => o.id === 'dusk_event3')!.name, 'Последняя стоянка');
+  assert.equal(dusk.find((o) => o.id === 'dusk_sq3')!.name, 'Сумеречный дозор');
   const raid = W.REGIONS.ice.objects.find((o) => o.id === 'ice_event3')!;
   assert.equal(raid.kind, 'squad');
   assert.equal(raid.waves, 8);
