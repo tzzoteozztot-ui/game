@@ -3,9 +3,10 @@
  */
 
 import { RunLog, LogTower } from './runLog';
+import type { FieldView } from '../fieldView';
 import { CONFIG, TowerType, TargetPriority, Difficulty, EnemyType, RaceId, TowerBaseDef, BOONS, BoonDef, HERO_ABILITIES, HeroAbilityDef, pickBoons, DamageType, DAMAGE_TYPES } from './config';
 import { MAPS, Point, MapDef, isHudCell } from './maps';
-import { centerX, centerY, castleX, castleY, cellPath, isHex, setHex, hexView, screenToGround, cellAt, neighbours, ring, adjacent, translate } from './grid';
+import { groundToCellF, centerX, centerY, castleX, castleY, cellPath, isHex, setHex, hexView, screenToGround, cellAt, neighbours, ring, adjacent, translate } from './grid';
 import * as gridModule from './grid';
 import { generateMap } from './mapgen';
 import { MapDraft, MapEditTool, MAX_EXITS, draftToMap, mapToDraft, inField, isCastle } from './mapEditor';
@@ -3739,6 +3740,23 @@ export class GameEngine {
   }
 
   // Towers can be moved only in the pause between waves: the timer runs and no enemy is on the field
+  /** Снимок поля для зрителя Потасовки (src/fieldView.ts): башни и враги в клетках */
+  public fieldView(): FieldView {
+    return {
+      wave: this.wavesLaunched,
+      lives: Math.round(this.lives),
+      faction: this.faction,
+      towers: this.towers.map((t) => [t.x, t.y, t.type, t.level, t.second ? t.second.level : 0]),
+      enemies: this.enemies
+        .filter((e) => !e.isReviving)
+        .slice(0, 160)
+        .map((e) => {
+          const c = groundToCellF(e.x, e.y);
+          return [Math.round(c.x * 20) / 20, Math.round(c.y * 20) / 20, Math.max(0, Math.round((e.hp / e.maxHp) * 100)), e.type === 'boss' ? 1 : e.isFlyer ? 2 : 0];
+        }),
+    };
+  }
+
   public canMoveTowers(): boolean {
     return this.waveCountdown !== null && !this.isSpawning && this.enemies.length === 0 && !this.isGameOver;
   }

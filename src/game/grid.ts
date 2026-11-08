@@ -60,6 +60,14 @@ export function cellAt(gx: number, gy: number): P {
   return { x: rx + (rz - (rz & 1)) / 2, y: rz };
 }
 
+/** Наземная точка в дробных клетках (центр клетки (x, y) — ровно x, y): для схемы чужого поля */
+export function groundToCellF(gx: number, gy: number): P {
+  if (!hex) return { x: gx / CS() - 0.5, y: gy / CS() - 0.5 };
+  const row = (gy - HEX_H() / 2) / ROW();
+  const r = Math.round(row);
+  return { x: gx / CS() - 0.5 - 0.5 * (r & 1), y: row };
+}
+
 /** Соседи клетки: 4 у квадрата, 6 у гекса */
 export function neighbours(p: P): P[] {
   if (!hex)
