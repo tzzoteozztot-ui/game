@@ -431,6 +431,8 @@ export default function App() {
     if (!link) return;
     if (!duelOutcomeRef.current) link.send({ t: 'leave' });
     duelLinkRef.current = null;
+    botWatchRef.current = false;
+    setBotWatchState(false);
     if (engineRef.current) engineRef.current.onDuelSend = undefined;
     // Let the last message go out before the channel closes
     setTimeout(() => link.close(), 500);
@@ -483,6 +485,13 @@ export default function App() {
   const brawlRoomRef = useRef<BrawlRoom | null>(null);
   const [watchId, setWatchId] = useState<string | null>(null); // чьё поле смотрим (просьба Артура 2026-11-08)
   const [watchView, setWatchView] = useState<FieldView | null>(null);
+  // Дуэль и бой с армией против бота: поле соперника, нарисованное по его числам
+  const [botWatch, setBotWatchState] = useState(false);
+  const botWatchRef = useRef(false);
+  const setBotWatch = (v: boolean) => {
+    botWatchRef.current = v;
+    setBotWatchState(v);
+  };
   const watchIdRef = useRef<string | null>(null);
   const watchField = (id: string | null) => {
     watchIdRef.current = id;
@@ -777,6 +786,7 @@ export default function App() {
     closeDuel();
     setBrawl(null);
     brawlRoomRef.current = null;
+    setBotWatch(false);
     setWatchId(null);
     setWatchView(null);
     setSpecModalTower(null);
@@ -1180,6 +1190,11 @@ export default function App() {
     } else if (e.key === 'Escape') {
       // The bestiary, the account and «Как играть» close themselves; nothing under them reacts
       if (showBestiary) return;
+      if (botWatchRef.current) {
+        e.preventDefault();
+        setBotWatch(false);
+        return;
+      }
       if (watchIdRef.current) {
         e.preventDefault();
         watchField(null);
@@ -1517,9 +1532,32 @@ export default function App() {
                   sandbox={gameState.sandbox}
                   onOpenSandboxWave={() => setSandboxWaveOpen(true)}
                 />}
-                {brawl && <BrawlBoard snap={brawl} canWatch={(id) => !!brawlRoomRef.current?.canWatch(id)} watchId={watchId} onWatch={watchField} />}
+                {brawl && <BrawlBoard snap={brawl} canWatch={(id) => !!brawlRoomRef.current?.canSee(id)} watchId={watchId} onWatch={watchField} />}
+                {!brawl && gameState.duel && duelLinkRef.current?.botInfo && !botWatch && (
+                  <button
+                    type="button"
+                    onClick={() => setBotWatch(true)}
+                    title="Посмотреть поле соперника"
+                    className="absolute right-1 top-1 px-2 py-1 rounded-md bg-black/45 border border-white/10 text-white/90 text-[clamp(10px,1.6vh,14px)] cursor-pointer hover:bg-black/60"
+                  >
+                    👁 Соперник
+                  </button>
+                )}
+                {!brawl && gameState.duel && botWatch && duelLinkRef.current?.botInfo && (
+                  <BrawlSpectator
+                    seat={{ id: 'bot-duel', name: 'Соперник', race: duelLinkRef.current?.botInfo?.()?.race ?? 'humans', kind: 'bot', lives: Math.round(opponent?.lives ?? 0), out: false, place: null }}
+                    view={null}
+                    botInfo={() => {
+                      const i = duelLinkRef.current?.botInfo?.();
+                      return i ? { ...i, faction: CONFIG.races[race].faction } : null;
+                    }}
+                    level={gameState.level}
+                    seed={engineRef.current?.mapSeed ?? undefined}
+                    onClose={() => setBotWatch(false)}
+                  />
+                )}
                 {brawl && watchId && brawl.seats.find((s) => s.id === watchId) && (
-                  <BrawlSpectator seat={brawl.seats.find((s) => s.id === watchId)!} view={watchView} level={gameState.level} seed={engineRef.current?.mapSeed ?? undefined} onClose={() => watchField(null)} />
+                  <BrawlSpectator seat={brawl.seats.find((s) => s.id === watchId)!} view={watchView} botInfo={() => brawlRoomRef.current?.botInfo(watchId) ?? null} level={gameState.level} seed={engineRef.current?.mapSeed ?? undefined} onClose={() => watchField(null)} />
                 )}
                 {worldBattle && <HeroBar skills={gameState.heroSkills} onCast={(id) => engineRef.current?.castHero(id)} />}
                 {gameState.boonOffer && !gameState.isGameOver && (

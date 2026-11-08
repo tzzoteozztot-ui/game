@@ -6,7 +6,7 @@
  * the wave (the same unit as the send prices), so a sent enemy counts as much as it costs.
  */
 
-import { BOONS, CONFIG, pickBoons } from './game/config';
+import { BOONS, CONFIG, RACE_IDS, pickBoons } from './game/config';
 import {
   SEND_TYPES,
   SendType,
@@ -205,5 +205,18 @@ export function createBotLink(level: number, difficulty: BotLevel): DuelLink {
     },
     pair() {},
     close: stop,
+    botInfo() {
+      return {
+        id: 'bot-duel',
+        race: RACE_IDS.find((r) => CONFIG.races[r].faction === level) ?? 'humans',
+        difficulty,
+        form: 1,
+        lives: field.lives,
+        wave: round,
+        roundT: (performance.now() - startedAt) / 1000 % CONFIG.duel.roundLength,
+        roundLength: CONFIG.duel.roundLength,
+        faction: CONFIG.races.humans.faction,
+      };
+    },
   };
 }

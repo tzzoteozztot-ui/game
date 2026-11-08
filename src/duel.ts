@@ -30,6 +30,8 @@ export interface DuelLink {
   /** From now on only this sender is heard and messages go to it alone; a third player gets «full» */
   pair(peer: string): void;
   close(): void;
+  /** Bot opponent only (src/duelBot.ts): its data for a field drawn from its numbers (src/fieldView.ts) */
+  botInfo?(id?: string): import('./fieldView').BotWatchInfo | null;
 }
 
 /** On the wire every message carries its sender and, once paired, its addressee */
