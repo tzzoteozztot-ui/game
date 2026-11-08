@@ -47,7 +47,7 @@ export function BrawlBoard({ snap, canWatch, watchId, onWatch }: { snap: BrawlSn
               const isCur = s.id === snap.currentId;
               const isGhost = s.id === snap.ghostId;
               const color = CONFIG.palettes[CONFIG.races[s.race].faction - 1].enemies;
-              const watchable = !!onWatch && !!canWatch && canWatch(s.id);
+              const watchable = !!onWatch && !!canWatch && canWatch(s.id) && !s.out;
               return (
                 <li
                   key={s.id}

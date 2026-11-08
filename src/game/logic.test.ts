@@ -1055,3 +1055,15 @@ test('cleanView: чужой снимок поля обрезается и про
   assert.equal(v.enemies.length, 2);
   assert.ok(v.enemies[1][2] <= 100 && v.enemies[1][3] <= 2 && v.enemies[1][0] <= 16);
 });
+
+import { botFieldView } from '../fieldView';
+test('botFieldView: поле бота растёт с волной и стоит вне дороги', () => {
+  const info = (wave: number) => ({ id: 'bot1', race: 'humans' as const, difficulty: 'normal' as const, form: 1, lives: 150, wave, roundT: 10, roundLength: 40, faction: 1 });
+  const road = new Set(MAPS[0].paths.flat().map((c) => `${c.x},${c.y}`));
+  const a = botFieldView(info(2), MAPS[0]);
+  const b = botFieldView(info(12), MAPS[0]);
+  assert.ok(b.towers.length > a.towers.length);
+  for (const t of b.towers) assert.ok(!road.has(`${t[0]},${t[1]}`) && !(t[0] === CASTLE.x && t[1] === CASTLE.y));
+  assert.deepEqual(botFieldView(info(12), MAPS[0]).towers, b.towers);
+  assert.ok(b.enemies.length > 0);
+});

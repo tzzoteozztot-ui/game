@@ -18,7 +18,7 @@ import { CONFIG, RACE_IDS, RaceId } from './game/config';
 import { SEND_TYPES, type SendType } from './game/rules';
 import type { DuelLink, DuelMessage, RoomLink } from './duel';
 import { BotField, BotLevel } from './duelBot';
-import { FieldView, cleanView } from './fieldView';
+import { BotWatchInfo, FieldView, cleanView } from './fieldView';
 
 export type SeatKind = 'you' | 'bot' | 'net';
 
@@ -375,6 +375,36 @@ export class BrawlRoom implements DuelLink {
   canWatch(id: string): boolean {
     const s = this.seat(id);
     return !!this.net && !!s && s.id !== this.me && s.human && !s.took && !s.left;
+  }
+
+  /** Anyone but you can be watched: a player by their real field, a bot by a field drawn from its numbers */
+  canSee(id: string): boolean {
+    return id !== this.me && (this.canWatch(id) || !!this.botInfo(id));
+  }
+
+  /** A bot's data for a drawn field (src/fieldView.ts botFieldView): null for a player */
+  botInfo(id: string): BotWatchInfo | null {
+    const now = performance.now();
+    const fromBoard = !this.hosting && this.board;
+    const s = this.seat(id);
+    const bs = fromBoard ? this.board!.seats.find((x) => x.id === id) : undefined;
+    const race = cleanRace(bs?.race ?? s?.race);
+    const bot = fromBoard ? bs?.bot : s?.field ? { difficulty: s.field.difficulty, form: s.field.form, lives: s.field.lives } : undefined;
+    if (!bot) return null;
+    const cur = (fromBoard ? this.board!.prev : this.prevOpp[this.wave])?.[id];
+    const foeRace = (cur && (fromBoard ? this.board!.seats.find((x) => x.id === cur)?.race : this.seat(cur)?.race)) || undefined;
+    const L = CONFIG.brawl.roundLength;
+    return {
+      id,
+      race,
+      difficulty: bot.difficulty,
+      form: Number(bot.form) || 1,
+      lives: (fromBoard ? bs?.shown : s?.shown) ?? bot.lives,
+      wave: this.wave,
+      roundT: (((now - this.startAt) / 1000) % L + L) % L,
+      roundLength: L,
+      faction: foeRace ? CONFIG.races[cleanRace(foeRace)].faction : this.level,
+    };
   }
 
   /** Watch a player's field (null — stop); the listener gets the latest snapshot */

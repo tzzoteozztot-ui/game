@@ -8,12 +8,26 @@ import { CONFIG } from '../game/config';
 import { MAPS } from '../game/maps';
 import { generateMap } from '../game/mapgen';
 import { sprites } from '../game/sprites';
-import { FieldView, drawFieldView } from '../fieldView';
+import { BotWatchInfo, FieldView, botFieldView, drawFieldView } from '../fieldView';
 import type { BrawlSeatView } from '../brawl';
 
-export function BrawlSpectator({ seat, view, level, seed, onClose }: { seat: BrawlSeatView; view: FieldView | null; level: number; seed?: number; onClose: () => void }) {
+export function BrawlSpectator({ seat, view: netView, botInfo, level, seed, onClose }: { seat: BrawlSeatView; view: FieldView | null; botInfo?: () => BotWatchInfo | null; level: number; seed?: number; onClose: () => void }) {
   const ref = React.useRef<HTMLCanvasElement>(null);
   const map = React.useMemo(() => (seed ? generateMap(level, seed) : MAPS[level - 1]), [level, seed]);
+  // Бот: поле собирается из его данных, раз в 0,25 с
+  const [botView, setBotView] = React.useState<FieldView | null>(null);
+  const isBot = seat.kind === 'bot';
+  React.useEffect(() => {
+    if (!isBot || !botInfo) return;
+    const tick = () => {
+      const info = botInfo();
+      setBotView(info ? botFieldView(info, map) : null);
+    };
+    tick();
+    const id = window.setInterval(tick, 250);
+    return () => window.clearInterval(id);
+  }, [isBot, botInfo, map]);
+  const view = isBot ? botView : netView;
   const [spritesReady, setSpritesReady] = React.useState(0);
   React.useEffect(() => {
     sprites.load().then(() => setSpritesReady(1));
@@ -48,6 +62,7 @@ export function BrawlSpectator({ seat, view, level, seed, onClose }: { seat: Bra
         </div>
         <canvas ref={ref} className="w-full block" style={{ aspectRatio: '14 / 8' }} />
         {!view && <div className="px-3 py-1 text-center text-stone-400 text-[clamp(10px,1.4vh,13px)]">Ждём поле игрока…</div>}
+        {isBot && <div className="px-3 py-1 text-center text-stone-500 text-[clamp(9px,1.3vh,12px)]">Бот играет числами: поле нарисовано по его силе и волне</div>}
       </div>
     </div>
   );
