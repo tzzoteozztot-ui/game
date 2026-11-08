@@ -77,6 +77,7 @@ src/campaign/dialogs.ts  глава 1 — обучение (сценарий Л�
 src/brawl.ts             «Потасовка»: комната на восьмерых (`BrawlRoom`, она же DuelLink — App ведёт её как дуэль), пары на каждую волну и призрак (`pairRound`, `placesForFallen`); боты — `BotField` из duelBot.ts
 src/bestiary.ts          данные бестиария: фракции и существа с текстами по лору (дополнять здесь; спрайты берутся из public/sprites/)
                          и названия врагов по фракциям (`enemyName`: «Воин рода», «Скелет-воин»…; общие названия из config.ts — запасные; имена боссов — `bossName` в config.ts)
+src/fieldView.ts         чужое поле в Потасовке (просьба Артура 2026-11-08): снимок поля (`FieldView`: башни, враги в клетках, `engine.fieldView()`), `cleanView` проверяет пришедшее, `drawFieldView` рисует схему (карта, башни спрайтами, враги точками). По сети: зритель шлёт игроку `watch` раз в 2 с, тот отвечает `view` раз в 0,5 с (`BrawlRoom.watch/canWatch/setViewSource`); окно — `BrawlSpectator.tsx`, открывается касанием игрока в `BrawlBoard` (👁), Esc — закрыть. Смотреть можно только живых игроков по сети: у ботов поля нет (их защита — число)
 src/fullscreen.ts        кнопка «Во весь экран» (Fullscreen API, клавиша F), признак запуска с экрана «Домой»
 public/manifest.webmanifest, public/icons/  установка на экран «Домой» (значки — scripts/make_icons.py)
 src/App.tsx              корневой компонент: экраны (menu → briefing → playing), магазин,

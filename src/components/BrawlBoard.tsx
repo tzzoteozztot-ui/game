@@ -12,7 +12,7 @@ import type { BrawlSnapshot } from '../brawl';
 
 const CELL = `calc(100cqw / ${CONFIG.grid.cols})`;
 
-export function BrawlBoard({ snap }: { snap: BrawlSnapshot }) {
+export function BrawlBoard({ snap, canWatch, watchId, onWatch }: { snap: BrawlSnapshot; canWatch?: (id: string) => boolean; watchId?: string | null; onWatch?: (id: string | null) => void }) {
   const [open, setOpen] = React.useState(true);
   const max = CONFIG.lives.start;
   return (
@@ -47,11 +47,13 @@ export function BrawlBoard({ snap }: { snap: BrawlSnapshot }) {
               const isCur = s.id === snap.currentId;
               const isGhost = s.id === snap.ghostId;
               const color = CONFIG.palettes[CONFIG.races[s.race].faction - 1].enemies;
+              const watchable = !!onWatch && !!canWatch && canWatch(s.id);
               return (
                 <li
                   key={s.id}
-                  className={`flex flex-col gap-[0.15em] ${s.out ? 'opacity-45' : ''} ${isOpp ? 'text-red-300' : isCur ? 'text-orange-300' : s.kind === 'you' ? 'text-amber-200' : s.kind === 'net' ? 'text-sky-200' : ''}`}
-                  title={`${s.name} — ${CONFIG.races[s.race].name}`}
+                  onClick={watchable ? () => onWatch!(watchId === s.id ? null : s.id) : undefined}
+                  className={`flex flex-col gap-[0.15em] ${watchable ? 'pointer-events-auto cursor-pointer hover:bg-white/10 rounded' : ''} ${watchId === s.id ? 'bg-white/10 rounded' : ''} ${s.out ? 'opacity-45' : ''} ${isOpp ? 'text-red-300' : isCur ? 'text-orange-300' : s.kind === 'you' ? 'text-amber-200' : s.kind === 'net' ? 'text-sky-200' : ''}`}
+                  title={`${s.name} — ${CONFIG.races[s.race].name}${watchable ? ' · нажмите, чтобы посмотреть поле' : ''}`}
                 >
                   <div className="flex items-center gap-[0.3em]">
                     <span className="inline-block w-[0.6em] h-[0.6em] rounded-full shrink-0" style={{ backgroundColor: color }} />
@@ -61,6 +63,7 @@ export function BrawlBoard({ snap }: { snap: BrawlSnapshot }) {
                       {(isCur || isOpp) && ' '}
                       {isGhost && '👻 '}
                       {s.name}
+                      {watchable && <span className="text-stone-400"> 👁</span>}
                     </span>
                     <span className="font-bold">{s.out ? `${s.place}-е` : s.lives}</span>
                   </div>

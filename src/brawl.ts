@@ -18,6 +18,7 @@ import { CONFIG, RACE_IDS, RaceId } from './game/config';
 import { SEND_TYPES, type SendType } from './game/rules';
 import type { DuelLink, DuelMessage, RoomLink } from './duel';
 import { BotField, BotLevel } from './duelBot';
+import { FieldView, cleanView } from './fieldView';
 
 export type SeatKind = 'you' | 'bot' | 'net';
 
@@ -183,10 +184,14 @@ export type BrawlWire =
   | { t: 'beat'; lives: number; lost: boolean } // player → host, every 2 s in the game
   | { t: 'send'; enemies: Partial<Record<SendType, number>>; wave?: number; army?: number } // player → host: bought at a wave start; host → player: enemies for you
   | { t: 'lost' } // player → host: my artifact fell; host → player: you are the last one standing
+  | { t: 'watch'; on: boolean } // viewer → player: send me your field every 0,5 s (resent every 2 s while watching)
+  | { t: 'view'; v: FieldView } // player → viewer
   | { t: 'leave' }; // anyone: I left
 
 const BOARD_EVERY_MS = 1000;
 const BEAT_EVERY_MS = 2000;
+const WATCH_EVERY_MS = 2000;
+const WATCH_TIMEOUT_MS = 6000; // a viewer silent this long stops getting the field
 const NET_TIMEOUT_MS = 15000; // a player silent this long: a bot takes the seat (it comes back with the player's next message)
 const HOST_TIMEOUT_MS = 8000; // no board this long: the next player hosts
 
@@ -277,6 +282,12 @@ export class BrawlRoom implements DuelLink {
   private lostSent = false; // client: my artifact fell (the host may not know yet)
   private seed = 0;
   private factionByWave: Record<number, number> = {}; // client: whose enemies each wave brings me
+  // Чужое поле (просьба Артура 2026-11-08)
+  private viewSource: (() => FieldView | null) | null = null;
+  private watchers = new Map<string, number>(); // who watches my field -> performance.now() of their last «watch»
+  private watching: string | null = null;
+  private watchSentAt = 0;
+  private viewListener: (v: FieldView | null) => void = () => {};
 
   constructor(
     private level: number,
@@ -355,6 +366,40 @@ export class BrawlRoom implements DuelLink {
 
   pair() {}
 
+  /** App gives the room a way to read this player's own field */
+  setViewSource(fn: () => FieldView | null) {
+    this.viewSource = fn;
+  }
+
+  /** Can this seat's field be watched: another real player, still in touch */
+  canWatch(id: string): boolean {
+    const s = this.seat(id);
+    return !!this.net && !!s && s.id !== this.me && s.human && !s.took && !s.left;
+  }
+
+  /** Watch a player's field (null — stop); the listener gets the latest snapshot */
+  watch(id: string | null, cb?: (v: FieldView | null) => void) {
+    if (cb) this.viewListener = cb;
+    if (this.watching && this.watching !== id) this.net?.send({ t: 'watch', on: false }, this.watching);
+    this.watching = id && this.canWatch(id) ? id : null;
+    this.watchSentAt = 0;
+    this.viewListener(null);
+    this.pumpWatch(performance.now());
+  }
+
+  private pumpWatch(now: number) {
+    if (!this.net) return;
+    if (this.watching && now - this.watchSentAt >= WATCH_EVERY_MS) {
+      this.watchSentAt = now;
+      this.net.send({ t: 'watch', on: true }, this.watching);
+    }
+    const snap = this.watchers.size && this.viewSource ? this.viewSource() : null;
+    for (const [id, at] of this.watchers) {
+      if (now - at > WATCH_TIMEOUT_MS) this.watchers.delete(id);
+      else if (snap) this.net.send({ t: 'view', v: snap }, id);
+    }
+  }
+
   close() {
     if (this.stopped) return;
     this.stopped = true;
@@ -391,6 +436,7 @@ export class BrawlRoom implements DuelLink {
     if (this.hosting) this.hostTick(now);
     else this.clientTick(now);
     if (this.stopped) return;
+    this.pumpWatch(now);
     // The opponent's line under your gold, live (it is also the duel's sign of life)
     const snap = this.snapshot();
     const oppId = snap.currentId ?? snap.opponentId;
@@ -548,6 +594,16 @@ export class BrawlRoom implements DuelLink {
     if (this.stopped || !msg || typeof msg !== 'object') return;
     if (msg.t === 'board') {
       this.onBoard(msg.b, from);
+      return;
+    }
+    if (msg.t === 'watch') {
+      // Only the room's players may watch, and at most seven of them
+      if (msg.on && this.seat(from)?.human && (this.watchers.has(from) || this.watchers.size < CONFIG.brawl.players)) this.watchers.set(from, performance.now());
+      else this.watchers.delete(from);
+      return;
+    }
+    if (msg.t === 'view') {
+      if (from === this.watching) this.viewListener(cleanView(msg.v));
       return;
     }
     if (this.hosting) {

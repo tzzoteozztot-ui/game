@@ -1041,3 +1041,17 @@ test('world: the invader shows near the fortress, the continent near the camp', 
     assert.ok(k(fort.x, fort.y) > 0.95, `${r.id}: invader at the fortress`);
   }
 });
+
+import { cleanView } from '../fieldView';
+test('cleanView: чужой снимок поля обрезается и проверяется', () => {
+  assert.equal(cleanView(null), null);
+  assert.equal(cleanView({ towers: 1, enemies: [] }), null);
+  const v = cleanView({
+    wave: 5, lives: 120, faction: 2,
+    towers: [[3, 2, 'archer', 2, 0], [99, 99, 'nonsense', 1, 0], 'x'],
+    enemies: [[1.5, 2.5, 50, 0], [999, -999, 500, 7], null],
+  })!;
+  assert.equal(v.towers.length, 1);
+  assert.equal(v.enemies.length, 2);
+  assert.ok(v.enemies[1][2] <= 100 && v.enemies[1][3] <= 2 && v.enemies[1][0] <= 16);
+});

@@ -37,6 +37,8 @@ import { DuelLink, duelAvailable } from './duel';
 import { BrawlNetSetup, BrawlRoom, BrawlSnapshot, brawlBots } from './brawl';
 import { BrawlLobby } from './components/BrawlLobby';
 import { BrawlBoard } from './components/BrawlBoard';
+import { BrawlSpectator } from './components/BrawlSpectator';
+import type { FieldView } from './fieldView';
 import { BoonPicker } from './components/BoonPicker';
 import { LevelBriefing } from './components/LevelBriefing';
 import { PauseModal, DefeatModal, HowToPlayModal, DuelResultModal, BrawlResultModal, DuelOutcome } from './components/StatusModals';
@@ -478,6 +480,16 @@ export default function App() {
 
   // «Потасовка»: a room of eight run here, driven like a duel (src/brawl.ts); its board for the overlay
   const [brawl, setBrawl] = useState<BrawlSnapshot | null>(null);
+  const brawlRoomRef = useRef<BrawlRoom | null>(null);
+  const [watchId, setWatchId] = useState<string | null>(null); // чьё поле смотрим (просьба Артура 2026-11-08)
+  const [watchView, setWatchView] = useState<FieldView | null>(null);
+  const watchIdRef = useRef<string | null>(null);
+  const watchField = (id: string | null) => {
+    watchIdRef.current = id;
+    brawlRoomRef.current?.watch(id, setWatchView);
+    setWatchId(id);
+    setWatchView(null);
+  };
   // Свободный режим (песочница, просьба Артура 2026-11-02); раса, враги и карта меняются внутри режима (2026-11-05)
   const [sandboxWaveOpen, setSandboxWaveOpen] = useState(false);
   const [sandboxSummaryOpen, setSandboxSummaryOpen] = useState(false);
@@ -516,6 +528,7 @@ export default function App() {
     const startAt = performance.now();
     const room = new BrawlRoom(level, race, brawlBots(bots), startAt, () => engineRef.current?.lives ?? 0);
     room.onChange(setBrawl);
+    brawlRoomRef.current = room;
     setMode('duel');
     // Every wave brings the opponent's own army: its race's enemies (просьба Артура 2026-11-01)
     const own = CONFIG.races[race].faction;
@@ -527,6 +540,8 @@ export default function App() {
     sound.init();
     const room = new BrawlRoom(level, race, brawlBots(bots), startAt, () => engineRef.current?.lives ?? 0, setup);
     room.onChange(setBrawl);
+    room.setViewSource(() => engineRef.current?.fieldView() ?? null);
+    brawlRoomRef.current = room;
     setMode('duel');
     handleDuelStart(room, level, startAt, room.factionForWave(1), CONFIG.races[race].faction, CONFIG.brawl.roundLength, setup.seed || null);
   };
@@ -761,6 +776,9 @@ export default function App() {
     }
     closeDuel();
     setBrawl(null);
+    brawlRoomRef.current = null;
+    setWatchId(null);
+    setWatchView(null);
     setSpecModalTower(null);
     if (engineRef.current) {
       engineRef.current.stopLoop();
@@ -1162,6 +1180,11 @@ export default function App() {
     } else if (e.key === 'Escape') {
       // The bestiary, the account and «Как играть» close themselves; nothing under them reacts
       if (showBestiary) return;
+      if (watchIdRef.current) {
+        e.preventDefault();
+        watchField(null);
+        return;
+      }
       if (showAccount || showHowToPlay) {
         e.preventDefault();
         setShowAccount(false);
@@ -1494,7 +1517,10 @@ export default function App() {
                   sandbox={gameState.sandbox}
                   onOpenSandboxWave={() => setSandboxWaveOpen(true)}
                 />}
-                {brawl && <BrawlBoard snap={brawl} />}
+                {brawl && <BrawlBoard snap={brawl} canWatch={(id) => !!brawlRoomRef.current?.canWatch(id)} watchId={watchId} onWatch={watchField} />}
+                {brawl && watchId && brawl.seats.find((s) => s.id === watchId) && (
+                  <BrawlSpectator seat={brawl.seats.find((s) => s.id === watchId)!} view={watchView} level={gameState.level} seed={engineRef.current?.mapSeed ?? undefined} onClose={() => watchField(null)} />
+                )}
                 {worldBattle && <HeroBar skills={gameState.heroSkills} onCast={(id) => engineRef.current?.castHero(id)} />}
                 {gameState.boonOffer && !gameState.isGameOver && (
                   <BoonPicker offer={gameState.boonOffer} onChoose={(id) => engineRef.current?.chooseBoon(id)} />
