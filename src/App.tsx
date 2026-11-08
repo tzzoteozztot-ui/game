@@ -4,7 +4,7 @@
  */
 
 import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { CONFIG, Difficulty, TowerType, RaceId } from './game/config';
+import { CONFIG, Difficulty, TowerType, RaceId, RACE_IDS } from './game/config';
 import { createBotLink } from './duelBot';
 import { HeroBar } from './components/HeroBar';
 import { validateAllMaps } from './game/maps';
@@ -38,7 +38,7 @@ import { BrawlNetSetup, BrawlRoom, BrawlSnapshot, brawlBots } from './brawl';
 import { BrawlLobby } from './components/BrawlLobby';
 import { BrawlBoard } from './components/BrawlBoard';
 import { BrawlSpectator } from './components/BrawlSpectator';
-import type { FieldView } from './fieldView';
+import { cleanView, type FieldView } from './fieldView';
 import { BoonPicker } from './components/BoonPicker';
 import { LevelBriefing } from './components/LevelBriefing';
 import { PauseModal, DefeatModal, HowToPlayModal, DuelResultModal, BrawlResultModal, DuelOutcome } from './components/StatusModals';
@@ -454,6 +454,8 @@ export default function App() {
       duelSeenRef.current = performance.now();
       if (msg.t === 'hello' && link.role === 'host') link.send({ t: 'start', level, army: myArmy, inMs: 0 }); // the first answer was lost
       else if (msg.t === 'state') setOpponent({ lives: msg.lives, wave: msg.wave, income: msg.income ?? 0 });
+      else if (msg.t === 'watch') duelWatchedAtRef.current = msg.on ? performance.now() : 0;
+      else if (msg.t === 'view') setDuelView(cleanView(msg.v));
       else if (msg.t === 'send') engineRef.current?.receiveSend(msg.enemies ?? {}, msg.army);
       else if (msg.t === 'lost') finishDuel('won');
       else if (msg.t === 'leave') finishDuel('left');
@@ -488,7 +490,13 @@ export default function App() {
   // Дуэль и бой с армией против бота: поле соперника, нарисованное по его числам
   const [botWatch, setBotWatchState] = useState(false);
   const botWatchRef = useRef(false);
+  const duelAskedAtRef = useRef(0);
+  const duelWatchedAtRef = useRef(0); // дуэль людей: когда соперник последний раз просил моё поле (0 — не смотрит)
+  const [duelView, setDuelView] = useState<FieldView | null>(null);
   const setBotWatch = (v: boolean) => {
+    if (!v && botWatchRef.current) duelLinkRef.current?.send({ t: 'watch', on: false });
+    if (v) duelAskedAtRef.current = 0;
+    setDuelView(null);
     botWatchRef.current = v;
     setBotWatchState(v);
   };
@@ -567,6 +575,23 @@ export default function App() {
     }, CONFIG.duel.stateInterval * 1000);
     return () => window.clearInterval(t);
   }, [screen, gameState.duel, finishDuel]);
+
+  // Дуэль людей: моё поле соперику, пока он смотрит (раз в 0,5 с), и мой запрос его поля (раз в 2 с)
+  useEffect(() => {
+    if (screen !== 'playing' || !gameState.duel || brawl) return;
+    const t = window.setInterval(() => {
+      const link = duelLinkRef.current;
+      const engine = engineRef.current;
+      if (!link || !engine || duelOutcomeRef.current || link.botInfo) return;
+      const now = performance.now();
+      if (duelWatchedAtRef.current && now - duelWatchedAtRef.current < 6000) link.send({ t: 'view', v: engine.fieldView() });
+      if (botWatchRef.current && (!duelAskedAtRef.current || now - duelAskedAtRef.current >= 2000)) {
+        duelAskedAtRef.current = now;
+        link.send({ t: 'watch', on: true });
+      }
+    }, 500);
+    return () => window.clearInterval(t);
+  }, [screen, gameState.duel, brawl]);
 
   // Duel: my castle fell
   useEffect(() => {
@@ -1533,7 +1558,7 @@ export default function App() {
                   onOpenSandboxWave={() => setSandboxWaveOpen(true)}
                 />}
                 {brawl && <BrawlBoard snap={brawl} canWatch={(id) => !!brawlRoomRef.current?.canSee(id)} watchId={watchId} onWatch={watchField} />}
-                {!brawl && gameState.duel && duelLinkRef.current?.botInfo && !botWatch && (
+                {!brawl && gameState.duel && duelLinkRef.current && !botWatch && (
                   <button
                     type="button"
                     onClick={() => setBotWatch(true)}
@@ -1543,10 +1568,10 @@ export default function App() {
                     👁 Соперник
                   </button>
                 )}
-                {!brawl && gameState.duel && botWatch && duelLinkRef.current?.botInfo && (
+                {!brawl && gameState.duel && botWatch && duelLinkRef.current && (
                   <BrawlSpectator
-                    seat={{ id: 'bot-duel', name: 'Соперник', race: duelLinkRef.current?.botInfo?.()?.race ?? 'humans', kind: 'bot', lives: Math.round(opponent?.lives ?? 0), out: false, place: null }}
-                    view={null}
+                    seat={{ id: 'bot-duel', name: 'Соперник', race: duelLinkRef.current?.botInfo?.()?.race ?? RACE_IDS.find((r) => CONFIG.races[r].faction === opponentArmy) ?? 'humans', kind: duelLinkRef.current?.botInfo ? 'bot' : 'net', lives: Math.round(opponent?.lives ?? 0), out: false, place: null }}
+                    view={duelView}
                     botInfo={() => {
                       const i = duelLinkRef.current?.botInfo?.();
                       return i ? { ...i, faction: CONFIG.races[race].faction } : null;

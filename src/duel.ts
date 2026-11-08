@@ -18,6 +18,8 @@ export type DuelMessage =
   | { t: 'state'; lives: number; wave: number; income: number } // both, every few seconds; also a sign of life
   | { t: 'send'; enemies: Partial<Record<SendType, number>>; army?: number; wave?: number } // enemies bought for the opponent, at a round start; army: whose (brawl); wave: the wave they leave with
   | { t: 'lost'; wave: number } // my castle fell
+  | { t: 'watch'; on: boolean } // I watch your field (resent every 2 s while I do); duel only
+  | { t: 'view'; v: unknown } // my field for the one watching (src/fieldView.ts FieldView, checked by cleanView)
   | { t: 'leave' } // I left the duel
   | { t: 'full' }; // host → a third player: the room already has a duel
 
