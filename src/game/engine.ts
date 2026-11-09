@@ -1186,7 +1186,7 @@ export class GameEngine {
       if (this.spectating) this.spectateStep(dt);
       else if ((!this.isPaused || this.duelStart !== null) && !this.isGameOver && !this.isVictory) {
         // Game time runs at the chosen speed in steps of at most 0.05 s
-        const gameDt = dt * this.speedMultiplier;
+        const gameDt = dt * this.effectiveSpeed();
         const steps = Math.max(1, Math.ceil(gameDt / 0.05 - 1e-9));
         for (let s = 0; s < steps; s++) {
           this.update(gameDt / steps);
@@ -1440,6 +1440,14 @@ export class GameEngine {
   public togglePause() {
     this.isPaused = !this.isPaused;
     this.notifyState();
+  }
+
+  /** Brawl: game time speeds up by CONFIG.brawl.speedStep every speedEvery waves (waves 1–6 ×1, 7–12 ×1,25 …); the round clock stays real-time.
+   *  Depends only on the wave count, which follows the shared clock, so every player runs the same speed. */
+  public effectiveSpeed(): number {
+    if (!this.boonsOn || this.duelStart === null) return this.speedMultiplier;
+    const stage = Math.floor(Math.max(0, this.wavesLaunched - 1) / CONFIG.brawl.speedEvery);
+    return this.speedMultiplier + stage * CONFIG.brawl.speedStep;
   }
 
   public setSpeed(speed: number) {
@@ -4734,7 +4742,7 @@ export class GameEngine {
       waveCountdown: this.waveCountdown === null ? null : Math.ceil(this.waveCountdown),
       autoStart: this.autoStart,
       earlyStartBonus: this.earlyStartBonus(),
-      speed: this.speedMultiplier,
+      speed: this.effectiveSpeed(),
       selectedTower: selected,
       hyperPlanLeft: this.hyperPlan ? 3 - this.hyperPlan.cells.length : 0,
       eligibleMergeCount: eligibleCount,
