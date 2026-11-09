@@ -1074,6 +1074,7 @@ export default function App() {
       const tower = engine.towerAtCell(cell.x, cell.y);
       // A press on a tower can drag it to another cell: free between waves, for gold in a duel during a wave
       const towerId = tower && engine.placingSlot === null && !engine.hyperPlan && !engine.bindingFromId && !engine.upgradingFromBinderId && engine.moveCost() !== null ? tower.id : null;
+      engine.moveGrab = towerId ? cell : null;
       gestureRef.current = { x: e.clientX, y: e.clientY, mode: 'tap', towerId };
     } else if (pointersRef.current.size === 2) {
       if (gestureRef.current) gestureRef.current.mode = 'pinch';
@@ -1144,8 +1145,10 @@ export default function App() {
       handleCanvasTap(cell.x, cell.y);
     } else if (g.mode === 'tower' && engine.selectedTowerId === g.towerId) {
       const tower = engine.towers.find((t) => t.id === g.towerId);
-      if (tower && (tower.x !== cell.x || tower.y !== cell.y)) engine.moveSelectedTower(cell.x, cell.y, true);
+      const grab = engine.moveGrab;
+      if (tower && (!grab || grab.x !== cell.x || grab.y !== cell.y)) engine.moveSelectedTower(cell.x, cell.y, true, grab);
     }
+    engine.moveGrab = null;
   };
 
   const handleCanvasPointerLeave = () => {
