@@ -4800,7 +4800,15 @@ export class GameEngine {
     if (!def.race || def.race === 'humans') return null;
     const lines = [...this.towerMods(t).lines];
     if (t.souls !== undefined) lines.push(`Души: ${t.souls} из ${CONFIG.raceMech.soulsMax}`);
-    if (t.fused) lines.push(`Состав: ${[t, ...t.fused.parts].map((p) => `${CONFIG.towers[p.type].name} Ур.${p.level}`).join(', ')}`);
+    if (t.fused) {
+      // одинаковые башни (вид + уровень) — одной записью с числом в скобках
+      const groups = new Map<string, number>();
+      for (const p of [t, ...t.fused.parts]) {
+        const k = `${CONFIG.towers[p.type].name} Ур.${p.level}`;
+        groups.set(k, (groups.get(k) ?? 0) + 1);
+      }
+      lines.push(`Состав: ${[...groups].map(([k, n]) => (n > 1 ? `${k} (${n})` : k)).join(', ')}`);
+    }
     if (t.critT !== undefined) lines.push(`Шанс крита сейчас: ${Math.round(Math.min(1, t.critT / CONFIG.raceMech.critFull) * 100)} %`);
     const ab = def.ability;
     const victim = t.type === 'dem_gate' ? this.sacrificeVictims(t)[0] : undefined;
