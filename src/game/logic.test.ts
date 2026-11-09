@@ -1049,11 +1049,11 @@ test('cleanView: чужой снимок поля обрезается и про
   const v = cleanView({
     wave: 5, lives: 120, faction: 2,
     towers: [[3, 2, 'archer', 2, 0], [99, 99, 'nonsense', 1, 0], 'x'],
-    enemies: [[1.5, 2.5, 50, 0], [999, -999, 500, 7], null],
+    enemies: [['a', 1.5, 2.5, 50, 'infantry'], ['b', 999, -999, 500, 'flyer'], ['c', 1, 1, 1, 'nonsense'], null],
   })!;
   assert.equal(v.towers.length, 1);
   assert.equal(v.enemies.length, 2);
-  assert.ok(v.enemies[1][2] <= 100 && v.enemies[1][3] <= 2 && v.enemies[1][0] <= 16);
+  assert.ok(v.enemies[1][3] <= 100 && v.enemies[1][1] <= 16);
 });
 
 import { botFieldView } from '../fieldView';
@@ -1066,4 +1066,14 @@ test('botFieldView: поле бота растёт с волной и стоит
   for (const t of b.towers) assert.ok(!road.has(`${t[0]},${t[1]}`) && !(t[0] === CASTLE.x && t[1] === CASTLE.y));
   assert.deepEqual(botFieldView(info(12), MAPS[0]).towers, b.towers);
   assert.ok(b.enemies.length > 0);
+});
+
+test('botFieldView: присланные боту враги видны — ждущие у входа, вошедшие идут', () => {
+  const base = { id: 'bot1', race: 'humans' as const, difficulty: 'normal' as const, form: 1, lives: 150, wave: 3, roundT: 10, roundLength: 40, faction: 1 };
+  const none = botFieldView(base, MAPS[0]);
+  const waiting = botFieldView({ ...base, pending: { flyer: 3 } }, MAPS[0]);
+  assert.equal(waiting.enemies.length, none.enemies.length + 3);
+  assert.ok(waiting.enemies.filter((e) => e[4] === 'flyer').length >= 3);
+  const joined = botFieldView({ ...base, joined: { flyer: 4 } }, MAPS[0]);
+  assert.ok(joined.enemies.filter((e) => e[0].startsWith('s')).length > 0);
 });

@@ -6,7 +6,7 @@ import { RunLog, LogTower } from './runLog';
 import type { FieldView } from '../fieldView';
 import { CONFIG, TowerType, TargetPriority, Difficulty, EnemyType, RaceId, TowerBaseDef, BOONS, BoonDef, HERO_ABILITIES, HeroAbilityDef, pickBoons, DamageType, DAMAGE_TYPES } from './config';
 import { MAPS, Point, MapDef, isHudCell } from './maps';
-import { groundToCellF, centerX, centerY, castleX, castleY, cellPath, isHex, setHex, hexView, screenToGround, cellAt, neighbours, ring, adjacent, translate } from './grid';
+import { groundToCellF, cellFToGround, centerX, centerY, castleX, castleY, cellPath, isHex, setHex, hexView, screenToGround, cellAt, neighbours, ring, adjacent, translate } from './grid';
 import * as gridModule from './grid';
 import { generateMap } from './mapgen';
 import { MapDraft, MapEditTool, MAX_EXITS, draftToMap, mapToDraft, inField, isCastle } from './mapEditor';
@@ -1183,7 +1183,8 @@ export class GameEngine {
       const dt = Math.min(rawDt, 0.05);
 
       // A duel goes on behind the pause menu: the opponent's clock does not stop
-      if ((!this.isPaused || this.duelStart !== null) && !this.isGameOver && !this.isVictory) {
+      if (this.spectating) this.spectateStep(dt);
+      else if ((!this.isPaused || this.duelStart !== null) && !this.isGameOver && !this.isVictory) {
         // Game time runs at the chosen speed in steps of at most 0.05 s
         const gameDt = dt * this.speedMultiplier;
         const steps = Math.max(1, Math.ceil(gameDt / 0.05 - 1e-9));
@@ -3752,8 +3753,86 @@ export class GameEngine {
         .slice(0, 160)
         .map((e) => {
           const c = groundToCellF(e.x, e.y);
-          return [Math.round(c.x * 20) / 20, Math.round(c.y * 20) / 20, Math.max(0, Math.round((e.hp / e.maxHp) * 100)), e.type === 'boss' ? 1 : e.isFlyer ? 2 : 0];
+          return [e.id, Math.round(c.x * 20) / 20, Math.round(c.y * 20) / 20, Math.max(0, Math.round((e.hp / e.maxHp) * 100)), e.type];
         }),
+    };
+  }
+
+  // -------------------------------------------------------------
+  // Чужое поле (просьба Артура 2026-11-09: «как в автошахматах»): второй движок только рисует
+  // доску соперника тем же отрисовщиком, что и ваше поле; логика на нём не идёт, а башни и враги
+  // берутся из снимков `FieldView` и плавно едут к новым точкам.
+  // -------------------------------------------------------------
+  public spectating = false;
+  private specTargets = new Map<string, { x: number; y: number }>();
+
+  public startSpectate(level: number, mapSeed: number | null, race: RaceId) {
+    this.startLevel(level, 'normal', false, undefined, race, null, mapSeed ? generateMap(level, mapSeed) : null);
+    this.spectating = true;
+    this.isPaused = false;
+    this.waveCountdown = null;
+    this.specTargets.clear();
+  }
+
+  public mapForView(): MapDef {
+    return this.currentMap;
+  }
+
+  /** Новый снимок чужого поля: башни ставятся и убираются, враги получают новую цель */
+  public spectateApply(v: FieldView) {
+    this.faction = v.faction;
+    const keep: Tower[] = [];
+    for (const [x, y, type, level, level2] of v.towers) {
+      const old = this.towers.find((t) => t.x === x && t.y === y && t.type === type && t.level === level);
+      if (old) {
+        keep.push(old);
+        continue;
+      }
+      const t: Tower = { id: `${x},${y},${type},${level}`, x, y, type: type as TowerType, level, specs: [], priority: 'first', cooldownTimer: 0, frozenTimer: 0, smiteTimer: 2.5, facing: 1, second: null };
+      if (level2) t.second = { type: 'archer', level: level2, specs: [], cooldownTimer: 0, smiteTimer: 0 };
+      keep.push(t);
+    }
+    this.towers = keep;
+    const seen = new Set<string>();
+    const next: Enemy[] = [];
+    for (const [id, cx, cy, hpPct, type] of v.enemies) {
+      seen.add(id);
+      const g = cellFToGround(cx, cy);
+      this.specTargets.set(id, g);
+      let e = this.enemies.find((o) => o.id === id);
+      if (!e) {
+        e = this.blankEnemy(id, type as EnemyType, v.faction, g.x, g.y);
+      }
+      e.hp = (e.maxHp * hpPct) / 100;
+      next.push(e);
+    }
+    for (const id of [...this.specTargets.keys()]) if (!seen.has(id)) this.specTargets.delete(id);
+    this.enemies = next;
+  }
+
+  /** Кадр чужого поля: враги плавно едут к своим целям */
+  private spectateStep(dt: number) {
+    const k = 1 - Math.exp(-dt / 0.2);
+    for (const e of this.enemies) {
+      const g = this.specTargets.get(e.id);
+      if (!g) continue;
+      const dx = (g.x - e.x) * k;
+      const dy = (g.y - e.y) * k;
+      e.x += dx;
+      e.y += dy;
+      e.distanceTraveled += Math.hypot(dx, dy);
+      if (Math.abs(dx) > 0.02) e.facing = dx > 0 ? 1 : -1;
+    }
+  }
+
+  private blankEnemy(id: string, type: EnemyType, faction: number, x: number, y: number): Enemy {
+    const def = CONFIG.enemies[type] ?? CONFIG.enemies.infantry;
+    return {
+      id, type, faction, x, y, maxHp: 100, hp: 100, baseSpeed: def.speed * CONFIG.grid.cellSize, armor: 0, magicResist: 0, gold: 0,
+      entranceIndex: 0, pathIndex: 0, isFlyer: type === 'flyer', distanceTraveled: 0, totalPathLengthPixels: 1,
+      slowPercent: 0, slowTimer: 0, burnDps: 0, burnTimer: 0, curseTimer: 0, curseBonus: 0.25, rageTriggered: false, warcryTimer: 0,
+      hasRevived: false, isReviving: false, reviveTimer: 0, invulnerableTimer: 0, dashTimer: 0, bossAbilityTimer: 0, hitFlashTimer: 0,
+      sieging: false, siegeTimer: 0, attackAnim: 0, animSeed: Math.random() * Math.PI * 2, facing: 1,
     };
   }
 

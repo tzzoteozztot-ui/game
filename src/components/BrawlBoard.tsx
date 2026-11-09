@@ -16,7 +16,7 @@ export function BrawlBoard({ snap, canWatch, watchId, onWatch }: { snap: BrawlSn
   const [open, setOpen] = React.useState(true);
   const max = CONFIG.lives.start;
   return (
-    <div className="absolute inset-0 pointer-events-none [container-type:inline-size]">
+    <div className="absolute inset-0 z-50 pointer-events-none [container-type:inline-size]">
       <div
         className="absolute right-[calc(var(--cell)*0.06)] top-[calc(var(--cell)*0.06)] rounded-md bg-black/45 border border-white/10 backdrop-blur-[2px] text-white/90 tabular-nums leading-none select-none [text-shadow:0_1px_2px_rgba(0,0,0,0.8)] overflow-hidden"
         style={{ '--cell': CELL, width: `calc(${CELL} * 3)`, fontSize: `clamp(9px, calc(${CELL} * 0.22), 14px)` } as React.CSSProperties}
