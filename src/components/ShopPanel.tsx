@@ -73,7 +73,7 @@ export function ShopPanel({
         ) : isMoving && !inHandDef && !placingBinder ? (
           <>
             <span className="text-amber-300 font-bold truncate">{moveCost > 0 ? `Перестановка · ${moveCost}` : 'Перестановка'}</span>
-            <span className="hidden @min-[240px]:inline text-[length:var(--fs-sm)] text-stone-400 shrink-0">{moveCost > 0 ? 'перетащите башню' : 'тапните клетку'}</span>
+            <span className="hidden @min-[240px]:inline text-[length:var(--fs-sm)] text-stone-400 shrink-0">{moveCost > 0 ? 'перетащите башню за любую её клетку' : 'тапните клетку'}</span>
           </>
         ) : inHandDef ? (
           <>

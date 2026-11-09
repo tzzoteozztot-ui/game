@@ -3772,18 +3772,44 @@ export class GameEngine {
     return null;
   }
 
-  /** Moves the selected tower to a free cell; it stays selected. A paid move needs `paid` (a deliberate drag) */
-  public moveSelectedTower(cellX: number, cellY: number, paid = false): boolean {
+  /** The cell the player holds the tower by while dragging (a multi-cell tower moves so that this cell lands on the target) */
+  public moveGrab: { x: number; y: number } | null = null;
+
+  /** Cells a tower would take if the cell `grab` of it were dropped on `to`: [main cell, ...extra cells] */
+  private moveFootprint(tower: Tower, to: { x: number; y: number }, grab?: { x: number; y: number } | null): { x: number; y: number }[] {
+    const from = grab && ((grab.x === tower.x && grab.y === tower.y) || tower.extra?.some((c) => c.x === grab.x && c.y === grab.y)) ? grab : tower;
+    return [translate({ x: tower.x, y: tower.y }, from, to), ...(tower.extra ?? []).map((c) => translate(c, from, to))];
+  }
+
+  /** Whether the selected tower (all its cells) fits with the held cell on `to`; the hovered preview uses it */
+  public moveFits(to: { x: number; y: number }): boolean {
+    const tower = this.selectedTowerId ? this.towers.find((t) => t.id === this.selectedTowerId) : null;
+    if (!tower) return false;
+    this.ignoreTowers = new Set([tower.id]);
+    const fits = this.moveFootprint(tower, to, this.moveGrab).every((c) => this.isCellFree(c.x, c.y));
+    this.ignoreTowers = new Set();
+    return fits;
+  }
+
+  /** Moves the selected tower to a free cell; it stays selected. A paid move needs `paid` (a deliberate drag);
+   *  `grab` is the cell of the tower the player held (a hyper- or megatower covers several) */
+  public moveSelectedTower(cellX: number, cellY: number, paid = false, grab?: { x: number; y: number } | null): boolean {
     const tower = this.selectedTowerId ? this.towers.find((t) => t.id === this.selectedTowerId) : null;
     const cost = this.moveCost();
     if (!tower || cost === null || (cost > 0 && !paid)) return false;
-    // a megatower П keeps its second cell at the same offset
-    const to = { x: cellX, y: cellY };
-    const off = tower.extra ? tower.extra.map((c) => translate(c, tower, to)) : null;
+    // a multi-cell tower keeps its other cells at the same offset from the cell it is held by
+    const foot = this.moveFootprint(tower, { x: cellX, y: cellY }, grab ?? this.moveGrab);
+    const off = tower.extra ? foot.slice(1) : null;
     this.ignoreTowers = new Set([tower.id]);
-    const fits = this.isCellFree(cellX, cellY) && (!off || off.every((o) => this.isCellFree(o.x, o.y)));
+    const fits = foot.every((c) => this.isCellFree(c.x, c.y));
     this.ignoreTowers = new Set();
-    if (!fits) return false;
+    if (!fits) {
+      if (tower.extra) {
+        sound.playError();
+        this.addFloatingText('Не помещается', centerX({ x: cellX, y: cellY }), centerY({ x: cellX, y: cellY }), '#e0452f');
+      }
+      return false;
+    }
     const cs = CONFIG.grid.cellSize;
     if (cost > 0) {
       if (this.gold < cost) {
@@ -3794,10 +3820,10 @@ export class GameEngine {
       this.gold -= cost;
       this.addFloatingText(`−${cost}`, centerX({ x: cellX, y: cellY }), centerY({ x: cellX, y: cellY }) - 0.3 * cs, '#f4c06a');
     }
-    this.logEv('move', { id: tower.id, type: tower.type, fromX: tower.x, fromY: tower.y, x: cellX, y: cellY, paid: cost });
+    this.logEv('move', { id: tower.id, type: tower.type, fromX: tower.x, fromY: tower.y, x: foot[0].x, y: foot[0].y, paid: cost });
     this.spawnPuff(centerX(tower), centerY(tower), '#f4c06a');
-    tower.x = cellX;
-    tower.y = cellY;
+    tower.x = foot[0].x;
+    tower.y = foot[0].y;
     if (off) tower.extra = off;
     this.markModsDirty();
     this.spawnRing(centerX({ x: cellX, y: cellY }), centerY({ x: cellX, y: cellY }), '#d9b44a');
@@ -4998,7 +5024,16 @@ export class GameEngine {
         }
       }
       const h = this.hoverCell;
-      if (h && this.isCellFree(h.x, h.y)) {
+      if (h && selectedTower.extra) {
+        // a multi-cell tower: show every cell it would take, red if it does not fit
+        const fits = this.moveFits(h);
+        const foot = this.moveFootprint(selectedTower, h, this.moveGrab);
+        ctx.setLineDash([6, 4]);
+        ctx.strokeStyle = fits ? '#f4c06a' : '#e0452f';
+        ctx.lineWidth = 2;
+        for (const c of foot) if (c.x >= 0 && c.x < CONFIG.grid.cols && c.y >= 0 && c.y < CONFIG.grid.rows) this.cellShape(ctx, 'stroke', c, 3);
+        ctx.setLineDash([]);
+      } else if (h && this.isCellFree(h.x, h.y)) {
         ctx.setLineDash([6, 4]);
         ctx.strokeStyle = '#f4c06a';
         ctx.lineWidth = 2;
