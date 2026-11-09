@@ -6,13 +6,13 @@
 
 import { CONFIG, TowerType } from './game/config';
 import { GRID_COLS, GRID_ROWS, CASTLE, MapDef } from './game/maps';
-import { sprites } from './game/sprites';
+import { SEND_TYPES, waveDefinition, type SendType } from './game/rules';
 
 export interface FieldView {
   wave: number; // волн запущено
   lives: number; // прочность артефакта
   towers: [number, number, string, number, number][]; // клетка x, y, вид, уровень, уровень второй башни связки (0 — нет)
-  enemies: [number, number, number, number][]; // x, y (дробные клетки), HP в процентах, 0 обычный / 1 босс / 2 летун
+  enemies: [string, number, number, number, string][]; // id, x, y (дробные клетки), HP в процентах, вид (EnemyType)
   faction: number; // чьи враги на поле сейчас (для цвета)
 }
 
@@ -33,110 +33,10 @@ export function cleanView(v: unknown): FieldView | null {
   }
   const enemies: FieldView['enemies'] = [];
   for (const e of o.enemies.slice(0, MAX_ENEMIES)) {
-    if (!Array.isArray(e)) continue;
-    enemies.push([num(e[0], -2, GRID_COLS + 2), num(e[1], -2, GRID_ROWS + 2), Math.round(num(e[2], 0, 100)), Math.floor(num(e[3], 0, 2))]);
+    if (!Array.isArray(e) || typeof e[0] !== 'string' || typeof e[4] !== 'string' || !(e[4] in CONFIG.enemies)) continue;
+    enemies.push([e[0].slice(0, 12), num(e[1], -2, GRID_COLS + 2), num(e[2], -2, GRID_ROWS + 2), Math.round(num(e[3], 0, 100)), e[4]]);
   }
   return { wave: Math.floor(num(o.wave, 0, 9999)), lives: Math.round(num(o.lives, 0, 9999)), towers, enemies, faction: Math.floor(num(o.faction, 1, CONFIG.palettes.length)) };
-}
-
-function towerImage(type: string, level: number) {
-  const def = CONFIG.towers[type as TowerType];
-  const lv = Math.min(3, level);
-  if (sprites.get(`tower_${type}_${lv}`)) return sprites.get(`tower_${type}_${lv}`);
-  if (def?.sprite) {
-    const own = sprites.get(def.sprite);
-    if (own) return own;
-  }
-  return sprites.get(`tower_${type}_1`);
-}
-
-/**
- * Рисует схему на холсте w×h: местность и дорога карты, артефакт, башни (спрайтами), враги точками.
- * Поле условно квадратное (14×8): гексы у хозяина здесь не нужны, важно, где что стоит.
- */
-export function drawFieldView(ctx: CanvasRenderingContext2D, w: number, h: number, view: FieldView | null, map: MapDef, level: number) {
-  const pal = CONFIG.palettes[Math.min(CONFIG.palettes.length, Math.max(1, level)) - 1];
-  const cs = Math.min(w / GRID_COLS, h / GRID_ROWS);
-  const ox = (w - cs * GRID_COLS) / 2;
-  const oy = (h - cs * GRID_ROWS) / 2;
-  ctx.clearRect(0, 0, w, h);
-  ctx.fillStyle = pal.ground;
-  ctx.fillRect(ox, oy, cs * GRID_COLS, cs * GRID_ROWS);
-  ctx.fillStyle = pal.road;
-  for (const path of map.paths) for (const c of path) ctx.fillRect(ox + c.x * cs, oy + c.y * cs, cs + 0.5, cs + 0.5);
-  ctx.strokeStyle = 'rgba(255,255,255,0.05)';
-  ctx.lineWidth = 1;
-  for (let x = 0; x <= GRID_COLS; x++) {
-    ctx.beginPath();
-    ctx.moveTo(ox + x * cs, oy);
-    ctx.lineTo(ox + x * cs, oy + GRID_ROWS * cs);
-    ctx.stroke();
-  }
-  for (let y = 0; y <= GRID_ROWS; y++) {
-    ctx.beginPath();
-    ctx.moveTo(ox, oy + y * cs);
-    ctx.lineTo(ox + GRID_COLS * cs, oy + y * cs);
-    ctx.stroke();
-  }
-  // Артефакт
-  const cx = ox + (CASTLE.x + 0.5) * cs;
-  const cy = oy + (CASTLE.y + 0.5) * cs;
-  ctx.fillStyle = pal.light;
-  ctx.globalAlpha = 0.85;
-  ctx.beginPath();
-  ctx.arc(cx, cy, cs * 0.34, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.globalAlpha = 1;
-  if (!view) return;
-  // Башни (по строкам, чтобы нижние закрывали верхние)
-  const towers = [...view.towers].sort((a, b) => a[1] - b[1]);
-  for (const [tx, ty, type, lv, lv2] of towers) {
-    const px = ox + (tx + 0.5) * cs;
-    const py = oy + (ty + 0.5) * cs;
-    const spr = towerImage(type, lv);
-    ctx.fillStyle = 'rgba(0,0,0,0.35)';
-    ctx.beginPath();
-    ctx.ellipse(px, py + cs * 0.3, cs * 0.34, cs * 0.14, 0, 0, Math.PI * 2);
-    ctx.fill();
-    if (spr) {
-      const k = (cs * 1.1) / spr.meta.drawH;
-      const sw = (spr.canvas.width / spr.scale) * k;
-      const sh = (spr.canvas.height / spr.scale) * k;
-      ctx.drawImage(spr.canvas, px - sw * spr.meta.anchorX, py + cs * 0.32 - sh * spr.meta.anchorY, sw, sh);
-    } else {
-      ctx.fillStyle = pal.light;
-      ctx.beginPath();
-      ctx.arc(px, py, cs * 0.28, 0, Math.PI * 2);
-      ctx.fill();
-    }
-    ctx.fillStyle = '#fff';
-    ctx.font = `bold ${Math.max(8, cs * 0.24)}px sans-serif`;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.strokeStyle = 'rgba(0,0,0,0.8)';
-    ctx.lineWidth = 2.5;
-    const label = lv2 ? `${lv}+${lv2}` : `${lv}`;
-    ctx.strokeText(label, px, py + cs * 0.4);
-    ctx.fillText(label, px, py + cs * 0.4);
-  }
-  // Враги
-  const color = CONFIG.palettes[view.faction - 1]?.enemies ?? '#c33';
-  for (const [ex, ey, hp, kind] of view.enemies) {
-    const px = ox + (ex + 0.5) * cs;
-    const py = oy + (ey + 0.5) * cs;
-    const r = cs * (kind === 1 ? 0.3 : 0.15);
-    ctx.fillStyle = color;
-    ctx.strokeStyle = kind === 2 ? '#fff' : 'rgba(0,0,0,0.7)';
-    ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    ctx.arc(px, py, r, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.stroke();
-    ctx.fillStyle = 'rgba(0,0,0,0.6)';
-    ctx.fillRect(px - r, py - r - 4, r * 2, 3);
-    ctx.fillStyle = hp > 50 ? '#6fdc7a' : hp > 25 ? '#e8b84a' : '#e0452f';
-    ctx.fillRect(px - r, py - r - 4, (r * 2 * hp) / 100, 3);
-  }
 }
 
 // -------------------------------------------------------------
@@ -156,6 +56,8 @@ export interface BotWatchInfo {
   roundT: number; // секунд от начала текущего раунда
   roundLength: number;
   faction: number; // чьи враги идут к нему
+  pending?: Partial<Record<SendType, number>>; // присланные ему враги: ждут у входа до его следующей волны
+  joined?: Partial<Record<SendType, number>>; // присланные, что вошли в его последнюю волну
 }
 
 function hashSeed(s: string): number {
@@ -208,22 +110,63 @@ export function botFieldView(info: BotWatchInfo, map: MapDef): FieldView {
     const level = Math.min(maxLevel, 1 + (info.wave >= 4 + i * 0.6 ? 1 : 0) + (info.wave >= 10 + i * 1.2 ? 1 : 0));
     towers.push([cells[i].x, cells[i].y, type, level, 0]);
   }
-  // Враги идут по дорогам своей волны, пока не дойдут (волна — первые две трети раунда)
+  // Враги идут по дорогам своей волны, пока не дойдут (волна — первые две трети раунда); виды — по составу волны
   const w = Math.max(1, info.wave);
+  const def = waveDefinition(w);
+  const kinds: string[] = [];
+  for (const [type, count] of Object.entries(def)) {
+    if (type === 'boss') continue;
+    for (let i = 0; i < Math.max(1, Math.round(Number(count) / 3)); i++) kinds.push(type);
+  }
+  if (!kinds.length) kinds.push('infantry');
   const n = Math.min(40, Math.round(3 + w * 1.2));
   const enemies: FieldView['enemies'] = [];
+  const at = (path: MapDef['paths'][number], pos: number): [number, number] => {
+    const k = Math.floor(pos);
+    const f = pos - k;
+    return [path[k].x + (path[k + 1].x - path[k].x) * f, path[k].y + (path[k + 1].y - path[k].y) * f];
+  };
   for (let i = 0; i < n; i++) {
     const path = map.paths[i % map.paths.length];
     const start = (i / n) * 0.5 * info.roundLength;
     const pos = (info.roundT - start) * ENEMY_CELLS_PER_S;
     const jitter = rand();
-    if (pos < 0 || pos >= path.length - 1) continue;
-    const k = Math.floor(pos);
-    const f = pos - k;
-    const a = path[k];
-    const b = path[k + 1];
+    const boss = w % 12 === 0 && i === 0 && 'boss' in def;
+    const type = boss ? 'boss' : kinds[i % kinds.length];
     const hp = Math.max(8, Math.round(100 - (pos / path.length) * 85 * Math.min(1, 0.4 + strong * 0.4) - jitter * 12));
-    enemies.push([a.x + (b.x - a.x) * f, a.y + (b.y - a.y) * f, hp, w % 12 === 0 && i === 0 ? 1 : i % 7 === 6 ? 2 : 0]);
+    if (pos < 0) continue;
+    if (type === 'flyer') {
+      const f = pos / path.length;
+      if (f >= 1) continue;
+      enemies.push([`w${w}-${i}`, path[0].x + (CASTLE.x - path[0].x) * f, path[0].y + (CASTLE.y - path[0].y) * f, hp, type]);
+    } else if (pos < path.length - 1) {
+      const [x, y] = at(path, pos);
+      enemies.push([`w${w}-${i}`, x, y, hp, type]);
+    }
+  }
+  // Присланные соперниками: вошедшие в волну идут вместе с ней (летуны напрямую к артефакту), ждущие стоят у входа
+  let j = 0;
+  for (const type of SEND_TYPES) {
+    for (let i = 0; i < Math.min(30, info.joined?.[type] ?? 0); i++, j++) {
+      const path = map.paths[j % map.paths.length];
+      const pos = (info.roundT - (0.05 * info.roundLength + (j % 12) * 0.9)) * ENEMY_CELLS_PER_S;
+      if (pos < 0) continue;
+      if (type === 'flyer') {
+        const f = pos / path.length;
+        if (f >= 1) continue;
+        enemies.push([`s${w}-${j}`, path[0].x + (CASTLE.x - path[0].x) * f, path[0].y + (CASTLE.y - path[0].y) * f, 100, type]);
+      } else if (pos < path.length - 1) {
+        const [x, y] = at(path, pos);
+        enemies.push([`s${w}-${j}`, x, y, 100, type]);
+      }
+    }
+  }
+  let q = 0;
+  for (const type of SEND_TYPES) {
+    for (let i = 0; i < Math.min(30, info.pending?.[type] ?? 0); i++, q++) {
+      const e = map.paths[q % map.paths.length][0];
+      enemies.push([`p${q}`, e.x + ((q % 5) - 2) * 0.12, e.y + (Math.floor(q / map.paths.length) % 3) * 0.12, 100, type]);
+    }
   }
   return { wave: info.wave, lives: Math.round(info.lives), towers, enemies, faction: info.faction };
 }

@@ -1560,7 +1560,6 @@ export default function App() {
                   sandbox={gameState.sandbox}
                   onOpenSandboxWave={() => setSandboxWaveOpen(true)}
                 />}
-                {brawl && <BrawlBoard snap={brawl} canWatch={(id) => !!brawlRoomRef.current?.canSee(id)} watchId={watchId} onWatch={watchField} />}
                 {!brawl && gameState.duel && duelLinkRef.current && !botWatch && (
                   <button
                     type="button"
@@ -1587,6 +1586,7 @@ export default function App() {
                 {brawl && watchId && brawl.seats.find((s) => s.id === watchId) && (
                   <BrawlSpectator seat={brawl.seats.find((s) => s.id === watchId)!} view={watchView} botInfo={() => brawlRoomRef.current?.botInfo(watchId) ?? null} level={gameState.level} seed={engineRef.current?.mapSeed ?? undefined} onClose={() => watchField(null)} />
                 )}
+                {brawl && <BrawlBoard snap={brawl} canWatch={(id) => !!brawlRoomRef.current?.canSee(id)} watchId={watchId} onWatch={watchField} />}
                 {worldBattle && <HeroBar skills={gameState.heroSkills} onCast={(id) => engineRef.current?.castHero(id)} />}
                 {gameState.boonOffer && !gameState.isGameOver && (
                   <BoonPicker offer={gameState.boonOffer} onChoose={(id) => engineRef.current?.chooseBoon(id)} />

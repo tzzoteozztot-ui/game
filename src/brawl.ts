@@ -144,6 +144,8 @@ interface BotState {
   received: number;
   form: number;
   boons?: string[];
+  inbox?: Partial<Record<SendType, number>>;
+  joined?: Partial<Record<SendType, number>>;
 }
 
 interface SeatState {
@@ -389,7 +391,7 @@ export class BrawlRoom implements DuelLink {
     const s = this.seat(id);
     const bs = fromBoard ? this.board!.seats.find((x) => x.id === id) : undefined;
     const race = cleanRace(bs?.race ?? s?.race);
-    const bot = fromBoard ? bs?.bot : s?.field ? { difficulty: s.field.difficulty, form: s.field.form, lives: s.field.lives } : undefined;
+    const bot = fromBoard ? bs?.bot : s?.field ? { difficulty: s.field.difficulty, form: s.field.form, lives: s.field.lives, inbox: s.field.inbox, joined: s.field.joined } : undefined;
     if (!bot) return null;
     const cur = (fromBoard ? this.board!.prev : this.prevOpp[this.wave])?.[id];
     const foeRace = (cur && (fromBoard ? this.board!.seats.find((x) => x.id === cur)?.race : this.seat(cur)?.race)) || undefined;
@@ -403,6 +405,8 @@ export class BrawlRoom implements DuelLink {
       wave: this.wave,
       roundT: (((now - this.startAt) / 1000) % L + L) % L,
       roundLength: L,
+      pending: cleanSends(bot.inbox),
+      joined: cleanSends(bot.joined),
       faction: foeRace ? CONFIG.races[cleanRace(foeRace)].faction : this.level,
     };
   }
@@ -776,7 +780,7 @@ export class BrawlRoom implements DuelLink {
         alive: s.alive,
         place: s.place,
         ...(s.field
-          ? { bot: { difficulty: s.field.difficulty, lives: s.field.lives, income: s.field.income, received: s.field.received, form: s.field.form, boons: s.field.boons } }
+          ? { bot: { difficulty: s.field.difficulty, lives: s.field.lives, income: s.field.income, received: s.field.received, form: s.field.form, boons: s.field.boons, inbox: s.field.inbox, joined: s.field.joined } }
           : {}),
       })),
       opp: this.opp,

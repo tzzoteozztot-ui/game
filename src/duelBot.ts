@@ -62,6 +62,8 @@ export class BotField {
   lives = CONFIG.lives.start;
   income = 0;
   received = 0; // weight of enemies sent to it, waiting for its next wave
+  inbox: Partial<Record<SendType, number>> = {}; // the same by kind: waiting at its entrance (only for drawing its field)
+  joined: Partial<Record<SendType, number>> = {}; // by kind: what joined the wave it last defended
 
   /** model: 'duel' — the duel bot's strength; 'brawl' — fitted to the map's waves (brawlBotStrength) */
   form = 1; // brawl: each bot's own lasting form, so bots of one strength do not all fall on one wave
@@ -78,6 +80,8 @@ export class BotField {
     const strength = base * this.boonGain('power') * (0.9 + Math.random() * 0.2);
     const weight = waveWeight(round, this.level) + this.received;
     this.received = 0;
+    this.joined = this.inbox;
+    this.inbox = {};
     const overload = weight / strength - 1;
     if (overload > 0) {
       this.lives = Math.max(0, this.lives - Math.min(MAX_LOSS_PER_WAVE, Math.ceil(overload * LOSS_PER_OVERLOAD)));
@@ -136,6 +140,7 @@ export class BotField {
     for (const type of SEND_TYPES) {
       const n = Math.max(0, Math.floor(Number(enemies[type]) || 0));
       this.received += n * calculateSendPrice(type, round + 1, this.level, false);
+      if (n > 0) this.inbox[type] = (this.inbox[type] ?? 0) + n;
     }
   }
 }
@@ -216,6 +221,8 @@ export function createBotLink(level: number, difficulty: BotLevel): DuelLink {
         roundT: (performance.now() - startedAt) / 1000 % CONFIG.duel.roundLength,
         roundLength: CONFIG.duel.roundLength,
         faction: CONFIG.races.humans.faction,
+        pending: field.inbox,
+        joined: field.joined,
       };
     },
   };

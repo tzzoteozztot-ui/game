@@ -68,6 +68,12 @@ export function groundToCellF(gx: number, gy: number): P {
   return { x: gx / CS() - 0.5 - 0.5 * (r & 1), y: row };
 }
 
+/** Обратное к `groundToCellF`: дробные клетки → наземная точка */
+export function cellFToGround(cx: number, cy: number): P {
+  if (!hex) return { x: (cx + 0.5) * CS(), y: (cy + 0.5) * CS() };
+  return { x: (cx + 0.5 + 0.5 * (Math.round(cy) & 1)) * CS(), y: HEX_H() / 2 + cy * ROW() };
+}
+
 /** Соседи клетки: 4 у квадрата, 6 у гекса */
 export function neighbours(p: P): P[] {
   if (!hex)

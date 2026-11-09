@@ -1,69 +1,67 @@
 /**
- * «Потасовка»: схема чужого поля, только чтение (просьба Артура 2026-11-08). Окно над полем: свой бой
- * идёт под ним, касания берёт только окно. Снимок приходит раз в 0,5 с (src/fieldView.ts).
+ * Чужое поле в «Потасовке» и дуэли (просьба Артура 2026-11-09: «как в автошахматах»): доска соперника на весь
+ * экран поля, тем же отрисовщиком, что и ваше поле — гексы, задник, фигуры башен и врагов. Второй движок
+ * только рисует (`startSpectate`), башни и враги берутся из снимков (src/fieldView.ts) и плавно едут.
+ * Ваш бой идёт под ним; сверху полоса соперника и кнопка «К моему полю», список игроков остаётся над доской.
  */
 
 import React from 'react';
-import { CONFIG } from '../game/config';
+import { GameEngine } from '../game/engine';
 import { MAPS } from '../game/maps';
-import { generateMap } from '../game/mapgen';
-import { sprites } from '../game/sprites';
-import { BotWatchInfo, FieldView, botFieldView, drawFieldView } from '../fieldView';
+import { BotWatchInfo, FieldView, botFieldView } from '../fieldView';
 import type { BrawlSeatView } from '../brawl';
 
 export function BrawlSpectator({ seat, view: netView, botInfo, level, seed, onClose }: { seat: BrawlSeatView; view: FieldView | null; botInfo?: () => BotWatchInfo | null; level: number; seed?: number; onClose: () => void }) {
   const ref = React.useRef<HTMLCanvasElement>(null);
-  const map = React.useMemo(() => (seed ? generateMap(level, seed) : MAPS[level - 1]), [level, seed]);
-  // Бот: поле собирается из его данных, раз в 0,25 с
-  const [botView, setBotView] = React.useState<FieldView | null>(null);
+  const engineRef = React.useRef<GameEngine | null>(null);
+  const [view, setView] = React.useState<FieldView | null>(null);
   const isBot = seat.kind === 'bot';
+
+  // Свой движок только на показ: на той же карте и расе соперника
+  React.useEffect(() => {
+    const cv = ref.current;
+    if (!cv) return;
+    const eng = new GameEngine();
+    eng.setCanvas(cv);
+    eng.startSpectate(level, seed ?? null, seat.race);
+    engineRef.current = eng;
+    return () => {
+      eng.stopLoop();
+      engineRef.current = null;
+    };
+  }, [level, seed, seat.race, seat.id]);
+
+  // Бот: поле собирается из его данных, четыре раза в секунду
   React.useEffect(() => {
     if (!isBot || !botInfo) return;
+    const map = MAPS[level - 1];
     const tick = () => {
       const info = botInfo();
-      setBotView(info ? botFieldView(info, map) : null);
+      setView(info ? botFieldView(info, seed && engineRef.current ? engineRef.current.mapForView() : map) : null);
     };
     tick();
     const id = window.setInterval(tick, 250);
     return () => window.clearInterval(id);
-  }, [isBot, botInfo, map]);
-  const view = isBot ? botView : netView;
-  const [spritesReady, setSpritesReady] = React.useState(0);
+  }, [isBot, botInfo, level, seed]);
+
+  const shown = isBot ? view : netView;
   React.useEffect(() => {
-    sprites.load().then(() => setSpritesReady(1));
-  }, []);
-  React.useEffect(() => {
-    const cv = ref.current;
-    if (!cv) return;
-    const dpr = window.devicePixelRatio || 1;
-    const w = cv.clientWidth;
-    const h = cv.clientHeight;
-    if (cv.width !== Math.round(w * dpr)) {
-      cv.width = Math.round(w * dpr);
-      cv.height = Math.round(h * dpr);
-    }
-    const ctx = cv.getContext('2d');
-    if (!ctx) return;
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    drawFieldView(ctx, w, h, view, map, level);
-  }, [view, map, level, spritesReady]);
+    if (shown) engineRef.current?.spectateApply(shown);
+  }, [shown]);
 
   return (
-    <div className="absolute inset-0 flex items-center justify-center p-[2%] pointer-events-none">
-      <div className="pointer-events-auto flex flex-col rounded-lg bg-black/80 border border-white/15 backdrop-blur-sm text-white/90 shadow-xl" style={{ width: 'min(100%, 62vh * 1.75, 640px)' }}>
-        <div className="flex items-center gap-2 px-3 py-1.5 text-[clamp(11px,1.6vh,15px)] border-b border-white/10">
-          <span className="font-bold text-sky-200 truncate">👁 {seat.name}</span>
-          <span className="text-stone-400 truncate">{CONFIG.races[seat.race].name}</span>
-          <span className="ml-auto tabular-nums text-stone-300">{seat.out ? `${seat.place}-е место` : `артефакт ${seat.lives}`}</span>
-          {view && <span className="tabular-nums text-stone-400">волна {view.wave}</span>}
-          <button type="button" onClick={onClose} className="px-2 -mr-1 text-stone-300 hover:text-white cursor-pointer" title="Закрыть (Esc)">
-            ✕
-          </button>
-        </div>
-        <canvas ref={ref} className="w-full block" style={{ aspectRatio: '14 / 8' }} />
-        {!view && <div className="px-3 py-1 text-center text-stone-400 text-[clamp(10px,1.4vh,13px)]">Ждём поле игрока…</div>}
-        {isBot && <div className="px-3 py-1 text-center text-stone-500 text-[clamp(9px,1.3vh,12px)]">Бот играет числами: поле нарисовано по его силе и волне</div>}
+    <div className="absolute inset-0 z-40 bg-black [container-type:inline-size]">
+      <canvas ref={ref} className="w-full h-full block touch-none select-none" style={{ imageRendering: 'pixelated' }} />
+      <div className="absolute left-1/2 -translate-x-1/2 top-[calc(100cqw/14*0.06)] flex items-center gap-2 rounded-md bg-black/55 border border-white/15 backdrop-blur-[2px] px-3 py-1.5 text-white/90 text-[clamp(11px,2.1cqw,16px)] leading-none select-none">
+        <span className="font-black text-sky-200 whitespace-nowrap">👁 {seat.name}</span>
+        <span className="tabular-nums text-red-300 whitespace-nowrap">{seat.out ? `${seat.place}-е место` : `артефакт ${shown?.lives ?? seat.lives}`}</span>
+        {shown && <span className="tabular-nums text-stone-400 whitespace-nowrap">волна {shown.wave}</span>}
+        <button type="button" onClick={onClose} className="ml-1 px-2 py-1 rounded bg-amber-500/90 hover:bg-amber-400 text-stone-950 font-bold cursor-pointer whitespace-nowrap">
+          ← К моему полю
+        </button>
       </div>
+      {!shown && <div className="absolute inset-x-0 bottom-3 text-center text-stone-300 text-[clamp(10px,1.8cqw,14px)]">Ждём поле игрока…</div>}
+      {isBot && <div className="absolute inset-x-0 bottom-1 text-center text-stone-500 text-[clamp(9px,1.5cqw,12px)] pointer-events-none">Бот играет числами: поле нарисовано по его силе и волне</div>}
     </div>
   );
 }
