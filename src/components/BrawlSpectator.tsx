@@ -24,6 +24,7 @@ export function BrawlSpectator({ seat, view: netView, botInfo, level, seed, onCl
     const eng = new GameEngine();
     eng.setCanvas(cv);
     eng.startSpectate(level, seed ?? null, seat.race);
+    (window as unknown as { spectatorEngine?: GameEngine }).spectatorEngine = eng; // для отладки, как gameEngine
     engineRef.current = eng;
     return () => {
       eng.stopLoop();

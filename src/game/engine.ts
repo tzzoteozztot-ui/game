@@ -1183,8 +1183,12 @@ export class GameEngine {
       const dt = Math.min(rawDt, 0.05);
 
       // A duel goes on behind the pause menu: the opponent's clock does not stop
-      if (this.spectating) this.spectateStep(dt);
-      else if ((!this.isPaused || this.duelStart !== null) && !this.isGameOver && !this.isVictory) {
+      if (this.spectating) {
+        // на чужом поле враги едут по снимкам, а башни стреляют «для вида» (урона нет)
+        const gameDt = dt * this.speedMultiplier;
+        this.spectateStep(dt);
+        this.spectateCombat(gameDt);
+      } else if ((!this.isPaused || this.duelStart !== null) && !this.isGameOver && !this.isVictory) {
         // Game time runs at the chosen speed in steps of at most 0.05 s
         const gameDt = dt * this.speedMultiplier;
         const steps = Math.max(1, Math.ceil(gameDt / 0.05 - 1e-9));
@@ -3788,7 +3792,7 @@ export class GameEngine {
         keep.push(old);
         continue;
       }
-      const t: Tower = { id: `${x},${y},${type},${level}`, x, y, type: type as TowerType, level, specs: [], priority: 'first', cooldownTimer: 0, frozenTimer: 0, smiteTimer: 2.5, facing: 1, second: null };
+      const t: Tower = { id: `${x},${y},${type},${level}`, x, y, type: type as TowerType, level, specs: [], priority: 'first', cooldownTimer: Math.random() * 0.8, frozenTimer: 0, smiteTimer: 1 + Math.random() * 1.5, facing: 1, second: null };
       if (level2) t.second = { type: 'archer', level: level2, specs: [], cooldownTimer: 0, smiteTimer: 0 };
       keep.push(t);
     }
@@ -3822,6 +3826,115 @@ export class GameEngine {
       e.y += dy;
       e.distanceTraveled += Math.hypot(dx, dy);
       if (Math.abs(dx) > 0.02) e.facing = dx > 0 ? 1 : -1;
+    }
+  }
+
+  /** Живой бой на чужом поле: башни целятся и стреляют, снаряды летят и вспыхивают, но урона нет —
+   *  настоящие HP врагов приходят снимками (просьба Артура 2026-11-09). Звука нет. */
+  private spectateCombat(dt: number) {
+    const cs = CONFIG.grid.cellSize;
+    for (const tower of this.towers) {
+      const tx = centerX(tower);
+      const ty = centerY(tower);
+      for (const part of towerParts(tower)) {
+        if (part.cooldownTimer > 0) part.cooldownTimer -= dt;
+        if (part.cooldownTimer > 0) continue;
+        const def = CONFIG.towers[part.type];
+        if (def.special) continue;
+        const stats = attackStats(part.type, part.level, part.specs);
+        const rangePx = stats.range * cs;
+        if (stats.smiteDamage > 0) {
+          part.smiteTimer -= dt;
+          if (part.smiteTimer <= 0) {
+            part.smiteTimer = 2.5;
+            part.shotAt = performance.now() / 1000;
+            this.spawnRing(tx, ty, '#f2f0e0');
+            for (const e of this.enemies) {
+              if (!e.isReviving && Math.hypot(e.x - tx, e.y - ty) <= rangePx) {
+                e.hitFlashTimer = 0.08;
+                this.spawnSpark(e.x, e.y, '#f2f0e0');
+              }
+            }
+          }
+        }
+        if (!stats.normalAttack) continue;
+        const inRange = this.enemies.filter((e) => !e.isReviving && Math.hypot(e.x - tx, e.y - ty) <= rangePx);
+        if (inRange.length === 0) continue;
+        this.sortEnemiesByPriority(inRange, 'first', tx, ty);
+        const targets = inRange.slice(0, Math.min(3, Math.max(1, stats.targets)));
+        if (Math.abs(targets[0].x - tx) > 2) tower.facing = targets[0].x < tx ? -1 : 1;
+        for (const target of targets) {
+          if (stats.chain > 0) {
+            // молния: искры прыгают по цели и ближайшим врагам
+            this.spawnSpark(target.x, target.y, '#8f6bff');
+            target.hitFlashTimer = 0.08;
+            for (const e of this.enemies) {
+              if (e !== target && !e.isReviving && Math.hypot(e.x - target.x, e.y - target.y) < 2 * cs) {
+                this.spawnSpark(e.x, e.y, '#8f6bff');
+                e.hitFlashTimer = 0.08;
+              }
+            }
+            continue;
+          }
+          this.projectiles.push({
+            id: Math.random().toString(36).substring(2, 9),
+            startX: tx, startY: ty, currentX: tx, currentY: ty,
+            targetEnemyId: stats.pierce ? null : target.id,
+            targetX: target.x, targetY: target.y,
+            speed: stats.pierce ? 600 : part.type === 'ballista' ? 520 : part.type === 'orc_trebuchet' ? 260 : 380,
+            damage: 0, damageType: stats.pierce ? 'phys' : towerDamageType(part.type, []),
+            towerType: part.type, specs: [], isRam: !!stats.pierce, towerId: tower.id,
+            aoeRadius: stats.aoeRadius, piercedEnemyIds: new Set<string>(),
+          });
+        }
+        part.cooldownTimer = Math.max(0.15, stats.cooldown);
+        part.shotAt = performance.now() / 1000;
+      }
+    }
+
+    for (let i = this.projectiles.length - 1; i >= 0; i--) {
+      const p = this.projectiles[i];
+      if (p.isRam) {
+        const dx = p.targetX - p.startX;
+        const dy = p.targetY - p.startY;
+        const len = Math.hypot(dx, dy) || 1;
+        p.currentX += (dx / len) * p.speed * dt;
+        p.currentY += (dy / len) * p.speed * dt;
+        if (Math.hypot(p.currentX - p.startX, p.currentY - p.startY) > len + 32) this.projectiles.splice(i, 1);
+        continue;
+      }
+      const target = p.targetEnemyId ? this.enemies.find((e) => e.id === p.targetEnemyId) : undefined;
+      const destX = target ? target.x : p.targetX;
+      const destY = target ? target.y : p.targetY;
+      const dx = destX - p.currentX;
+      const dy = destY - p.currentY;
+      const dist = Math.hypot(dx, dy);
+      if (dist <= p.speed * dt || dist < 12) {
+        const def = CONFIG.towers[p.towerType];
+        this.spawnSpark(destX, destY, def.race ? def.color : DAMAGE_TYPES[p.damageType].color);
+        if (target) target.hitFlashTimer = 0.08;
+        if (p.aoeRadius > 0) this.spawnRing(destX, destY, '#8f6bff');
+        this.projectiles.splice(i, 1);
+      } else {
+        p.currentX += (dx / dist) * p.speed * dt;
+        p.currentY += (dy / dist) * p.speed * dt;
+      }
+    }
+
+    for (const e of this.enemies) if (e.hitFlashTimer > 0) e.hitFlashTimer -= dt;
+    for (const p of this.particles) {
+      if (!p.active) continue;
+      p.x += p.vx * dt;
+      p.y += p.vy * dt;
+      p.life += dt;
+      p.alpha = Math.max(0, 1 - p.life / p.maxLife);
+      if (p.life >= p.maxLife) p.active = false;
+    }
+    for (let i = this.floatingTexts.length - 1; i >= 0; i--) {
+      const ft = this.floatingTexts[i];
+      ft.y -= 25 * dt;
+      ft.life += dt;
+      if (ft.life >= ft.maxLife) this.floatingTexts.splice(i, 1);
     }
   }
 
