@@ -223,7 +223,7 @@ const FRONTIER_OBJECTS: WorldObj[] = [
   { id: 'chest4', kind: 'chest', x: 17, y: 27, name: 'Разбитая телега', reward: { gold: 30, crystal: 1 }, item: 'mail' },
   { id: 'quarry', kind: 'mine', x: 6, y: 6, name: 'Каменоломня', waves: 3, income: { wood: 4 }, needs: ['sq2'], text: 'Старая каменоломня, орки держат здесь пост.' },
   { id: 'saw', kind: 'mine', x: 8, y: 26, name: 'Лесопилка', waves: 3, income: { wood: 5 }, needs: ['quarry'], teach: ['mage'], text: 'Орки рубят здесь лес. Отобьём — будет дерево каждый день.' },
-  { id: 'shrine', kind: 'shrine', x: 19, y: 16, name: 'Камень предков', reward: { crystal: 2 }, item: 'idol', needs: ['saw'], text: 'Орки приносят сюда дары. Камень звенит так же, как наш узел.' },
+  { id: 'shrine', kind: 'shrine', x: 19, y: 16, name: 'Камень предков', reward: { crystal: 2 }, item: 'idol', needs: ['saw'], text: 'Орки приносят сюда дары. Камень звенит так же, как наш артефакт.' },
   {
     id: 'warcamp', kind: 'squad', x: 21, y: 3, name: 'Военный лагерь рода', waves: 6, reward: { gold: 250, wood: 30, crystal: 4 }, item: 'warbanner', needsAny: ['ford', 'bridge'], // ярус лавки и защита — после уроков уровней (Лоровед, 2026-11-06)
     text: 'Здесь орки собирают силы для набега. Бой не обязателен, но лагерь богат.',
@@ -233,7 +233,7 @@ const FRONTIER_OBJECTS: WorldObj[] = [
   { id: 'bridge', kind: 'squad', x: BRIDGE.x, y: BRIDGE.y, name: 'Засада у моста', waves: 5, reward: { gold: 60, wood: 10 }, needs: ['sq3'] },
   // Восточный берег
   { id: 'goldmine', kind: 'mine', x: 31, y: 4, name: 'Рудник', waves: 5, income: { gold: 20 }, needs: ['sq4'] },
-  { id: 'node', kind: 'mine', x: 38, y: 28, name: 'Малый узел', waves: 6, income: { crystal: 1 }, item: 'shard', needs: ['sq5'], needsAny: ['goldmine', 'shrine2'], text: 'Осколок той же сети, что наш артефакт. Орки охраняют его, как святыню.' },
+  { id: 'node', kind: 'mine', x: 38, y: 28, name: 'Малый артефакт', waves: 6, income: { crystal: 1 }, item: 'shard', needs: ['sq5'], needsAny: ['goldmine', 'shrine2'], text: 'Младший брат нашего артефакта. Орки охраняют его, как святыню.' },
   { id: 'sq4', kind: 'squad', x: 33, y: 13, name: 'Боевой отряд', waves: 6, reward: { gold: 80, crystal: 1 }, needsAny: ['ford', 'bridge'] },
   { id: 'sq5', kind: 'squad', x: 33, y: 22, name: 'Стая гончих', waves: 6, reward: { gold: 80 }, needsAny: ['ford', 'bridge'] },
   { id: 'sq6', kind: 'squad', x: 40, y: 8, name: 'Шаманы ущелья', waves: 7, reward: { gold: 90, crystal: 2 }, needs: ['node'] },
@@ -247,7 +247,7 @@ const FRONTIER_OBJECTS: WorldObj[] = [
   { id: 'chest6', kind: 'chest', x: 30, y: 18, name: 'Запас брёвен', reward: { wood: 20 } },
   { id: 'chest7', kind: 'chest', x: 45, y: 3, name: 'Добыча набега', reward: { gold: 100 }, item: 'banner' },
   { id: 'chest8', kind: 'chest', x: 45, y: 28, name: 'Тайник шамана', reward: { crystal: 2 } },
-  { id: 'shrine2', kind: 'shrine', x: 48, y: 22, name: 'Старый идол', reward: { crystal: 3 }, text: 'Идол старше орков. На его камне — те же знаки, что на нашем узле.' },
+  { id: 'shrine2', kind: 'shrine', x: 48, y: 22, name: 'Старый идол', reward: { crystal: 3 }, text: 'Идол старше орков. На его камне — те же знаки, что на нашем артефакте.' },
   {
     id: 'fortress', kind: 'fortress', x: 47, y: 15, name: 'Крепость Вождя', waves: 12, army: 'normal', armyAt: 8, weakenedBy: 'node', reward: { gold: 200, crystal: 5 }, needs: ['guard'],
     text: 'Вождь Ургаш ждёт за частоколом. Это последний бой главы.',
@@ -865,7 +865,7 @@ export interface CampBuilding {
 
 export const CAMP_BUILDINGS: CampBuilding[] = [
   { id: 'forge', name: 'Кузня', keeper: 'Гарт', text: 'Клинки, наконечники и тетивы для всех башен.', perks: ['sharp', 'haste', 'pierce', 'slayer'] },
-  { id: 'tower', name: 'Башня магов', keeper: 'Сефира Ноль', text: 'Чары узла: дальше видеть, вязнуть врагу, сильнее бить у артефакта.', perks: ['sight', 'mire', 'ward', 'bastion'] },
+  { id: 'tower', name: 'Башня магов', keeper: 'Сефира Ноль', text: 'Чары артефакта: дальше видеть, вязнуть врагу, сильнее бить у артефакта.', perks: ['sight', 'mire', 'ward', 'bastion'] },
   { id: 'treasury', name: 'Казна', keeper: 'Осип', text: 'Золото с боя, скидки в лавке и вербовка.', perks: ['loot', 'trade', 'scout', 'envoy'] },
   { id: 'walls', name: 'Стены', keeper: 'Наместник Орис Вельд', text: 'Камень для стен вокруг артефакта.', perks: ['walls'] },
 ];
@@ -919,8 +919,8 @@ export const HERO_ITEMS: HeroItem[] = [
   { id: 'crossbow', slot: 'weapon', name: 'Арбалет разведчика', icon: '🏹', text: 'Лёгкий, бьёт далеко. Контрабандисты знали толк в оружии.', perks: { sight: 1, slayer: 1 } },
   { id: 'mail', slot: 'armor', name: 'Кольчуга заставы', icon: '🥋', text: 'Снята с телеги прежнего дозора людей.', perks: { walls: 2 } },
   { id: 'plate', slot: 'armor', name: 'Латы вожака', icon: '🛡', text: 'Орочья работа, грубая и крепкая.', perks: { walls: 2, bastion: 1 } },
-  { id: 'idol', slot: 'amulet', name: 'Знак предков', icon: '🪬', text: 'Орочий оберег с Камня предков. Звенит, как узел.', perks: { pierce: 1 } },
-  { id: 'shard', slot: 'amulet', name: 'Осколок узла', icon: '💎', text: 'Кусок малого узла. Тёплый на ощупь.', perks: { ward: 1, mire: 1 } },
+  { id: 'idol', slot: 'amulet', name: 'Знак предков', icon: '🪬', text: 'Орочий оберег с Камня предков. Звенит, как артефакт.', perks: { pierce: 1 } },
+  { id: 'shard', slot: 'amulet', name: 'Осколок артефакта', icon: '💎', text: 'Кусок малого артефакта. Тёплый на ощупь.', perks: { ward: 1, mire: 1 } },
   { id: 'banner', slot: 'banner', name: 'Знамя экспедиции', icon: '🚩', text: 'Под ним солдаты бьют быстрее.', perks: { haste: 1 } },
   { id: 'token', slot: 'amulet', name: 'Жетон чужого знамени', icon: '🔰', text: 'Лейтенант Сорн оставил его в болоте. Чужая экспедиция узнает этот знак.', perks: { envoy: 1, loot: 1 } },
   { id: 'mirror', slot: 'amulet', name: 'Тёмное зеркало', icon: '🪞', text: 'Трофей из Цитадели сумерек. Его свойства ещё не изучены.', perks: { pierce: 1, slayer: 1, sight: 1 } },

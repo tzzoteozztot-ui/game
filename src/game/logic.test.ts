@@ -1020,11 +1020,16 @@ test('dialogs: every chapter scene points at a real object, and conditional line
   const trade = korh(['korh-trade']);
   const escort = korh(['korh-trade', 'korh-escort']);
   const refused = korh([]);
-  assert.match(trade[0], /обмен сведениями/);
-  assert.ok(trade.some((t) => /не стали рисковать/.test(t)) && !trade.some((t) => /помогли моим людям/.test(t)), 'обмен без сопровождения');
-  assert.ok(escort.some((t) => /помогли моим людям/.test(t)) && !escort.some((t) => /не стали рисковать/.test(t)), 'сопровождение');
-  assert.match(refused[0], /не заключали соглашений/);
-  assert.ok(!refused.some((t) => /обмен сведениями/.test(t)));
+  assert.match(trade[0], /Ваши сведения сошлись/);
+  assert.ok(trade.some((t) => /людьми ради моих не рискнули/.test(t)) && !trade.some((t) => /Раненые дома/.test(t)), 'обмен без сопровождения');
+  assert.ok(escort.some((t) => /Раненые дома/.test(t)) && !escort.some((t) => /людьми ради моих не рискнули/.test(t)), 'сопровождение: Корх прикрывает тыл');
+  assert.match(refused[0], /Соглашений между нами нет/);
+  assert.ok(!refused.some((t) => /Ваши сведения сошлись/.test(t)));
+  // Отклики на выборы прежних глав: семя Феллы (глава 2) и похороненный караван (глава 3 → Корх в главе 4)
+  const after = (flags: string[]) => D.sceneFor('after:bog_fortress', [], flags)!.lines.map((l) => l.text);
+  assert.ok(after(['fella-task']).some((t) => /нашли семя/.test(t)) && !after([]).some((t) => /нашли семя/.test(t)), 'семя Феллы');
+  const korh4 = (flags: string[]) => D.sceneFor('event:ash_forkA', [], flags)!.lines.map((l) => l.text);
+  assert.ok(korh4(['buried-caravan']).some((t) => /Имена с жетонов/.test(t)) && !korh4([]).some((t) => /Имена с жетонов/.test(t)), 'караван');
   for (const lines of [trade, escort, refused]) assert.match(lines[lines.length - 1], /не решил, кому достанется/);
 });
 
