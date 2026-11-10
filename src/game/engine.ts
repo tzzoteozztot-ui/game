@@ -4387,7 +4387,7 @@ export class GameEngine {
 
   /** The level of a hypertower is raised by one other hypertower or by two equal megatowers (two Т or two П) */
   private hyperUpMegas(t: Tower): Tower[] | null {
-    const other = this.nearest(this.towers.filter((o) => o !== t && o.fused?.level !== undefined), t)[0];
+    const other = this.nearest(this.towers.filter((o) => o !== t && o.fused?.level !== undefined && o.fused.level === t.fused?.level), t)[0]; // только гипербашня того же уровня: низкая не поглощает высокую
     if (other) return [other];
     for (const shape of ['T', 'P'] as const) {
       const same = this.nearest(this.towers.filter((o) => o !== t && this.megaShape(o) === shape), t);
