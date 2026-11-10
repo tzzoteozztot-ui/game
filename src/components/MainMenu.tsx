@@ -111,7 +111,7 @@ function HomePage({ onChangePage, onOpenDuel, onOpenWorld, duelAvailable, accoun
   const [hint, setHint] = useState(false);
   const standalone = isStandalone();
   const items: { key: string; title: string; hint: string; onClick: () => void; main?: boolean }[] = [
-    { key: 'campaign', title: 'Кампания', hint: 'Поход Рена: пять глав, пять узлов на глобальной карте', onClick: onOpenWorld, main: true },
+    { key: 'campaign', title: 'Кампания', hint: 'Поход Рена: пять глав, пять артефактов на глобальной карте', onClick: onOpenWorld, main: true },
     { key: 'endless', title: 'Бесконечный режим', hint: 'Волны без конца, рекорд волны', onClick: () => onChangePage('endless') },
     { key: 'brawl', title: 'Потасовка', hint: 'Восемь рубежей, соперник меняется каждую волну', onClick: () => onChangePage('brawl') },
     { key: 'sandbox', title: 'Свободный режим', hint: 'Золото без счёта, башни любого уровня, волны вручную, лог', onClick: () => onChangePage('sandbox') },

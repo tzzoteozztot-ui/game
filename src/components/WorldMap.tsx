@@ -595,13 +595,13 @@ export function WorldMap({ world, region, onChange, onBattle, onExit, onReset }:
           <div className="absolute right-16 top-2 bg-black/75 border border-amber-600/60 rounded-lg px-3 py-2 text-xs sm:text-sm text-amber-200 max-w-[60%]">
             {nextRegion ? (
               <div className="flex items-center gap-3 flex-wrap">
-                <span>{region.name}: узел наш.</span>
+                <span>{region.name}: артефакт наш.</span>
                 <button className="px-3 py-1.5 rounded bg-amber-700/90 hover:bg-amber-600 text-white font-bold" onClick={() => goNext(nextRegion)}>
                   Дальше: {nextRegion.name} ▸
                 </button>
               </div>
             ) : (
-              <span>Пять узлов горят. Поход пройден.</span>
+              <span>Пять артефактов горят. Поход пройден.</span>
             )}
           </div>
         )}
@@ -771,7 +771,7 @@ function itemLine(id: string | undefined): string {
 
 /** Что за бой ждёт у объекта — для окна перед боем */
 function battleText(o: WorldObj, st?: WorldState): string {
-  const weak = st && o.weakenedBy && st.owned.includes(o.weakenedBy) ? '\nМалый узел наш: защита лагеря ослаблена.' : '';
+  const weak = st && o.weakenedBy && st.owned.includes(o.weakenedBy) ? '\nМалый артефакт наш: защита лагеря ослаблена.' : '';
   if (o.army && o.armyAt)
     return `Волны идут без конца, пока стоит лагерь врага. Армию на него выставить пока некому: держите линию.${weak}`;
   if (o.army)
