@@ -48,6 +48,7 @@ import { bakeTerrain, drawLive, loadExtras, hexAt, wx, wy, worldW, worldH, HW, P
 import { sprites } from '../game/sprites';
 import { loadTileset, Tileset, TILESETS } from '../game/tiles';
 import { sound } from '../game/audio';
+import { logReason, logWorldNote, hasCampaignLog, onCampaignLogReady, downloadCampaignLog } from '../campaign/worldLog';
 import { CampPanel } from './CampPanel';
 import { HeroPanel } from './HeroPanel';
 
@@ -65,6 +66,26 @@ type Cam = { zoom: number; x: number; y: number }; // экран = мир × zoo
 
 const MAX_ZOOM = 2.2;
 const CAM_KEY = 'dark_frontier_world_zoom';
+
+// Кнопка «Скачать лог похода»: лог читается из хранилища не сразу
+function CampaignLogButton({ world }: { world: WorldState }) {
+  const [, tick] = useState(0);
+  const [busy, setBusy] = useState(false);
+  useEffect(() => onCampaignLogReady(() => tick((n) => n + 1)), []);
+  return (
+    <button
+      className="w-full mt-3 py-2 rounded bg-[#2a2635] hover:bg-[#3a3448] text-sm font-bold disabled:opacity-40"
+      disabled={busy || !hasCampaignLog()}
+      onClick={() => {
+        setBusy(true);
+        void downloadCampaignLog(world).finally(() => setBusy(false));
+      }}
+    >
+      Скачать лог похода (JSON)
+      <span className="block text-[11px] font-normal text-stone-400">Все действия на карте и все бои — для разбора баланса</span>
+    </button>
+  );
+}
 
 const copyWorld = (w: WorldState): WorldState => ({ ...w, hero: { ...w.hero }, res: { ...w.res }, done: [...w.done], owned: [...w.owned], seen: [...w.seen], camp: { ...w.camp }, items: [...w.items], equip: { ...w.equip }, scenes: [...w.scenes], flags: [...w.flags] });
 
@@ -287,6 +308,7 @@ export function WorldMap({ world, region, onChange, onBattle, onExit, onReset }:
         const o = objectAt(st, region, p.x, p.y);
         if (o && isLocked(st, o)) {
           stop();
+          logWorldNote(st, 'locked', { obj: o.id, name: o.name, needs: o.needs, needsAny: o.needsAny });
           setNotice({ title: o.name, text: `Эхо: «Рано, капитан. Сначала — ${lockText(st, region, o)}».` });
           return;
         }
@@ -309,6 +331,7 @@ export function WorldMap({ world, region, onChange, onBattle, onExit, onReset }:
         const res: Arrival | null = stepHero(st, region, p);
         if (!res) {
           stop();
+          logWorldNote(st, 'no-moves', { at: p, need: stepCost(region, p) });
           setNotice({ title: 'Ходы кончились', text: 'Герой устал. Завершите день, чтобы идти дальше.' });
           return;
         }
@@ -322,6 +345,7 @@ export function WorldMap({ world, region, onChange, onBattle, onExit, onReset }:
           return stop();
         }
         if (res.kind === 'event') {
+          logWorldNote(st, 'event-open', { obj: res.obj.id, name: res.obj.name, choices: res.obj.choices?.map((x) => x.label) });
           const n: Notice = { title: res.obj.name, text: res.obj.text ?? '', event: res.obj };
           play(`event:${res.obj.id}`, () => setNotice(n));
           return stop();
@@ -331,6 +355,7 @@ export function WorldMap({ world, region, onChange, onBattle, onExit, onReset }:
           setNotice({ title: res.obj.name, text: `Промысел наш. Каждый день: ${resText(res.obj.income)}` });
           return stop();
         }
+        if (res.kind === 'visit' && i === steps.length) logWorldNote(st, 'visit', { obj: res.obj.id, name: res.obj.name });
         if (res.kind === 'visit' && res.obj.kind === 'camp' && i === steps.length) {
           const cs = CAMP_SCENES[region.id];
           if (cs && isCleared(st, cs.after)) play(cs.trigger, () => setCampOpen(true));
@@ -438,6 +463,7 @@ export function WorldMap({ world, region, onChange, onBattle, onExit, onReset }:
     const st = copyWorld(world);
     const c = chooseEvent(st, region, o.id, i);
     if (!c) return setNotice(null);
+    logReason('event-choice', { obj: o.id, name: o.name, choice: i + 1, label: c.label, of: o.choices?.map((x) => x.label) });
     sound.playBuy();
     stRef.current = st;
     onChange(st);
@@ -450,6 +476,7 @@ export function WorldMap({ world, region, onChange, onBattle, onExit, onReset }:
   const nextRegion = region.next ? REGIONS[region.next] : null;
   const goNext = (to: RegionDef) => {
     const st = copyWorld(world);
+    logReason('region', { chapter: to.chapter ?? 1, jump: region.next !== to.id || !world.won });
     enterRegion(st, to);
     setTarget(null);
     setSelected(false);
@@ -684,6 +711,7 @@ export function WorldMap({ world, region, onChange, onBattle, onExit, onReset }:
                         className="px-3 py-1.5 rounded bg-amber-700/80 hover:bg-amber-600 text-sm font-bold"
                         onClick={() => {
                           saveSlot(i, world);
+                          logWorldNote(world, 'slot-save', { slot: i + 1 });
                           setSlots(loadSlots());
                           sound.playBuy();
                         }}
@@ -698,6 +726,7 @@ export function WorldMap({ world, region, onChange, onBattle, onExit, onReset }:
                           setSavesOpen(false);
                           setTarget(null);
                           setSelected(false);
+                          logReason('slot-load', { slot: i + 1, savedDay: sl.day });
                           onChange(sl.state);
                           centerOn(sl.state.hero);
                           requestDraw();
@@ -725,7 +754,8 @@ export function WorldMap({ world, region, onChange, onBattle, onExit, onReset }:
                   </button>
                 ))}
               </div>
-              <button className="w-full mt-3 py-2 rounded bg-[#2a2635] hover:bg-[#3a3448] font-bold" onClick={() => setSavesOpen(false)}>
+              <CampaignLogButton world={world} />
+              <button className="w-full mt-2 py-2 rounded bg-[#2a2635] hover:bg-[#3a3448] font-bold" onClick={() => setSavesOpen(false)}>
                 Закрыть
               </button>
             </div>
@@ -738,7 +768,7 @@ export function WorldMap({ world, region, onChange, onBattle, onExit, onReset }:
           <div className="absolute inset-0 bg-black/60 flex items-center justify-center p-4 z-10">
             <div className="bg-[#171520] border border-[#3b354a] rounded-xl p-4 max-w-sm w-full shadow-2xl">
               <h3 className="text-lg font-black text-amber-300 mb-2">Начать поход заново?</h3>
-              <p className="text-sm text-stone-200 mb-4">Ресурсы, промыслы и разбитые отряды пропадут.</p>
+              <p className="text-sm text-stone-200 mb-4">Ресурсы, промыслы и разбитые отряды пропадут. Лог похода тоже начнётся заново — если он нужен, сначала скачайте его в «Сохранениях».</p>
               <div className="grid grid-cols-2 gap-2">
                 <button
                   className="py-2 rounded bg-red-800 hover:bg-red-700 font-bold"

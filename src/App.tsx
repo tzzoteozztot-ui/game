@@ -51,6 +51,7 @@ import { HERO_ABILITIES } from './game/config';
 import { fullscreenSupported, toggleFullscreen } from './fullscreen';
 import { AccountModal, SyncState } from './components/AccountModal';
 import { downloadRunLog } from './game/runLog';
+import { logWorldChange, logReason, logWorldNote, logBattleStart, logBattleEnd, type CampaignBattle } from './campaign/worldLog';
 import { Progress, EMPTY_PROGRESS, readLocalProgress, writeLocalProgress, mergeProgress, isEmptyProgress, endlessRecordKey } from './progress';
 import { cloudEnabled, onUserChange, loadCloudProgress, saveCloudProgress } from './cloud';
 import type { User } from '@supabase/supabase-js';
@@ -140,7 +141,10 @@ export default function App() {
   // Поход по глобальной карте (прототип, вариант В): состояние на устройстве и бой, который сейчас идёт
   const [world, setWorldState] = useState<WorldState | null>(() => loadWorld());
   const [worldBattle, setWorldBattle] = useState<WorldObj | null>(null);
+  const worldPrevRef = useRef<WorldState | null>(world); // прошлое состояние для лога: колбэки карты держат старый `world`
   const setWorld = (st: WorldState | null) => {
+    logWorldChange(worldPrevRef.current, st); // лог похода: что изменилось
+    worldPrevRef.current = st;
     setWorldState(st);
     saveWorld(st);
   };
@@ -708,6 +712,31 @@ export default function App() {
     setBattleScene(null);
   };
 
+  // Лог похода: с чем герой входит в бой и чем бой кончился (полный лог боя — из движка)
+  const logWorldBattleStart = (obj: WorldObj) => {
+    if (!world) return;
+    const region = REGIONS[world.region] ?? FRONTIER;
+    logBattleStart(world, obj, {
+      level: region.level,
+      waves: obj.army ? null : (obj.waves ?? 3),
+      army: obj.army ? (armyLevel(world, obj) ?? obj.army) : null,
+      armyAt: obj.armyAt ?? null,
+      faction: obj.faction ?? null,
+      bossLast: !!obj.bossLast,
+      mapSeed: battleSeed(obj),
+      invasion: Math.round(invasion(region)(obj.x, obj.y) * 100) / 100,
+      towers: allowedTowers(world, region, obj),
+      skills: HERO_ABILITIES.filter((d) => d.unlock <= heroLevel(world)).map((d) => d.id),
+    });
+  };
+  const logWorldBattleEnd = (outcome?: CampaignBattle['outcome']) => {
+    const eng = engineRef.current;
+    if (!worldBattle || !eng) return;
+    const how = outcome ?? (eng.isVictory ? 'victory' : eng.isGameOver ? 'defeat' : 'left');
+    if (eng.runLog?.data.result === 'running') eng.saveLog('left'); // бой брошен: срез башен и золота на момент выхода
+    logBattleEnd(world, worldBattle, how, eng.runLog?.data ?? null);
+  };
+
   // Поход: бой отряда или крепости на обычном поле — первые N волн уровня биома
   const startWorldBattle = (obj: WorldObj) => {
     sound.init();
@@ -715,6 +744,7 @@ export default function App() {
     setBattleScene(null);
     setSideTab('towers');
     if (world) worldTowersRef.current = allowedTowers(world, REGIONS[world.region] ?? FRONTIER, obj);
+    logWorldBattleStart(obj);
     setSpecModalTower(null);
     if (obj.army) {
       // Бой с армией (просьба Артура 2026-11-06): как дуэль с ботом — волны идут без конца, пока не падёт артефакт вражеского лагеря
@@ -739,6 +769,7 @@ export default function App() {
   const leaveWorldBattle = (won: boolean) => {
     const obj = worldBattle;
     const engine = engineRef.current;
+    logWorldBattleEnd(won ? 'victory' : undefined);
     if (engine) {
       engine.stopLoop();
       engine.isVictory = false;
@@ -758,6 +789,7 @@ export default function App() {
     if (won && obj && world) {
       const st = { ...world, res: { ...world.res }, done: [...world.done], owned: [...world.owned], seen: [...world.seen], scenes: [...world.scenes], flags: [...world.flags] };
       winBattle(st, REGIONS[st.region] ?? FRONTIER, obj.id);
+      logReason('battle-won', { obj: obj.id });
       setWorld(st);
     }
     setScreen('world');
@@ -772,11 +804,13 @@ export default function App() {
     if (!engine) return;
 
     const seed = engine.mapSeed; // «Повторить» — та же случайная дорога
+    if (worldBattle) logWorldBattleEnd(engine.isVictory ? 'victory' : engine.isGameOver ? 'defeat' : 'restart');
     if (worldBattle?.army) {
       startWorldBattle(worldBattle);
       return;
     }
     if (worldBattle) {
+      logWorldBattleStart(worldBattle);
       if (canvasRef.current) engine.setCanvas(canvasRef.current);
       engine.startWorldBattle((REGIONS[world?.region ?? 'frontier'] ?? FRONTIER).level, worldBattle.waves ?? 3, battleSeed(worldBattle), 'normal', { faction: worldBattle.faction, bossLast: worldBattle.bossLast });
       heroIntoBattle(engine, worldBattle);
@@ -1448,6 +1482,7 @@ export default function App() {
           onOpenWorld={() => {
             sound.init();
             if (!world) setWorld(newWorld());
+            else logWorldNote(world, 'open');
             setScreen('world');
           }}
           onStartSandbox={(level, enemies, randomRoad) => handleSandboxStart(level, enemies, randomRoad)}
@@ -1870,7 +1905,10 @@ export default function App() {
           onChange={setWorld}
           onBattle={startWorldBattle}
           onExit={() => setScreen('menu')}
-          onReset={() => setWorld(newWorld())}
+          onReset={() => {
+            logReason('new');
+            setWorld(newWorld());
+          }}
         />
       )}
       {screen === 'playing' && worldBattle && battleScene && !(gameState.isVictory || gameState.isGameOver) && <DialogBox scene={battleScene} onDone={closeBattleScene} />}

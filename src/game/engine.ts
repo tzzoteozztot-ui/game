@@ -1110,11 +1110,11 @@ export class GameEngine {
   }
 
   /** Скачивание лога из свободного режима: записать срез и отдать файл */
-  public saveLog() {
+  public saveLog(kind = 'sandbox-save') {
     if (!this.runLog) return;
     this.runLog.data.finalWave = this.wavesLaunched;
     this.runLog.data.seconds = Math.round(this.runStats.time);
-    this.logEv('sandbox-save', { gold: Math.round(this.gold), towers: this.logTowers(), damageOther: Math.round(this.runStats.other) });
+    this.logEv(kind, { gold: Math.round(this.gold), towers: this.logTowers(), damageOther: Math.round(this.runStats.other) });
     this.runLog.save();
   }
 

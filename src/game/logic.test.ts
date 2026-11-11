@@ -1077,3 +1077,63 @@ test('botFieldView: присланные боту враги видны — жд
   const joined = botFieldView({ ...base, joined: { flyer: 4 } }, MAPS[0]);
   assert.ok(joined.enemies.filter((e) => e[0].startsWith('s')).length > 0);
 });
+
+test('лог похода: разность состояний называет действие и хранит все числа', async () => {
+  const { newWorld, FRONTIER, stepHero, endDay, upgradeCamp, winBattle, findPath } = await import('../campaign/world');
+  const { diffWorld, logWorldChange, logBattleStart, logBattleEnd, buildCampaignLog, resetCampaignLogForTest, campaignLogHead } = await import('../campaign/worldLog');
+  const copy = <T,>(v: T): T => JSON.parse(JSON.stringify(v));
+  resetCampaignLogForTest();
+  const a = newWorld();
+  logWorldChange(null, a);
+  assert.equal(campaignLogHead()?.events[0].kind, 'start');
+
+  // Шаги к ближайшему отряду: подряд идущие шаги — одна запись с путём
+  const squad = FRONTIER.objects.find((o) => o.kind === 'squad' && !o.needs?.length)!;
+  const path = findPath(a, FRONTIER, squad)!;
+  let st = a;
+  for (const p of path.slice(0, 3)) {
+    const next = copy(st);
+    const res = stepHero(next, FRONTIER, p);
+    if (!res || res.kind === 'battle') break;
+    logWorldChange(st, next);
+    st = next;
+  }
+  const ev = campaignLogHead()!.events;
+  const move = ev[ev.length - 1];
+  assert.equal(move.kind, 'move');
+  assert.equal((move.d as { moves: number }).moves, st.moves - a.moves);
+  assert.deepEqual(move.to, st.hero);
+
+  // День: доход и остаток ходов
+  const d1 = copy(st);
+  endDay(d1, FRONTIER);
+  assert.equal(diffWorld(st, d1)?.kind, 'day');
+
+  // Победа: награда, опыт и объект
+  const w = copy(d1);
+  winBattle(w, FRONTIER, squad.id);
+  const won = diffWorld(d1, w, { kind: 'battle-won' })!;
+  assert.equal(won.kind, 'battle-won');
+  assert.equal((won.d as { xp: number }).xp, (squad.waves ?? 0) * 10);
+  assert.deepEqual((won.d as { done: string[] }).done, [squad.id]);
+
+  // Лагерь: цена уходит в разность ресурсов
+  const rich = copy(w);
+  rich.res = { gold: 1000, wood: 100, crystal: 10 };
+  const c = copy(rich);
+  assert.equal(upgradeCamp(c, 'sharp'), 1);
+  const camp = diffWorld(rich, c)!;
+  assert.equal(camp.kind, 'camp');
+  assert.deepEqual((camp.d as { res: unknown }).res, { gold: -100, wood: -15 });
+
+  // Бой попадает в файл вместе с событиями начала и конца
+  logBattleStart(d1, squad, { waves: squad.waves });
+  logBattleEnd(d1, squad, 'defeat', null);
+  logBattleStart(d1, squad, { waves: squad.waves });
+  logBattleEnd(d1, squad, 'victory', null);
+  const file = (await buildCampaignLog(w))!;
+  assert.equal(file.battles.length, 2);
+  assert.equal(file.battles[1].attempt, 2);
+  assert.equal(file.events.filter((e) => e.kind === 'battle-end').length, 2);
+  assert.ok(file.regions.frontier);
+});
