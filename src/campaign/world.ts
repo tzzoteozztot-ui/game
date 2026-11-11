@@ -82,6 +82,9 @@ export interface WorldObj {
   faction?: number;
   /** Бой: в последней волне выходит босс, даже если волн меньше 12 (Каллен в обороне лагеря) */
   bossLast?: boolean;
+  /** Бой: своё имя босса и оттенок его фигуры (иначе — босс фракции как есть) */
+  bossName?: string;
+  bossTint?: string;
 }
 
 export interface RegionDef {

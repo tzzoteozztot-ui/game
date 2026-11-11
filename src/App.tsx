@@ -213,6 +213,7 @@ export default function App() {
     level: 1,
     randomMap: false,
     sandbox: false,
+    bossName: null,
     hexField: false,
     mapName: '',
     mapEdit: null,
@@ -728,7 +729,7 @@ export default function App() {
       if (canvasRef.current && engineRef.current) {
         engineRef.current.setCanvas(canvasRef.current);
         const region = REGIONS[world?.region ?? 'frontier'] ?? FRONTIER;
-        engineRef.current.startWorldBattle(region.level, obj.waves ?? 3, battleSeed(obj), 'normal', { faction: obj.faction, bossLast: obj.bossLast });
+        engineRef.current.startWorldBattle(region.level, obj.waves ?? 3, battleSeed(obj), 'normal', { faction: obj.faction, bossLast: obj.bossLast, bossName: obj.bossName, bossTint: obj.bossTint });
         heroIntoBattle(engineRef.current, obj);
         setShopCards(generateShopCards(1));
       }
@@ -778,7 +779,7 @@ export default function App() {
     }
     if (worldBattle) {
       if (canvasRef.current) engine.setCanvas(canvasRef.current);
-      engine.startWorldBattle((REGIONS[world?.region ?? 'frontier'] ?? FRONTIER).level, worldBattle.waves ?? 3, battleSeed(worldBattle), 'normal', { faction: worldBattle.faction, bossLast: worldBattle.bossLast });
+      engine.startWorldBattle((REGIONS[world?.region ?? 'frontier'] ?? FRONTIER).level, worldBattle.waves ?? 3, battleSeed(worldBattle), 'normal', { faction: worldBattle.faction, bossLast: worldBattle.bossLast, bossName: worldBattle.bossName, bossTint: worldBattle.bossTint });
       heroIntoBattle(engine, worldBattle);
       return;
     }
@@ -1596,6 +1597,7 @@ export default function App() {
                   summary={gameState.waveSummary}
                   faction={gameState.nextWaveFaction}
                   isWaveActive={gameState.isWaveActive}
+                  bossName={gameState.bossName}
                 />}
                 {/* Bottom corners: gold and lives on the left; the selected tower's card on the half away from it,
                     «Всё поле» on the right. Only the plates' own buttons take taps */}

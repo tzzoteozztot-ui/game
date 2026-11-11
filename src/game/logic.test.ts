@@ -989,6 +989,10 @@ test('world: chapter 3 and 4 encounters follow the script — Korh, Bo-Rok, Kall
   assert.equal(raid.waves, 8);
   assert.equal(raid.faction, 6, 'enslaved expedition soldiers are humans');
   assert.ok(raid.bossLast, 'Kallen leads the last wave');
+  assert.equal(raid.bossName, 'Каллен', 'the boss is named after Kallen, not the faction commander');
+  // Замёрзший караван: после каждого выбора звучат свои реплики
+  const caravan = W.REGIONS.ice.objects.find((o) => o.id === 'ice_event1')!;
+  caravan.choices!.forEach((_, i) => assert.ok(D.sceneFor(`choice:ice_event1:${i + 1}`, [], [])?.lines.length, `caravan choice ${i + 1} has lines`));
 });
 
 test('dialogs: every chapter scene points at a real object, and conditional lines follow the choice flags', () => {

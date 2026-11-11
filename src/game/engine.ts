@@ -342,6 +342,8 @@ export interface GameStateSnapshot {
   randomMap: boolean;
   /** Свободный режим: золото без счёта, состав волн вручную */
   sandbox: boolean;
+  /** Поход: своё имя босса этого боя (иначе null — имя по фракции) */
+  bossName: string | null;
   hexField: boolean; // свободный режим: опытное гексовое поле с небом
   /** Название карты на поле (свободный режим: готовая, случайная или своя) */
   mapName: string;
@@ -494,6 +496,9 @@ export class GameEngine {
   public waveLimit: number | null = null;
   /** Поход: босс выходит в последней волне боя, даже если она не 12-я (`WorldObj.bossLast`) */
   private worldBossLast = false;
+  /** Поход: своё имя и оттенок босса боя (Каллен во главе порабощённых — `WorldObj.bossName`, `bossTint`); имя — подпись над боссом и в составе волны */
+  public worldBossName: string | null = null;
+  private worldBossTint: string | null = null;
 
   /** Последняя волна обычного боя: 12, в стычке похода — её N */
   private lastWave(): number {
@@ -709,6 +714,8 @@ export class GameEngine {
     this.sandbox = false;
     this.waveLimit = null;
     this.worldBossLast = false;
+    this.worldBossName = null;
+    this.worldBossTint = null;
     this.duelStart = null;
     this.resetView();
     this.duelOutgoing = {};
@@ -779,12 +786,14 @@ export class GameEngine {
    * Бой похода по глобальной карте (просьба Артура 2026-11-06): уровень биома, первые `waves` волн,
    * своя дорога из генератора по зерну отряда (крепость — готовая карта уровня, `seed` = null).
    */
-  public startWorldBattle(level: number, waves: number, seed: number | null, diff: Difficulty = 'normal', opts: { faction?: number; bossLast?: boolean } = {}) {
+  public startWorldBattle(level: number, waves: number, seed: number | null, diff: Difficulty = 'normal', opts: { faction?: number; bossLast?: boolean; bossName?: string; bossTint?: string } = {}) {
     this.startLevel(level, diff, false, undefined, 'humans', null, seed ? generateMap(level, seed) : null);
     this.waveLimit = Math.max(1, Math.min(CONFIG.waves.length, Math.floor(waves)));
     // Поход: чужие враги на биоме карты (порабощённые солдаты экспедиции в главе 3 — люди) и босс последней волны боя (Каллен)
     if (opts.faction && opts.faction >= 1 && opts.faction <= CONFIG.factions.length) this.faction = Math.floor(opts.faction);
     this.worldBossLast = !!opts.bossLast;
+    this.worldBossName = opts.bossName ?? null;
+    this.worldBossTint = opts.bossTint ?? null;
     if (this.runLog) this.runLog.data.mode = 'world';
     this.notifyState();
   }
@@ -1867,7 +1876,7 @@ export class GameEngine {
 
     if (type === 'boss') {
       sound.playBossSpawn();
-      this.addFloatingText('ПОЯВИЛСЯ БОСС!', enemy.x, enemy.y - 20, '#e0452f');
+      this.addFloatingText(this.worldBossName ? `${this.worldBossName.toUpperCase()}!` : 'ПОЯВИЛСЯ БОСС!', enemy.x, enemy.y - 20, '#e0452f');
     }
 
     this.enemies.push(enemy);
@@ -4816,6 +4825,7 @@ export class GameEngine {
       level: this.level,
       randomMap: this.mapSeed !== null,
       sandbox: this.sandbox,
+      bossName: this.worldBossName,
       hexField: isHex(),
       mapName: this.currentMap.name,
       mapEdit: this.mapEdit
@@ -6229,7 +6239,7 @@ export class GameEngine {
     const hasFaction = !isBoss && !isImp && sprites.has(factionName);
     const ownImp = isImp && sprites.has('enemy_imp');
     const name = isBoss ? `boss_${e.faction}` : ownImp ? 'enemy_imp' : isImp ? 'enemy_scout' : hasFaction ? factionName : `enemy_${e.type}`;
-    const tint = isBoss || hasFaction || ownImp ? null : isImp ? '#e0452f' : CONFIG.palettes[e.faction - 1].enemies;
+    const tint = isBoss ? this.worldBossTint : hasFaction || ownImp ? null : isImp ? '#e0452f' : CONFIG.palettes[e.faction - 1].enemies;
     return { name, tint };
   }
 
@@ -6376,6 +6386,18 @@ export class GameEngine {
       const pct = Math.max(0, Math.min(1, e.hp / e.maxHp));
       ctx.fillStyle = isBoss ? '#e0452f' : '#8fa34a';
       ctx.fillRect(barX, barY, barW * pct, barH);
+
+      // Поход: имя босса над полосой здоровья (Каллен)
+      if (isBoss && this.worldBossName) {
+        ctx.font = 'bold 11px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'bottom';
+        ctx.lineWidth = 3;
+        ctx.strokeStyle = 'rgba(0, 0, 0, 0.8)';
+        ctx.strokeText(this.worldBossName, e.x, barY - 2);
+        ctx.fillStyle = '#f2e9d8';
+        ctx.fillText(this.worldBossName, e.x, barY - 2);
+      }
     }
   }
 
