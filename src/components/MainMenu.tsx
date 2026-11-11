@@ -12,6 +12,8 @@ import { endlessRecordKey } from '../progress';
 import { LockIcon, SoundIcon, FullscreenIcon } from './Icons';
 import { useFullscreen, isStandalone, HOME_SCREEN_HINT } from '../fullscreen';
 import { downloadRunLog, hasSavedRunLog } from '../game/runLog';
+import { downloadCampaignLog, hasCampaignLog } from '../campaign/worldLog';
+import { loadWorld } from '../campaign/world';
 
 export type GameMode = 'endless' | 'duel';
 export type MenuPage = 'home' | 'endless' | 'brawl' | 'sandbox' | 'settings';
@@ -616,6 +618,12 @@ function SettingsPage({
               <button type="button" onClick={() => downloadRunLog()} className={`${BTN} w-full text-left`}>
                 Лог последней партии
                 <span className="block text-[11px] font-normal text-stone-400 mt-0.5">Скачать файл JSON для разбора баланса</span>
+              </button>
+            )}
+            {hasCampaignLog() && (
+              <button type="button" onClick={() => void downloadCampaignLog(loadWorld())} className={`${BTN} w-full text-left`}>
+                Лог похода
+                <span className="block text-[11px] font-normal text-stone-400 mt-0.5">Все действия кампании и все бои — файл JSON для разбора</span>
               </button>
             )}
             {!standalone && (
