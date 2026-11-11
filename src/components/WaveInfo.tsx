@@ -15,6 +15,8 @@ interface WaveInfoProps {
   nextWave: { type: EnemyType; count: number }[] | null;
   summary: WaveSummary | null;
   faction: number;
+  /** Поход: своё имя босса этого боя (Каллен) */
+  bossName?: string | null;
   isWaveActive: boolean;
 }
 
@@ -25,7 +27,7 @@ const fmt = (n: number) => Math.round(n).toLocaleString('ru-RU');
 
 const towerName = (type: string) => CONFIG.towers[type as keyof typeof CONFIG.towers]?.name ?? '';
 
-export function WaveInfo({ nextWave, summary, faction, isWaveActive }: WaveInfoProps) {
+export function WaveInfo({ nextWave, summary, faction, isWaveActive, bossName }: WaveInfoProps) {
   const [open, setOpen] = React.useState(false);
   // A new wave closes the totals of the previous one
   React.useEffect(() => {
@@ -62,8 +64,8 @@ export function WaveInfo({ nextWave, summary, faction, isWaveActive }: WaveInfoP
                 <EnemyIcon
                   type={g.type}
                   faction={faction}
-                  alt={enemyName(g.type, faction, CONFIG.enemies[g.type].name)}
-                  title={enemyName(g.type, faction, CONFIG.enemies[g.type].name)}
+                  alt={(g.type === 'boss' && bossName) || enemyName(g.type, faction, CONFIG.enemies[g.type].name)}
+                  title={(g.type === 'boss' && bossName) || enemyName(g.type, faction, CONFIG.enemies[g.type].name)}
                   className="h-[calc(var(--cell)*0.36)] w-[calc(var(--cell)*0.36)] object-contain shrink-0"
                 />
                 <span className="text-white/90 font-bold tabular-nums leading-none text-[max(9px,calc(var(--cell)*0.27))]">×{g.count}</span>
