@@ -636,7 +636,7 @@ export function WorldMap({ world, region, onChange, onBattle, onExit, onReset }:
         {/* Окно события */}
         {notice && (
           <div className="absolute inset-0 bg-black/60 flex items-center justify-center p-4 z-10">
-            <div className="bg-[#171520] border border-[#3b354a] rounded-xl p-4 max-w-sm w-full shadow-2xl">
+            <div className="bg-[#171520] border border-[#3b354a] rounded-xl p-4 max-w-sm w-full max-h-full overflow-y-auto shadow-2xl">
               <h3 className="text-lg font-black text-amber-300 mb-2">{notice.title}</h3>
               <p className="text-sm text-stone-200 whitespace-pre-line mb-4">{notice.text}</p>
               {notice.event?.choices ? (
