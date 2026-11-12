@@ -464,6 +464,9 @@ export class GameEngine {
   public mergeLocked = false;
   // Поход: во сколько раз больше врагов в волне (первые бои обучения)
   public worldCountMult = 1;
+  // Поход: на своём поле стоит герой (медальон Рена) вместо артефакта
+  public heroToken = false;
+  private heroImg: HTMLImageElement | null = null;
   public speedMultiplier: number = 1; // one of CONFIG.speeds
   // Real-time countdown to the next wave (not scaled by game speed); null while a wave runs
   public waveCountdown: number | null = null;
@@ -794,6 +797,7 @@ export class GameEngine {
     this.duelSpeedable = false;
     this.mergeLocked = false;
     this.worldCountMult = 1;
+    this.heroToken = false;
     this.duelSkew = 0;
     this.pausedClock = null;
     this.stageEnds = [];
@@ -871,6 +875,7 @@ export class GameEngine {
   public startWorldBattle(level: number, waves: number, seed: number | null, diff: Difficulty = 'normal', opts: { faction?: number; bossLast?: boolean; bossName?: string; bossTint?: string; countMult?: number } = {}) {
     this.startLevel(level, diff, false, undefined, 'humans', null, seed ? generateMap(level, seed) : null);
     this.worldCountMult = opts.countMult && opts.countMult > 0 ? opts.countMult : 1;
+    this.heroToken = true;
     this.waveLimit = Math.max(1, Math.min(CONFIG.waves.length, Math.floor(waves)));
     // Поход: чужие враги на биоме карты (порабощённые солдаты экспедиции в главе 3 — люди) и босс последней волны боя (Каллен)
     if (opts.faction && opts.faction >= 1 && opts.faction <= CONFIG.factions.length) this.faction = Math.floor(opts.faction);
@@ -5843,11 +5848,56 @@ export class GameEngine {
 
   // Castle sprite (public/sprites/castle.png), drawn in depth order with the towers; larger than its cell
   private renderCastleFigure(ctx: CanvasRenderingContext2D, cellSize: number, timeSec: number) {
+    if (this.heroToken) {
+      this.renderHeroToken(ctx, cellSize, timeSec);
+      return;
+    }
     const spr = sprites.get('castle');
     if (!spr) return;
     const c = CONFIG.grid.castleCells[0];
     const breath = Math.sin(timeSec * 1.6) * 0.008;
     drawSprite(ctx, spr, centerX(c), centerY(c) + 30, 1, undefined, { sy: 1 + breath });
+    this.renderBoonOrbs(ctx, cellSize, timeSec);
+  }
+
+  /**
+   * Поход (просьба Артура 2026-11-12: «в каждом бою у нас стоит главный герой, мы нападаем»): на своём поле вместо артефакта
+   * стоит Рен. Пока без отдельной фигуры — медальон с портретом (public/portraits/ren.jpg) на месте артефакта; клетка, урон и защита прежние
+   */
+  private renderHeroToken(ctx: CanvasRenderingContext2D, cellSize: number, timeSec: number) {
+    if (!this.heroImg) {
+      this.heroImg = new Image();
+      this.heroImg.src = 'portraits/ren.jpg';
+    }
+    const c = CONFIG.grid.castleCells[0];
+    const x = centerX(c);
+    const y = centerY(c) - 4 + Math.sin(timeSec * 1.6) * 1.2;
+    const r = cellSize * 0.46;
+    ctx.save();
+    const glow = ctx.createRadialGradient(x, y, r * 0.6, x, y, r * 1.5);
+    glow.addColorStop(0, 'rgba(94, 234, 212, 0.55)');
+    glow.addColorStop(1, 'rgba(94, 234, 212, 0)');
+    ctx.fillStyle = glow;
+    ctx.beginPath();
+    ctx.arc(x, y, r * 1.5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.fillStyle = '#2b2a33';
+    ctx.fill();
+    ctx.clip();
+    const img = this.heroImg;
+    if (img.complete && img.naturalWidth > 0) {
+      const w = r * 2;
+      const h = w * (img.naturalHeight / img.naturalWidth);
+      ctx.drawImage(img, x - r, y - r, w, h);
+    }
+    ctx.restore();
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = '#f2c75c';
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.stroke();
     this.renderBoonOrbs(ctx, cellSize, timeSec);
   }
 
