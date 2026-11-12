@@ -33,6 +33,8 @@ export interface DuelLink {
   pair(peer: string): void;
   close(): void;
   /** Bot opponent only (src/duelBot.ts): its data for a field drawn from its numbers (src/fieldView.ts) */
+  /** Bot opponent only: its state for a saved fight (src/duelBot.ts `BotSave`) */
+  saveState?(): unknown;
   botInfo?(id?: string): import('./fieldView').BotWatchInfo | null;
 }
 

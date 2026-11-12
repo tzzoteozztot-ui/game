@@ -155,12 +155,23 @@ export function brawlBotStrength(difficulty: BotLevel, round: number, level: num
 }
 
 /** `now` — часы раунда (мс); в бою похода их ведёт движок, чтобы раунды шли быстрее вместе с ходом боя */
-export function createBotLink(level: number, difficulty: BotLevel, now: () => number = () => performance.now()): DuelLink {
-  const startedAt = now();
+export interface BotSave {
+  round: number;
+  roundT: number; // с от начала текущего раунда
+  field: { lives: number; income: number; received: number; inbox: Partial<Record<SendType, number>>; joined: Partial<Record<SendType, number>>; form: number; boons: string[] };
+}
+
+/**
+ * `restore` — сохранённый бот (передышка боя с армией, просьба Артура 2026-11-12): тот же раунд и та же защита.
+ * Отсчёт времени начинается с первого тика, а не с создания: движок после создания ссылки ещё сбрасывает свои часы
+ */
+export function createBotLink(level: number, difficulty: BotLevel, now: () => number = () => performance.now(), restore?: BotSave): DuelLink {
+  let startedAt: number | null = null;
   const field = new BotField(level, difficulty);
+  if (restore) Object.assign(field, JSON.parse(JSON.stringify(restore.field)));
   let handler: (msg: DuelMessage, from: string) => void = () => {};
   let timer: number | null = null;
-  let round = 0; // rounds already played
+  let round = restore?.round ?? 0; // rounds already played
   let lastState = 0;
   let over = false;
 
@@ -186,6 +197,7 @@ export function createBotLink(level: number, difficulty: BotLevel, now: () => nu
 
   const tick = () => {
     if (over) return;
+    if (startedAt === null) startedAt = now() - (round * CONFIG.duel.roundLength + (restore?.roundT ?? 0)) * 1000;
     const elapsed = (now() - startedAt) / 1000;
     while (!over && elapsed >= (round + 1) * CONFIG.duel.roundLength) nextRound();
     if (!over && elapsed - lastState >= CONFIG.duel.stateInterval) {
@@ -211,6 +223,14 @@ export function createBotLink(level: number, difficulty: BotLevel, now: () => nu
     },
     pair() {},
     close: stop,
+    saveState(): BotSave {
+      const elapsed = startedAt === null ? round * CONFIG.duel.roundLength + (restore?.roundT ?? 0) : (now() - startedAt) / 1000;
+      return {
+        round,
+        roundT: Math.max(0, elapsed - round * CONFIG.duel.roundLength),
+        field: JSON.parse(JSON.stringify({ lives: field.lives, income: field.income, received: field.received, inbox: field.inbox, joined: field.joined, form: field.form, boons: field.boons })),
+      };
+    },
     botInfo() {
       return {
         id: 'bot-duel',
@@ -219,7 +239,7 @@ export function createBotLink(level: number, difficulty: BotLevel, now: () => nu
         form: 1,
         lives: field.lives,
         wave: round,
-        roundT: (now() - startedAt) / 1000 % CONFIG.duel.roundLength,
+        roundT: startedAt === null ? 0 : (now() - startedAt) / 1000 % CONFIG.duel.roundLength,
         roundLength: CONFIG.duel.roundLength,
         faction: CONFIG.races.humans.faction,
         pending: field.inbox,
