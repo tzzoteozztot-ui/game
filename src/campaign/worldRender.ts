@@ -1214,7 +1214,7 @@ export function drawLive(
   for (const it of items) it.draw();
 
   // Путь
-  if (opts.selected && opts.path) {
+  if (opts.path) {
     let left = st.moves;
     for (let i = 0; i < opts.path.length; i++) {
       const p = opts.path[i];
@@ -1242,7 +1242,7 @@ export function drawLive(
   }
   if (opts.target) {
     hexPath(ctx, wx(opts.target), wy(opts.target), HW - 3, HH - 3);
-    ctx.strokeStyle = opts.selected && opts.path ? '#f4c06a' : 'rgba(244,192,106,0.7)';
+    ctx.strokeStyle = opts.path ? '#f4c06a' : 'rgba(244,192,106,0.7)';
     ctx.lineWidth = 2.5;
     ctx.stroke();
   }
