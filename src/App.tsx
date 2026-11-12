@@ -47,6 +47,8 @@ import { WorldMap, WorldBattleResult } from './components/WorldMap';
 import { WorldState, WorldObj, REGIONS, FRONTIER, newWorld, loadWorld, saveWorld, winBattle, battleSeed, battlePerks, heroLevel, allowedTowers, armyLevel, invasion } from './campaign/world';
 import { Scene, sceneFor } from './campaign/dialogs';
 import { DialogBox } from './components/DialogBox';
+import { DevNotes } from './components/DevNotes';
+import { DevNote } from './devNotes';
 import { HERO_ABILITIES } from './game/config';
 import { fullscreenSupported, toggleFullscreen } from './fullscreen';
 import { AccountModal, SyncState } from './components/AccountModal';
@@ -1216,10 +1218,83 @@ export default function App() {
 
   // Keyboard controls: the handler is rebuilt every render, so it always sees the current
   // mode, level and difficulty; the listener is added once and calls the latest one
+
+  // Режим разработчика: снимок игры для заметки и запись заметки в логи
+  const devPausedRef = useRef(false);
+  const devContext = (): Record<string, unknown> => {
+    const eng = engineRef.current;
+    const g = gameState;
+    const ctx: Record<string, unknown> = {
+      screen,
+      mode: screen === 'world' ? 'world' : worldBattle ? 'world-battle' : brawl ? 'brawl' : g.duel ? 'duel' : g.sandbox ? 'sandbox' : g.endless ? 'endless' : mode,
+      menuPage: screen === 'menu' ? menuPage : undefined,
+      difficulty,
+      race,
+      viewport: `${window.innerWidth}x${window.innerHeight}`,
+      layout,
+    };
+    if (screen === 'playing' && eng) {
+      ctx.field = {
+        map: g.level,
+        mapName: g.mapName,
+        mapSeed: eng.mapSeed,
+        faction: g.faction,
+        wave: g.wave,
+        maxWaves: g.maxWaves,
+        waveActive: g.isWaveActive,
+        countdown: g.waveCountdown,
+        gold: Math.round(g.gold),
+        lives: Math.round(g.lives),
+        supplyPower: g.supplyPower,
+        supplyMult: g.supplyMult,
+        shopTier: g.tier,
+        towers: eng.towers.length,
+        speed: g.speed,
+        paused: g.isPaused,
+        over: g.isGameOver ? 'defeat' : g.isVictory ? 'victory' : null,
+        brawl: brawl ? { wave: brawl.wave, alive: brawl.alive, place: brawl.yourPlace } : undefined,
+      };
+      const rl = eng.runLog;
+      if (rl) ctx.run = { startedAt: rl.data.startedAt, mode: rl.data.mode, t: eng.gameSeconds(), wave: eng.wavesLaunched };
+    }
+    if (world && (screen === 'world' || worldBattle)) {
+      ctx.campaign = {
+        region: world.region,
+        day: world.day,
+        moves: world.moves,
+        res: { ...world.res },
+        xp: world.xp,
+        done: world.done.length,
+        flags: [...world.flags],
+        battle: worldBattle ? worldBattle.id : null,
+      };
+    }
+    return ctx;
+  };
+  const devSaved = (note: DevNote) => {
+    const eng = engineRef.current;
+    const info = { id: note.id, category: note.category, text: note.text };
+    if (screen === 'playing' && eng?.runLog) eng.logDevNote(info);
+    if (world && (screen === 'world' || worldBattle)) logWorldNote(world, 'dev-note', info);
+  };
+  const devOpenChange = (open: boolean) => {
+    const eng = engineRef.current;
+    if (!eng || screen !== 'playing' || gameState.duel || brawl) return; // у дуэли и потасовки пауза не останавливает бой
+    if (open && !eng.isPaused) {
+      eng.togglePause();
+      devPausedRef.current = true;
+    } else if (!open && devPausedRef.current) {
+      devPausedRef.current = false;
+      if (eng.isPaused) eng.togglePause();
+    }
+  };
+
   const keyHandlerRef = useRef<(e: KeyboardEvent) => void>(() => {});
   keyHandlerRef.current = (e: KeyboardEvent) => {
     const engine = engineRef.current;
     if (!engine) return;
+    const tg = e.target as HTMLElement | null;
+    if (tg && (tg.tagName === 'TEXTAREA' || tg.tagName === 'INPUT')) return; // набор текста (заметка разработчика)
 
     if (e.key === ' ' || e.code === 'Space') {
       if (screen === 'briefing') {
@@ -1946,6 +2021,8 @@ export default function App() {
       {showHowToPlay && (
         <HowToPlayModal onClose={() => setShowHowToPlay(false)} />
       )}
+
+      <DevNotes getContext={devContext} onSaved={devSaved} onOpenChange={devOpenChange} getWorld={() => world} />
     </div>
   );
 }

@@ -5,12 +5,13 @@
  * Настройки (account, sound, bestiary, how to play, full screen).
  */
 
-import React, { useState } from 'react';
+import React, { useRef, useState, useSyncExternalStore } from 'react';
 import { CONFIG, Difficulty, RaceId } from '../game/config';
 import { RacePicker } from './RacePicker';
 import { endlessRecordKey } from '../progress';
 import { LockIcon, SoundIcon, FullscreenIcon } from './Icons';
 import { useFullscreen, isStandalone, HOME_SCREEN_HINT } from '../fullscreen';
+import { isDevMode, onDevModeChange, setDevMode, loadDevNotes, downloadDevNotes } from '../devNotes';
 import { downloadRunLog, hasSavedRunLog } from '../game/runLog';
 import { downloadCampaignLog, hasCampaignLog } from '../campaign/worldLog';
 import { loadWorld } from '../campaign/world';
@@ -67,13 +68,13 @@ function Crest({ className }: { className: string }) {
 }
 
 /** Header of a sub-page: back to the home page and the page title */
-function PageHeader({ title, onBack }: { title: string; onBack: () => void }) {
+function PageHeader({ title, onBack, onTitleClick }: { title: string; onBack: () => void; onTitleClick?: () => void }) {
   return (
     <div className="w-full flex items-center gap-2 mb-2 short:mb-1.5">
       <button type="button" onClick={onBack} className={`${BTN} min-h-[38px] shrink-0`} title="Назад (Esc)">
         ← Назад
       </button>
-      <h2 className="flex-1 text-center text-base sm:text-xl short:text-base font-black text-amber-300 tracking-widest uppercase leading-none pr-[68px]">
+      <h2 onClick={onTitleClick} className="flex-1 text-center text-base sm:text-xl short:text-base font-black text-amber-300 tracking-widest uppercase leading-none pr-[68px]">
         {title}
       </h2>
     </div>
@@ -541,11 +542,22 @@ function SettingsPage({
   const fullscreen = useFullscreen();
   const [hint, setHint] = useState(false);
   const standalone = isStandalone();
+  const devOn = useSyncExternalStore(onDevModeChange, isDevMode);
+  const taps = useRef({ n: 0, at: 0 });
+  const secretTap = () => {
+    // скрытый переключатель режима разработчика: 7 касаний подряд по заголовку
+    const now = Date.now();
+    taps.current = { n: now - taps.current.at < 1500 ? taps.current.n + 1 : 1, at: now };
+    if (taps.current.n >= 7) {
+      taps.current.n = 0;
+      setDevMode(!isDevMode());
+    }
+  };
   const section = 'text-[10px] sm:text-xs uppercase font-bold text-stone-400 tracking-wider mb-1 px-1';
 
   return (
     <div className="w-full max-w-md short:max-w-3xl flex flex-col items-center">
-      <PageHeader title="Настройки" onBack={onBack} />
+      <PageHeader title="Настройки" onBack={onBack} onTitleClick={secretTap} />
       <div className="w-full flex flex-col gap-3 short:grid short:grid-cols-2 short:gap-3 short:items-start">
         <div className="flex flex-col gap-3">
           {accountLabel && (
@@ -625,6 +637,20 @@ function SettingsPage({
                 Лог похода
                 <span className="block text-[11px] font-normal text-stone-400 mt-0.5">Все действия кампании и все бои — файл JSON для разбора</span>
               </button>
+            )}
+            {devOn && (
+              <div className={`${PANEL} p-3 text-xs space-y-2 border-fuchsia-500/40`}>
+                <div className="font-bold text-fuchsia-300">Режим разработчика включён</div>
+                <div className="text-stone-400">Во время игры — кнопка ✎ у левого края или клавиша ` (ё).</div>
+                <div className="flex gap-2 flex-wrap">
+                  <button type="button" onClick={() => void downloadDevNotes(loadWorld())} className={BTN}>
+                    Скачать заметки ({loadDevNotes().length})
+                  </button>
+                  <button type="button" onClick={() => setDevMode(false)} className={BTN}>
+                    Выключить
+                  </button>
+                </div>
+              </div>
             )}
             {!standalone && (
               <button

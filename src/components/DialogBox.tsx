@@ -3,6 +3,7 @@
  * свечением кристалла связи. Касание, Пробел или Enter — следующая реплика, «Пропустить» (Esc) — вся сцена.
  */
 import { useEffect, useState } from 'react';
+import { setDevScene } from '../devNotes';
 import { Scene, SPEAKER_COLORS, SPEAKER_ROLES } from '../campaign/dialogs';
 
 interface DialogBoxProps {
@@ -17,7 +18,13 @@ export function DialogBox({ scene, onDone }: DialogBoxProps) {
 
   useEffect(() => setI(0), [scene.id]);
   useEffect(() => {
+    setDevScene(line ? { id: scene.id, line: i + 1, lines: scene.lines.length, who: line.who, text: line.text } : null);
+  }, [scene, i, line]);
+  useEffect(() => () => setDevScene(null), []);
+  useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement | null;
+      if (t && (t.tagName === 'TEXTAREA' || t.tagName === 'INPUT')) return; // печатают заметку разработчика
       if (e.code === 'Space' || e.code === 'Enter') {
         e.preventDefault();
         e.stopImmediatePropagation();

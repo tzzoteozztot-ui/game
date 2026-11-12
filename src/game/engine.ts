@@ -1653,6 +1653,18 @@ export class GameEngine {
   }
 
   // ---- Лог партии (runLog.ts): только запись, на игру не влияет ----
+  /** Игровое время забега, с (как `t` в логе) */
+  public gameSeconds(): number {
+    return Math.round(this.runStats.time * 10) / 10;
+  }
+
+  /** Заметка разработчика попадает в лог партии, а сам лог сразу сохраняется: заметка ссылается на него по `startedAt` */
+  public logDevNote(note: { id: string; category: string; text: string }) {
+    if (!this.runLog) return;
+    this.logEv('dev-note', { ...note, gold: Math.round(this.gold), lives: Math.round(this.lives) });
+    this.runLog.save();
+  }
+
   private logEv(kind: string, fields: Record<string, unknown> = {}) {
     this.runLog?.event(this.runStats.time, this.wavesLaunched, kind, fields);
   }
