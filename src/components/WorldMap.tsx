@@ -137,7 +137,7 @@ export function WorldMap({ world, region, onChange, onBattle, onExit, onReset }:
 
   // Запечённая местность: заново, когда догрузились тайлы и картинки
   const baked = useMemo(() => (typeof document === 'undefined' ? null : bakeTerrain(region, tiles, extras, baseTiles)), [region, tiles, extras, baseTiles]);
-  const path = useMemo(() => (selected && target ? findPath(world, region, target) : null), [selected, target, world, region]);
+  const path = useMemo(() => (target ? findPath(world, region, target) : null), [target, world, region]);
 
   // ---------------------------------------------------------------- камера
   const minZoom = () => Math.min(size.w / worldW(region), size.h / worldH(region));
@@ -387,12 +387,12 @@ export function WorldMap({ world, region, onChange, onBattle, onExit, onReset }:
     }
     // Закрытый тропой обучения объект: сразу сказать, что раньше, а не вести к нему героя
     const lo = isSeen(world, region, h.x, h.y) ? objectAt(world, region, h.x, h.y) : null;
-    if (selected && lo && isLocked(world, lo)) {
+    if (lo && isLocked(world, lo)) {
       setTarget(null);
       setNotice({ title: lo.name, text: `Эхо: «Рано, капитан. Сначала — ${lockText(world, region, lo)}».` });
       return;
     }
-    if (selected && target && target.x === h.x && target.y === h.y && path) {
+    if (target && target.x === h.x && target.y === h.y && path) {
       walk(path);
       return;
     }
@@ -529,8 +529,7 @@ export function WorldMap({ world, region, onChange, onBattle, onExit, onReset }:
             const st = copyWorld(world);
             const got = endDay(st, region);
             onChange(st);
-            setTarget(null);
-            const t = resText(got);
+            const t = resText(got); // метка пути остаётся: после отдыха можно идти дальше
             setNotice({ title: `День ${st.day}`, text: t ? `Промыслы принесли: ${t}` : 'Герой отдохнул, очки хода восстановлены.' });
           }}
         >
@@ -613,11 +612,11 @@ export function WorldMap({ world, region, onChange, onBattle, onExit, onReset }:
                   </div>
                 ) : null}
                 <div className="text-stone-400 mt-0.5">
-                  {!selected ? 'Коснитесь героя, чтобы идти' : path ? 'Коснитесь ещё раз — идти' : 'Туда не пройти'}
+                  {path ? 'Коснитесь ещё раз — идти' : 'Туда не пройти'}
                 </div>
               </>
             ) : (
-              <div className="text-stone-300">{selected ? 'Выберите, куда идти' : 'Коснитесь героя, чтобы идти. Карту можно двигать'}</div>
+              <div className="text-stone-300">Коснитесь точки на карте — проложится путь. Карту можно двигать</div>
             )}
           </div>
         )}

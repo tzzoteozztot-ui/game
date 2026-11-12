@@ -748,6 +748,7 @@ export default function App() {
     eng.setInvasion(invasion(region)(obj.x, obj.y)); // у лагеря главы — природа континента, к крепости — биом захватчика
     eng.setCampBoons(battlePerks(world));
     eng.setHeroSkills(HERO_ABILITIES.filter((d) => d.unlock <= heroLevel(world)).map((d) => d.id));
+    eng.mergeLocked = !world.scenes.includes('levels'); // слияние открывает урок на переправе
   };
 
   // Поход: бой с армией, где вкладка «Армия» открывается по сюжету (крепость: на волне `armyAt` врывается Каллен)
@@ -755,13 +756,26 @@ export default function App() {
   useEffect(() => {
     if (armyLocked && sideTab === 'army') setSideTab('towers');
   }, [armyLocked, sideTab]);
-  // Сцены посреди боя похода: `wave:<объект>:<N>`; бой с армией не встаёт на паузу, плашка просто поверх поля
+  // Сцены посреди боя похода: `wave:<объект>:<N>`; пока плашка открыта, бой на паузе
   useEffect(() => {
     if (!worldBattle || !world || screen !== 'playing') return;
     const sc = sceneFor(`wave:${worldBattle.id}:${gameState.wave}`, world.scenes, world.flags);
     if (sc && battleScene?.id !== sc.id) setBattleScene(sc);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [worldBattle, gameState.wave, screen]);
+  // Пока идёт реплика посреди боя, бой стоит (в бою с армией часы раундов тоже)
+  const scenePausedRef = useRef(false);
+  useEffect(() => {
+    const eng = engineRef.current;
+    if (!eng) return;
+    if (battleScene && !eng.isPaused) {
+      eng.togglePause();
+      scenePausedRef.current = true;
+    } else if (!battleScene && scenePausedRef.current) {
+      scenePausedRef.current = false;
+      if (eng.isPaused) eng.togglePause();
+    }
+  }, [battleScene]);
   const closeBattleScene = () => {
     if (battleScene && world && !world.scenes.includes(battleScene.id)) setWorld({ ...world, scenes: [...world.scenes, battleScene.id] });
     setBattleScene(null);
@@ -1347,7 +1361,7 @@ export default function App() {
   };
   const devOpenChange = (open: boolean) => {
     const eng = engineRef.current;
-    if (!eng || screen !== 'playing' || gameState.duel || brawl) return; // у дуэли и потасовки пауза не останавливает бой
+    if (!eng || screen !== 'playing' || (gameState.duel && !eng.duelSpeedable) || brawl) return; // у дуэли и потасовки пауза не останавливает бой (бой с армией в походе — останавливает)
     if (open && !eng.isPaused) {
       eng.togglePause();
       devPausedRef.current = true;

@@ -238,7 +238,7 @@ const FRONTIER_OBJECTS: WorldObj[] = [
   { id: 'bridge', kind: 'squad', x: BRIDGE.x, y: BRIDGE.y, name: 'Засада у моста', waves: 5, reward: { gold: 60, wood: 10 }, needs: ['sq3'] },
   // Восточный берег
   { id: 'goldmine', kind: 'mine', x: 31, y: 4, name: 'Рудник', waves: 5, income: { gold: 20 }, needs: ['sq4'] },
-  { id: 'node', kind: 'mine', x: 38, y: 28, name: 'Малый артефакт', waves: 6, income: { crystal: 1 }, item: 'shard', needs: ['sq5'], needsAny: ['goldmine', 'shrine2'], text: 'Младший брат нашего артефакта. Орки охраняют его, как святыню.' },
+  { id: 'node', kind: 'mine', x: 38, y: 28, name: 'Малый артефакт', waves: 6, income: { crystal: 1 }, item: 'shard', needs: ['sq5'], needsAny: ['goldmine', 'shrine2'], text: 'Малый артефакт той же породы, что и большой. Орки охраняют его, как святыню.' },
   { id: 'sq4', kind: 'squad', x: 33, y: 13, name: 'Боевой отряд', waves: 6, reward: { gold: 80, crystal: 1 }, needsAny: ['ford', 'bridge'] },
   { id: 'sq5', kind: 'squad', x: 33, y: 22, name: 'Стая гончих', waves: 6, reward: { gold: 80 }, needsAny: ['ford', 'bridge'] },
   { id: 'sq6', kind: 'squad', x: 40, y: 8, name: 'Шаманы ущелья', waves: 7, reward: { gold: 90, crystal: 2 }, needs: ['node'] },

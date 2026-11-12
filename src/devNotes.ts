@@ -17,6 +17,7 @@ const MAX_NOTES = 500;
 export const DEV_CATEGORIES = [
   { id: 'balance', label: 'Баланс' },
   { id: 'economy', label: 'Экономика' },
+  { id: 'gameplay', label: 'Геймплей' },
   { id: 'story', label: 'Сюжет' },
   { id: 'dialog', label: 'Диалог' },
   { id: 'ui', label: 'Графика / интерфейс' },
