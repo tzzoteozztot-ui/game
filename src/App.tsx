@@ -5,7 +5,8 @@
 
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { CONFIG, Difficulty, TowerType, RaceId, RACE_IDS } from './game/config';
-import { createBotLink } from './duelBot';
+import { createBotLink, BotSave } from './duelBot';
+import { loadBattleSave, saveBattleSave, clearBattleSave } from './campaign/battleSave';
 import { HeroBar } from './components/HeroBar';
 import { validateAllMaps } from './game/maps';
 import { newMapSeed } from './game/mapgen';
@@ -44,7 +45,7 @@ import { LevelBriefing } from './components/LevelBriefing';
 import { PauseModal, DefeatModal, HowToPlayModal, DuelResultModal, BrawlResultModal, DuelOutcome } from './components/StatusModals';
 import { OrientationWarning } from './components/OrientationWarning';
 import { WorldMap, WorldBattleResult } from './components/WorldMap';
-import { WorldState, WorldObj, REGIONS, FRONTIER, newWorld, loadWorld, saveWorld, normalizeWorld, readWorldMeta, writeWorldMeta, winBattle, battleSeed, battlePerks, heroLevel, allowedTowers, armyLevel, invasion } from './campaign/world';
+import { WorldState, WorldObj, REGIONS, FRONTIER, newWorld, loadWorld, saveWorld, normalizeWorld, readWorldMeta, writeWorldMeta, winBattle, battleSeed, battlePerks, heroLevel, allowedTowers, armyLevel, invasion, battleStages } from './campaign/world';
 import { Scene, sceneFor } from './campaign/dialogs';
 import { DialogBox } from './components/DialogBox';
 import { DevNotes } from './components/DevNotes';
@@ -273,6 +274,7 @@ export default function App() {
     boons: [],
     heroSkills: [],
     boonOffer: null,
+    stageBreak: null,
     moveCost: null,
     rerollCost: CONFIG.shop.rerollCost,
     zoomed: false,
@@ -288,6 +290,8 @@ export default function App() {
 
   // Shop state (5 card slots)
   const [shopCards, setShopCards] = useState<(ShopCard | null)[]>([]);
+  const shopCardsRef = useRef<(ShopCard | null)[]>([]);
+  shopCardsRef.current = shopCards;
 
   // Specialization modal state
   const [specModalTower, setSpecModalTower] = useState<{
@@ -789,8 +793,13 @@ export default function App() {
   };
 
   // Поход: бой отряда или крепости на обычном поле — первые N волн уровня биома
-  const startWorldBattle = (obj: WorldObj) => {
+  const startWorldBattle = (obj: WorldObj, fresh = false) => {
     sound.init();
+    // Бой с армией: есть сохранение с передышки — предложить продолжить (просьба Артура 2026-11-12)
+    let saved = obj.army && !fresh ? loadBattleSave() : null;
+    if (saved && (saved.obj !== obj.id || saved.region !== (world?.region ?? 'frontier'))) saved = null;
+    if (saved && !window.confirm(`Есть сохранённый бой: пройдено этапов — ${saved.stage} из ${saved.total}. Продолжить с него? (Отмена — начать бой заново)`)) saved = null;
+    if (obj.army && !saved) clearBattleSave();
     setWorldBattle(obj);
     setBattleScene(null);
     setSideTab('towers');
@@ -801,7 +810,17 @@ export default function App() {
       // Бой с армией (просьба Артура 2026-11-06): как дуэль с ботом — волны идут без конца, пока не падёт артефакт вражеского лагеря
       closeDuel();
       const region = REGIONS[world?.region ?? 'frontier'] ?? FRONTIER;
-      handleDuelStart(createBotLink(region.level, (world && armyLevel(world, obj)) || obj.army), region.level, performance.now(), region.level, CONFIG.races.humans.faction, CONFIG.duel.roundLength, battleSeed(obj), 'humans', (eng) => heroIntoBattle(eng, obj));
+      handleDuelStart(createBotLink(region.level, (world && armyLevel(world, obj)) || obj.army, () => engineRef.current?.duelNow() ?? performance.now(), saved ? (saved.bot as BotSave) : undefined), region.level, performance.now(), region.level, CONFIG.races.humans.faction, CONFIG.duel.roundLength, battleSeed(obj), 'humans', (eng) => {
+        eng.stageEnds = battleStages(obj);
+        eng.duelSpeedable = true; // бой с армией ни с кем не синхронизирован: скорость можно менять, часы раундов идут с ней
+        eng.onCheckpoint = (cp) => saveBattleSave({ obj: obj.id, region: world?.region ?? 'frontier', at: Date.now(), stage: cp.stageDone.length + 1, total: battleStages(obj).length + 1, engine: cp, bot: duelLinkRef.current?.saveState?.() ?? null, shop: shopCardsRef.current });
+        heroIntoBattle(eng, obj);
+        if (saved) {
+          eng.restoreCheckpoint(saved.engine);
+          const shop = saved.shop as (ShopCard | null)[];
+          window.setTimeout(() => setShopCards(shop), 0); // handleDuelStart после этого кладёт свежую лавку
+        }
+      });
       return;
     }
     setScreen('playing');
@@ -837,6 +856,7 @@ export default function App() {
       setDuelOutcome(null);
       setOpponent(null);
     }
+    if (won && obj?.army) clearBattleSave();
     if (won && obj && world) {
       const st = { ...world, res: { ...world.res }, done: [...world.done], owned: [...world.owned], seen: [...world.seen], scenes: [...world.scenes], flags: [...world.flags] };
       winBattle(st, REGIONS[st.region] ?? FRONTIER, obj.id);
@@ -857,7 +877,7 @@ export default function App() {
     const seed = engine.mapSeed; // «Повторить» — та же случайная дорога
     if (worldBattle) logWorldBattleEnd(engine.isVictory ? 'victory' : engine.isGameOver ? 'defeat' : 'restart');
     if (worldBattle?.army) {
-      startWorldBattle(worldBattle);
+      startWorldBattle(worldBattle, true);
       return;
     }
     if (worldBattle) {
@@ -1711,7 +1731,7 @@ export default function App() {
                   isSpawning={gameState.isSpawning}
                   isWaveActive={gameState.isWaveActive}
                   allWavesLaunched={gameState.allWavesLaunched}
-                  duel={gameState.duel}
+                  duel={gameState.duel && !worldBattle}
                   waveCountdown={gameState.waveCountdown}
                   earlyStartBonus={gameState.earlyStartBonus}
                   onStartWave={handleStartWave}
@@ -1748,6 +1768,13 @@ export default function App() {
                 )}
                 {brawl && <BrawlBoard snap={brawl} canWatch={(id) => !!brawlRoomRef.current?.canSee(id)} watchId={watchId} onWatch={watchField} />}
                 {worldBattle && <HeroBar skills={gameState.heroSkills} onCast={(id) => engineRef.current?.castHero(id)} />}
+                {worldBattle && gameState.stageBreak && !gameState.isGameOver && (
+                  <div className="absolute left-1/2 top-[18%] -translate-x-1/2 z-20 w-[min(80%,380px)] rounded-lg border border-[#e2b86a]/60 bg-[#17120a]/92 p-3 text-center shadow-lg shadow-black/60">
+                    <div className="text-[#f4d58a] font-bold">Передышка</div>
+                    <div className="text-stone-200 text-sm mt-1">Этап {gameState.stageBreak.done} из {gameState.stageBreak.total} пройден. Перестройте оборону и купите башни — время стоит.</div>
+                    <button type="button" onClick={() => engineRef.current?.resumeFromBreak()} className="mt-2 rounded border border-[#e2b86a]/70 bg-[#3a2a10] hover:bg-[#4d3814] px-4 py-2 text-sm font-bold text-[#f4d58a] cursor-pointer">Продолжить бой</button>
+                  </div>
+                )}
                 {gameState.boonOffer && !gameState.isGameOver && (
                   <BoonPicker offer={gameState.boonOffer} onChoose={(id) => engineRef.current?.chooseBoon(id)} />
                 )}
@@ -1811,7 +1838,7 @@ export default function App() {
                 speed={gameState.speed}
                 isPaused={gameState.isPaused}
                 isMuted={audioSettings.muted}
-                duel={gameState.duel}
+                duel={gameState.duel && !worldBattle}
                 onTogglePause={() => engineRef.current?.togglePause()}
                 onSetSpeed={(v) => engineRef.current?.setSpeed(v)}
                 onToggleMute={handleToggleMute}

@@ -322,6 +322,17 @@ export interface RunSummary {
   other: number;
 }
 
+/** Бой с армией на передышке между этапами: что сохраняется (см. `GameEngine.checkpoint`) */
+export interface BattleCheckpoint {
+  v: 1;
+  gold: number; lives: number; tier: number; guardLevel: number;
+  wavesLaunched: number; wave: number; rerollsThisWave: number;
+  duelIncome: number; duelOutgoing: Partial<Record<SendType, number>>; duelOutgoingCost: number;
+  stageDone: number[];
+  countdown: number; // с до следующей волны
+  towers: Tower[]; binders: Binder[]; backpack: BackpackItem[];
+}
+
 export interface BackpackItem {
   id: string;
   kind: 'tower' | 'binder';
@@ -402,6 +413,7 @@ export interface GameStateSnapshot {
   canMoveTowers: boolean; // between waves towers can be moved to a free cell
   moveCost: number | null; // price of moving a tower now: 0 free, null not now
   boons: BoonDef[]; // brawl: the artifact's boons taken
+  stageBreak: { done: number; total: number } | null; // бой с армией: передышка между этапами
   heroSkills: { id: string; name: string; icon: string; desc: string; left: number; cooldown: number }[]; // поход: умения героя
   boonOffer: BoonDef[] | null; // brawl: three to choose one from, while an offer waits
   rerollCost: number; // price of the next shop reroll
@@ -458,6 +470,62 @@ export class GameEngine {
   public endless: boolean = false;
   // Duel: performance.now() of the duel start; wave N starts N rounds later (shared clock), null outside a duel
   public duelStart: number | null = null;
+  // Бой с армией в походе (просьба Артура 2026-11-12: «в кампании нельзя менять скорость боя»): ни с кем не синхронизирован, поэтому
+  // скорость разрешена, а часы раундов идут с той же скоростью (`duelSkew` — сколько мс добавлено к реальному времени)
+  public duelSpeedable = false;
+  private duelSkew = 0;
+  public duelNow(): number {
+    return this.clockFrozenAt ?? performance.now() + this.duelSkew;
+  }
+  // Передышки боя с армией (просьба Артура 2026-11-12, «этапы»): после этих волн, когда поле чисто, часы раундов стоят,
+  // пока игрок не нажмёт «Продолжить»; `stageDone` — пройденные границы
+  public stageEnds: number[] = [];
+  private stageDone = new Set<number>();
+  private clockFrozenAt: number | null = null;
+  public stageBreakInfo(): { done: number; total: number } | null {
+    if (this.clockFrozenAt === null) return null;
+    return { done: this.stageDone.size + 1, total: this.stageEnds.length + 1 };
+  }
+  public resumeFromBreak(): void {
+    if (this.clockFrozenAt === null) return;
+    this.duelSkew = this.clockFrozenAt - performance.now();
+    this.clockFrozenAt = null;
+    const b = this.stageEnds.find((e) => !this.stageDone.has(e));
+    if (b !== undefined) this.stageDone.add(b);
+    this.logEv('stage-break-end', { wave: this.wavesLaunched });
+    this.notifyState();
+  }
+  /** Сохранение боя на передышке (просьба Артура 2026-11-12): поле чисто, поэтому хватает башен, рюкзака, золота и счёта волн */
+  public onCheckpoint?: (cp: BattleCheckpoint) => void;
+  public checkpoint(): BattleCheckpoint {
+    return {
+      v: 1,
+      gold: this.gold, lives: this.lives, tier: this.tier, guardLevel: this.guardLevel,
+      wavesLaunched: this.wavesLaunched, wave: this.wave, rerollsThisWave: this.rerollsThisWave,
+      duelIncome: this.duelIncome, duelOutgoing: { ...this.duelOutgoing }, duelOutgoingCost: this.duelOutgoingCost,
+      stageDone: [...this.stageDone],
+      countdown: Math.max(0, (this.duelNextWaveAt() - (this.clockFrozenAt ?? this.duelNow())) / 1000),
+      towers: JSON.parse(JSON.stringify(this.towers)),
+      binders: JSON.parse(JSON.stringify(this.binders)),
+      backpack: JSON.parse(JSON.stringify(this.backpack)),
+    };
+  }
+  /** Вызывать сразу после `startDuel` в бою с армией: ставит сохранённое поле и оставляет бой на передышке */
+  public restoreCheckpoint(cp: BattleCheckpoint) {
+    this.gold = cp.gold; this.lives = cp.lives; this.tier = cp.tier; this.guardLevel = cp.guardLevel;
+    this.wavesLaunched = cp.wavesLaunched; this.wave = cp.wave; this.rerollsThisWave = cp.rerollsThisWave;
+    this.duelIncome = cp.duelIncome; this.duelOutgoing = cp.duelOutgoing ?? {}; this.duelOutgoingCost = cp.duelOutgoingCost ?? 0;
+    this.stageDone = new Set(cp.stageDone);
+    this.towers = cp.towers; this.binders = cp.binders; this.backpack = cp.backpack;
+    this.enemies = []; this.spawnQueue = []; this.isSpawning = false; this.waveInProgress = false;
+    // часы: до следующей волны остаётся столько же, сколько было; часы стоят до «Продолжить бой»
+    const now = performance.now();
+    this.duelSkew = 0;
+    this.duelStart = now + cp.countdown * 1000 - (cp.wavesLaunched + 1) * this.duelRoundLength * 1000;
+    this.clockFrozenAt = now;
+    this.waveCountdown = cp.countdown;
+    this.notifyState();
+  }
   public duelRoundLength: number = CONFIG.duel.roundLength; // real seconds per round (the brawl has its own)
   public duelOutgoing: Partial<Record<SendType, number>> = {}; // bought, leaves for the opponent with the next wave
   public duelOutgoingCost = 0;
@@ -717,6 +785,11 @@ export class GameEngine {
     this.worldBossName = null;
     this.worldBossTint = null;
     this.duelStart = null;
+    this.duelSpeedable = false;
+    this.duelSkew = 0;
+    this.stageEnds = [];
+    this.stageDone = new Set();
+    this.clockFrozenAt = null;
     this.resetView();
     this.duelOutgoing = {};
     this.duelOutgoingCost = 0;
@@ -1204,6 +1277,7 @@ export class GameEngine {
         for (let s = 0; s < steps; s++) {
           this.update(gameDt / steps);
         }
+        if (this.duelSpeedable && this.clockFrozenAt === null) this.duelSkew += Math.min(rawDt, 0.25) * 1000 * (this.speedMultiplier - 1);
         this.tickWaveCountdown(Math.min(rawDt, 0.25));
       }
 
@@ -1231,7 +1305,7 @@ export class GameEngine {
     this.faction = Math.max(1, Math.min(CONFIG.factions.length, Math.floor(opponentArmy) || level));
     this.duelStart = startAt;
     if (this.runLog) this.runLog.data.mode = 'duel';
-    this.waveCountdown = this.duelNextWaveAt() / 1000 - performance.now() / 1000;
+    this.waveCountdown = this.duelNextWaveAt() / 1000 - this.duelNow() / 1000;
     this.notifyState();
   }
 
@@ -1456,7 +1530,7 @@ export class GameEngine {
   }
 
   public setSpeed(speed: number) {
-    if (!CONFIG.speeds.includes(speed) || this.duelStart !== null) return; // a duel runs at ×1
+    if (!CONFIG.speeds.includes(speed) || (this.duelStart !== null && !this.duelSpeedable)) return; // a duel runs at ×1 (кроме боя с армией в походе)
     this.speedMultiplier = speed;
     this.notifyState();
   }
@@ -1472,8 +1546,21 @@ export class GameEngine {
   private tickWaveCountdown(realDt: number) {
     if (this.duelStart !== null) {
       // Duel: the next wave starts on the shared clock, whether or not this one is cleared
+      if (this.clockFrozenAt !== null) return; // передышка между этапами
       const before = Math.ceil(this.waveCountdown ?? 0);
-      this.waveCountdown = Math.max(0, (this.duelNextWaveAt() - performance.now()) / 1000);
+      this.waveCountdown = Math.max(0, (this.duelNextWaveAt() - this.duelNow()) / 1000);
+      const stage = this.stageEnds.find((e) => e === this.wavesLaunched && !this.stageDone.has(e));
+      if (stage !== undefined) {
+        // граница этапа: ждём, пока поле станет чистым (следующая волна придержана), и ставим часы на паузу
+        if (this.enemies.length === 0 && this.spawnQueue.length === 0 && !this.isSpawning) {
+          this.clockFrozenAt = performance.now() + this.duelSkew;
+          this.logEv('stage-break', { wave: this.wavesLaunched });
+          this.onCheckpoint?.(this.checkpoint());
+          sound.playBuy();
+          this.notifyState();
+        }
+        return;
+      }
       if (this.waveCountdown <= 0) this.startNextWave(true);
       else if (Math.ceil(this.waveCountdown) !== before) this.notifyState();
       return;
@@ -1535,7 +1622,7 @@ export class GameEngine {
     this.wavesLaunched++;
     this.rerollsThisWave = 0;
     if (this.boonsOn && this.wavesLaunched % CONFIG.brawl.boonEvery === 0) this.offerBoons();
-    if (duel) this.waveCountdown = Math.max(0, (this.duelNextWaveAt() - performance.now()) / 1000);
+    if (duel) this.waveCountdown = Math.max(0, (this.duelNextWaveAt() - this.duelNow()) / 1000);
     const waveDef = waveDefinition(this.wave);
     this.faction = this.factionOfWave(this.wave);
     const faction = this.faction;
@@ -4901,6 +4988,7 @@ export class GameEngine {
       isBinding: this.bindingFromId !== null,
       canMoveTowers: this.canMoveTowers(),
       moveCost: this.moveCost(),
+      stageBreak: this.stageBreakInfo(),
       heroSkills: this.heroSkills.map((h) => {
         const d = HERO_ABILITIES.find((x) => x.id === h.id)!;
         return { id: h.id, name: d.name, icon: d.icon, desc: d.desc, left: Math.ceil(h.left), cooldown: d.cooldown };
