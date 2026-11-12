@@ -1347,7 +1347,7 @@ export default function App() {
   };
   const devOpenChange = (open: boolean) => {
     const eng = engineRef.current;
-    if (!eng || screen !== 'playing' || gameState.duel || brawl) return; // у дуэли и потасовки пауза не останавливает бой
+    if (!eng || screen !== 'playing' || (gameState.duel && !eng.duelSpeedable) || brawl) return; // у дуэли и потасовки пауза не останавливает бой (бой с армией в походе — останавливает)
     if (open && !eng.isPaused) {
       eng.togglePause();
       devPausedRef.current = true;

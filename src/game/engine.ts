@@ -474,8 +474,10 @@ export class GameEngine {
   // скорость разрешена, а часы раундов идут с той же скоростью (`duelSkew` — сколько мс добавлено к реальному времени)
   public duelSpeedable = false;
   private duelSkew = 0;
+  // Пауза боя с армией (просьба Артура 2026-11-12): часы раундов стоят, пока игрок на паузе
+  private pausedClock: number | null = null;
   public duelNow(): number {
-    return this.clockFrozenAt ?? performance.now() + this.duelSkew;
+    return this.clockFrozenAt ?? this.pausedClock ?? performance.now() + this.duelSkew;
   }
   // Передышки боя с армией (просьба Артура 2026-11-12, «этапы»): после этих волн, когда поле чисто, часы раундов стоят,
   // пока игрок не нажмёт «Продолжить»; `stageDone` — пройденные границы
@@ -787,6 +789,7 @@ export class GameEngine {
     this.duelStart = null;
     this.duelSpeedable = false;
     this.duelSkew = 0;
+    this.pausedClock = null;
     this.stageEnds = [];
     this.stageDone = new Set();
     this.clockFrozenAt = null;
@@ -1270,7 +1273,7 @@ export class GameEngine {
         const gameDt = dt * this.speedMultiplier;
         this.spectateStep(dt);
         this.spectateCombat(gameDt);
-      } else if ((!this.isPaused || this.duelStart !== null) && !this.isGameOver && !this.isVictory) {
+      } else if ((!this.isPaused || (this.duelStart !== null && !this.duelSpeedable)) && !this.isGameOver && !this.isVictory) {
         // Game time runs at the chosen speed in steps of at most 0.05 s
         const gameDt = dt * this.speedMultiplier;
         const steps = Math.max(1, Math.ceil(gameDt / 0.05 - 1e-9));
@@ -1525,6 +1528,13 @@ export class GameEngine {
   }
 
   public togglePause() {
+    if (this.duelSpeedable && this.duelStart !== null && this.clockFrozenAt === null) {
+      if (!this.isPaused) this.pausedClock = this.duelNow();
+      else if (this.pausedClock !== null) {
+        this.duelSkew = this.pausedClock - performance.now();
+        this.pausedClock = null;
+      }
+    }
     this.isPaused = !this.isPaused;
     this.notifyState();
   }
