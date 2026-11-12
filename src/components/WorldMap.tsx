@@ -500,7 +500,10 @@ export function WorldMap({ world, region, onChange, onBattle, onExit, onReset }:
   return (
     <div className="fixed inset-0 bg-[#0b0a10] text-[#f4f2e6] flex flex-col select-none">
       {/* Верхняя полоса: регион, день, ход, ресурсы, кнопки */}
-      <div className="flex items-center gap-2 px-3 py-1.5 bg-[#171520] border-b border-[#2d2938] text-xs sm:text-sm flex-wrap">
+      <div className="absolute top-0 inset-x-0 z-[5] flex items-center gap-1.5 sm:gap-2 px-2 sm:px-3 py-1 bg-[#171520]/55 border-b border-[#2d2938]/60 text-xs sm:text-sm flex-wrap">
+        <button className="px-2 py-1 rounded bg-[#2a2635]/80 hover:bg-[#3a3448]" title="В главное меню" onClick={onExit}>
+          ← <span className="hidden lg:inline">В меню</span>
+        </button>
         <span className="font-black text-amber-300 tracking-wide">{region.name}</span>
         <span className="text-stone-300">День {world.day}</span>
         <span className="text-stone-300" title="Очки хода: дорога 2, луг 3, лес и холмы 4">
@@ -534,13 +537,13 @@ export function WorldMap({ world, region, onChange, onBattle, onExit, onReset }:
           Конец дня
         </button>
         <button className="px-2 py-1 rounded bg-[#2a2635] hover:bg-[#3a3448] disabled:opacity-50" disabled={walking} title="Дневник: задачи главы" onClick={() => setJournalOpen(true)}>
-          📖<span className="hidden md:inline"> Дневник</span>
+          📖<span className="hidden lg:inline"> Дневник</span>
         </button>
         <button className="px-2 py-1 rounded bg-[#2a2635] hover:bg-[#3a3448] disabled:opacity-50" disabled={walking} title="Герой" onClick={() => setHeroOpen(true)}>
-          🛡<span className="hidden md:inline"> Рен · ур. {heroLevel(world)}</span>
+          🛡<span className="hidden lg:inline"> Рен · ур. {heroLevel(world)}</span>
         </button>
         <button className="px-2 py-1 rounded bg-[#2a2635] hover:bg-[#3a3448] disabled:opacity-50" disabled={walking} title="Лагерь" onClick={() => setCampOpen(true)}>
-          ⛺<span className="hidden md:inline"> Лагерь</span>
+          ⛺<span className="hidden lg:inline"> Лагерь</span>
         </button>
         <button
           className="px-2 py-1 rounded bg-[#2a2635] hover:bg-[#3a3448] disabled:opacity-50"
@@ -553,15 +556,9 @@ export function WorldMap({ world, region, onChange, onBattle, onExit, onReset }:
         >
           💾<span className="hidden lg:inline"> Сохранения</span>
         </button>
-        <button className="px-2 py-1 rounded bg-[#2a2635] hover:bg-[#3a3448]" onClick={() => setConfirmReset(true)}>
-          Заново
-        </button>
-        <button className="px-2 py-1 rounded bg-[#2a2635] hover:bg-[#3a3448]" onClick={onExit}>
-          В меню
-        </button>
       </div>
 
-      <div ref={wrapRef} className="relative flex-1 min-h-0 overflow-hidden">
+      <div ref={wrapRef} className="absolute inset-0 overflow-hidden">
         <canvas
           ref={canvasRef}
           className="absolute inset-0 w-full h-full touch-none"
@@ -626,7 +623,7 @@ export function WorldMap({ world, region, onChange, onBattle, onExit, onReset }:
         )}
 
         {world.won && !notice && !dialog && (
-          <div className="absolute right-16 top-2 bg-black/75 border border-amber-600/60 rounded-lg px-3 py-2 text-xs sm:text-sm text-amber-200 max-w-[60%]">
+          <div className="absolute right-16 top-12 bg-black/75 border border-amber-600/60 rounded-lg px-3 py-2 text-xs sm:text-sm text-amber-200 max-w-[60%]">
             {nextRegion ? (
               <div className="flex items-center gap-3 flex-wrap">
                 <span>{region.name}: артефакт наш.</span>
@@ -718,6 +715,9 @@ export function WorldMap({ world, region, onChange, onBattle, onExit, onReset }:
             <div className="bg-[#171520] border border-[#3b354a] rounded-xl p-4 max-w-md w-full shadow-2xl" onClick={(e) => e.stopPropagation()}>
               <h3 className="text-lg font-black text-amber-300 mb-1">Сохранения</h3>
               <p className="text-xs text-stone-400 mb-3">Поход и так сохраняется сам после каждого шага. Ячейки — чтобы вернуться к нужному дню.</p>
+              <button className="w-full mb-3 py-1.5 rounded bg-[#2a2635] hover:bg-red-900/70 text-sm" onClick={() => { setSavesOpen(false); setConfirmReset(true); }}>
+                Начать поход заново…
+              </button>
               <div className="flex flex-col gap-2">
                 {Array.from({ length: SLOT_COUNT }, (_, i) => {
                   const sl = slots[i];
