@@ -402,6 +402,7 @@ export interface GameStateSnapshot {
   canMoveTowers: boolean; // between waves towers can be moved to a free cell
   moveCost: number | null; // price of moving a tower now: 0 free, null not now
   boons: BoonDef[]; // brawl: the artifact's boons taken
+  stageBreak: { done: number; total: number } | null; // бой с армией: передышка между этапами
   heroSkills: { id: string; name: string; icon: string; desc: string; left: number; cooldown: number }[]; // поход: умения героя
   boonOffer: BoonDef[] | null; // brawl: three to choose one from, while an offer waits
   rerollCost: number; // price of the next shop reroll
@@ -463,7 +464,25 @@ export class GameEngine {
   public duelSpeedable = false;
   private duelSkew = 0;
   public duelNow(): number {
-    return performance.now() + this.duelSkew;
+    return this.clockFrozenAt ?? performance.now() + this.duelSkew;
+  }
+  // Передышки боя с армией (просьба Артура 2026-11-12, «этапы»): после этих волн, когда поле чисто, часы раундов стоят,
+  // пока игрок не нажмёт «Продолжить»; `stageDone` — пройденные границы
+  public stageEnds: number[] = [];
+  private stageDone = new Set<number>();
+  private clockFrozenAt: number | null = null;
+  public stageBreakInfo(): { done: number; total: number } | null {
+    if (this.clockFrozenAt === null) return null;
+    return { done: this.stageDone.size + 1, total: this.stageEnds.length + 1 };
+  }
+  public resumeFromBreak(): void {
+    if (this.clockFrozenAt === null) return;
+    this.duelSkew = this.clockFrozenAt - performance.now();
+    this.clockFrozenAt = null;
+    const b = this.stageEnds.find((e) => !this.stageDone.has(e));
+    if (b !== undefined) this.stageDone.add(b);
+    this.logEv('stage-break-end', { wave: this.wavesLaunched });
+    this.notifyState();
   }
   public duelRoundLength: number = CONFIG.duel.roundLength; // real seconds per round (the brawl has its own)
   public duelOutgoing: Partial<Record<SendType, number>> = {}; // bought, leaves for the opponent with the next wave
@@ -726,6 +745,9 @@ export class GameEngine {
     this.duelStart = null;
     this.duelSpeedable = false;
     this.duelSkew = 0;
+    this.stageEnds = [];
+    this.stageDone = new Set();
+    this.clockFrozenAt = null;
     this.resetView();
     this.duelOutgoing = {};
     this.duelOutgoingCost = 0;
@@ -1213,7 +1235,7 @@ export class GameEngine {
         for (let s = 0; s < steps; s++) {
           this.update(gameDt / steps);
         }
-        if (this.duelSpeedable) this.duelSkew += Math.min(rawDt, 0.25) * 1000 * (this.speedMultiplier - 1);
+        if (this.duelSpeedable && this.clockFrozenAt === null) this.duelSkew += Math.min(rawDt, 0.25) * 1000 * (this.speedMultiplier - 1);
         this.tickWaveCountdown(Math.min(rawDt, 0.25));
       }
 
@@ -1482,8 +1504,20 @@ export class GameEngine {
   private tickWaveCountdown(realDt: number) {
     if (this.duelStart !== null) {
       // Duel: the next wave starts on the shared clock, whether or not this one is cleared
+      if (this.clockFrozenAt !== null) return; // передышка между этапами
       const before = Math.ceil(this.waveCountdown ?? 0);
       this.waveCountdown = Math.max(0, (this.duelNextWaveAt() - this.duelNow()) / 1000);
+      const stage = this.stageEnds.find((e) => e === this.wavesLaunched && !this.stageDone.has(e));
+      if (stage !== undefined) {
+        // граница этапа: ждём, пока поле станет чистым (следующая волна придержана), и ставим часы на паузу
+        if (this.enemies.length === 0 && this.spawnQueue.length === 0 && !this.isSpawning) {
+          this.clockFrozenAt = performance.now() + this.duelSkew;
+          this.logEv('stage-break', { wave: this.wavesLaunched });
+          sound.playBuy();
+          this.notifyState();
+        }
+        return;
+      }
       if (this.waveCountdown <= 0) this.startNextWave(true);
       else if (Math.ceil(this.waveCountdown) !== before) this.notifyState();
       return;
@@ -4911,6 +4945,7 @@ export class GameEngine {
       isBinding: this.bindingFromId !== null,
       canMoveTowers: this.canMoveTowers(),
       moveCost: this.moveCost(),
+      stageBreak: this.stageBreakInfo(),
       heroSkills: this.heroSkills.map((h) => {
         const d = HERO_ABILITIES.find((x) => x.id === h.id)!;
         return { id: h.id, name: d.name, icon: d.icon, desc: d.desc, left: Math.ceil(h.left), cooldown: d.cooldown };

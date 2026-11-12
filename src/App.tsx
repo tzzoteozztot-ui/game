@@ -44,7 +44,7 @@ import { LevelBriefing } from './components/LevelBriefing';
 import { PauseModal, DefeatModal, HowToPlayModal, DuelResultModal, BrawlResultModal, DuelOutcome } from './components/StatusModals';
 import { OrientationWarning } from './components/OrientationWarning';
 import { WorldMap, WorldBattleResult } from './components/WorldMap';
-import { WorldState, WorldObj, REGIONS, FRONTIER, newWorld, loadWorld, saveWorld, normalizeWorld, readWorldMeta, writeWorldMeta, winBattle, battleSeed, battlePerks, heroLevel, allowedTowers, armyLevel, invasion } from './campaign/world';
+import { WorldState, WorldObj, REGIONS, FRONTIER, newWorld, loadWorld, saveWorld, normalizeWorld, readWorldMeta, writeWorldMeta, winBattle, battleSeed, battlePerks, heroLevel, allowedTowers, armyLevel, invasion, battleStages } from './campaign/world';
 import { Scene, sceneFor } from './campaign/dialogs';
 import { DialogBox } from './components/DialogBox';
 import { DevNotes } from './components/DevNotes';
@@ -273,6 +273,7 @@ export default function App() {
     boons: [],
     heroSkills: [],
     boonOffer: null,
+    stageBreak: null,
     moveCost: null,
     rerollCost: CONFIG.shop.rerollCost,
     zoomed: false,
@@ -802,6 +803,7 @@ export default function App() {
       closeDuel();
       const region = REGIONS[world?.region ?? 'frontier'] ?? FRONTIER;
       handleDuelStart(createBotLink(region.level, (world && armyLevel(world, obj)) || obj.army, () => engineRef.current?.duelNow() ?? performance.now()), region.level, performance.now(), region.level, CONFIG.races.humans.faction, CONFIG.duel.roundLength, battleSeed(obj), 'humans', (eng) => {
+        eng.stageEnds = battleStages(obj);
         eng.duelSpeedable = true; // бой с армией ни с кем не синхронизирован: скорость можно менять, часы раундов идут с ней
         heroIntoBattle(eng, obj);
       });
@@ -1751,6 +1753,13 @@ export default function App() {
                 )}
                 {brawl && <BrawlBoard snap={brawl} canWatch={(id) => !!brawlRoomRef.current?.canSee(id)} watchId={watchId} onWatch={watchField} />}
                 {worldBattle && <HeroBar skills={gameState.heroSkills} onCast={(id) => engineRef.current?.castHero(id)} />}
+                {worldBattle && gameState.stageBreak && !gameState.isGameOver && (
+                  <div className="absolute left-1/2 top-[18%] -translate-x-1/2 z-20 w-[min(80%,380px)] rounded-lg border border-[#e2b86a]/60 bg-[#17120a]/92 p-3 text-center shadow-lg shadow-black/60">
+                    <div className="text-[#f4d58a] font-bold">Передышка</div>
+                    <div className="text-stone-200 text-sm mt-1">Этап {gameState.stageBreak.done} из {gameState.stageBreak.total} пройден. Перестройте оборону и купите башни — время стоит.</div>
+                    <button type="button" onClick={() => engineRef.current?.resumeFromBreak()} className="mt-2 rounded border border-[#e2b86a]/70 bg-[#3a2a10] hover:bg-[#4d3814] px-4 py-2 text-sm font-bold text-[#f4d58a] cursor-pointer">Продолжить бой</button>
+                  </div>
+                )}
                 {gameState.boonOffer && !gameState.isGameOver && (
                   <BoonPicker offer={gameState.boonOffer} onChoose={(id) => engineRef.current?.chooseBoon(id)} />
                 )}
