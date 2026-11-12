@@ -650,7 +650,7 @@ export function WorldMap({ world, region, onChange, onBattle, onExit, onReset }:
                 <div className="flex flex-col gap-2">
                   {notice.event.choices.map((c, i) => (
                     <button key={i} className="py-2 px-3 rounded bg-[#2f2a40] hover:bg-[#3e3654] border border-[#4a4260] font-bold text-left" onClick={() => choose(notice.event!, i)}>
-                      {c.label}
+                      {notice.event!.choices!.length === 1 ? 'Дальше' : c.label}
                     </button>
                   ))}
                 </div>
