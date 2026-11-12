@@ -45,6 +45,8 @@ import {
 import { isDevMode } from '../devNotes';
 import { Scene, sceneFor, startTrigger, CAMP_SCENES } from '../campaign/dialogs';
 import { DialogBox } from './DialogBox';
+import { JournalPanel } from './JournalPanel';
+import { buildJournal } from '../campaign/journal';
 import { bakeTerrain, drawLive, loadExtras, hexAt, wx, wy, worldW, worldH, HW, P } from '../campaign/worldRender';
 import { sprites } from '../game/sprites';
 import { loadTileset, Tileset, TILESETS } from '../game/tiles';
@@ -106,6 +108,7 @@ export function WorldMap({ world, region, onChange, onBattle, onExit, onReset }:
   const [savesOpen, setSavesOpen] = useState(false);
   const [campOpen, setCampOpen] = useState(false);
   const [heroOpen, setHeroOpen] = useState(false);
+  const [journalOpen, setJournalOpen] = useState(false);
   const [dialog, setDialog] = useState<{ scene: Scene; then?: () => void } | null>(null);
   const [slots, setSlots] = useState<(WorldSlot | null)[]>(() => loadSlots());
   const stRef = useRef(world);
@@ -266,7 +269,7 @@ export function WorldMap({ world, region, onChange, onBattle, onExit, onReset }:
   };
   // Пролог и сцены после побед (бой идёт в App, сюда возвращаемся уже с наградой)
   useEffect(() => {
-    if (dialog || notice || walking || campOpen || heroOpen || savesOpen) return;
+    if (dialog || notice || walking || campOpen || heroOpen || journalOpen || savesOpen) return;
     const triggers = [startTrigger(region.id), ...region.objects.filter((o) => isCleared(world, o.id)).map((o) => `after:${o.id}`)];
     for (const t of triggers) {
       const sc = sceneFor(t, world.scenes, world.flags);
@@ -275,7 +278,7 @@ export function WorldMap({ world, region, onChange, onBattle, onExit, onReset }:
         return;
       }
     }
-  }, [world, region, dialog, notice, walking, campOpen, heroOpen, savesOpen]);
+  }, [world, region, dialog, notice, walking, campOpen, heroOpen, journalOpen, savesOpen]);
 
   // ---------------------------------------------------------------- ход
   const walk = useCallback(
@@ -530,6 +533,9 @@ export function WorldMap({ world, region, onChange, onBattle, onExit, onReset }:
         >
           Конец дня
         </button>
+        <button className="px-2 py-1 rounded bg-[#2a2635] hover:bg-[#3a3448] disabled:opacity-50" disabled={walking} title="Дневник: задачи главы" onClick={() => setJournalOpen(true)}>
+          📖<span className="hidden md:inline"> Дневник</span>
+        </button>
         <button className="px-2 py-1 rounded bg-[#2a2635] hover:bg-[#3a3448] disabled:opacity-50" disabled={walking} title="Герой" onClick={() => setHeroOpen(true)}>
           🛡<span className="hidden md:inline"> Рен · ур. {heroLevel(world)}</span>
         </button>
@@ -674,6 +680,21 @@ export function WorldMap({ world, region, onChange, onBattle, onExit, onReset }:
               const st = copyWorld(world);
               toggleEquip(st, id);
               onChange(st);
+            }}
+          />
+        )}
+
+        {journalOpen && (
+          <JournalPanel
+            journal={buildJournal(world, region)}
+            region={region}
+            onClose={() => setJournalOpen(false)}
+            onShow={(o) => {
+              setJournalOpen(false);
+              centerOn(o);
+              setSelected(true);
+              setTarget({ x: o.x, y: o.y });
+              requestDraw();
             }}
           />
         )}

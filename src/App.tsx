@@ -44,7 +44,7 @@ import { LevelBriefing } from './components/LevelBriefing';
 import { PauseModal, DefeatModal, HowToPlayModal, DuelResultModal, BrawlResultModal, DuelOutcome } from './components/StatusModals';
 import { OrientationWarning } from './components/OrientationWarning';
 import { WorldMap, WorldBattleResult } from './components/WorldMap';
-import { WorldState, WorldObj, REGIONS, FRONTIER, newWorld, loadWorld, saveWorld, winBattle, battleSeed, battlePerks, heroLevel, allowedTowers, armyLevel, invasion } from './campaign/world';
+import { WorldState, WorldObj, REGIONS, FRONTIER, newWorld, loadWorld, saveWorld, normalizeWorld, readWorldMeta, writeWorldMeta, winBattle, battleSeed, battlePerks, heroLevel, allowedTowers, armyLevel, invasion } from './campaign/world';
 import { Scene, sceneFor } from './campaign/dialogs';
 import { DialogBox } from './components/DialogBox';
 import { DevNotes } from './components/DevNotes';
@@ -55,7 +55,7 @@ import { AccountModal, SyncState } from './components/AccountModal';
 import { downloadRunLog } from './game/runLog';
 import { logWorldChange, logReason, logWorldNote, logBattleStart, logBattleEnd, type CampaignBattle } from './campaign/worldLog';
 import { Progress, EMPTY_PROGRESS, readLocalProgress, writeLocalProgress, mergeProgress, isEmptyProgress, endlessRecordKey } from './progress';
-import { cloudEnabled, onUserChange, loadCloudProgress, saveCloudProgress } from './cloud';
+import { cloudEnabled, onUserChange, loadCloudProgress, saveCloudProgress, loadCloudWorld, saveCloudWorld } from './cloud';
 import type { User } from '@supabase/supabase-js';
 
 type ScreenState = 'menu' | 'briefing' | 'duelLobby' | 'brawlLobby' | 'playing' | 'world';
@@ -662,6 +662,54 @@ export default function App() {
       cancelled = true;
     };
   }, [user]);
+
+  // Поход в облаке (просьба Артура 2026-11-12): при входе берётся более свежая копия — с устройства или из аккаунта,
+  // потом каждое изменение уходит в аккаунт с задержкой. Поход гостя переходит в аккаунт, чужой поход на устройстве не трогаем
+  const worldSyncedFor = useRef<string | null>(null);
+  const worldBattleRef = useRef<WorldObj | null>(null);
+  worldBattleRef.current = worldBattle;
+  useEffect(() => {
+    if (!user) {
+      worldSyncedFor.current = null;
+      return;
+    }
+    let cancelled = false;
+    loadCloudWorld(user.id)
+      .then((cloud) => {
+        if (cancelled) return;
+        const meta = readWorldMeta();
+        const local = loadWorld();
+        const cw = cloud ? normalizeWorld(cloud.state) : null;
+        const foreign = meta.owner !== null && meta.owner !== user.id; // на устройстве поход другого аккаунта
+        // Поход без отметки времени (играли до облака): побеждает тот, что дальше продвинулся
+        const score = (w: WorldState) => (REGIONS[w.region]?.chapter ?? 1) * 100000 + (w.done.length + w.owned.length) * 100 + w.xp;
+        const cloudNewer = !!cw && !!local && (meta.at === 0 ? score(cw) > score(local) : cloud!.at > meta.at);
+        if (cloud && cw && (!local || foreign || cloudNewer)) {
+          if (worldBattleRef.current) return; // бой идёт: подхватим при следующем входе
+          worldPrevRef.current = cw;
+          setWorldState(cw);
+          saveWorld(cw, false);
+          writeWorldMeta({ at: cloud.at, owner: user.id });
+          worldSyncedFor.current = user.id;
+        } else if (local && !foreign) {
+          writeWorldMeta({ at: meta.at || Date.now(), owner: user.id });
+          worldSyncedFor.current = user.id;
+          saveCloudWorld(user.id, { state: local, at: readWorldMeta().at }).catch(() => {});
+        }
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
+  useEffect(() => {
+    if (!user || !world || worldSyncedFor.current !== user.id) return;
+    const t = setTimeout(() => {
+      const meta = readWorldMeta();
+      if (meta.owner === user.id) saveCloudWorld(user.id, { state: world, at: meta.at }).catch(() => {});
+    }, 2000);
+    return () => clearTimeout(t);
+  }, [world, user]);
 
   // Save on every change: this device under its owner, the account (after its progress was read) with a short delay
   useEffect(() => {
