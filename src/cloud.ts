@@ -101,15 +101,46 @@ export async function signOut() {
   }
 }
 
-export async function loadCloudProgress(userId: string): Promise<Progress | null> {
+// One row per player holds progress at the top level and the campaign under `world`; writes are queued
+// one after another and keep the keys they do not own
+let queue: Promise<unknown> = Promise.resolve();
+const serial = <T,>(job: () => Promise<T>): Promise<T> => {
+  const run = queue.then(job, job);
+  queue = run.catch(() => undefined);
+  return run;
+};
+
+async function readData(userId: string): Promise<Record<string, unknown> | null> {
   const { data, error } = await (await client()).from('progress').select('data').eq('user_id', userId).maybeSingle();
   if (error) throw error;
-  return data ? normalizeProgress(data.data) : null;
+  return data && data.data && typeof data.data === 'object' ? (data.data as Record<string, unknown>) : null;
+}
+
+async function writeData(userId: string, data: Record<string, unknown>) {
+  const { error } = await (await client()).from('progress').upsert({ user_id: userId, data, updated_at: new Date().toISOString() });
+  if (error) throw error;
+}
+
+export async function loadCloudProgress(userId: string): Promise<Progress | null> {
+  const row = await readData(userId);
+  return row ? normalizeProgress(row) : null;
 }
 
 export async function saveCloudProgress(userId: string, p: Progress) {
-  const { error } = await (await client())
-    .from('progress')
-    .upsert({ user_id: userId, data: p, updated_at: new Date().toISOString() });
-  if (error) throw error;
+  return serial(async () => writeData(userId, { ...((await readData(userId)) ?? {}), ...p }));
+}
+
+/** The campaign (src/campaign/world.ts) copied to the account: state and the time of its last change, ms */
+export interface CloudWorld {
+  state: unknown;
+  at: number;
+}
+
+export async function loadCloudWorld(userId: string): Promise<CloudWorld | null> {
+  const w = (await readData(userId))?.world as Partial<CloudWorld> | undefined;
+  return w && w.state && typeof w.at === 'number' ? { state: w.state, at: w.at } : null;
+}
+
+export async function saveCloudWorld(userId: string, w: CloudWorld) {
+  return serial(async () => writeData(userId, { ...((await readData(userId)) ?? {}), world: w }));
 }

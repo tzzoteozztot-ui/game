@@ -808,10 +808,35 @@ export function loadWorld(): WorldState | null {
   }
 }
 
-export function saveWorld(st: WorldState | null) {
+/** Когда и чей поход лежит на устройстве: для облачной копии (`dark_frontier_world_meta`). Владелец — id аккаунта или null (гость) */
+export const WORLD_META_KEY = 'dark_frontier_world_meta';
+export interface WorldMeta {
+  at: number;
+  owner: string | null;
+}
+export function readWorldMeta(): WorldMeta {
   try {
-    if (st) localStorage.setItem(WORLD_KEY, JSON.stringify(st));
-    else localStorage.removeItem(WORLD_KEY);
+    const m = JSON.parse(localStorage.getItem(WORLD_META_KEY) ?? 'null') as Partial<WorldMeta> | null;
+    return { at: typeof m?.at === 'number' ? m.at : 0, owner: typeof m?.owner === 'string' ? m.owner : null };
+  } catch {
+    return { at: 0, owner: null };
+  }
+}
+export function writeWorldMeta(m: WorldMeta) {
+  try {
+    localStorage.setItem(WORLD_META_KEY, JSON.stringify(m));
+  } catch {
+    // нет хранилища
+  }
+}
+
+/** Сохранить поход на устройстве; `touch` — отметить время изменения (не нужно, когда поход пришёл из облака) */
+export function saveWorld(st: WorldState | null, touch = true) {
+  try {
+    if (st) {
+      localStorage.setItem(WORLD_KEY, JSON.stringify(st));
+      if (touch) writeWorldMeta({ ...readWorldMeta(), at: Date.now() });
+    } else localStorage.removeItem(WORLD_KEY);
   } catch {
     // нет хранилища — поход живёт до закрытия страницы
   }
