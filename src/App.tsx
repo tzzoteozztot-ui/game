@@ -48,6 +48,8 @@ import { WorldMap, WorldBattleResult } from './components/WorldMap';
 import { WorldState, WorldObj, REGIONS, FRONTIER, newWorld, loadWorld, saveWorld, normalizeWorld, readWorldMeta, writeWorldMeta, winBattle, battleSeed, battlePerks, heroLevel, allowedTowers, armyLevel, invasion, battleStages } from './campaign/world';
 import { Scene, sceneFor } from './campaign/dialogs';
 import { DialogBox } from './components/DialogBox';
+import { TutorialHint } from './components/TutorialHint';
+import { tutorialFor, TutStep } from './campaign/tutorial';
 import { DevNotes } from './components/DevNotes';
 import { DevNote } from './devNotes';
 import { HERO_ABILITIES } from './game/config';
@@ -245,6 +247,7 @@ export default function App() {
     earlyStartBonus: 0,
     speed: 1,
     selectedTower: null,
+    towerList: [],
     hyperPlanLeft: 0,
     eligibleMergeCount: 0,
     mergeUsesBinder: false,
@@ -752,6 +755,13 @@ export default function App() {
     eng.heroToken = true; // на своём поле стоит Рен
   };
 
+  // Отладка: начать бой похода по id объекта (`window.startWorldBattleById('sq1')`) — для проверки обучения без хождения по карте
+  useEffect(() => {
+    (window as unknown as { startWorldBattleById?: (id: string) => void }).startWorldBattleById = (id: string) => {
+      const o = (REGIONS[world?.region ?? 'frontier'] ?? FRONTIER).objects.find((x) => x.id === id);
+      if (o) startWorldBattle(o, true);
+    };
+  });
   // Поход: бой с армией, где вкладка «Армия» открывается по сюжету (крепость: на волне `armyAt` врывается Каллен)
   const armyLocked = !!worldBattle?.armyAt && gameState.wave < worldBattle.armyAt;
   useEffect(() => {
@@ -777,6 +787,68 @@ export default function App() {
       if (eng.isPaused) eng.togglePause();
     }
   }, [battleScene]);
+  // Обучение в бою (просьба Артура 2026-11-12): шаг, подсветка, таймер стоит, пока шаг не сделан
+  const tutDone = useRef(new Set<string>());
+  const tutUsed = useRef(new Set<string>());
+  const tutGranted = useRef(new Set<string>());
+  const [tutSkipped, setTutSkipped] = useState(false);
+  const [tutStep, setTutStep] = useState<TutStep | null>(null);
+  useEffect(() => {
+    tutDone.current = new Set();
+    tutUsed.current = new Set();
+    tutGranted.current = new Set();
+    setTutSkipped(false);
+    setTutStep(null);
+  }, [worldBattle?.id]);
+  useEffect(() => {
+    const eng = engineRef.current;
+    const steps = worldBattle && world && screen === 'playing' && !tutSkipped && !world.scenes.includes(`tut:${worldBattle.id}`) ? tutorialFor(worldBattle.id) : null;
+    if (!steps || !world || !eng || !eng.worldBattleStarted || gameState.isVictory || gameState.isGameOver) {
+      if (eng) eng.tutorialFreeze = false;
+      setTutStep((s) => (s ? null : s));
+      return;
+    }
+    if (gameState.speed !== 1 || gameState.isPaused) tutUsed.current.add('speed');
+    const ctx = { gs: gameState, inShop: shopCards.map((c) => (c && c.type !== 'binder' ? String(c.type) : '')), scenes: world.scenes, used: tutUsed.current };
+    let active: TutStep | null = null;
+    for (const st of steps) {
+      if (tutDone.current.has(st.id)) continue;
+      if (st.done(ctx)) {
+        tutDone.current.add(st.id);
+        continue;
+      }
+      if (st.when && !st.when(ctx)) continue;
+      active = st;
+      break;
+    }
+    if (!active) {
+      // всё пройдено: в бою больше не напоминать
+      eng.tutorialFreeze = false;
+      setTutStep(null);
+      setWorld({ ...world, scenes: [...world.scenes, `tut:${worldBattle!.id}`] });
+      return;
+    }
+    if (active.grant && !tutGranted.current.has(active.id)) {
+      tutGranted.current.add(active.id);
+      eng.tutorialGrant(active.grant);
+    }
+    if (active.lines) {
+      const id = `tut:${active.id}`;
+      if (!battleScene && !world.scenes.includes(id)) setBattleScene({ id, lines: active.lines });
+      eng.tutorialFreeze = true;
+      setTutStep((s) => (s ? null : s));
+      return;
+    }
+    eng.tutorialFreeze = !!active.freeze && !gameState.isWaveActive;
+    setTutStep((s) => (s?.id === active!.id ? s : active));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gameState, shopCards, world, worldBattle, screen, tutSkipped, battleScene]);
+  const skipTutorial = () => {
+    setTutSkipped(true);
+    setTutStep(null);
+    if (engineRef.current) engineRef.current.tutorialFreeze = false;
+    if (world && worldBattle) setWorld({ ...world, scenes: [...world.scenes, `tut:${worldBattle.id}`] });
+  };
   const closeBattleScene = () => {
     if (battleScene && world && !world.scenes.includes(battleScene.id)) setWorld({ ...world, scenes: [...world.scenes, battleScene.id] });
     setBattleScene(null);
@@ -815,6 +887,7 @@ export default function App() {
     if (saved && (saved.obj !== obj.id || saved.region !== (world?.region ?? 'frontier'))) saved = null;
     if (saved && !window.confirm(`Есть сохранённый бой: пройдено этапов — ${saved.stage} из ${saved.total}. Продолжить с него? (Отмена — начать бой заново)`)) saved = null;
     if (obj.army && !saved) clearBattleSave();
+    if (engineRef.current) engineRef.current.worldBattleStarted = false; // снимок состояния пока от прошлого боя
     setWorldBattle(obj);
     setBattleScene(null);
     setSideTab('towers');
@@ -2079,6 +2152,7 @@ export default function App() {
           }}
         />
       )}
+      {screen === 'playing' && worldBattle && tutStep && !battleScene && tutStep.text && <TutorialHint text={tutStep.text} mark={tutStep.mark ?? null} onSkip={skipTutorial} />}
       {screen === 'playing' && worldBattle && battleScene && !(gameState.isVictory || gameState.isGameOver) && <DialogBox scene={battleScene} onDone={closeBattleScene} />}
       {screen === 'playing' && worldBattle && (gameState.isVictory || gameState.isGameOver) && (
         <WorldBattleResult

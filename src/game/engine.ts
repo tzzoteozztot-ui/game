@@ -380,6 +380,8 @@ export interface GameStateSnapshot {
   earlyStartBonus: number;
   speed: number;
   selectedTower: Tower | null;
+  /** Поход, обучение: башни на поле кратко (вид, уровень, число свойств, связана ли, приоритет цели) */
+  towerList: { type: TowerType; level: number; specs: number; bound: boolean; priority: string }[];
   hyperPlanLeft: number; // гипербашня: сколько клеток ещё выбрать (0 — не выбирает)
   eligibleMergeCount: number;
   mergeUsesBinder: boolean; // two towers and a binder stand in for the third: a plain one, for Ур.1
@@ -466,6 +468,9 @@ export class GameEngine {
   public worldCountMult = 1;
   // Поход: на своём поле стоит герой (медальон Рена) вместо артефакта
   public heroToken = false;
+  // Поход, обучение: таймер волны замер, пока игрок не сделает шаг (просьба Артура 2026-11-12)
+  public tutorialFreeze = false;
+  public worldBattleStarted = false; // бой похода уже начат движком (до этого снимок состояния старый)
   private heroImg: HTMLImageElement | null = null;
   public speedMultiplier: number = 1; // one of CONFIG.speeds
   // Real-time countdown to the next wave (not scaled by game speed); null while a wave runs
@@ -798,6 +803,8 @@ export class GameEngine {
     this.mergeLocked = false;
     this.worldCountMult = 1;
     this.heroToken = false;
+    this.tutorialFreeze = false;
+    this.worldBattleStarted = false;
     this.duelSkew = 0;
     this.pausedClock = null;
     this.stageEnds = [];
@@ -876,6 +883,7 @@ export class GameEngine {
     this.startLevel(level, diff, false, undefined, 'humans', null, seed ? generateMap(level, seed) : null);
     this.worldCountMult = opts.countMult && opts.countMult > 0 ? opts.countMult : 1;
     this.heroToken = true;
+    this.worldBattleStarted = true;
     this.waveLimit = Math.max(1, Math.min(CONFIG.waves.length, Math.floor(waves)));
     // Поход: чужие враги на биоме карты (порабощённые солдаты экспедиции в главе 3 — люди) и босс последней волны боя (Каллен)
     if (opts.faction && opts.faction >= 1 && opts.faction <= CONFIG.factions.length) this.faction = Math.floor(opts.faction);
@@ -1587,7 +1595,7 @@ export class GameEngine {
       else if (Math.ceil(this.waveCountdown) !== before) this.notifyState();
       return;
     }
-    if (this.waveCountdown === null) return;
+    if (this.waveCountdown === null || this.tutorialFreeze) return;
     const before = Math.ceil(this.waveCountdown);
     this.waveCountdown = Math.max(0, this.waveCountdown - realDt);
     if (this.waveCountdown <= 0) {
@@ -3818,6 +3826,17 @@ export class GameEngine {
     return true;
   }
 
+  /** Обучение в бою: выдать в рюкзак готовые башни бесплатно (связка: две башни Ур.2 разных видов) */
+  public tutorialGrant(items: { type: string; startLevel: number }[]) {
+    for (const it of items) {
+      const binder = it.type === 'binder';
+      this.backpack.push({ id: Math.random().toString(36).substring(2, 9), kind: binder ? 'binder' : 'tower', type: binder ? null : (it.type as TowerType), triplet: it.startLevel >= 2, startLevel: it.startLevel, spec: null, paid: 0 });
+      this.logEv('buy', { kind: binder ? 'binder' : 'tower', type: it.type, startLevel: it.startLevel, paid: 0, tutorial: true });
+    }
+    sound.playBuy();
+    this.notifyState();
+  }
+
   // Takes the item in hand for placing; the same slot again puts it back
   public selectBackpack(slot: number) {
     const stacks = this.backpackStacks();
@@ -4980,6 +4999,7 @@ export class GameEngine {
       earlyStartBonus: this.earlyStartBonus(),
       speed: this.speedMultiplier,
       selectedTower: selected,
+      towerList: this.towers.map((t) => ({ type: t.type, level: t.level, specs: t.specs.length, bound: !!t.second, priority: t.priority })),
       hyperPlanLeft: this.hyperPlan ? 3 - this.hyperPlan.cells.length : 0,
       eligibleMergeCount: eligibleCount,
       mergeUsesBinder: !!mergeBinder,

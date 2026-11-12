@@ -466,6 +466,7 @@ export function TowerPanel({
       >
         <button
           type="button"
+          data-tut="priority"
           onClick={onCyclePriority}
           className="h-[var(--h-btn)] px-1 rounded bg-white/5 hover:bg-white/15 border border-white/15 flex flex-col items-center justify-center leading-none cursor-pointer"
           title="Приоритет цели (Tab)"
@@ -476,6 +477,7 @@ export function TowerPanel({
 
         <button
           type="button"
+          data-tut="merge"
           onClick={onMerge}
           disabled={!canMerge}
           className={`h-[var(--h-btn)] px-1 rounded font-bold flex flex-col items-center justify-center leading-none transition-all ${
@@ -573,6 +575,7 @@ export function TowerPanel({
         {humans && (
         <button
           type="button"
+          data-tut="bind"
           onClick={onBind}
           disabled={!canBind}
           className={`h-[var(--h-btn)] px-0.5 rounded font-bold flex flex-col items-center justify-center leading-none transition-all ${

@@ -42,6 +42,7 @@ export function GameControls({ speed, isPaused, isMuted, duel, onTogglePause, on
         <div className="relative">
           <button
             type="button"
+            data-tut="speed"
             onClick={() => setSpeedOpen((o) => !o)}
             title="Скорость игры (+ / −)"
             aria-expanded={speedOpen}
@@ -91,6 +92,7 @@ export function GameControls({ speed, isPaused, isMuted, duel, onTogglePause, on
       )}
       <button
         type="button"
+        data-tut="pause"
         onClick={onTogglePause}
         title="Пауза (P)"
         className={`${btn} ${icon} ${isPaused ? 'bg-red-900/70 border-red-400/50 text-white' : plain}`}
