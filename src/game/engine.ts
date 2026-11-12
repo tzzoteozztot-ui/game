@@ -460,6 +460,8 @@ export class GameEngine {
   public tier: number = 1;
   public rerollsThisWave = 0; // shop rerolls since the current wave started
   public isPaused: boolean = false;
+  // Слияние закрыто, пока в обучении похода не пройден урок о нём (просьба Артура 2026-11-12); сбрасывается с каждой партией
+  public mergeLocked = false;
   public speedMultiplier: number = 1; // one of CONFIG.speeds
   // Real-time countdown to the next wave (not scaled by game speed); null while a wave runs
   public waveCountdown: number | null = null;
@@ -788,6 +790,7 @@ export class GameEngine {
     this.worldBossTint = null;
     this.duelStart = null;
     this.duelSpeedable = false;
+    this.mergeLocked = false;
     this.duelSkew = 0;
     this.pausedClock = null;
     this.stageEnds = [];
@@ -3764,7 +3767,7 @@ export class GameEngine {
   /** Стопка из `mergeNeed()` одинаковых башен, которую можно собрать в башню следующего уровня */
   private canMergeStack(st: number[]): boolean {
     const first = this.backpack[st[0]];
-    return first.kind === 'tower' && st.length >= this.mergeNeed() && first.startLevel < this.maxLevel();
+    return !this.mergeLocked && first.kind === 'tower' && st.length >= this.mergeNeed() && first.startLevel < this.maxLevel();
   }
 
   /** Собрать полную стопку в рюкзаке в одну башню следующего уровня: правила и цена слияния те же, что на поле (уплаченное складывается) */
@@ -4723,7 +4726,7 @@ export class GameEngine {
   }
 
   public getEligibleMergeTowers(selected: Tower): Tower[] {
-    if (selected.level >= this.maxLevel() || selected.second || selected.fused) return [];
+    if (this.mergeLocked || selected.level >= this.maxLevel() || selected.second || selected.fused) return [];
     return this.towers.filter(
       (t) =>
         !t.second &&

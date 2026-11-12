@@ -748,6 +748,7 @@ export default function App() {
     eng.setInvasion(invasion(region)(obj.x, obj.y)); // у лагеря главы — природа континента, к крепости — биом захватчика
     eng.setCampBoons(battlePerks(world));
     eng.setHeroSkills(HERO_ABILITIES.filter((d) => d.unlock <= heroLevel(world)).map((d) => d.id));
+    eng.mergeLocked = !world.scenes.includes('levels'); // слияние открывает урок на переправе
   };
 
   // Поход: бой с армией, где вкладка «Армия» открывается по сюжету (крепость: на волне `armyAt` врывается Каллен)
