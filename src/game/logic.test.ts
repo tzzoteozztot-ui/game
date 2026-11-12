@@ -1232,3 +1232,20 @@ test('world: every region can be finished with the zone rules on — a squad nev
     assert.ok(st.won, `${region.id}: stuck, left: ${region.objects.filter((o) => W.isHostile(st, o)).map((o) => o.id).join(', ')}`);
   }
 });
+
+import { checkRegion } from '../campaign/regionCheck';
+
+test('world editor: built-in regions pass the check; a broken lock and a walled-in squad are caught; edits round-trip', () => {
+  for (const r of Object.values(W.REGIONS)) {
+    const res = checkRegion(r);
+    assert.deepEqual(res.errors, [], `${r.id}: ${res.errors.join('; ')}`);
+  }
+  const r: W.RegionDef = JSON.parse(JSON.stringify(W.FRONTIER));
+  const withLock = { ...r, objects: r.objects.map((o, i) => (i === 1 ? { ...o, needs: ['nope'] } : o)) };
+  assert.ok(checkRegion(withLock).errors.some((e) => e.includes('nope')));
+  const fort = r.objects.find((o) => o.kind === 'fortress')!;
+  const walled = { ...r, terrain: r.terrain.map((row, y) => (y === fort.y ? row.slice(0, fort.x - 1) + 'ddd' + row.slice(fort.x + 2) : row)) };
+  assert.ok(checkRegion(walled).errors.length > 0, 'a fortress behind a wall cannot be reached');
+  assert.ok(W.normalizeRegion(JSON.parse(JSON.stringify(r))), 'a region file loads back');
+  assert.equal(W.normalizeRegion({ ...r, terrain: r.terrain.slice(1) }), null, 'size must stay');
+});

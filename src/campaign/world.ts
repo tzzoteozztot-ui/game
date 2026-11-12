@@ -1047,3 +1047,80 @@ export function invasion(r: RegionDef): (x: number, y: number) => number {
 export function battleStages(o: WorldObj): number[] {
   return o.stages ?? [4, o.armyAt ? o.armyAt - 1 : 8];
 }
+
+// -------------------------------------------------------------
+// Правки карт редактором (просьба Артура 2026-11-12: «редактор карты для кампании»).
+// Правка — целый регион (местность, объекты, украшения, старт), лежит на устройстве и подменяет встроенный
+// при запуске. Размер региона не меняется: туман в сохранениях хранится по номеру гекса.
+// -------------------------------------------------------------
+export const REGION_EDITS_KEY = 'dark_frontier_region_edits';
+const OBJ_KINDS: WorldObjKind[] = ['camp', 'squad', 'fortress', 'chest', 'mine', 'shrine', 'event'];
+const clone = <T,>(v: T): T => JSON.parse(JSON.stringify(v)) as T;
+
+/** Встроенные регионы, как их собрал код (до правок) */
+export const ORIGINAL_REGIONS: Record<string, RegionDef> = clone(REGIONS);
+
+/** Проверка региона из файла или хранилища: размеры как у встроенного, объекты целые. Иначе null */
+export function normalizeRegion(v: unknown, base: RegionDef | undefined = undefined): RegionDef | null {
+  if (!v || typeof v !== 'object') return null;
+  const r = v as Partial<RegionDef>;
+  const orig = base ?? ORIGINAL_REGIONS[r.id ?? ''];
+  if (!orig || !Array.isArray(r.terrain) || !Array.isArray(r.objects)) return null;
+  if (r.terrain.length !== orig.terrain.length || r.terrain.some((row) => typeof row !== 'string' || row.length !== orig.terrain[0].length)) return null;
+  if (r.terrain.some((row) => [...row].some((c) => !(c in TERRAIN_CHARS)))) return null;
+  const pt = (p: unknown): p is { x: number; y: number } => !!p && typeof (p as any).x === 'number' && typeof (p as any).y === 'number' && Number.isInteger((p as any).x) && Number.isInteger((p as any).y);
+  if (!pt(r.start)) return null;
+  const objects: WorldObj[] = [];
+  for (const o of r.objects) {
+    if (!o || typeof o.id !== 'string' || typeof o.name !== 'string' || !OBJ_KINDS.includes(o.kind) || !pt(o)) return null;
+    if (terrainAt(orig, o.x, o.y) === null) return null;
+    objects.push(o);
+  }
+  const props = Array.isArray(r.props) ? r.props.filter((p) => pt(p) && typeof p.kind === 'string') : [];
+  return { ...orig, name: typeof r.name === 'string' && r.name ? r.name : orig.name, terrain: [...r.terrain], start: { x: r.start.x, y: r.start.y }, objects, props };
+}
+
+export function loadRegionEdits(): Record<string, RegionDef> {
+  try {
+    const raw = JSON.parse(localStorage.getItem(REGION_EDITS_KEY) ?? '{}') as Record<string, unknown>;
+    const out: Record<string, RegionDef> = {};
+    for (const [id, v] of Object.entries(raw)) {
+      const r = normalizeRegion(v);
+      if (r && r.id === id) out[id] = r;
+    }
+    return out;
+  } catch {
+    return {};
+  }
+}
+
+/** Запомнить правку региона и сразу подменить встроенный. false — хранилище не приняло (регион всё равно подменён до перезапуска) */
+export function setRegionEdit(r: RegionDef): boolean {
+  const norm = normalizeRegion(r);
+  if (!norm) return false;
+  REGIONS[norm.id] = norm;
+  try {
+    const all = loadRegionEdits();
+    all[norm.id] = norm;
+    localStorage.setItem(REGION_EDITS_KEY, JSON.stringify(all));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** Вернуть встроенный регион */
+export function clearRegionEdit(id: string) {
+  if (ORIGINAL_REGIONS[id]) REGIONS[id] = clone(ORIGINAL_REGIONS[id]);
+  try {
+    const all = loadRegionEdits();
+    delete all[id];
+    localStorage.setItem(REGION_EDITS_KEY, JSON.stringify(all));
+  } catch {
+    /* нет хранилища */
+  }
+}
+
+export const isRegionEdited = (id: string) => JSON.stringify(REGIONS[id]) !== JSON.stringify(ORIGINAL_REGIONS[id]);
+
+for (const [id, r] of Object.entries(loadRegionEdits())) REGIONS[id] = r;
