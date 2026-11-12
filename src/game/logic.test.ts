@@ -803,6 +803,48 @@ test('world: moves, battle, loot, mines and days', () => {
   assert.equal(W.stepHero(st, r, W.hexNeighbours(st.hero.x, st.hero.y).find((p) => { const t = W.terrainAt(r, p.x, p.y); return !!t && W.TERRAIN_COST[t] !== null; })!), null);
 });
 
+test('world: a rest of a chosen length returns moves in proportion, the full night starts a new day', async () => {
+  const W = await import('../campaign/world');
+  const st = W.newWorld();
+  st.moves = 0;
+  assert.equal(W.restHero(st, W.FRONTIER, 1), null);
+  assert.equal(st.moves, W.REST_MOVES);
+  assert.equal(st.day, 1);
+  assert.equal(W.restHero(st, W.FRONTIER, 1), null);
+  assert.equal(st.moves, W.REST_MOVES * 2);
+  // the third part ends the day: income and full moves
+  assert.notEqual(W.restHero(st, W.FRONTIER, 1), null);
+  assert.equal(st.day, 2);
+  assert.equal(st.moves, W.MOVES_PER_DAY);
+  assert.equal(st.dayPart, 0);
+  // «до утра» at once
+  st.moves = 3;
+  W.restHero(st, W.FRONTIER, W.REST_PARTS);
+  assert.equal(st.day, 3);
+});
+
+test('world: a squad of the fortress chain holds the hexes around it, an optional one does not', async () => {
+  const W = await import('../campaign/world');
+  const { blockerFor } = await import('../campaign/zone');
+  const st = W.newWorld();
+  const near = (o: { x: number; y: number }) => {
+    const ring = W.hexNeighbours(o.x, o.y);
+    for (const to of ring) for (const from of W.hexNeighbours(to.x, to.y)) {
+      if (!ring.some((q) => q.x === from.x && q.y === from.y) && !(from.x === o.x && from.y === o.y)) return { from, to };
+    }
+    throw new Error('no hex');
+  };
+  const sq1 = W.FRONTIER.objects.find((o) => o.id === 'sq1')!;
+  const a = near(sq1);
+  assert.equal(blockerFor(st, W.FRONTIER, a.from, a.to)?.id, 'sq1');
+  assert.equal(blockerFor(st, W.FRONTIER, a.to, a.to), null, 'already next to it: not blocked again');
+  W.winBattle(st, W.FRONTIER, 'sq1');
+  assert.equal(blockerFor(st, W.FRONTIER, a.from, a.to), null, 'a beaten squad holds nothing');
+  const optional = W.FRONTIER.objects.find((o) => o.id === 'stavka')!;
+  const b = near(optional);
+  assert.equal(blockerFor(W.newWorld(), W.FRONTIER, b.from, b.to), null);
+});
+
 test('world: the camp sells perk levels for resources, up to the top level, and saves them', async () => {
   const { BOONS } = await import('./config');
   const st = W.newWorld();
@@ -1088,7 +1130,7 @@ test('botFieldView: присланные боту враги видны — жд
 });
 
 test('лог похода: разность состояний называет действие и хранит все числа', async () => {
-  const { newWorld, FRONTIER, stepHero, endDay, upgradeCamp, winBattle, findPath } = await import('../campaign/world');
+  const { newWorld, FRONTIER, stepHero, endDay, upgradeCamp, winBattle, findPath, battleXp } = await import('../campaign/world');
   const { diffWorld, logWorldChange, logBattleStart, logBattleEnd, buildCampaignLog, resetCampaignLogForTest, campaignLogHead } = await import('../campaign/worldLog');
   const copy = <T,>(v: T): T => JSON.parse(JSON.stringify(v));
   resetCampaignLogForTest();
@@ -1123,7 +1165,7 @@ test('лог похода: разность состояний называет 
   winBattle(w, FRONTIER, squad.id);
   const won = diffWorld(d1, w, { kind: 'battle-won' })!;
   assert.equal(won.kind, 'battle-won');
-  assert.equal((won.d as { xp: number }).xp, (squad.waves ?? 0) * 10);
+  assert.equal((won.d as { xp: number }).xp, battleXp(squad));
   assert.deepEqual((won.d as { done: string[] }).done, [squad.id]);
 
   // Лагерь: цена уходит в разность ресурсов

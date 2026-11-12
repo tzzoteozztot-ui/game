@@ -30,7 +30,7 @@ export interface Journal {
 }
 
 /** Объекты, без которых крепость не открыть: все её замки по цепочке (для `needsAny` — любой из вариантов) */
-function requiredIds(region: RegionDef): Set<string> {
+export function requiredIds(region: RegionDef): Set<string> {
   const byId = new Map(region.objects.map((o) => [o.id, o]));
   const out = new Set<string>();
   const walk = (id: string) => {

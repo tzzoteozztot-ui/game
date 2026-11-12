@@ -13,7 +13,9 @@ import {
   findPath,
   stepHero,
   stepCost,
-  endDay,
+  restHero,
+  REST_PARTS,
+  REST_MOVES,
   objectAt,
   isHostile,
   isSeen,
@@ -46,6 +48,7 @@ import { isDevMode } from '../devNotes';
 import { Scene, sceneFor, startTrigger, CAMP_SCENES } from '../campaign/dialogs';
 import { DialogBox } from './DialogBox';
 import { JournalPanel } from './JournalPanel';
+import { blockerFor } from '../campaign/zone';
 import { buildJournal } from '../campaign/journal';
 import { bakeTerrain, drawLive, loadExtras, hexAt, wx, wy, worldW, worldH, HW, P } from '../campaign/worldRender';
 import { sprites } from '../game/sprites';
@@ -104,6 +107,7 @@ export function WorldMap({ world, region, onChange, onBattle, onExit, onReset }:
   const [target, setTarget] = useState<P | null>(null);
   const [walking, setWalking] = useState(false);
   const [notice, setNotice] = useState<Notice | null>(null);
+  const [restOpen, setRestOpen] = useState(false);
   const [confirmReset, setConfirmReset] = useState(false);
   const [savesOpen, setSavesOpen] = useState(false);
   const [campOpen, setCampOpen] = useState(false);
@@ -317,10 +321,10 @@ export function WorldMap({ world, region, onChange, onBattle, onExit, onReset }:
           return;
         }
         // Перед боем — сцена и вопрос; ход тратится, только если игрок согласится
-        if (o && isHostile(st, o)) {
+        const engage = (o: WorldObj, cost: number) => {
           stop();
-          if (st.moves < stepCost(region, p)) {
-            setNotice({ title: 'Ходы кончились', text: 'До врага не хватает очков хода. Завершите день.' });
+          if (st.moves < cost) {
+            setRestOpen(true);
             return;
           }
           play(`before:${o.id}`, () =>
@@ -330,13 +334,23 @@ export function WorldMap({ world, region, onChange, onBattle, onExit, onReset }:
               battle: o,
             })
           );
+        };
+        if (o && isHostile(st, o)) {
+          engage(o, stepCost(region, p));
+          return;
+        }
+        // Отряд держит соседние гексы: пройти мимо, не вступив в бой, нельзя
+        const guard = o ? null : blockerFor(st, region, st.hero, p);
+        const aim = steps[steps.length - 1];
+        if (guard && !(aim.x === guard.x && aim.y === guard.y)) {
+          engage(guard, 1);
           return;
         }
         const res: Arrival | null = stepHero(st, region, p);
         if (!res) {
           stop();
           logWorldNote(st, 'no-moves', { at: p, need: stepCost(region, p) });
-          setNotice({ title: 'Ходы кончились', text: 'Герой устал. Завершите день, чтобы идти дальше.' });
+          setRestOpen(true);
           return;
         }
         stRef.current = st;
@@ -526,14 +540,10 @@ export function WorldMap({ world, region, onChange, onBattle, onExit, onReset }:
           disabled={walking || !!notice}
           onClick={() => {
             sound.init();
-            const st = copyWorld(world);
-            const got = endDay(st, region);
-            onChange(st);
-            const t = resText(got); // метка пути остаётся: после отдыха можно идти дальше
-            setNotice({ title: `День ${st.day}`, text: t ? `Промыслы принесли: ${t}` : 'Герой отдохнул, очки хода восстановлены.' });
+            setRestOpen(true);
           }}
         >
-          Конец дня
+          Отдых
         </button>
         <button className="px-2 py-1 rounded bg-[#2a2635] hover:bg-[#3a3448] disabled:opacity-50" disabled={walking} title="Дневник: задачи главы" onClick={() => setJournalOpen(true)}>
           📖<span className="hidden lg:inline"> Дневник</span>
@@ -633,6 +643,48 @@ export function WorldMap({ world, region, onChange, onBattle, onExit, onReset }:
             ) : (
               <span>Пять артефактов горят. Поход пройден.</span>
             )}
+          </div>
+        )}
+
+        {/* Отдых: сколько спать — столько ходов вернётся */}
+        {restOpen && !notice && (
+          <div className="absolute inset-0 bg-black/60 flex items-center justify-center p-4 z-10">
+            <div className="bg-[#171520] border border-[#3b354a] rounded-xl p-4 max-w-sm w-full shadow-2xl">
+              <h3 className="text-lg font-black text-amber-300 mb-1">Отдых</h3>
+              <p className="text-sm text-stone-300 mb-3">
+                День {world.day}, прошло {world.dayPart ?? 0} из {REST_PARTS} частей. Чем дольше отдых, тем больше ходов вернётся.
+              </p>
+              <div className="flex flex-col gap-2">
+                {[1, 2, REST_PARTS].map((parts) => {
+                  const left = REST_PARTS - (world.dayPart ?? 0);
+                  const night = parts >= left;
+                  return (
+                    <button
+                      key={parts}
+                      className="py-2 px-3 rounded bg-[#2f2a40] hover:bg-[#3e3654] border border-[#4a4260] font-bold text-left"
+                      onClick={() => {
+                        const st = copyWorld(world);
+                        const got = restHero(st, region, parts);
+                        onChange(st);
+                        setRestOpen(false);
+                        if (got) {
+                          const t = resText(got);
+                          setNotice({ title: `День ${st.day}`, text: t ? `Промыслы принесли: ${t}` : 'Герой отдохнул, очки хода восстановлены.' });
+                        }
+                      }}
+                    >
+                      {night ? 'Спать до утра' : parts === 1 ? 'Привал (треть дня)' : 'Долгий привал (две трети дня)'}
+                      <span className="block text-xs font-normal text-stone-400">
+                        {night ? `Новый день: ходы полные, промыслы приносят доход` : `+${parts * REST_MOVES} ходов, день продолжается`}
+                      </span>
+                    </button>
+                  );
+                })}
+                <button className="py-2 rounded bg-[#2a2635] hover:bg-[#3a3448]" onClick={() => setRestOpen(false)}>
+                  Не отдыхать
+                </button>
+              </div>
+            </div>
           </div>
         )}
 
