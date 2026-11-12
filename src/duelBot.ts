@@ -154,8 +154,9 @@ export function brawlBotStrength(difficulty: BotLevel, round: number, level: num
   return CONFIG.brawl.botSkill[difficulty] * waveWeight(round, level) * Math.exp(-round / CONFIG.brawl.botFade) * boss;
 }
 
-export function createBotLink(level: number, difficulty: BotLevel): DuelLink {
-  const startedAt = performance.now();
+/** `now` — часы раунда (мс); в бою похода их ведёт движок, чтобы раунды шли быстрее вместе с ходом боя */
+export function createBotLink(level: number, difficulty: BotLevel, now: () => number = () => performance.now()): DuelLink {
+  const startedAt = now();
   const field = new BotField(level, difficulty);
   let handler: (msg: DuelMessage, from: string) => void = () => {};
   let timer: number | null = null;
@@ -185,7 +186,7 @@ export function createBotLink(level: number, difficulty: BotLevel): DuelLink {
 
   const tick = () => {
     if (over) return;
-    const elapsed = (performance.now() - startedAt) / 1000;
+    const elapsed = (now() - startedAt) / 1000;
     while (!over && elapsed >= (round + 1) * CONFIG.duel.roundLength) nextRound();
     if (!over && elapsed - lastState >= CONFIG.duel.stateInterval) {
       lastState = elapsed;
@@ -218,7 +219,7 @@ export function createBotLink(level: number, difficulty: BotLevel): DuelLink {
         form: 1,
         lives: field.lives,
         wave: round,
-        roundT: (performance.now() - startedAt) / 1000 % CONFIG.duel.roundLength,
+        roundT: (now() - startedAt) / 1000 % CONFIG.duel.roundLength,
         roundLength: CONFIG.duel.roundLength,
         faction: CONFIG.races.humans.faction,
         pending: field.inbox,

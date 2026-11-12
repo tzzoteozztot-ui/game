@@ -801,7 +801,10 @@ export default function App() {
       // Бой с армией (просьба Артура 2026-11-06): как дуэль с ботом — волны идут без конца, пока не падёт артефакт вражеского лагеря
       closeDuel();
       const region = REGIONS[world?.region ?? 'frontier'] ?? FRONTIER;
-      handleDuelStart(createBotLink(region.level, (world && armyLevel(world, obj)) || obj.army), region.level, performance.now(), region.level, CONFIG.races.humans.faction, CONFIG.duel.roundLength, battleSeed(obj), 'humans', (eng) => heroIntoBattle(eng, obj));
+      handleDuelStart(createBotLink(region.level, (world && armyLevel(world, obj)) || obj.army, () => engineRef.current?.duelNow() ?? performance.now()), region.level, performance.now(), region.level, CONFIG.races.humans.faction, CONFIG.duel.roundLength, battleSeed(obj), 'humans', (eng) => {
+        eng.duelSpeedable = true; // бой с армией ни с кем не синхронизирован: скорость можно менять, часы раундов идут с ней
+        heroIntoBattle(eng, obj);
+      });
       return;
     }
     setScreen('playing');
@@ -1711,7 +1714,7 @@ export default function App() {
                   isSpawning={gameState.isSpawning}
                   isWaveActive={gameState.isWaveActive}
                   allWavesLaunched={gameState.allWavesLaunched}
-                  duel={gameState.duel}
+                  duel={gameState.duel && !worldBattle}
                   waveCountdown={gameState.waveCountdown}
                   earlyStartBonus={gameState.earlyStartBonus}
                   onStartWave={handleStartWave}
@@ -1811,7 +1814,7 @@ export default function App() {
                 speed={gameState.speed}
                 isPaused={gameState.isPaused}
                 isMuted={audioSettings.muted}
-                duel={gameState.duel}
+                duel={gameState.duel && !worldBattle}
                 onTogglePause={() => engineRef.current?.togglePause()}
                 onSetSpeed={(v) => engineRef.current?.setSpeed(v)}
                 onToggleMute={handleToggleMute}

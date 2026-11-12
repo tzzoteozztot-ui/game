@@ -458,6 +458,13 @@ export class GameEngine {
   public endless: boolean = false;
   // Duel: performance.now() of the duel start; wave N starts N rounds later (shared clock), null outside a duel
   public duelStart: number | null = null;
+  // Бой с армией в походе (просьба Артура 2026-11-12: «в кампании нельзя менять скорость боя»): ни с кем не синхронизирован, поэтому
+  // скорость разрешена, а часы раундов идут с той же скоростью (`duelSkew` — сколько мс добавлено к реальному времени)
+  public duelSpeedable = false;
+  private duelSkew = 0;
+  public duelNow(): number {
+    return performance.now() + this.duelSkew;
+  }
   public duelRoundLength: number = CONFIG.duel.roundLength; // real seconds per round (the brawl has its own)
   public duelOutgoing: Partial<Record<SendType, number>> = {}; // bought, leaves for the opponent with the next wave
   public duelOutgoingCost = 0;
@@ -717,6 +724,8 @@ export class GameEngine {
     this.worldBossName = null;
     this.worldBossTint = null;
     this.duelStart = null;
+    this.duelSpeedable = false;
+    this.duelSkew = 0;
     this.resetView();
     this.duelOutgoing = {};
     this.duelOutgoingCost = 0;
@@ -1204,6 +1213,7 @@ export class GameEngine {
         for (let s = 0; s < steps; s++) {
           this.update(gameDt / steps);
         }
+        if (this.duelSpeedable) this.duelSkew += Math.min(rawDt, 0.25) * 1000 * (this.speedMultiplier - 1);
         this.tickWaveCountdown(Math.min(rawDt, 0.25));
       }
 
@@ -1231,7 +1241,7 @@ export class GameEngine {
     this.faction = Math.max(1, Math.min(CONFIG.factions.length, Math.floor(opponentArmy) || level));
     this.duelStart = startAt;
     if (this.runLog) this.runLog.data.mode = 'duel';
-    this.waveCountdown = this.duelNextWaveAt() / 1000 - performance.now() / 1000;
+    this.waveCountdown = this.duelNextWaveAt() / 1000 - this.duelNow() / 1000;
     this.notifyState();
   }
 
@@ -1456,7 +1466,7 @@ export class GameEngine {
   }
 
   public setSpeed(speed: number) {
-    if (!CONFIG.speeds.includes(speed) || this.duelStart !== null) return; // a duel runs at ×1
+    if (!CONFIG.speeds.includes(speed) || (this.duelStart !== null && !this.duelSpeedable)) return; // a duel runs at ×1 (кроме боя с армией в походе)
     this.speedMultiplier = speed;
     this.notifyState();
   }
@@ -1473,7 +1483,7 @@ export class GameEngine {
     if (this.duelStart !== null) {
       // Duel: the next wave starts on the shared clock, whether or not this one is cleared
       const before = Math.ceil(this.waveCountdown ?? 0);
-      this.waveCountdown = Math.max(0, (this.duelNextWaveAt() - performance.now()) / 1000);
+      this.waveCountdown = Math.max(0, (this.duelNextWaveAt() - this.duelNow()) / 1000);
       if (this.waveCountdown <= 0) this.startNextWave(true);
       else if (Math.ceil(this.waveCountdown) !== before) this.notifyState();
       return;
@@ -1535,7 +1545,7 @@ export class GameEngine {
     this.wavesLaunched++;
     this.rerollsThisWave = 0;
     if (this.boonsOn && this.wavesLaunched % CONFIG.brawl.boonEvery === 0) this.offerBoons();
-    if (duel) this.waveCountdown = Math.max(0, (this.duelNextWaveAt() - performance.now()) / 1000);
+    if (duel) this.waveCountdown = Math.max(0, (this.duelNextWaveAt() - this.duelNow()) / 1000);
     const waveDef = waveDefinition(this.wave);
     this.faction = this.factionOfWave(this.wave);
     const faction = this.faction;
