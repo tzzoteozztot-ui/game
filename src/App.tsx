@@ -756,13 +756,26 @@ export default function App() {
   useEffect(() => {
     if (armyLocked && sideTab === 'army') setSideTab('towers');
   }, [armyLocked, sideTab]);
-  // Сцены посреди боя похода: `wave:<объект>:<N>`; бой с армией не встаёт на паузу, плашка просто поверх поля
+  // Сцены посреди боя похода: `wave:<объект>:<N>`; пока плашка открыта, бой на паузе
   useEffect(() => {
     if (!worldBattle || !world || screen !== 'playing') return;
     const sc = sceneFor(`wave:${worldBattle.id}:${gameState.wave}`, world.scenes, world.flags);
     if (sc && battleScene?.id !== sc.id) setBattleScene(sc);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [worldBattle, gameState.wave, screen]);
+  // Пока идёт реплика посреди боя, бой стоит (в бою с армией часы раундов тоже)
+  const scenePausedRef = useRef(false);
+  useEffect(() => {
+    const eng = engineRef.current;
+    if (!eng) return;
+    if (battleScene && !eng.isPaused) {
+      eng.togglePause();
+      scenePausedRef.current = true;
+    } else if (!battleScene && scenePausedRef.current) {
+      scenePausedRef.current = false;
+      if (eng.isPaused) eng.togglePause();
+    }
+  }, [battleScene]);
   const closeBattleScene = () => {
     if (battleScene && world && !world.scenes.includes(battleScene.id)) setWorld({ ...world, scenes: [...world.scenes, battleScene.id] });
     setBattleScene(null);
