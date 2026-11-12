@@ -96,13 +96,13 @@ export const TUTORIAL: Record<string, TutStep[]> = {
   ford: LEVELS,
   bridge: LEVELS,
   warcamp: [
-    { id: 'tier', text: 'Поднимите ярус лавки: откроются сильные башни, а артефакт получит больше защиты. Нажмите «Ярус».', mark: 'tier', done: (c) => c.gs.tier >= 2, freeze: true },
+    { id: 'tier', text: 'Поднимите ярус лавки: откроются сильные башни, а оборона лагеря станет крепче. Нажмите «Ярус».', mark: 'tier', done: (c) => c.gs.tier >= 2, freeze: true },
     startWave,
   ],
   sq4: [
     {
       id: 'bind-place',
-      text: 'Сефира дала осколок-связку и две готовые башни. Поставьте их на поле: связку и обе башни.',
+      text: 'Сефира дала кристаллический зажим (связку) и две готовые башни. Поставьте их на поле: связку и обе башни.',
       mark: 'backpack',
       grant: [{ type: 'binder', startLevel: 1 }, { type: 'archer', startLevel: 2 }, { type: 'mage', startLevel: 2 }],
       done: (c) => c.gs.towerList.filter((t) => t.level >= 2).length >= 2 && c.gs.binderCount >= 1,

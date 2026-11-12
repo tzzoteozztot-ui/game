@@ -381,6 +381,7 @@ export interface GameStateSnapshot {
   speed: number;
   selectedTower: Tower | null;
   /** Поход, обучение: башни на поле кратко (вид, уровень, число свойств, связана ли, приоритет цели) */
+  heroToken: boolean; // поход: на своём поле стоит Рен вместо артефакта
   towerList: { type: TowerType; level: number; specs: number; bound: boolean; priority: string }[];
   hyperPlanLeft: number; // гипербашня: сколько клеток ещё выбрать (0 — не выбирает)
   eligibleMergeCount: number;
@@ -4999,6 +5000,7 @@ export class GameEngine {
       earlyStartBonus: this.earlyStartBonus(),
       speed: this.speedMultiplier,
       selectedTower: selected,
+      heroToken: this.heroToken,
       towerList: this.towers.map((t) => ({ type: t.type, level: t.level, specs: t.specs.length, bound: !!t.second, priority: t.priority })),
       hyperPlanLeft: this.hyperPlan ? 3 - this.hyperPlan.cells.length : 0,
       eligibleMergeCount: eligibleCount,

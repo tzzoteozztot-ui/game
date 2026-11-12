@@ -248,6 +248,7 @@ export default function App() {
     speed: 1,
     selectedTower: null,
     towerList: [],
+    heroToken: false,
     hyperPlanLeft: 0,
     eligibleMergeCount: 0,
     mergeUsesBinder: false,
@@ -1636,6 +1637,7 @@ export default function App() {
       details={towerDetails}
       onToggleDetails={() => setTowerDetails((d) => !d)}
       castle={gameState.castle}
+      heroToken={gameState.heroToken}
       boons={gameState.boons}
       gold={gameState.gold}
       onUpgradeCastle={() => engineRef.current?.upgradeGuard()}
@@ -1879,6 +1881,7 @@ export default function App() {
                   <div className="absolute left-1.5 bottom-1.5 flex flex-col items-start gap-1.5">
                     {panelSide === 'left' && towerPanel}
                     <FieldStats
+                      heroToken={gameState.heroToken}
                       gold={gameState.gold}
                       lives={gameState.lives}
                       wave={gameState.wave}

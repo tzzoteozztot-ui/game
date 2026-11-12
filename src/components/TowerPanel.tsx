@@ -59,6 +59,7 @@ interface TowerPanelProps {
   details: boolean; // «Подробнее» is open: what the specializations do, the damage dealt
   onToggleDetails: () => void;
   damage: { wave: number; run: number } | null; // damage the selected tower has dealt
+  heroToken?: boolean; // поход: на поле стоит Рен вместо артефакта
   castle?: GameStateSnapshot['castle']; // the artifact's card: HP and its defence
   boons?: GameStateSnapshot['boons']; // brawl: the artifact's boons
   gold?: number;
@@ -143,6 +144,7 @@ export function TowerPanel({
   details,
   onToggleDetails,
   castle = null,
+  heroToken = false,
   boons = [],
   gold = 0,
   onUpgradeCastle,
@@ -167,7 +169,7 @@ export function TowerPanel({
           <div className="w-[var(--h-head)] h-[var(--h-head)] flex items-center justify-center bg-black/30 rounded border border-white/10 shrink-0 text-red-400">
             <HeartCastleIcon size="70%" />
           </div>
-          <div className="flex-1 font-bold text-[length:var(--fs-md)] text-[#7fd6e0]">Артефакт</div>
+          <div className="flex-1 font-bold text-[length:var(--fs-md)] text-[#7fd6e0]">{heroToken ? 'Рен' : 'Артефакт'}</div>
           {closeBtn}
         </div>
         <div className="grid grid-cols-3 gap-1 text-[length:var(--fs-sm)] tabular-nums leading-tight">

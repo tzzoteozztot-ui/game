@@ -9,6 +9,7 @@ import { CONFIG } from '../game/config';
 import { GoldIcon, HeartCastleIcon } from './Icons';
 
 interface FieldStatsProps {
+  heroToken?: boolean;
   gold: number;
   lives: number;
   wave: number;
@@ -23,7 +24,7 @@ interface FieldStatsProps {
 
 const CELL = `calc(100cqw / ${CONFIG.grid.cols})`;
 
-export function FieldStats({ gold, lives, wave, maxWaves, endless, sandbox, supply, opponent, opponentArmy, opponentTitle = 'Соперник' }: FieldStatsProps) {
+export function FieldStats({ heroToken = false, gold, lives, wave, maxWaves, endless, sandbox, supply, opponent, opponentArmy, opponentTitle = 'Соперник' }: FieldStatsProps) {
   return (
     <div
       className="pointer-events-none flex flex-col gap-[2px] rounded-md bg-black/45 border border-white/10 backdrop-blur-[2px] px-[calc(var(--cell)*0.14)] py-[calc(var(--cell)*0.06)] text-white/90 tabular-nums leading-none select-none [text-shadow:0_1px_2px_rgba(0,0,0,0.8)]"
@@ -34,7 +35,7 @@ export function FieldStats({ gold, lives, wave, maxWaves, endless, sandbox, supp
           <GoldIcon size="1.15em" />
           {sandbox ? '∞' : gold}
         </span>
-        <span className="flex items-center gap-1 font-bold text-red-400" title="Прочность артефакта">
+        <span className="flex items-center gap-1 font-bold text-red-400" title={heroToken ? 'Прочность обороны Рена' : 'Прочность артефакта'}>
           <HeartCastleIcon size="1.15em" />
           {lives}
         </span>
