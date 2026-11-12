@@ -42,6 +42,7 @@ import {
   enterRegion,
   REGIONS,
 } from '../campaign/world';
+import { isDevMode } from '../devNotes';
 import { Scene, sceneFor, startTrigger, CAMP_SCENES } from '../campaign/dialogs';
 import { DialogBox } from './DialogBox';
 import { bakeTerrain, drawLive, loadExtras, hexAt, wx, wy, worldW, worldH, HW, P } from '../campaign/worldRender';
@@ -738,22 +739,27 @@ export function WorldMap({ world, region, onChange, onBattle, onExit, onReset }:
                   );
                 })}
               </div>
-              <div className="mt-3 text-xs text-stone-400">Перейти к главе (для проверки: лагерь, герой и ресурсы остаются)</div>
-              <div className="mt-1 grid grid-cols-5 gap-1.5">
-                {Object.values(REGIONS).map((r) => (
-                  <button
-                    key={r.id}
-                    title={r.name}
-                    className={`py-1.5 rounded text-sm font-bold ${r.id === region.id ? 'bg-amber-800/70' : 'bg-[#2a2635] hover:bg-[#3a3448]'}`}
-                    onClick={() => {
-                      setSavesOpen(false);
-                      goNext(r);
-                    }}
-                  >
-                    {r.chapter ?? 1}
-                  </button>
-                ))}
-              </div>
+              {isDevMode() && (
+                <>
+                <div className="mt-3 text-xs text-stone-400">Перейти к главе (для проверки: лагерь, герой и ресурсы остаются)</div>
+                <div className="mt-1 grid grid-cols-5 gap-1.5">
+                  {Object.values(REGIONS).map((r) => (
+                    <button
+                      key={r.id}
+                      title={r.name}
+                      className={`py-1.5 rounded text-sm font-bold ${r.id === region.id ? 'bg-amber-800/70' : 'bg-[#2a2635] hover:bg-[#3a3448]'}`}
+                      onClick={() => {
+                        setSavesOpen(false);
+                        if (r.id === region.id && !window.confirm("Начать эту главу заново? Прогресс главы пропадёт.")) return;
+                        goNext(r);
+                      }}
+                    >
+                      {r.chapter ?? 1}
+                    </button>
+                  ))}
+                </div>
+                </>
+              )}
               <CampaignLogButton world={world} />
               <button className="w-full mt-2 py-2 rounded bg-[#2a2635] hover:bg-[#3a3448] font-bold" onClick={() => setSavesOpen(false)}>
                 Закрыть
