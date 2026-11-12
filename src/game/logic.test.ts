@@ -803,6 +803,26 @@ test('world: moves, battle, loot, mines and days', () => {
   assert.equal(W.stepHero(st, r, W.hexNeighbours(st.hero.x, st.hero.y).find((p) => { const t = W.terrainAt(r, p.x, p.y); return !!t && W.TERRAIN_COST[t] !== null; })!), null);
 });
 
+test('world: a rest of a chosen length returns moves in proportion, the full night starts a new day', async () => {
+  const W = await import('../campaign/world');
+  const st = W.newWorld();
+  st.moves = 0;
+  assert.equal(W.restHero(st, W.FRONTIER, 1), null);
+  assert.equal(st.moves, W.REST_MOVES);
+  assert.equal(st.day, 1);
+  assert.equal(W.restHero(st, W.FRONTIER, 1), null);
+  assert.equal(st.moves, W.REST_MOVES * 2);
+  // the third part ends the day: income and full moves
+  assert.notEqual(W.restHero(st, W.FRONTIER, 1), null);
+  assert.equal(st.day, 2);
+  assert.equal(st.moves, W.MOVES_PER_DAY);
+  assert.equal(st.dayPart, 0);
+  // «до утра» at once
+  st.moves = 3;
+  W.restHero(st, W.FRONTIER, W.REST_PARTS);
+  assert.equal(st.day, 3);
+});
+
 test('world: the camp sells perk levels for resources, up to the top level, and saves them', async () => {
   const { BOONS } = await import('./config');
   const st = W.newWorld();

@@ -118,6 +118,7 @@ export interface WorldState {
   equip: Partial<Record<ItemSlot, string>>; // надетые: слот → id предмета
   scenes: string[]; // показанные сцены диалогов (src/campaign/dialogs.ts)
   flags: string[]; // выборы в событиях — для будущих глав
+  dayPart?: number; // сколько третей дня уже прошло на привалах (просьба Артура 2026-11-12: отдых на выбор)
 }
 
 // -------------------------------------------------------------
@@ -735,7 +736,23 @@ export function dailyIncome(st: WorldState, region: RegionDef): Partial<Resource
 }
 
 /** Новый день: очки хода заново, доход промыслов */
+export const REST_PARTS = 3; // день делится на три части: привал в треть дня возвращает треть очков хода
+export const REST_MOVES = MOVES_PER_DAY / REST_PARTS;
+
+/**
+ * Отдых на выбор (просьба Артура 2026-11-12): `parts` третей дня. Привал на меньшее число возвращает ходы пропорционально;
+ * когда день прошёл целиком (или выбрано «до утра») — наступает новый день и промыслы приносят доход (`endDay`)
+ */
+export function restHero(st: WorldState, region: RegionDef, parts: number): Partial<Resources> | null {
+  const left = REST_PARTS - (st.dayPart ?? 0);
+  if (parts >= left) return endDay(st, region);
+  st.dayPart = (st.dayPart ?? 0) + parts;
+  st.moves = Math.min(MOVES_PER_DAY, st.moves + parts * REST_MOVES);
+  return null;
+}
+
 export function endDay(st: WorldState, region: RegionDef): Partial<Resources> {
+  st.dayPart = 0;
   st.day++;
   st.moves = MOVES_PER_DAY;
   const inc = dailyIncome(st, region);
@@ -785,6 +802,8 @@ export function normalizeWorld(v: unknown): WorldState | null {
     scenes: Array.isArray(o.scenes) ? o.scenes.filter((x): x is string => typeof x === 'string') : [],
     flags: Array.isArray(o.flags) ? o.flags.filter((x): x is string => typeof x === 'string') : [],
   };
+  const part = Math.max(0, Math.min(REST_PARTS - 1, Math.floor(num(o.dayPart))));
+  if (part) st.dayPart = part;
   // Сохранение до диалогов: пролог уже позади
   if (!Array.isArray(o.scenes) && (st.done.length || st.day > 1)) {
     // …и сцены уже пройденного не догоняют игрока все разом
