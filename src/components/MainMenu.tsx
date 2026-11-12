@@ -15,9 +15,10 @@ import { isDevMode, onDevModeChange, setDevMode, loadDevNotes, downloadDevNotes 
 import { downloadRunLog, hasSavedRunLog } from '../game/runLog';
 import { downloadCampaignLog, hasCampaignLog } from '../campaign/worldLog';
 import { loadWorld } from '../campaign/world';
+import { CAMPAIGNS } from '../campaign/campaigns';
 
 export type GameMode = 'endless' | 'duel';
-export type MenuPage = 'home' | 'endless' | 'brawl' | 'sandbox' | 'settings';
+export type MenuPage = 'home' | 'campaign' | 'endless' | 'brawl' | 'sandbox' | 'settings';
 
 interface MainMenuProps {
   page: MenuPage;
@@ -40,6 +41,7 @@ interface MainMenuProps {
   onPlay: () => void;
   onOpenDuel: () => void;
   onOpenWorld: () => void; // кампания: поход по глобальной карте
+  worldSummary: string | null; // в окне выбора кампании: где остановились («Глава 2 · Болотный склеп · день 7»); null — похода ещё нет
   onStartSandbox: (level: number, enemies: number, randomRoad: boolean) => void; // свободный режим: карта, чьи враги (0 — хозяева карты), дорога
   onStartBrawl: (level: number, bots: Difficulty, randomRoad: boolean) => void;
   onOpenBrawlLobby: (mode: 'host' | 'join', level: number, bots: Difficulty, randomRoad: boolean) => void; // network brawl (needs the server)
@@ -97,6 +99,7 @@ export function MainMenu(props: MainMenuProps) {
       {/* my-auto centres the page and lets a screen that is still too low scroll to its top */}
       <div className="my-auto w-full flex flex-col items-center">
         {page === 'home' && <HomePage {...props} />}
+        {page === 'campaign' && <CampaignPage {...props} onBack={home} />}
         {page === 'endless' && <LevelPage {...props} onBack={home} />}
         {page === 'brawl' && <BrawlPage {...props} onBack={home} />}
         {page === 'sandbox' && <SandboxPage {...props} onBack={home} />}
@@ -109,12 +112,12 @@ export function MainMenu(props: MainMenuProps) {
 // -------------------------------------------------------------
 // Home: the four modes
 // -------------------------------------------------------------
-function HomePage({ onChangePage, onOpenDuel, onOpenWorld, duelAvailable, accountLabel }: MainMenuProps) {
+function HomePage({ onChangePage, onOpenDuel, duelAvailable, accountLabel }: MainMenuProps) {
   const fullscreen = useFullscreen();
   const [hint, setHint] = useState(false);
   const standalone = isStandalone();
   const items: { key: string; title: string; hint: string; onClick: () => void; main?: boolean }[] = [
-    { key: 'campaign', title: 'Кампания', hint: 'Поход Рена: пять глав, пять артефактов на глобальной карте', onClick: onOpenWorld, main: true },
+    { key: 'campaign', title: 'Кампания', hint: 'Выбор кампании: поход Рена — пять глав, пять артефактов на глобальной карте', onClick: () => onChangePage('campaign'), main: true },
     { key: 'endless', title: 'Бесконечный режим', hint: 'Волны без конца, рекорд волны', onClick: () => onChangePage('endless') },
     { key: 'brawl', title: 'Потасовка', hint: 'Восемь рубежей, соперник меняется каждую волну', onClick: () => onChangePage('brawl') },
     { key: 'sandbox', title: 'Свободный режим', hint: 'Золото без счёта, башни любого уровня, волны вручную, лог', onClick: () => onChangePage('sandbox') },
@@ -197,6 +200,41 @@ const BRAWL_BOTS: { id: Difficulty; label: string }[] = [
   { id: 'normal', label: 'Средние' },
   { id: 'hard', label: 'Сильные' },
 ];
+
+// -------------------------------------------------------------
+// Кампании: окно выбора, как в Варкрафте 3 (просьба Артура 2026-11-12). Играбельна пока одна, остальные расы — «Скоро»
+// -------------------------------------------------------------
+function CampaignPage({ onBack, onOpenWorld, worldSummary }: MainMenuProps & { onBack: () => void }) {
+  return (
+    <div className="w-full max-w-3xl flex flex-col items-center">
+      <PageHeader title="Кампании" onBack={onBack} />
+      <div className="w-full grid grid-cols-1 sm:grid-cols-2 short:grid-cols-3 gap-2">
+        {CAMPAIGNS.map((c) => {
+          const race = CONFIG.races[c.race];
+          return (
+            <div key={c.id} className={`${PANEL} p-3 flex flex-col gap-1.5 ${c.ready ? 'border-amber-600/50' : 'opacity-60'}`}>
+              <div className="flex items-baseline gap-2">
+                <span className="font-black text-amber-200 text-sm sm:text-base">{c.title}</span>
+                <span className="text-[11px] text-stone-400">{race.name}</span>
+              </div>
+              <div className="text-xs text-stone-300 flex-1">{c.blurb}</div>
+              {c.ready ? (
+                <>
+                  <div className="text-[11px] text-emerald-300">{worldSummary ?? 'Новый поход'}</div>
+                  <button type="button" onClick={onOpenWorld} className={`${BTN} bg-amber-800/70 hover:bg-amber-700`}>
+                    {worldSummary ? 'Продолжить' : 'Начать'}
+                  </button>
+                </>
+              ) : (
+                <div className="text-[11px] text-stone-500 uppercase tracking-wider">🔒 Скоро</div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 
 function BrawlPage({ onBack, unlockedLevel, selectedLevel, onSelectLevel, race, onChangeRace, onStartBrawl, onOpenBrawlLobby, duelAvailable }: MainMenuProps & { onBack: () => void }) {
   const [bots, setBots] = useState<Difficulty>('normal');

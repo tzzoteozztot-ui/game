@@ -1603,6 +1603,7 @@ export default function App() {
             setMode('duel');
             setScreen('duelLobby');
           }}
+          worldSummary={world ? (() => { const r = REGIONS[world.region] ?? FRONTIER; return `Глава ${r.chapter ?? 1} · ${r.name} · день ${world.day}${world.won && !r.next ? ' · поход пройден' : ''}`; })() : null}
           onOpenWorld={() => {
             sound.init();
             if (!world) setWorld(newWorld());
