@@ -57,6 +57,7 @@ import { sound } from '../game/audio';
 import { logReason, logWorldNote, hasCampaignLog, onCampaignLogReady, downloadCampaignLog } from '../campaign/worldLog';
 import { CampPanel } from './CampPanel';
 import { HeroPanel } from './HeroPanel';
+import { WorldEditor } from './WorldEditor';
 
 interface WorldMapProps {
   world: WorldState;
@@ -65,6 +66,10 @@ interface WorldMapProps {
   onBattle: (obj: WorldObj) => void;
   onExit: () => void;
   onReset: () => void;
+  /** Карту правили редактором: родитель перечитывает `REGIONS` */
+  onRegionEdited?: () => void;
+  /** Начать главу с начала на правленой карте */
+  onRestartRegion?: (r: RegionDef) => void;
 }
 
 type Notice = { title: string; text: string; battle?: WorldObj; event?: WorldObj };
@@ -95,7 +100,7 @@ function CampaignLogButton({ world }: { world: WorldState }) {
 
 const copyWorld = (w: WorldState): WorldState => ({ ...w, hero: { ...w.hero }, res: { ...w.res }, done: [...w.done], owned: [...w.owned], seen: [...w.seen], camp: { ...w.camp }, items: [...w.items], equip: { ...w.equip }, scenes: [...w.scenes], flags: [...w.flags] });
 
-export function WorldMap({ world, region, onChange, onBattle, onExit, onReset }: WorldMapProps) {
+export function WorldMap({ world, region, onChange, onBattle, onExit, onReset, onRegionEdited, onRestartRegion }: WorldMapProps) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [size, setSize] = useState({ w: 0, h: 0 });
@@ -113,6 +118,7 @@ export function WorldMap({ world, region, onChange, onBattle, onExit, onReset }:
   const [campOpen, setCampOpen] = useState(false);
   const [heroOpen, setHeroOpen] = useState(false);
   const [journalOpen, setJournalOpen] = useState(false);
+  const [editorOpen, setEditorOpen] = useState(false);
   const [dialog, setDialog] = useState<{ scene: Scene; then?: () => void } | null>(null);
   const [slots, setSlots] = useState<(WorldSlot | null)[]>(() => loadSlots());
   const stRef = useRef(world);
@@ -832,12 +838,30 @@ export function WorldMap({ world, region, onChange, onBattle, onExit, onReset }:
                 </div>
                 </>
               )}
+              <button className="w-full mt-3 py-2 rounded bg-[#2a2635] hover:bg-[#3a3448] text-sm font-bold" onClick={() => { setSavesOpen(false); setEditorOpen(true); }}>
+                ✎ Редактор карты
+                <span className="block text-[11px] font-normal text-stone-400">Местность, объекты, замки, старт — и проверка «пройдём ли»</span>
+              </button>
               <CampaignLogButton world={world} />
               <button className="w-full mt-2 py-2 rounded bg-[#2a2635] hover:bg-[#3a3448] font-bold" onClick={() => setSavesOpen(false)}>
                 Закрыть
               </button>
             </div>
           </div>
+        )}
+
+        {editorOpen && (
+          <WorldEditor
+            regionId={region.id}
+            onClose={() => setEditorOpen(false)}
+            onSaved={() => onRegionEdited?.()}
+            onPlay={(r) => {
+              setEditorOpen(false);
+              setTarget(null);
+              setSelected(false);
+              onRestartRegion?.(r);
+            }}
+          />
         )}
 
         {dialog && <DialogBox scene={dialog.scene} onDone={closeDialog} />}
