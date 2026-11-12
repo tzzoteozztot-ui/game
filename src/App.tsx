@@ -842,7 +842,7 @@ export default function App() {
       if (canvasRef.current && engineRef.current) {
         engineRef.current.setCanvas(canvasRef.current);
         const region = REGIONS[world?.region ?? 'frontier'] ?? FRONTIER;
-        engineRef.current.startWorldBattle(region.level, obj.waves ?? 3, battleSeed(obj), 'normal', { faction: obj.faction, bossLast: obj.bossLast, bossName: obj.bossName, bossTint: obj.bossTint });
+        engineRef.current.startWorldBattle(region.level, obj.waves ?? 3, battleSeed(obj), 'normal', { faction: obj.faction, bossLast: obj.bossLast, bossName: obj.bossName, bossTint: obj.bossTint, countMult: obj.countMult });
         heroIntoBattle(engineRef.current, obj);
         setShopCards(generateShopCards(1));
       }
@@ -897,7 +897,7 @@ export default function App() {
     if (worldBattle) {
       logWorldBattleStart(worldBattle);
       if (canvasRef.current) engine.setCanvas(canvasRef.current);
-      engine.startWorldBattle((REGIONS[world?.region ?? 'frontier'] ?? FRONTIER).level, worldBattle.waves ?? 3, battleSeed(worldBattle), 'normal', { faction: worldBattle.faction, bossLast: worldBattle.bossLast, bossName: worldBattle.bossName, bossTint: worldBattle.bossTint });
+      engine.startWorldBattle((REGIONS[world?.region ?? 'frontier'] ?? FRONTIER).level, worldBattle.waves ?? 3, battleSeed(worldBattle), 'normal', { faction: worldBattle.faction, bossLast: worldBattle.bossLast, bossName: worldBattle.bossName, bossTint: worldBattle.bossTint, countMult: worldBattle.countMult });
       heroIntoBattle(engine, worldBattle);
       return;
     }

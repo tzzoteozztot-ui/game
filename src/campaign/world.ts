@@ -55,6 +55,10 @@ export interface WorldObj {
   name: string;
   /** Отряд, крепость, охрана промысла: бой из первых N волн уровня (крепость — 12, с боссом) */
   waves?: number;
+  /** Множитель числа врагов в волне (первые бои обучения, выбор Артура 2026-11-12: подольше и погуще) */
+  countMult?: number;
+  /** Опыт за бой считается по этому числу волн, если задано (первые бои удлинены, а опыт героя прежний) */
+  xpWaves?: number;
   /** Награда за победу, сундук, святилище */
   reward?: Partial<Resources>;
   /** Промысел: что и сколько даёт каждый новый день */
@@ -220,15 +224,15 @@ const BRIDGE = { x: riverX(23), y: 23 };
 const FRONTIER_OBJECTS: WorldObj[] = [
   { id: 'camp', kind: 'camp', x: 5, y: 16, name: 'Лагерь экспедиции', text: 'Здесь встанут кузня, казна и стены. Пока лагерь только разбит.' },
   // Западный берег: слабые отряды, обучение
-  { id: 'sq1', kind: 'squad', x: 10, y: 14, name: 'Разведка орков', waves: 3, reward: { gold: 40 }, text: 'Несколько разведчиков рода. Слабые, но они нас уже видели.' },
-  { id: 'sq2', kind: 'squad', x: 12, y: 20, name: 'Охотники рода', waves: 3, reward: { gold: 40, wood: 10 }, needs: ['sq1'], teach: ['priest'] },
-  { id: 'sq3', kind: 'squad', x: 16, y: 9, name: 'Дозор рода', waves: 4, reward: { gold: 50, crystal: 1 }, needs: ['shrine'], teach: ['ballista'] },
+  { id: 'sq1', kind: 'squad', x: 10, y: 14, name: 'Разведка орков', waves: 6, countMult: 1.5, xpWaves: 3, reward: { gold: 40 }, text: 'Несколько разведчиков рода. Слабые, но они нас уже видели.' },
+  { id: 'sq2', kind: 'squad', x: 12, y: 20, name: 'Охотники рода', waves: 6, countMult: 1.5, xpWaves: 3, reward: { gold: 40, wood: 10 }, needs: ['sq1'], teach: ['priest'] },
+  { id: 'sq3', kind: 'squad', x: 16, y: 9, name: 'Дозор рода', waves: 8, countMult: 1.5, xpWaves: 4, reward: { gold: 50, crystal: 1 }, needs: ['shrine'], teach: ['ballista'] },
   { id: 'chest1', kind: 'chest', x: 8, y: 10, name: 'Брошенный обоз', reward: { gold: 50 }, needs: ['sq1'] },
   { id: 'chest2', kind: 'chest', x: 4, y: 22, name: 'Сложенный лес', reward: { wood: 20 }, needs: ['sq2'] },
   { id: 'chest3', kind: 'chest', x: 14, y: 4, name: 'Тайник контрабандистов', reward: { gold: 60 }, item: 'crossbow', needs: ['sq3'] },
   { id: 'chest4', kind: 'chest', x: 17, y: 27, name: 'Разбитая телега', reward: { gold: 30, crystal: 1 }, item: 'mail' },
-  { id: 'quarry', kind: 'mine', x: 6, y: 6, name: 'Каменоломня', waves: 3, income: { wood: 4 }, needs: ['sq2'], text: 'Старая каменоломня, орки держат здесь пост.' },
-  { id: 'saw', kind: 'mine', x: 8, y: 26, name: 'Лесопилка', waves: 3, income: { wood: 5 }, needs: ['quarry'], teach: ['mage'], text: 'Орки рубят здесь лес. Отобьём — будет дерево каждый день.' },
+  { id: 'quarry', kind: 'mine', x: 6, y: 6, name: 'Каменоломня', waves: 6, countMult: 1.5, xpWaves: 3, income: { wood: 4 }, needs: ['sq2'], text: 'Старая каменоломня, орки держат здесь пост.' },
+  { id: 'saw', kind: 'mine', x: 8, y: 26, name: 'Лесопилка', waves: 6, countMult: 1.5, xpWaves: 3, income: { wood: 5 }, needs: ['quarry'], teach: ['mage'], text: 'Орки рубят здесь лес. Отобьём — будет дерево каждый день.' },
   { id: 'shrine', kind: 'shrine', x: 19, y: 16, name: 'Камень предков', reward: { crystal: 2 }, item: 'idol', needs: ['saw'], text: 'Орки приносят сюда дары. Камень звенит так же, как наш артефакт.' },
   {
     id: 'warcamp', kind: 'squad', x: 21, y: 3, name: 'Военный лагерь рода', waves: 6, reward: { gold: 250, wood: 30, crystal: 4 }, item: 'warbanner', needsAny: ['ford', 'bridge'], // ярус лавки и защита — после уроков уровней (Лоровед, 2026-11-06)
@@ -983,7 +987,7 @@ export const heroLevel = (st: WorldState) => HERO_LEVELS.filter((x) => st.xp >= 
 /** Опыт за победу: 10 за волну, бой с армией и крепость — 100 */
 export function battleXp(o: WorldObj): number {
   if (o.army || o.kind === 'fortress') return 100;
-  return (o.waves ?? 0) * 10;
+  return (o.xpWaves ?? o.waves ?? 0) * 10;
 }
 
 export function giveItem(st: WorldState, id: string | undefined) {

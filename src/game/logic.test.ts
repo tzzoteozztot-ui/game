@@ -1130,7 +1130,7 @@ test('botFieldView: присланные боту враги видны — жд
 });
 
 test('лог похода: разность состояний называет действие и хранит все числа', async () => {
-  const { newWorld, FRONTIER, stepHero, endDay, upgradeCamp, winBattle, findPath } = await import('../campaign/world');
+  const { newWorld, FRONTIER, stepHero, endDay, upgradeCamp, winBattle, findPath, battleXp } = await import('../campaign/world');
   const { diffWorld, logWorldChange, logBattleStart, logBattleEnd, buildCampaignLog, resetCampaignLogForTest, campaignLogHead } = await import('../campaign/worldLog');
   const copy = <T,>(v: T): T => JSON.parse(JSON.stringify(v));
   resetCampaignLogForTest();
@@ -1165,7 +1165,7 @@ test('лог похода: разность состояний называет 
   winBattle(w, FRONTIER, squad.id);
   const won = diffWorld(d1, w, { kind: 'battle-won' })!;
   assert.equal(won.kind, 'battle-won');
-  assert.equal((won.d as { xp: number }).xp, (squad.waves ?? 0) * 10);
+  assert.equal((won.d as { xp: number }).xp, battleXp(squad));
   assert.deepEqual((won.d as { done: string[] }).done, [squad.id]);
 
   // Лагерь: цена уходит в разность ресурсов

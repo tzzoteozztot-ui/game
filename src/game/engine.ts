@@ -462,6 +462,8 @@ export class GameEngine {
   public isPaused: boolean = false;
   // Слияние закрыто, пока в обучении похода не пройден урок о нём (просьба Артура 2026-11-12); сбрасывается с каждой партией
   public mergeLocked = false;
+  // Поход: во сколько раз больше врагов в волне (первые бои обучения)
+  public worldCountMult = 1;
   public speedMultiplier: number = 1; // one of CONFIG.speeds
   // Real-time countdown to the next wave (not scaled by game speed); null while a wave runs
   public waveCountdown: number | null = null;
@@ -791,6 +793,7 @@ export class GameEngine {
     this.duelStart = null;
     this.duelSpeedable = false;
     this.mergeLocked = false;
+    this.worldCountMult = 1;
     this.duelSkew = 0;
     this.pausedClock = null;
     this.stageEnds = [];
@@ -865,8 +868,9 @@ export class GameEngine {
    * Бой похода по глобальной карте (просьба Артура 2026-11-06): уровень биома, первые `waves` волн,
    * своя дорога из генератора по зерну отряда (крепость — готовая карта уровня, `seed` = null).
    */
-  public startWorldBattle(level: number, waves: number, seed: number | null, diff: Difficulty = 'normal', opts: { faction?: number; bossLast?: boolean; bossName?: string; bossTint?: string } = {}) {
+  public startWorldBattle(level: number, waves: number, seed: number | null, diff: Difficulty = 'normal', opts: { faction?: number; bossLast?: boolean; bossName?: string; bossTint?: string; countMult?: number } = {}) {
     this.startLevel(level, diff, false, undefined, 'humans', null, seed ? generateMap(level, seed) : null);
+    this.worldCountMult = opts.countMult && opts.countMult > 0 ? opts.countMult : 1;
     this.waveLimit = Math.max(1, Math.min(CONFIG.waves.length, Math.floor(waves)));
     // Поход: чужие враги на биоме карты (порабощённые солдаты экспедиции в главе 3 — люди) и босс последней волны боя (Каллен)
     if (opts.faction && opts.faction >= 1 && opts.faction <= CONFIG.factions.length) this.faction = Math.floor(opts.faction);
@@ -1645,7 +1649,7 @@ export class GameEngine {
 
     // Helper to calculate count
     const getCount = (count?: number) =>
-      count ? calculateEnemyCount(count, this.level, this.wave, this.endless, this.difficulty, duel) : 0;
+      count ? calculateEnemyCount(count * this.worldCountMult, this.level, this.wave, this.endless, this.difficulty, duel) : 0;
 
     const list: EnemyType[] = [];
     if (waveDef.infantry) {
@@ -1737,7 +1741,7 @@ export class GameEngine {
     if (!this.endless && number > this.lastWave()) return null;
     const def = waveDefinition(number);
     const duel = this.duelStart !== null;
-    const count = (n?: number) => (n ? calculateEnemyCount(n, this.level, number, this.endless, this.difficulty, duel) : 0);
+    const count = (n?: number) => (n ? calculateEnemyCount(n * this.worldCountMult, this.level, number, this.endless, this.difficulty, duel) : 0);
     const out: { type: EnemyType; count: number }[] = [];
     const add = (type: EnemyType, c: number) => {
       if (c > 0) out.push({ type, count: c });
