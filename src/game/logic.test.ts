@@ -1189,6 +1189,50 @@ test('лог похода: разность состояний называет 
   assert.ok(file.regions.frontier);
 });
 
+test('world: every region can be finished with the zone rules on — a squad never seals the way to what the chain needs', async () => {
+  const W = await import('../campaign/world');
+  const { blockerFor } = await import('../campaign/zone');
+  for (const region of Object.values(W.REGIONS)) {
+    const st = W.newWorld(region);
+    // The whole map is known: walking is checked by terrain and zones, not by fog
+    st.seen = Array.from({ length: region.terrain.length * region.terrain[0].length }, (_, i) => i);
+    const reach = (goal: { x: number; y: number }) => {
+      const key = (p: { x: number; y: number }) => `${p.x},${p.y}`;
+      const seen = new Set([key(st.hero)]);
+      const queue = [{ ...st.hero }];
+      while (queue.length) {
+        const cur = queue.shift()!;
+        if (cur.x === goal.x && cur.y === goal.y) return true;
+        for (const n of W.hexNeighbours(cur.x, cur.y)) {
+          const t = W.terrainAt(region, n.x, n.y);
+          if (!t || W.TERRAIN_COST[t] === null || seen.has(key(n))) continue;
+          const o = W.objectAt(st, region, n.x, n.y);
+          if (o && (o.x !== goal.x || o.y !== goal.y) && (W.isHostile(st, o) || W.isLocked(st, o))) continue;
+          const g = blockerFor(st, region, cur, n);
+          if (g && !(g.x === goal.x && g.y === goal.y)) continue;
+          seen.add(key(n));
+          queue.push(n);
+        }
+      }
+      return false;
+    };
+    let guard = 0;
+    while (!st.won && guard++ < 200) {
+      const next = region.objects.find((o) => !W.isHidden(st, o) && W.isHostile(st, o) && !W.isLocked(st, o) && reach(o));
+      if (!next) {
+        // events and chests may open the chain: visit the free ones
+        const free = region.objects.find((o) => !W.isHidden(st, o) && (o.kind === 'chest' || o.kind === 'shrine' || o.kind === 'event') && !st.done.includes(o.id) && !W.isLocked(st, o) && reach(o));
+        if (!free) break;
+        st.done.push(free.id);
+        st.hero = { x: free.x, y: free.y };
+        continue;
+      }
+      W.winBattle(st, region, next.id);
+    }
+    assert.ok(st.won, `${region.id}: stuck, left: ${region.objects.filter((o) => W.isHostile(st, o)).map((o) => o.id).join(', ')}`);
+  }
+});
+
 import { checkRegion } from '../campaign/regionCheck';
 
 test('world editor: built-in regions pass the check; a broken lock and a walled-in squad are caught; edits round-trip', () => {

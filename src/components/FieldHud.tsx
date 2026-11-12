@@ -55,6 +55,7 @@ export function FieldHud({
         <div className="h-full flex items-center justify-center" style={{ width: `calc(var(--cell) * ${HUD_LEFT_COLS - (duel || sandbox ? 0 : 1)})` }}>
           <button
             type="button"
+            data-tut="wave"
             onClick={sandbox ? onOpenSandboxWave : onStartWave}
             disabled={waveOff}
             title={duel ? 'В дуэли волны выходят у обоих разом' : 'Начать волну (Пробел)'}
@@ -99,6 +100,7 @@ export function FieldHud({
           <div className="h-full flex items-center justify-center mr-auto" style={{ width: 'var(--cell)' }}>
             <button
               type="button"
+              data-tut="auto"
               onClick={onToggleAutoStart}
               title="Автостарт: следующая волна начинается сразу после зачистки"
               aria-pressed={autoStart}

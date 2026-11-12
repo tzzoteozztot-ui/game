@@ -117,6 +117,7 @@ export function ShopPanel({
               <button
                 key={card.id}
                 type="button"
+                data-tut="shop-binder"
                 onClick={() => onSelectCard(idx)}
                 title={`${CONFIG.binder.name}: связывает две башни разных видов Ур.2 или Ур.3 в одну — ${binderCost} золота (${idx + 1})`}
                 className={`h-[var(--h-card)] rounded border flex flex-col items-center justify-center relative transition-all cursor-pointer select-none shrink-0 ${
@@ -151,6 +152,7 @@ export function ShopPanel({
             <button
               key={card.id}
               type="button"
+              data-tut={`shop-${card.type}`}
               onClick={() => onSelectCard(idx)}
               title={`${baseDef.name}${card.level3 ? ' ★★ (сразу Ур.3)' : card.isTriplet ? ' ★ (сразу Ур.2)' : ''} — ${cost} золота (${idx + 1}), урон: ${DAMAGE_TYPES[baseDef.damageType].name.toLowerCase()}${baseDef.desc ? '. ' + baseDef.desc : ''}`}
               className={`h-[var(--h-card)] rounded border flex flex-col items-center justify-center relative transition-all cursor-pointer select-none shrink-0 ${
@@ -198,6 +200,7 @@ export function ShopPanel({
         })}
         <button
           type="button"
+          data-tut="reroll"
           onClick={onReroll}
           disabled={gold < rerollCost}
           className={`h-[var(--h-card)] px-1 rounded border text-[length:var(--fs-md)] font-semibold flex flex-col items-center justify-center gap-0.5 transition-colors cursor-pointer ${
@@ -220,6 +223,7 @@ export function ShopPanel({
       {/* Tier Upgrade Button */}
       <button
         type="button"
+        data-tut="tier"
         onClick={onUpgradeTier}
         disabled={tier >= 5 || (tierCost !== null && gold < tierCost)}
         className={`h-[var(--h-tier,clamp(24px,6.2cqh,52px))] w-full px-1 rounded border text-[length:var(--fs-md)] font-semibold flex items-center justify-center gap-1 transition-colors cursor-pointer shrink-0 ${

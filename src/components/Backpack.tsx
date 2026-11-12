@@ -20,7 +20,7 @@ export function Backpack({ items, slots, placingSlot, onSelect, onSell, onMerge 
   const overflow = items.length > slots; // a purchase that found no free slot
   const inHand = placingSlot !== null && placingSlot < slots ? items[placingSlot] : null;
   return (
-    <div className="w-full px-1.5 pb-1.5 bg-[#171520] text-[#f4f2e6] flex flex-col gap-1 shrink-0 select-none">
+    <div data-tut="backpack" className="w-full px-1.5 pb-1.5 bg-[#171520] text-[#f4f2e6] flex flex-col gap-1 shrink-0 select-none">
       {/* Header line: the label, or «Продать» for the item in hand */}
       <div className="h-[var(--h-line)] flex items-center justify-between gap-1 px-0.5 leading-none">
         {/* In a narrow column the label gives way to «Продать» */}
@@ -36,6 +36,7 @@ export function Backpack({ items, slots, placingSlot, onSelect, onSell, onMerge 
           {inHand.canMerge && (
             <button
               type="button"
+              data-tut="merge"
               onClick={() => onMerge(placingSlot)}
               title="Собрать стопку в башню следующего уровня (как слияние на поле)"
               className="h-full px-1.5 rounded border border-amber-500 bg-amber-950/50 hover:bg-amber-900/50 text-[length:var(--fs-xs)] font-semibold text-amber-200 cursor-pointer whitespace-nowrap"

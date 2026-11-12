@@ -23,3 +23,12 @@ body,
 
 /* Low landscape screen (a phone on its side): menus switch to two columns so nothing has to scroll */
 @custom-variant short (@media (orientation: landscape) and (max-height: 560px));
+
+/* Обучение в бою: подсвеченная кнопка (src/components/TutorialHint.tsx) */
+@keyframes tut-pulse {
+  0%, 100% { box-shadow: 0 0 0 2px rgba(250, 204, 21, 0.9), 0 0 8px 2px rgba(250, 204, 21, 0.5); }
+  50% { box-shadow: 0 0 0 3px rgba(250, 204, 21, 1), 0 0 20px 6px rgba(250, 204, 21, 0.9); }
+}
+.tut-pulse {
+  animation: tut-pulse 1s ease-in-out infinite;
+}
