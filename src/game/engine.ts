@@ -165,6 +165,7 @@ export interface Enemy {
   armor: number;
   magicResist: number;
   gold: number;
+  clearGold?: number; // Потасовка: доля награды за зачистку волны, которую даёт убийство этого врага
   entranceIndex: number;
   pathIndex: number; // index in current map path
   isFlyer: boolean;
@@ -587,7 +588,7 @@ export class GameEngine {
   private lastWave(): number {
     return this.waveLimit ?? CONFIG.waves.length;
   }
-  public spawnQueue: { type: EnemyType; entrance: number; sent?: boolean; faction?: number }[] = []; // sent: by the duel opponent
+  public spawnQueue: { type: EnemyType; entrance: number; sent?: boolean; faction?: number; clear?: number }[] = []; // sent: by the duel opponent
   private spawnTimer: number = 0;
   private currentEntranceIndex: number = 0;
 
@@ -625,6 +626,9 @@ export class GameEngine {
   public guardLevel = 1; // level of the artifact's own defence (CONFIG.siege.guard)
   // Brawl: the artifact's boons (CONFIG.brawl.boons) — one of three after every 3rd wave (просьба Артура 2026-11-01)
   public boonsOn = false;
+  /** Орки: закалка, выбранная для вида башни (одна на вид за партию, Артур 2026-11-13) */
+  public orcTemper: Record<string, string> = {};
+  private clearCarry = 0; // Потасовка: недоплаченные дроби награды за зачистку
   /** Поход: уровни пассивок лагеря (id усиления → уровень); каждый уровень — ещё одна доля усиления */
   public campLevels: Record<string, number> = {};
   /** Поход: умения героя на этот бой и их перезарядка (игровые секунды) */
@@ -787,6 +791,8 @@ export class GameEngine {
     this.faction = endless && faction ? Math.max(1, Math.min(CONFIG.factions.length, Math.floor(faction))) : this.level;
     this.waveFactionFor = null;
     this.boonsOn = false;
+    this.orcTemper = {};
+    this.clearCarry = 0;
     this.boons = [];
     this.campLevels = {};
     this.heroSkills = [];
@@ -1663,7 +1669,7 @@ export class GameEngine {
 
     // Helper to calculate count
     const getCount = (count?: number) =>
-      count ? calculateEnemyCount(count * this.worldCountMult, this.level, this.wave, this.endless, this.difficulty, duel) : 0;
+      count ? calculateEnemyCount(count * this.worldCountMult, this.difficultyLevel(), this.wave, this.endless, this.difficulty, duel) : 0;
 
     const list: EnemyType[] = [];
     if (waveDef.infantry) {
@@ -1727,6 +1733,13 @@ export class GameEngine {
       this.spawnQueue.push({ type: 'boss', entrance: 0, faction });
     }
 
+    if (this.boonsOn) {
+      // Потасовка: награда за зачистку не ждёт пустого поля — её платят за каждого убитого врага волны поровну
+      // (Артур, 2026-11-13: «пропорционально убитым»), в доле CONFIG.brawl.clearShare
+      const n = this.spawnQueue.length - queued0;
+      const share = n > 0 ? (calculateWaveClearReward(this.wave) * CONFIG.brawl.clearShare) / n : 0;
+      for (let i = queued0; i < this.spawnQueue.length; i++) this.spawnQueue[i].clear = share;
+    }
     this.logWaveStart(queued0);
     this.isSpawning = true;
     this.waveInProgress = true;
@@ -1755,7 +1768,7 @@ export class GameEngine {
     if (!this.endless && number > this.lastWave()) return null;
     const def = waveDefinition(number);
     const duel = this.duelStart !== null;
-    const count = (n?: number) => (n ? calculateEnemyCount(n * this.worldCountMult, this.level, number, this.endless, this.difficulty, duel) : 0);
+    const count = (n?: number) => (n ? calculateEnemyCount(n * this.worldCountMult, this.difficultyLevel(), number, this.endless, this.difficulty, duel) : 0);
     const out: { type: EnemyType; count: number }[] = [];
     const add = (type: EnemyType, c: number) => {
       if (c > 0) out.push({ type, count: c });
@@ -1935,7 +1948,7 @@ export class GameEngine {
     this.resetWaveStats();
   }
 
-  private spawnEnemy(type: EnemyType, entranceIdx: number, sent = false, faction: number = this.faction) {
+  private spawnEnemy(type: EnemyType, entranceIdx: number, sent = false, faction: number = this.faction, clearGold = 0) {
     const baseDef = CONFIG.enemies[type];
     const entrance = this.currentMap.entrances[entranceIdx];
     const path = this.currentMap.paths[entranceIdx];
@@ -1953,7 +1966,7 @@ export class GameEngine {
       totalLen = path.length * CONFIG.grid.cellSize;
     }
 
-    const hp = calculateEnemyHp(baseDef.hp, type, this.wave, this.level, this.difficulty, this.endless, faction);
+    const hp = calculateEnemyHp(baseDef.hp, type, this.wave, this.difficultyLevel(), this.difficulty, this.endless, faction);
     const armorBonus = this.endless ? endlessArmorBonus(this.wave) : 0;
     const killGold = Math.round(calculateKillGold(baseDef.gold, this.level, this.wave, this.supplyActive()) * (CONFIG.races[this.race].killGoldMult ?? 1) * (1 + this.boon('loot')));
     const gold = sent ? Math.round(killGold * CONFIG.duel.sentKillGoldShare) : killGold;
@@ -1976,6 +1989,7 @@ export class GameEngine {
       armor: Math.min(0.9, baseDef.armor + armorBonus),
       magicResist: Math.min(0.9, baseDef.magicResist + armorBonus),
       gold,
+      clearGold: clearGold > 0 ? clearGold : undefined,
       entranceIndex: entranceIdx,
       pathIndex: 0,
       isFlyer,
@@ -2025,7 +2039,7 @@ export class GameEngine {
       if (this.spawnTimer <= 0) {
         if (this.spawnQueue.length > 0) {
           const next = this.spawnQueue.shift()!;
-          this.spawnEnemy(next.type, next.entrance, next.sent, next.faction);
+          this.spawnEnemy(next.type, next.entrance, next.sent, next.faction, next.clear);
           const interval = next.type === 'swarm' ? CONFIG.swarmInterval : CONFIG.spawnInterval;
           this.spawnTimer = interval;
         } else {
@@ -2045,12 +2059,15 @@ export class GameEngine {
         this.notifyState();
       } else if (this.endless || this.wave <= this.lastWave()) {
         // Wave cleared!
-        const reward = calculateWaveClearReward(this.wave);
+        // Потасовка платит награду за каждого убитого врага (см. startNextWave), не за пустое поле
+        const reward = this.boonsOn ? 0 : calculateWaveClearReward(this.wave);
         this.gold += reward;
         this.statGold(reward);
         if (this.duelStart === null) this.publishWaveSummary(); // a duel closes them on the clock
-        this.addFloatingText(`Волна ${this.wave} зачищена! +${reward} золота`, CONFIG.grid.totalWidth / 2, 80, '#f4c06a');
-        sound.playBuy();
+        if (reward > 0) {
+          this.addFloatingText(`Волна ${this.wave} зачищена! +${reward} золота`, CONFIG.grid.totalWidth / 2, 80, '#f4c06a');
+          sound.playBuy();
+        }
 
         if (!this.endless && this.wave === this.lastWave()) {
           // Level Completed!
@@ -2660,8 +2677,24 @@ export class GameEngine {
     return this.mods.get(t.id) ?? GameEngine.NO_MODS;
   }
 
+  /** Номер карты в надбавке сложности: в Потасовке её нет (Артур, 2026-11-13), карты различаются дорогой, видом и расой хозяев */
+  private difficultyLevel(): number {
+    return this.boonsOn ? 1 : this.level;
+  }
+
   private markModsDirty() {
     this.modsDirty = true;
+    this.applyOrcTemper();
+  }
+
+  /** Орки: все башни вида несут выбранную закалку, по одной на уровень (Ур.N — ×N) */
+  private applyOrcTemper() {
+    for (const t of this.towers) {
+      const spec = this.orcTemper[t.type];
+      if (spec && CONFIG.towers[t.type].race === 'orcs' && (t.specs.length !== t.level || t.specs[0] !== spec)) {
+        t.specs = Array(t.level).fill(spec);
+      }
+    }
   }
 
   private computeMods() {
@@ -3486,6 +3519,16 @@ export class GameEngine {
       this.gold += e.gold;
       this.statGold(e.gold);
       this.addFloatingText(`+${e.gold}`, e.x, e.y - 10, '#f4c06a');
+    }
+    if (e.clearGold) {
+      // Доля награды за зачистку: дробную часть копим, платим целыми
+      this.clearCarry += e.clearGold;
+      const pay = Math.floor(this.clearCarry);
+      if (pay > 0) {
+        this.clearCarry -= pay;
+        this.gold += pay;
+        this.statGold(pay);
+      }
     }
 
     this.notifyState();
@@ -4455,11 +4498,10 @@ export class GameEngine {
   }
 
   // A part that just reached Ур.2 without a specialization asks for one: the main part first
-  /** A part still has to choose: люди on reaching Ур.2, орки on placing and every new level, нежить on every merge */
+  /** A part still has to choose: люди on reaching Ур.2, орки once per tower kind (the first one placed); у нежити выбора нет */
   public specPending(part: TowerPart): boolean {
     const race = CONFIG.towers[part.type].race ?? 'humans';
-    if (race === 'orcs') return part.specs.length < part.level;
-    if (race === 'undead') return part.specs.length < part.level - 1;
+    if (race === 'orcs') return !this.orcTemper[part.type];
     if (race !== 'humans') return false;
     return part.level === 2 && part.specs.length === 0;
   }
@@ -4848,9 +4890,12 @@ export class GameEngine {
     const tower = this.towers.find((t) => t.id === towerId);
     if (!tower) return;
     const race = CONFIG.towers[tower.type].race;
-    if (race === 'orcs' || race === 'undead') {
-      // Each tempering / merge choice adds up
-      if (this.specPending(tower)) tower.specs = [...tower.specs, specId];
+    if (race === 'orcs') {
+      // One tempering for the whole kind: every tower of it, now and later
+      if (this.specPending(tower) && CONFIG.towers[tower.type].specs.some((sp) => sp.id === specId)) {
+        this.orcTemper[tower.type] = specId;
+        this.markModsDirty();
+      }
     } else if (part === 'second' && tower.second) tower.second.specs = [specId];
     else tower.specs = [specId];
     this.logEv('spec', { id: tower.id, type: tower.type, level: tower.level, part, spec: specId, x: tower.x, y: tower.y });

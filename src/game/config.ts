@@ -111,16 +111,11 @@ export const DAMAGE_TYPES: Record<DamageType, { name: string; short: string; ico
   poison: { name: 'Яд', short: 'яд', icon: '☠', color: '#8fd45a' },
 };
 
-// Орки: закалка при постановке и на каждом новом уровне (выбор Артура 2026-11-01)
+// Орки: закалка — один выбор на вид башни за партию (Артур, 2026-11-13; раньше — на каждую башню и уровень)
 const ORC_SPECS: TowerSpecDef[] = [
   { id: 'orc_dmg', name: 'Сила', desc: '+12 % урона' },
   { id: 'orc_speed', name: 'Быстрота', desc: '+12 % скорости атаки' },
   { id: 'orc_range', name: 'Зоркость', desc: '+0,3 клетки радиуса' },
-];
-// Нежить: при слиянии двух башен объединённая усиливает урон или скорость ×2,4
-const UNDEAD_SPECS: TowerSpecDef[] = [
-  { id: 'und_dmg', name: 'Урон', desc: 'Урон ×2,4' },
-  { id: 'und_speed', name: 'Скорость', desc: 'Скорость атаки ×2,4' },
 ];
 
 export interface RaceDef {
@@ -355,22 +350,22 @@ export const CONFIG = {
     // ---------------- Нежить: слияние двух, выбор «урон или скорость» ----------------
     und_archer: {
       type: 'und_archer', race: 'undead', name: 'Костяной лучник', cost: 40, damage: 9, damageType: 'phys', cooldown: 0.7, range: 2.7,
-      shape: 'triangle', color: '#c9d6b0', sprite: 'enemy_scout_2', sound: 'archer', specs: UNDEAD_SPECS,
+      shape: 'triangle', color: '#c9d6b0', sprite: 'enemy_scout_2', sound: 'archer', specs: [],
       desc: 'Дешёвый дальний стрелок.',
     } as TowerBaseDef,
     und_digger: {
       type: 'und_digger', race: 'undead', name: 'Могильщик', cost: 55, damage: 5, damageType: 'ice', cooldown: 1.0, range: 2.5,
-      shape: 'circle', color: '#9fb88a', sprite: 'enemy_infantry_2', sound: 'priest', specs: UNDEAD_SPECS,
+      shape: 'circle', color: '#9fb88a', sprite: 'enemy_infantry_2', sound: 'priest', specs: [],
       desc: 'Замедляет цель на 30 % на 3 с. Враг, убитый в его радиусе, становится призраком: соседи замедлены на 20 % на 1 с.',
     } as TowerBaseDef,
     und_cauldron: {
       type: 'und_cauldron', race: 'undead', name: 'Чумной котёл', cost: 70, damage: 6, damageType: 'poison', cooldown: 1.4, range: 2.6, aoe: 0.9,
-      shape: 'rhombus', color: '#8fd45a', sprite: 'enemy_shaman_2', sound: 'mage', specs: UNDEAD_SPECS,
+      shape: 'rhombus', color: '#8fd45a', sprite: 'enemy_shaman_2', sound: 'mage', specs: [],
       desc: 'Яд по области: 25 % урона в секунду 4 с; при гибели отравленного яд переходит на соседа.',
     } as TowerBaseDef,
     und_crypt: {
       type: 'und_crypt', race: 'undead', name: 'Склеп', cost: 90, damage: 6, damageType: 'poison', cooldown: 8, range: 2.0, minTier: 2,
-      shape: 'square', color: '#7a8a6a', sprite: 'enemy_heavy_2', sound: 'mage', special: 'crypt', specs: UNDEAD_SPECS,
+      shape: 'square', color: '#7a8a6a', sprite: 'enemy_heavy_2', sound: 'mage', special: 'crypt', specs: [],
       desc: 'Копит души убитых в радиусе (до 10); раз в 8 с залп по всем в радиусе: 6 урона за каждую душу. В лавке со 2-го яруса.',
     } as TowerBaseDef,
 
@@ -668,13 +663,13 @@ export const CONFIG = {
     orcs: {
       id: 'orcs', name: 'Орки', faction: 1, towers: ['orc_spear', 'orc_totem', 'orc_trebuchet', 'orc_cage'],
       merge: 4, levelDamage: 4.4, levelRange: 1.1, binders: false, triplets: false,
-      features: ['Каждая башня при постановке и на каждом новом уровне получает закалку на выбор: сила, быстрота или зоркость.', 'Уровень растёт от четырёх одинаковых башен (урон ×4,4).', 'Отряд: три орочьи башни разных видов в соседних клетках — +10 % урона каждой.'],
+      features: ['Закалка выбирается один раз на вид башни (при постановке первой): сила, быстрота или зоркость; с каждым уровнем башни она действует сильнее.', 'Уровень растёт от четырёх одинаковых башен (урон ×4,4).', 'Отряд: три орочьи башни разных видов в соседних клетках — +10 % урона каждой.'],
     },
     undead: {
       id: 'undead', name: 'Нежить', faction: 2, towers: ['und_archer', 'und_digger', 'und_cauldron', 'und_crypt'],
       merge: 2, maxLevel: 5, levelDamage: 2.4, levelRange: 1.05, binders: false, triplets: false, sellRatio: 0.8,
       supply: { free: 30, step: 20, growth: 1.06 },
-      features: ['Две одинаковые башни сливаются в одну: на выбор урон или скорость ×2,4 (слияние выгоднее двух отдельных). Уровней пять.', 'Продажа возвращает 80 %, сила стола дорожает мягче (×1,06).', 'Слабое начало, сила к поздним волнам.'],
+      features: ['Две одинаковые башни сливаются в одну: урон ×2,4 (слияние выгоднее двух отдельных). Уровней пять.', 'Продажа возвращает 80 %, сила стола дорожает мягче (×1,06).', 'Слабое начало, сила к поздним волнам.'],
     },
     cultists: {
       id: 'cultists', name: 'Культисты льда', faction: 3, towers: ['cul_archer', 'cul_altar', 'cul_pillar', 'cul_spike'],
@@ -851,6 +846,9 @@ export const CONFIG = {
   brawl: {
     players: 8,
     roundLength: 40, // real seconds per round (Артур, 2026-11-01: короче дуэли)
+    // Награда за зачистку волны (rules.calculateWaveClearReward) × clearShare делится на врагов волны и платится за каждого убитого
+    // (Артур, 2026-11-13; раньше — только тому, у кого поле опустело)
+    clearShare: 0.3, // подобрано ботом (2026-11-13): награда за зачистку даёт ~13 % дохода, как раньше (при 1 — 36 %, раньше 10–19 %)
     // Bot defence in the brawl: skill × its wave's weight on this map × e^(−wave / fade), ×0,8 on a boss wave —
     // a bot fits any map and falls behind with time, like a player (Артур, 2026-11-01: «боты под карту»)
     botSkill: { easy: 1.6, normal: 2.1, hard: 3.4 },

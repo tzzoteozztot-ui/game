@@ -73,12 +73,17 @@ export class BotField {
     if (model === 'brawl') this.form = 1 - CONFIG.brawl.botFormSpread + Math.random() * 2 * CONFIG.brawl.botFormSpread;
   }
 
+  /** Надбавка сложности за номер карты в Потасовке убрана (Артур, 2026-11-13): у ботов потасовки волна как на карте 1 */
+  private get scale(): number {
+    return this.model === 'brawl' ? 1 : this.level;
+  }
+
   /** Wave `round` hits: what it was sent joins the wave; an overload costs HP. Returns true when the artifact fell */
   defend(round: number): boolean {
     if (this.model === 'brawl') this.takeBoons(round);
-    const base = this.model === 'brawl' ? brawlBotStrength(this.difficulty, round, this.level) * this.form : botStrength(this.difficulty, round);
+    const base = this.model === 'brawl' ? brawlBotStrength(this.difficulty, round, this.scale) * this.form : botStrength(this.difficulty, round);
     const strength = base * this.boonGain('power') * (0.9 + Math.random() * 0.2);
-    const weight = waveWeight(round, this.level) + this.received;
+    const weight = waveWeight(round, this.scale) + this.received;
     this.received = 0;
     this.joined = this.inbox;
     this.inbox = {};
@@ -114,7 +119,7 @@ export class BotField {
 
   /** Buys enemies for its opponent at the start of wave `round`: a random mix for a part of this wave's weight */
   buySends(round: number): Partial<Record<SendType, number>> | null {
-    const level = this.level;
+    const level = this.scale;
     const budget = round >= 2 ? waveWeight(round, level) * BOT_LEVELS[this.difficulty].sendShare * this.boonGain('sends') : 0;
     const enemies: Partial<Record<SendType, number>> = {};
     let spent = 0;

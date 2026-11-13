@@ -56,8 +56,7 @@ function TowerSection({ race }: { race: RaceId }) {
       <div className="grid grid-cols-1 min-[520px]:grid-cols-2 gap-2 sm:gap-3">
         {def.towers.map((type) => {
           const t = CONFIG.towers[type];
-          // Нежить растёт выбором при слиянии: на карточке — выбор урона на каждом слиянии
-          const st = attackStats(type, lv, race === 'undead' ? Array(lv - 1).fill('und_dmg') : []);
+                    const st = attackStats(type, lv, []);
           const price = Math.round(t.cost * Math.pow(def.merge, lv - 1));
           const stats: [string, string][] = [
             ['Цена', String(price)],
@@ -104,12 +103,12 @@ function TowerSection({ race }: { race: RaceId }) {
                 )}
                 {race === 'orcs' && (
                   <p className="mt-1 text-xs text-stone-400 leading-snug">
-                    Закалок: {lv} (при постановке и на каждом уровне): {t.specs.map((x) => `${x.name} (${x.desc})`).join(', ')}.
+                    Закалка — один выбор на вид башни за партию, на Ур.{lv} она действует ×{lv}: {t.specs.map((x) => `${x.name} (${x.desc})`).join(', ')}.
                   </p>
                 )}
                 {race === 'undead' && lv > 1 && (
                   <p className="mt-1 text-xs text-stone-400 leading-snug">
-                    Показан урон, если каждое слияние ({lv - 1}) усилило урон ×2,4; вместо этого можно выбрать скорость атаки ×2,4.
+                    Каждое слияние ({lv - 1}) усиливает урон ×2,4.
                   </p>
                 )}
                 <div className="mt-1.5 space-y-1 text-[12px] leading-relaxed text-stone-400 italic">
