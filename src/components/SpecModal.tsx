@@ -16,13 +16,11 @@ interface SpecModalProps {
 export function SpecModal({ towerType, level = 2, onSelectSpec }: SpecModalProps) {
   const baseDef = CONFIG.towers[towerType];
   // Люди: specialization at Ур.2; орки: tempering on placing and every level; нежить: what the merged tower keeps
-  const title = baseDef.race === 'orcs' ? 'Закалка башни' : baseDef.race === 'undead' ? 'Слияние нежити' : 'Выберите специализацию';
+  const title = baseDef.race === 'orcs' ? 'Закалка башни' : 'Выберите специализацию';
   const hint =
     baseDef.race === 'orcs'
-      ? `${baseDef.name} Ур.${level}: выберите улучшение. Закалки складываются.`
-      : baseDef.race === 'undead'
-        ? `${baseDef.name} Ур.${level}: что усилить у объединённой башни?`
-        : `Башня ${baseDef.name} достигла Уровня 2. Выбор специализации необратим!`;
+      ? `${baseDef.name}: выберите закалку. Она одна на весь вид — все ${baseDef.name.toLowerCase()} в этой партии, и новые тоже; на каждом уровне она сильнее.`
+      : `Башня ${baseDef.name} достигла Уровня 2. Выбор специализации необратим!`;
 
   return (
     <div className="fixed inset-0 bg-black/85 flex items-center justify-center p-4 z-50 animate-fade-in">

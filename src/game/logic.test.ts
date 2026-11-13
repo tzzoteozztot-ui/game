@@ -559,9 +559,9 @@ test('race tower stats: level growth, orc tempering, undead merge choice', () =>
   assert.ok(Math.abs(tempered.damage - spear.damage * (1 + 2 * CONFIG.raceMech.orcUpgrade.dmg)) < 1e-9);
   const und = CONFIG.races.undead;
   const archer = CONFIG.towers.und_archer;
-  const u = attackStats('und_archer', 3, ['und_dmg', 'und_speed']);
-  assert.ok(Math.abs(u.damage - archer.damage * und.levelDamage) < 1e-9);
-  assert.ok(Math.abs(u.cooldown - archer.cooldown / und.levelDamage) < 1e-9);
+  const u = attackStats('und_archer', 3, []);
+  assert.ok(Math.abs(u.damage - archer.damage * und.levelDamage ** 2) < 1e-9); // каждое слияние даёт урон ×2,4
+  assert.ok(Math.abs(u.cooldown - archer.cooldown) < 1e-9);
   // особые башни без обычной атаки
   assert.equal(attackStats('und_crypt', 1, []).normalAttack, false);
 });

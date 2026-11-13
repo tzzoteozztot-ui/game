@@ -124,12 +124,8 @@ function raceAttackStats(type: TowerType, level: number, allSpecs: readonly stri
   let damage = def.damage;
   let cooldown = def.cooldown;
   let range = def.range * Math.pow(race.levelRange, lv);
-  if (race.id === 'undead') {
-    damage *= Math.pow(race.levelDamage, n('und_dmg'));
-    cooldown /= Math.pow(race.levelDamage, n('und_speed'));
-  } else {
-    damage *= Math.pow(race.levelDamage, lv);
-  }
+  // Нежить, как и остальные: каждое слияние усиливает урон (выбор «урон или скорость» убран, Артур 2026-11-13)
+  damage *= Math.pow(race.levelDamage, lv);
   if (race.id === 'orcs') {
     const up = CONFIG.raceMech.orcUpgrade;
     damage *= 1 + up.dmg * n('orc_dmg');
@@ -191,8 +187,6 @@ const SPEC_CODE: Record<string, string> = {
   orc_dmg: 'Сл',
   orc_speed: 'Бс',
   orc_range: 'Зр',
-  und_dmg: 'Ур',
-  und_speed: 'Ск',
 };
 
 /** Badge text on the field: code of each specialization with its power, «Ог», «Ог×3», «Ог×2·Мр». */
