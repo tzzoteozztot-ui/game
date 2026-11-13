@@ -1550,7 +1550,7 @@ export default function App() {
       if (screen === 'playing' && !engine.isPaused) {
         handleRerollShop();
       }
-    } else if (e.key === 'u' || e.key === 'U' || e.key === 'г' || e.key === 'Г') {
+    } else if (e.key === 't' || e.key === 'T' || e.key === 'е' || e.key === 'Е') {
       if (screen === 'playing' && !engine.isPaused) {
         handleUpgradeTier();
       }

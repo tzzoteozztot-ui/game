@@ -2712,7 +2712,7 @@ export class GameEngine {
           m.lines.push(`Мегабашня Т: +${Math.round(mech.megaT * 100)} % урона`);
         } else if (g.shape === 'P') {
           m.range *= 1 + mech.megaPRange;
-          m.lines.push(`Мегабашня П: +${Math.round(mech.megaPRange * 100)} % радиуса, заморозка между ножками`);
+          m.lines.push(`Мегабашня П: +${Math.round(mech.megaPRange * 100)} % радиуса, заморозка в центре подковы`);
         }
       }
     }
