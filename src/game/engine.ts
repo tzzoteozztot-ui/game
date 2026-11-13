@@ -2769,11 +2769,12 @@ export class GameEngine {
     };
     const list = [...cells.values()].sort((a, b) => a.y - b.y || a.x - b.x);
     if (isHex()) {
-      // Гексы (упрощено по выбору Артура 2026-11-13): «Треугольник» — три башни, касающиеся друг друга;
-      // «Кольцо» — пять из шести гексов вокруг одного, в нём враги замерзают
+      // Гексы (упрощено по выбору Артура 2026-11-13): «Клин» вместо Т — три в ряд и одна сбоку от средней;
+      // «Кольцо» (бывшая Подкова) — пять из шести гексов вокруг одного, в нём враги замерзают
       for (const t of list) {
         const r = ring(t);
-        for (let i = 0; i < 6; i++) take('T', [{ x: t.x, y: t.y }, r[i], r[(i + 1) % 6]], { x: t.x, y: t.y }, null);
+        for (let i = 0; i < 3; i++)
+          for (let j = 0; j < 6; j++) if (j !== i && j !== i + 3) take('T', [{ x: t.x, y: t.y }, r[i], r[i + 3], r[j]], { x: t.x, y: t.y }, null);
       }
       for (let y = 0; y < CONFIG.grid.rows; y++)
         for (let x = 0; x < CONFIG.grid.cols; x++) {
@@ -5490,7 +5491,7 @@ export class GameEngine {
         ctx.font = 'bold 12px sans-serif';
         ctx.textAlign = 'center';
         ctx.fillStyle = '#d6f0ff';
-        ctx.fillText([...new Set(hov.map((g) => (g.shape === 'P' ? 'Кольцо' : 'Треугольник')))].join(' + ') + '!', centerX(this.hoverCell!), centerY(this.hoverCell!) - cellSize * 0.75);
+        ctx.fillText([...new Set(hov.map((g) => (g.shape === 'P' ? 'Кольцо' : 'Клин')))].join(' + ') + '!', centerX(this.hoverCell!), centerY(this.hoverCell!) - cellSize * 0.75);
       }
       ctx.restore();
     }

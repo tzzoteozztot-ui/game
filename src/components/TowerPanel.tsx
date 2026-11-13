@@ -502,7 +502,7 @@ export function TowerPanel({
                 type="button"
                 disabled
                 className="h-[var(--h-btn)] px-0.5 rounded font-bold flex flex-col items-center justify-center leading-none bg-black/30 text-stone-500 border border-white/10 cursor-not-allowed"
-                title="Мегабашня: «Треугольник» (Т) — три башни, касающиеся друг друга, или «Кольцо» (П) — пять из шести гексов вокруг одного свободного, в нём враги замерзают. Выберите башню фигуры и нажмите «Собрать». Гипербашня — из одной Т и одной П; её уровень растёт слиянием с гипербашней того же уровня или двумя одинаковыми мегабашнями"
+                title="Мегабашня: «Клин» (Т) — три башни в ряд и одна сбоку от средней, или «Кольцо» (П) — пять из шести гексов вокруг одного свободного, в нём враги замерзают. Выберите башню фигуры и нажмите «Собрать». Гипербашня — из одной Т и одной П; её уровень растёт слиянием с гипербашней того же уровня или двумя одинаковыми мегабашнями"
               >
                 <span className="text-[length:var(--fs-btn4)]">{tower.fused ? 'Гипер' : 'Собрать'}</span>
                 <span className="text-[length:var(--fs-xs)] mt-0.5 whitespace-nowrap">{info.fuseNone}</span>
