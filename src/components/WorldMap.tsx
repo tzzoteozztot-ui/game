@@ -854,7 +854,11 @@ export function WorldMap({ world, region, onChange, onBattle, onExit, onReset, o
           <WorldEditor
             regionId={region.id}
             onClose={() => setEditorOpen(false)}
-            onSaved={() => onRegionEdited?.()}
+            onSaved={(r) => {
+              onRegionEdited?.();
+              // Пометки Артура — в лог похода: что и где править
+              if (r.notes?.length) logWorldNote(world, 'map-notes', { region: r.id, notes: r.notes.map((n) => ({ ...n, hex: hexAt(r, n.x, n.y) })) });
+            }}
             onPlay={(r) => {
               setEditorOpen(false);
               setTarget(null);

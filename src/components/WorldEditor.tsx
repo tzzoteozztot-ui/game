@@ -10,6 +10,7 @@ import {
   WorldObj,
   WorldObjKind,
   WorldProp,
+  MapNote,
   PropKind,
   REGIONS,
   ORIGINAL_REGIONS,
@@ -34,18 +35,19 @@ interface Props {
   regionId: string;
   onClose: () => void;
   /** Правка сохранена (карта в `REGIONS` уже подменена) */
-  onSaved: () => void;
+  onSaved: (r: RegionDef) => void;
   /** Начать поход с начала этой главы на правленой карте */
   onPlay: (r: RegionDef) => void;
 }
 
-type Tool = 'hand' | 'paint' | 'obj' | 'select' | 'prop' | 'start' | 'erase';
+type Tool = 'hand' | 'paint' | 'obj' | 'select' | 'prop' | 'start' | 'erase' | 'note';
 interface Draft {
   terrain: string[][];
   objects: WorldObj[];
   props: WorldProp[];
   start: P;
   name: string;
+  notes: MapNote[];
 }
 
 const TERRAINS: { ch: string; t: Terrain; color: string }[] = [
@@ -90,6 +92,7 @@ const fromRegion = (r: RegionDef): Draft => ({
   props: JSON.parse(JSON.stringify(r.props ?? [])),
   start: { ...r.start },
   name: r.name,
+  notes: JSON.parse(JSON.stringify(r.notes ?? [])),
 });
 
 const numOrU = (s: string): number | undefined => {
@@ -115,6 +118,7 @@ export function WorldEditor({ regionId, onClose, onSaved, onPlay }: Props) {
   const [kind, setKind] = useState<WorldObjKind>('squad');
   const [propKind, setPropKind] = useState<PropKind>('ruins');
   const [sel, setSel] = useState<string | null>(null);
+  const [selNote, setSelNote] = useState<string | null>(null);
   const [view, setView] = useState<'scheme' | 'game'>('scheme');
   const [report, setReport] = useState<{ errors: string[]; warnings: string[] } | null>(null);
   const [msg, setMsg] = useState('');
@@ -133,7 +137,7 @@ export function WorldEditor({ regionId, onClose, onSaved, onPlay }: Props) {
   const stub = useMemo(() => ({ ...base, terrain: Array(regionH(base)).fill('.'.repeat(regionW(base))) }) as RegionDef, [base]);
   const toRegion = (): RegionDef => {
     const d = draft.current;
-    return { ...ORIGINAL_REGIONS[rid], name: d.name, terrain: d.terrain.map((r) => r.join('')), start: { ...d.start }, objects: d.objects, props: d.props };
+    return { ...ORIGINAL_REGIONS[rid], name: d.name, terrain: d.terrain.map((r) => r.join('')), start: { ...d.start }, objects: d.objects, props: d.props, notes: d.notes.length ? d.notes : undefined };
   };
 
   const bump = () => {
@@ -159,6 +163,7 @@ export function WorldEditor({ regionId, onClose, onSaved, onPlay }: Props) {
     draft.current = fromRegion(r);
     undo.current = [];
     setSel(null);
+    setSelNote(null);
     setReport(null);
     setDirty(false);
     setRev((n) => n + 1);
@@ -299,6 +304,24 @@ export function WorldEditor({ regionId, onClose, onSaved, onPlay }: Props) {
       ctx.fillStyle = '#ffe9a8';
       ctx.fillText(o.id, wx(o), wy(o) + HH * 0.62);
     }
+    for (const n of d.notes) {
+      const label = n.text.trim() ? (n.text.length > 40 ? `${n.text.slice(0, 40)}…` : n.text) : '(пусто)';
+      const fs = Math.round(HH * 0.26);
+      ctx.font = `bold ${fs}px sans-serif`;
+      const w = ctx.measureText(label).width + fs * 1.6;
+      ctx.fillStyle = n.id === selNote ? '#fff08a' : '#f2cf4a';
+      ctx.fillRect(n.x - w / 2, n.y - fs * 1.1, w, fs * 1.5);
+      ctx.strokeStyle = n.id === selNote ? '#7dfcff' : '#6b5410';
+      ctx.lineWidth = n.id === selNote ? 4 : 2;
+      ctx.strokeRect(n.x - w / 2, n.y - fs * 1.1, w, fs * 1.5);
+      ctx.fillStyle = '#2a2208';
+      ctx.textAlign = 'center';
+      ctx.fillText(`📝 ${label}`, n.x, n.y);
+      ctx.beginPath();
+      ctx.arc(n.x, n.y + fs * 0.4, 4, 0, Math.PI * 2);
+      ctx.fillStyle = '#c0392b';
+      ctx.fill();
+    }
     const s = d.start;
     ctx.font = `${HH * 0.5}px sans-serif`;
     ctx.textAlign = 'center';
@@ -429,6 +452,23 @@ export function WorldEditor({ regionId, onClose, onSaved, onPlay }: Props) {
       return;
     }
     gesture.current = { mode: 'tool', last: p };
+    if (tool === 'note') {
+      const c = cam.current;
+      const gx = (p.x - c.x) / c.zoom;
+      const gy = (p.y - c.y) / c.zoom;
+      const hit = draft.current.notes.find((n) => Math.abs(n.x - gx) < HW * 1.3 && gy > n.y - HH * 0.5 && gy < n.y + HH * 0.35);
+      pushUndo();
+      if (hit) setSelNote(hit.id);
+      else {
+        const used = new Set(draft.current.notes.map((n) => n.id));
+        let i = 1;
+        while (used.has(`n${i}`)) i++;
+        draft.current.notes.push({ id: `n${i}`, x: Math.round(gx), y: Math.round(gy), text: '' });
+        setSelNote(`n${i}`);
+        bump();
+      }
+      return;
+    }
     const cell = cellAt(p.x, p.y);
     if (!cell) return;
     if (tool !== 'select') pushUndo();
@@ -457,6 +497,16 @@ export function WorldEditor({ regionId, onClose, onSaved, onPlay }: Props) {
       g.last = p;
       clamp();
       draw();
+      return;
+    }
+    if (g.mode === 'tool' && tool === 'note' && selNote) {
+      const n = draft.current.notes.find((x) => x.id === selNote);
+      if (n && (Math.abs(p.x - g.last!.x) > 3 || Math.abs(p.y - g.last!.y) > 3)) {
+        n.x = Math.round((p.x - c.x) / c.zoom);
+        n.y = Math.round((p.y - c.y) / c.zoom);
+        g.last = p;
+        bump();
+      }
       return;
     }
     const cell = cellAt(p.x, p.y);
@@ -503,7 +553,7 @@ export function WorldEditor({ regionId, onClose, onSaved, onPlay }: Props) {
     const ok = setRegionEdit(r);
     setDirty(false);
     setMsg(ok ? 'Сохранено на этом устройстве.' : 'Карта применена, но хранилище не приняло запись: после перезапуска пропадёт. Скачайте файл.');
-    onSaved();
+    onSaved(r);
   };
   const download = () => {
     const blob = new Blob([JSON.stringify(toRegion(), null, 1)], { type: 'application/json' });
@@ -531,7 +581,7 @@ export function WorldEditor({ regionId, onClose, onSaved, onPlay }: Props) {
     if (!window.confirm('Вернуть встроенную карту? Ваши правки этой главы пропадут.')) return;
     clearRegionEdit(rid);
     loadRegion(REGIONS[rid]);
-    onSaved();
+    onSaved(REGIONS[rid]);
     setMsg('Встроенная карта возвращена.');
   };
 
@@ -629,7 +679,7 @@ export function WorldEditor({ regionId, onClose, onSaved, onPlay }: Props) {
             if (res.errors.length) return (setReport(res), setMsg('Сначала исправьте ошибки: по такой карте не пройти.'));
             if (dirty && !window.confirm('Начать главу с начала на этой карте? Она сохранится на устройстве, поход этой главы начнётся заново.')) return;
             setRegionEdit(r);
-            onSaved();
+            onSaved(r);
             onPlay(REGIONS[rid]);
           }}
           title="Сохранить и пройти главу с начала"
@@ -649,6 +699,7 @@ export function WorldEditor({ regionId, onClose, onSaved, onPlay }: Props) {
           {toolBtn('prop', '🌲', 'Украшение (только вид)')}
           {toolBtn('start', '🚩', 'Старт героя')}
           {toolBtn('erase', '🧽', 'Стереть объект или украшение')}
+          {toolBtn('note', '📝', 'Пометка: текст в любом месте карты')}
         </div>
 
         {/* карта */}
@@ -715,6 +766,33 @@ export function WorldEditor({ regionId, onClose, onSaved, onPlay }: Props) {
               </div>
               <p className="text-[11px] text-stone-400 mt-1">Крупные «глушь» ставьте в непроходимой местности; на схеме они видны как ◆, в виде «Как в игре» — настоящие.</p>
             </>
+          )}
+          {tool === 'note' && (
+            <>
+              <div className="font-bold text-amber-300 mb-1">Пометки</div>
+              <p className="text-[11px] text-stone-400 mb-1">Касание — новая пометка в этом месте, касание пометки — выбрать, потянуть — перенести. Попадают в файл карты и в лог похода при сохранении.</p>
+              {(() => {
+                const n = draft.current.notes.find((x) => x.id === selNote);
+                return n ? (
+                  <>
+                    <textarea className={inp} rows={4} autoFocus placeholder="Что здесь исправить" value={n.text} onFocus={pushUndo} onChange={(e) => ((n.text = e.target.value), bump())} />
+                    <button className="w-full mt-1 py-1.5 rounded bg-red-900/70 hover:bg-red-800 text-sm" onClick={() => { pushUndo(); draft.current.notes = draft.current.notes.filter((x) => x !== n); setSelNote(null); bump(); }}>
+                      Удалить пометку
+                    </button>
+                  </>
+                ) : null;
+              })()}
+            </>
+          )}
+          {draft.current.notes.length > 0 && (
+            <div className="mt-2 text-[11px] text-stone-300">
+              <div className="text-stone-400">Пометок: {draft.current.notes.length}</div>
+              {draft.current.notes.map((n) => (
+                <button key={n.id} className={`block w-full text-left truncate px-1 py-0.5 rounded ${n.id === selNote ? 'bg-amber-800/60' : 'hover:bg-white/5'}`} onClick={() => { setTool('note'); setSelNote(n.id); }}>
+                  📝 {n.text || '(пусто)'}
+                </button>
+              ))}
+            </div>
           )}
           {(tool === 'hand' || tool === 'select' || tool === 'start' || tool === 'erase') && !o && (
             <p className="text-[11px] text-stone-400">
