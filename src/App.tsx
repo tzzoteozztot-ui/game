@@ -146,6 +146,9 @@ export default function App() {
   // Поход по глобальной карте (прототип, вариант В): состояние на устройстве и бой, который сейчас идёт
   const [world, setWorldState] = useState<WorldState | null>(() => loadWorld());
   const [worldBattle, setWorldBattle] = useState<WorldObj | null>(null);
+  useEffect(() => {
+    sound.setScene(screen === 'world' ? 'world' : screen === 'playing' ? 'battle' : 'menu'); // музыка из public/sounds
+  }, [screen]);
   const [, setRegionRev] = useState(0); // карту правили редактором: перерисовать с новым `REGIONS`
   const worldPrevRef = useRef<WorldState | null>(world); // прошлое состояние для лога: колбэки карты держат старый `world`
   const setWorld = (st: WorldState | null) => {

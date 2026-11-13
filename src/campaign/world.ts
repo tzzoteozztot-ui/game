@@ -93,6 +93,14 @@ export interface WorldObj {
   bossTint?: string;
 }
 
+/** Пометка в редакторе карты (просьба Артура 2026-11-13): текст в любой точке мира карты, мировые px (как `wx`/`wy`) */
+export interface MapNote {
+  id: string;
+  x: number;
+  y: number;
+  text: string;
+}
+
 export interface RegionDef {
   id: string;
   name: string;
@@ -103,6 +111,7 @@ export interface RegionDef {
   props?: WorldProp[];
   chapter?: number; // номер главы похода
   next?: string; // регион следующей главы
+  notes?: MapNote[]; // пометки Артура в редакторе: что и где править
 }
 
 export interface WorldState {
@@ -1083,7 +1092,10 @@ export function normalizeRegion(v: unknown, base: RegionDef | undefined = undefi
     objects.push(o);
   }
   const props = Array.isArray(r.props) ? r.props.filter((p) => pt(p) && typeof p.kind === 'string') : [];
-  return { ...orig, name: typeof r.name === 'string' && r.name ? r.name : orig.name, terrain: [...r.terrain], start: { x: r.start.x, y: r.start.y }, objects, props };
+  const notes: MapNote[] = Array.isArray(r.notes)
+    ? r.notes.filter((n): n is MapNote => !!n && typeof n.id === 'string' && typeof n.text === 'string' && typeof n.x === 'number' && typeof n.y === 'number' && isFinite(n.x) && isFinite(n.y))
+    : [];
+  return { ...orig, notes: notes.length ? notes : undefined, name: typeof r.name === 'string' && r.name ? r.name : orig.name, terrain: [...r.terrain], start: { x: r.start.x, y: r.start.y }, objects, props };
 }
 
 export function loadRegionEdits(): Record<string, RegionDef> {

@@ -363,6 +363,7 @@ export function WorldMap({ world, region, onChange, onBattle, onExit, onReset, o
         if (res.kind === 'event') {
           logWorldNote(st, 'event-open', { obj: res.obj.id, name: res.obj.name, choices: res.obj.choices?.map((x) => x.label) });
           const n: Notice = { title: res.obj.name, text: res.obj.text ?? '', event: res.obj };
+          sound.play('map.event');
           play(`event:${res.obj.id}`, () => setNotice(n));
           return stop();
         }
@@ -854,7 +855,11 @@ export function WorldMap({ world, region, onChange, onBattle, onExit, onReset, o
           <WorldEditor
             regionId={region.id}
             onClose={() => setEditorOpen(false)}
-            onSaved={() => onRegionEdited?.()}
+            onSaved={(r) => {
+              onRegionEdited?.();
+              // Пометки Артура — в лог похода: что и где править
+              if (r.notes?.length) logWorldNote(world, 'map-notes', { region: r.id, notes: r.notes.map((n) => ({ ...n, hex: hexAt(r, n.x, n.y) })) });
+            }}
             onPlay={(r) => {
               setEditorOpen(false);
               setTarget(null);

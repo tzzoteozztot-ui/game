@@ -1233,3 +1233,9 @@ test('world editor: built-in regions pass the check; a broken lock and a walled-
   assert.ok(W.normalizeRegion(JSON.parse(JSON.stringify(r))), 'a region file loads back');
   assert.equal(W.normalizeRegion({ ...r, terrain: r.terrain.slice(1) }), null, 'size must stay');
 });
+
+test('world editor: map notes survive a round trip and junk notes are dropped', () => {
+  const r: W.RegionDef = JSON.parse(JSON.stringify(W.FRONTIER));
+  const back = W.normalizeRegion({ ...r, notes: [{ id: 'n1', x: 100, y: 200, text: 'мост уже' }, { id: 'bad', x: 'a', y: 1, text: 'x' }] });
+  assert.deepEqual(back?.notes, [{ id: 'n1', x: 100, y: 200, text: 'мост уже' }]);
+});
