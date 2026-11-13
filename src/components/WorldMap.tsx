@@ -48,7 +48,6 @@ import { isDevMode } from '../devNotes';
 import { Scene, sceneFor, startTrigger, CAMP_SCENES } from '../campaign/dialogs';
 import { DialogBox } from './DialogBox';
 import { JournalPanel } from './JournalPanel';
-import { blockerFor } from '../campaign/zone';
 import { buildJournal } from '../campaign/journal';
 import { bakeTerrain, drawLive, loadExtras, hexAt, wx, wy, worldW, worldH, HW, P } from '../campaign/worldRender';
 import { sprites } from '../game/sprites';
@@ -343,13 +342,6 @@ export function WorldMap({ world, region, onChange, onBattle, onExit, onReset, o
         };
         if (o && isHostile(st, o)) {
           engage(o, stepCost(region, p));
-          return;
-        }
-        // Отряд держит соседние гексы: пройти мимо, не вступив в бой, нельзя
-        const guard = o ? null : blockerFor(st, region, st.hero, p);
-        const aim = steps[steps.length - 1];
-        if (guard && !(aim.x === guard.x && aim.y === guard.y)) {
-          engage(guard, 1);
           return;
         }
         const res: Arrival | null = stepHero(st, region, p);

@@ -823,28 +823,6 @@ test('world: a rest of a chosen length returns moves in proportion, the full nig
   assert.equal(st.day, 3);
 });
 
-test('world: a squad of the fortress chain holds the hexes around it, an optional one does not', async () => {
-  const W = await import('../campaign/world');
-  const { blockerFor } = await import('../campaign/zone');
-  const st = W.newWorld();
-  const near = (o: { x: number; y: number }) => {
-    const ring = W.hexNeighbours(o.x, o.y);
-    for (const to of ring) for (const from of W.hexNeighbours(to.x, to.y)) {
-      if (!ring.some((q) => q.x === from.x && q.y === from.y) && !(from.x === o.x && from.y === o.y)) return { from, to };
-    }
-    throw new Error('no hex');
-  };
-  const sq1 = W.FRONTIER.objects.find((o) => o.id === 'sq1')!;
-  const a = near(sq1);
-  assert.equal(blockerFor(st, W.FRONTIER, a.from, a.to)?.id, 'sq1');
-  assert.equal(blockerFor(st, W.FRONTIER, a.to, a.to), null, 'already next to it: not blocked again');
-  W.winBattle(st, W.FRONTIER, 'sq1');
-  assert.equal(blockerFor(st, W.FRONTIER, a.from, a.to), null, 'a beaten squad holds nothing');
-  const optional = W.FRONTIER.objects.find((o) => o.id === 'stavka')!;
-  const b = near(optional);
-  assert.equal(blockerFor(W.newWorld(), W.FRONTIER, b.from, b.to), null);
-});
-
 test('world: the camp sells perk levels for resources, up to the top level, and saves them', async () => {
   const { BOONS } = await import('./config');
   const st = W.newWorld();
@@ -1189,12 +1167,11 @@ test('лог похода: разность состояний называет 
   assert.ok(file.regions.frontier);
 });
 
-test('world: every region can be finished with the zone rules on — a squad never seals the way to what the chain needs', async () => {
+test('world: every region can be finished — a squad never seals the way to what the chain needs', async () => {
   const W = await import('../campaign/world');
-  const { blockerFor } = await import('../campaign/zone');
   for (const region of Object.values(W.REGIONS)) {
     const st = W.newWorld(region);
-    // The whole map is known: walking is checked by terrain and zones, not by fog
+    // The whole map is known: walking is checked by terrain and locks, not by fog
     st.seen = Array.from({ length: region.terrain.length * region.terrain[0].length }, (_, i) => i);
     const reach = (goal: { x: number; y: number }) => {
       const key = (p: { x: number; y: number }) => `${p.x},${p.y}`;
@@ -1208,8 +1185,6 @@ test('world: every region can be finished with the zone rules on — a squad nev
           if (!t || W.TERRAIN_COST[t] === null || seen.has(key(n))) continue;
           const o = W.objectAt(st, region, n.x, n.y);
           if (o && (o.x !== goal.x || o.y !== goal.y) && (W.isHostile(st, o) || W.isLocked(st, o))) continue;
-          const g = blockerFor(st, region, cur, n);
-          if (g && !(g.x === goal.x && g.y === goal.y)) continue;
           seen.add(key(n));
           queue.push(n);
         }
