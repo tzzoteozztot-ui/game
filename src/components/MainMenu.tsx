@@ -41,6 +41,7 @@ interface MainMenuProps {
   onPlay: () => void;
   onOpenDuel: () => void;
   onOpenWorld: () => void; // кампания: поход по глобальной карте
+  onResetWorld: () => void; // кампания: начать поход заново (после подтверждения в окне выбора)
   worldSummary: string | null; // в окне выбора кампании: где остановились («Глава 2 · Болотный склеп · день 7»); null — похода ещё нет
   onStartSandbox: (level: number, enemies: number, randomRoad: boolean) => void; // свободный режим: карта, чьи враги (0 — хозяева карты), дорога
   onStartBrawl: (level: number, bots: Difficulty, randomRoad: boolean) => void;
@@ -204,7 +205,7 @@ const BRAWL_BOTS: { id: Difficulty; label: string }[] = [
 // -------------------------------------------------------------
 // Кампании: окно выбора, как в Варкрафте 3 (просьба Артура 2026-11-12). Играбельна пока одна, остальные расы — «Скоро»
 // -------------------------------------------------------------
-function CampaignPage({ onBack, onOpenWorld, worldSummary }: MainMenuProps & { onBack: () => void }) {
+function CampaignPage({ onBack, onOpenWorld, onResetWorld, worldSummary }: MainMenuProps & { onBack: () => void }) {
   return (
     <div className="w-full max-w-3xl flex flex-col items-center">
       <PageHeader title="Кампании" onBack={onBack} />
@@ -224,6 +225,17 @@ function CampaignPage({ onBack, onOpenWorld, worldSummary }: MainMenuProps & { o
                   <button type="button" onClick={onOpenWorld} className={`${BTN} bg-amber-800/70 hover:bg-amber-700`}>
                     {worldSummary ? 'Продолжить' : 'Начать'}
                   </button>
+                  {worldSummary && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (window.confirm('Начать поход заново? Ресурсы, промыслы, лагерь и разбитые отряды пропадут. Лог похода тоже начнётся заново.')) onResetWorld();
+                      }}
+                      className={`${BTN} bg-[#2a2635] hover:bg-red-900/70`}
+                    >
+                      Начать заново
+                    </button>
+                  )}
                 </>
               ) : (
                 <div className="text-[11px] text-stone-500 uppercase tracking-wider">🔒 Скоро</div>
