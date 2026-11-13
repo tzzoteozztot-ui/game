@@ -807,6 +807,15 @@ test('world: a rest of a chosen length returns moves in proportion, the full nig
   const W = await import('../campaign/world');
   const st = W.newWorld();
   st.moves = 0;
+  // in the camp a rest returns half as much again
+  const camp = W.FRONTIER.objects.find((o) => o.kind === 'camp')!;
+  st.hero = { x: camp.x, y: camp.y };
+  assert.equal(W.restHero(st, W.FRONTIER, 1), null);
+  assert.equal(st.moves, W.restMoves(st, W.FRONTIER));
+  assert.ok(W.restMoves(st, W.FRONTIER) > W.REST_MOVES);
+  st.dayPart = 0;
+  st.hero = { x: st.hero.x + 1, y: st.hero.y + 5 };
+  st.moves = 0;
   assert.equal(W.restHero(st, W.FRONTIER, 1), null);
   assert.equal(st.moves, W.REST_MOVES);
   assert.equal(st.day, 1);

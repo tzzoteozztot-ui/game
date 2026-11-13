@@ -747,11 +747,17 @@ export const REST_MOVES = MOVES_PER_DAY / REST_PARTS;
  * Отдых на выбор (просьба Артура 2026-11-12): `parts` третей дня. Привал на меньшее число возвращает ходы пропорционально;
  * когда день прошёл целиком (или выбрано «до утра») — наступает новый день и промыслы приносят доход (`endDay`)
  */
+/** Ходов за часть дня: в лагере привал восстанавливает на половину больше */
+export function restMoves(st: WorldState, region: RegionDef): number {
+  const camp = region.objects.find((o) => o.kind === 'camp');
+  return camp && camp.x === st.hero.x && camp.y === st.hero.y ? Math.round(REST_MOVES * 1.5) : REST_MOVES;
+}
+
 export function restHero(st: WorldState, region: RegionDef, parts: number): Partial<Resources> | null {
   const left = REST_PARTS - (st.dayPart ?? 0);
   if (parts >= left) return endDay(st, region);
   st.dayPart = (st.dayPart ?? 0) + parts;
-  st.moves = Math.min(MOVES_PER_DAY, st.moves + parts * REST_MOVES);
+  st.moves = Math.min(MOVES_PER_DAY, st.moves + parts * restMoves(st, region));
   return null;
 }
 
