@@ -363,6 +363,7 @@ export function WorldMap({ world, region, onChange, onBattle, onExit, onReset, o
         if (res.kind === 'event') {
           logWorldNote(st, 'event-open', { obj: res.obj.id, name: res.obj.name, choices: res.obj.choices?.map((x) => x.label) });
           const n: Notice = { title: res.obj.name, text: res.obj.text ?? '', event: res.obj };
+          sound.play('map.event');
           play(`event:${res.obj.id}`, () => setNotice(n));
           return stop();
         }

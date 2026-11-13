@@ -4,6 +4,7 @@
  * касание, Пробел или Enter, пока он идёт, — показать реплику целиком, ещё раз — следующая; «Пропустить» (Esc) — вся сцена.
  */
 import { useEffect, useState } from 'react';
+import { sound } from '../game/audio';
 import { setDevScene } from '../devNotes';
 import { Scene, SPEAKER_COLORS, SPEAKER_ROLES } from '../campaign/dialogs';
 
@@ -38,6 +39,12 @@ export function DialogBox({ scene, onDone }: DialogBoxProps) {
   };
 
   useEffect(() => setI(0), [scene.id]);
+  // Свои звуки: щелчок реплики и озвучка (public/sounds/README.md)
+  useEffect(() => {
+    sound.play('dialog.line');
+    sound.playVoice(scene.id, i + 1);
+  }, [scene.id, i]);
+  useEffect(() => () => sound.playVoice('', 0), []);
   useEffect(() => {
     setShown(0);
     if (!total) return;

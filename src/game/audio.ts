@@ -17,6 +17,17 @@ class SoundEngine {
   private isMusicPlaying = false;
   private ambientTimer: number | null = null;
 
+  // Свои звуки Артура (2026-11-13): `public/sounds/sounds.json` связывает событие с файлами, см. `public/sounds/README.md`.
+  // Нет записи для события — играет прежний синтез; музыка из файла заменяет синтезированную.
+  private manifest: Record<string, string | string[]> = {};
+  private manifestLoaded = false;
+  private manifestRequested = false;
+  private buffers = new Map<string, AudioBuffer>();
+  private loading = new Set<string>();
+  private scene: 'menu' | 'world' | 'battle' = 'menu';
+  private musicSrc: { src: AudioBufferSourceNode; gain: GainNode; key: string } | null = null;
+  private voice: AudioBufferSourceNode | null = null;
+
   private settings: AudioSettings = {
     musicVolume: 0.5,
     sfxVolume: 0.7,
@@ -26,6 +37,10 @@ class SoundEngine {
   constructor() {
     this.loadSettings();
     if (typeof document !== 'undefined') {
+      // Нажатие любой кнопки интерфейса (холст поля не в счёт)
+      document.addEventListener('click', (e) => {
+        if ((e.target as HTMLElement | null)?.closest?.('button')) this.play('ui.click');
+      }, true);
       document.addEventListener('visibilitychange', () => {
         if (document.hidden) {
           this.pause();
@@ -124,7 +139,148 @@ class SoundEngine {
     );
     this.sfxGain.connect(this.masterGain);
 
-    this.startAmbient();
+    void this.loadManifest();
+    this.applyMusic();
+  }
+
+  // -------------------------------------------------------------
+  // Свои записи (по готовности звуков Артура)
+  // -------------------------------------------------------------
+  private files(key: string): string[] {
+    const v = this.manifest[key];
+    return Array.isArray(v) ? v : v ? [v] : [];
+  }
+
+  private async loadBuffer(file: string): Promise<AudioBuffer | null> {
+    if (this.buffers.has(file)) return this.buffers.get(file)!;
+    if (!this.ctx || this.loading.has(file)) return null;
+    this.loading.add(file);
+    try {
+      const res = await fetch(`sounds/${file}`);
+      if (!res.ok) throw new Error(String(res.status));
+      const buf = await this.ctx.decodeAudioData(await res.arrayBuffer());
+      this.buffers.set(file, buf);
+      return buf;
+    } catch {
+      return null; // нет файла или формат не читается — остаётся синтез
+    } finally {
+      this.loading.delete(file);
+    }
+  }
+
+  private async loadManifest() {
+    if (this.manifestRequested) return;
+    this.manifestRequested = true;
+    try {
+      const res = await fetch('sounds/sounds.json');
+      if (res.ok) {
+        const m = await res.json();
+        if (m && typeof m === 'object') this.manifest = m;
+      }
+    } catch {
+      /* без записей игра звучит синтезом */
+    }
+    this.manifestLoaded = true;
+    // Короткие звуки подгружаем заранее, музыку и голоса — по требованию
+    for (const [key, v] of Object.entries(this.manifest))
+      if (!key.startsWith('music.') && !key.startsWith('voice.')) for (const f of Array.isArray(v) ? v : [v]) void this.loadBuffer(f);
+    this.applyMusic();
+  }
+
+  /** Событие со своей записью: играет случайный вариант и возвращает true; иначе false — тогда играет синтез */
+  private playSample(key: string, gap = 0): boolean {
+    const files = this.files(key);
+    if (!files.length || !this.ctx || !this.sfxGain) return false;
+    const buf = this.buffers.get(files[Math.floor(Math.random() * files.length)]);
+    if (!buf) return false;
+    if (gap && this.tooSoon(key, gap)) return true;
+    this.resume();
+    const src = this.ctx.createBufferSource();
+    src.buffer = buf;
+    src.connect(this.sfxGain);
+    src.start();
+    return true;
+  }
+
+  /** Звук интерфейса и событий без синтеза: `ui.click`, `map.event`, `dialog.line`… Нет записи — тишина */
+  public play(key: string) {
+    if (this.settings.muted) return;
+    this.playSample(key, 0.03);
+  }
+
+  /** Озвучка реплики диалога: `voice.<сцена>.<номер реплики с 1>`; предыдущая обрывается */
+  public playVoice(sceneId: string, line: number) {
+    try {
+      this.voice?.stop();
+    } catch {
+      /* уже кончилась */
+    }
+    this.voice = null;
+    const key = `voice.${sceneId}.${line}`;
+    const file = this.files(key)[0];
+    if (!file || !this.ctx || !this.sfxGain || this.settings.muted) return;
+    void this.loadBuffer(file).then((buf) => {
+      if (!buf || !this.ctx || !this.sfxGain) return;
+      const src = this.ctx.createBufferSource();
+      src.buffer = buf;
+      src.connect(this.sfxGain);
+      src.start();
+      this.voice = src;
+    });
+  }
+
+  /** Где играем: меню, карта похода или бой. Музыка меняется с плавным переходом */
+  public setScene(scene: 'menu' | 'world' | 'battle') {
+    if (scene === this.scene) return;
+    this.scene = scene;
+    this.applyMusic();
+  }
+
+  private applyMusic() {
+    if (!this.ctx || !this.musicGain || !this.manifestLoaded) return;
+    const key = `music.${this.scene}`;
+    const file = this.files(key)[0];
+    if (!file) {
+      this.stopSampleMusic();
+      this.startAmbient();
+      return;
+    }
+    if (this.musicSrc?.key === key) return;
+    void this.loadBuffer(file).then((buf) => {
+      if (!buf || !this.ctx || !this.musicGain || this.scene !== key.slice(6)) return;
+      this.stopAmbient();
+      this.stopSampleMusic();
+      const gain = this.ctx.createGain();
+      gain.gain.setValueAtTime(0, this.ctx.currentTime);
+      gain.gain.linearRampToValueAtTime(1, this.ctx.currentTime + 1.5);
+      gain.connect(this.musicGain);
+      const src = this.ctx.createBufferSource();
+      src.buffer = buf;
+      src.loop = true;
+      src.connect(gain);
+      src.start();
+      this.musicSrc = { src, gain, key };
+    });
+  }
+
+  private stopSampleMusic() {
+    const m = this.musicSrc;
+    if (!m || !this.ctx) return;
+    this.musicSrc = null;
+    m.gain.gain.cancelScheduledValues(this.ctx.currentTime);
+    m.gain.gain.setValueAtTime(m.gain.gain.value, this.ctx.currentTime);
+    m.gain.gain.linearRampToValueAtTime(0, this.ctx.currentTime + 1);
+    try {
+      m.src.stop(this.ctx.currentTime + 1.1);
+    } catch {
+      /* уже остановлена */
+    }
+  }
+
+  private stopAmbient() {
+    this.isMusicPlaying = false;
+    if (this.ambientTimer !== null) clearTimeout(this.ambientTimer);
+    this.ambientTimer = null;
   }
 
   public resume() {
@@ -237,6 +393,7 @@ class SoundEngine {
 
   public playShot(type: 'archer' | 'mage' | 'ballista' | 'priest') {
     if (!this.ctx || !this.sfxGain || this.settings.muted) return;
+    if (this.playSample(`shot.${type}`, 0.06)) return;
     if (this.tooSoon(`shot_${type}`, 0.06)) return;
     this.resume();
     const now = this.ctx.currentTime;
@@ -303,6 +460,7 @@ class SoundEngine {
 
   public playHit() {
     if (!this.ctx || !this.sfxGain || this.settings.muted) return;
+    if (this.playSample('hit', 0.05)) return;
     if (this.tooSoon('hit', 0.05)) return;
     const now = this.ctx.currentTime;
     const osc = this.ctx.createOscillator();
@@ -320,6 +478,7 @@ class SoundEngine {
 
   public playDeath() {
     if (!this.ctx || !this.sfxGain || this.settings.muted) return;
+    if (this.playSample('death', 0.05)) return;
     if (this.tooSoon('death', 0.05)) return;
     const now = this.ctx.currentTime;
     const osc = this.ctx.createOscillator();
@@ -337,6 +496,7 @@ class SoundEngine {
 
   public playBuy() {
     if (!this.ctx || !this.sfxGain || this.settings.muted) return;
+    if (this.playSample('buy')) return;
     const now = this.ctx.currentTime;
     const osc = this.ctx.createOscillator();
     const gain = this.ctx.createGain();
@@ -353,6 +513,7 @@ class SoundEngine {
 
   public playError() {
     if (!this.ctx || !this.sfxGain || this.settings.muted) return;
+    if (this.playSample('error')) return;
     const now = this.ctx.currentTime;
     const osc = this.ctx.createOscillator();
     const gain = this.ctx.createGain();
@@ -369,6 +530,7 @@ class SoundEngine {
   // Ascending arpeggio for Merge (восходящее арпеджио)
   public playMerge() {
     if (!this.ctx || !this.sfxGain || this.settings.muted) return;
+    if (this.playSample('merge')) return;
     const notes = [261.63, 329.63, 392.0, 523.25, 659.25]; // C4, E4, G4, C5, E5
     const now = this.ctx.currentTime;
 
@@ -393,6 +555,7 @@ class SoundEngine {
   // Boss spawn: deep ominous horn/rumble
   public playBossSpawn() {
     if (!this.ctx || !this.sfxGain || this.settings.muted) return;
+    if (this.playSample('boss')) return;
     const now = this.ctx.currentTime;
     const osc1 = this.ctx.createOscillator();
     const osc2 = this.ctx.createOscillator();
@@ -422,6 +585,7 @@ class SoundEngine {
   // Victory fanfare
   public playVictory() {
     if (!this.ctx || !this.sfxGain || this.settings.muted) return;
+    if (this.playSample('victory')) return;
     const now = this.ctx.currentTime;
     const notes = [
       { f: 293.66, t: 0, d: 0.18 }, // D4
@@ -451,6 +615,7 @@ class SoundEngine {
   // Defeat sting
   public playDefeat() {
     if (!this.ctx || !this.sfxGain || this.settings.muted) return;
+    if (this.playSample('defeat')) return;
     const now = this.ctx.currentTime;
     const notes = [
       { f: 293.66, t: 0, d: 0.25 },
