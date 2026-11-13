@@ -3,65 +3,56 @@
  * Каждая глава — регион биома своей карты (2 Болотный склеп, 3 Ледяные пустоши, 4 Выжженные земли, 5 Цитадель сумерек),
  * враги — её хозяева. Все четыре строятся по одной схеме тропы (`SLOTS`): лагерь, три отряда до реки, промысел, событие,
  * развилка (святилище или второе событие), переправа, малый узел, отряд, событие, стража, крепость и необязательные
- * сундуки, рудник и богатый лагерь. Схема поворачивается (`flipX`, `flipY`), чтобы карты не были одинаковыми.
+ * сундуки, рудник и богатый лагерь. С 2026-11-13 (Артур одобрил пять схем) у каждой главы своя форма и своё место объектов — `layouts.ts`:
+ * змейка, острова и гати, петля и ущелье, спираль, зеркало; здесь остались только содержимое слотов и порядок замков.
  * Названия, события и порядок встреч — по черновикам Лороведа (/mnt/project-files/lore/campaign-ch2-bog.md … ch5-citadel.md):
  * глава может поменять вид слота (`kind`: встреча вместо святилища, оборона лагеря вместо события) и его замки (`needs`).
  * Волны, награды и доходы — черновик.
  */
-import type { RegionSpec, WorldObj, WorldProp, PropKind } from './world';
+import type { RegionSpec, RegionLayout, WorldObj, WorldProp, PropKind } from './world';
+import { snapHex } from './world';
+import { BOG_LAYOUT, ICE_LAYOUT, ASH_LAYOUT, DUSK_LAYOUT } from './layouts';
 
-type P = { x: number; y: number };
 const W = 52;
 const H = 32;
-const baseRiver = (y: number) => Math.round(26 + 2 * Math.sin(y / 5));
 
-/** Слот схемы: место, вид и замки; содержимое (имя, волны, награда) задаёт глава */
+/** Слот схемы: вид и замки; место задаёт схема главы (`layouts.ts`), содержимое — глава */
 interface Slot {
   key: string;
-  at: P;
   kind: WorldObj['kind'];
   needs?: string[];
   needsAny?: string[];
 }
-const CROSS: P = { x: baseRiver(16), y: 16 };
+/** Порядок встреч по умолчанию; главы меняют его своими `needs` (схемы Артура 2026-11-13) */
 const SLOTS: Slot[] = [
-  { key: 'camp', at: { x: 5, y: 16 }, kind: 'camp' },
-  { key: 'sq1', at: { x: 10, y: 15 }, kind: 'squad' },
-  { key: 'sq2', at: { x: 14, y: 11 }, kind: 'squad', needs: ['sq1'] },
-  { key: 'chest1', at: { x: 12, y: 6 }, kind: 'chest', needs: ['sq2'] },
-  { key: 'mine1', at: { x: 7, y: 22 }, kind: 'mine', needs: ['sq1'] },
-  { key: 'event1', at: { x: 15, y: 21 }, kind: 'event', needs: ['mine1', 'sq2'] },
-  { key: 'forkA', at: { x: 20, y: 25 }, kind: 'shrine', needs: ['event1'] },
-  { key: 'forkB', at: { x: 20, y: 9 }, kind: 'event', needs: ['event1'] },
-  { key: 'cross', at: CROSS, kind: 'squad', needsAny: ['forkA', 'forkB'] },
-  { key: 'node', at: { x: 34, y: 10 }, kind: 'mine', needs: ['cross'] },
-  { key: 'gold', at: { x: 30, y: 5 }, kind: 'mine', needs: ['cross'] },
-  { key: 'sq3', at: { x: 36, y: 20 }, kind: 'squad', needs: ['node'] },
-  { key: 'event3', at: { x: 40, y: 27 }, kind: 'event', needs: ['sq3'] },
-  { key: 'rich', at: { x: 46, y: 24 }, kind: 'squad', needs: ['event3'] },
-  { key: 'chest2', at: { x: 31, y: 23 }, kind: 'chest' },
-  { key: 'chest3', at: { x: 44, y: 6 }, kind: 'chest' },
-  { key: 'guard', at: { x: 42, y: 15 }, kind: 'squad', needs: ['sq3'] },
-  { key: 'fortress', at: { x: 47, y: 15 }, kind: 'fortress', needs: ['guard'] },
+  { key: 'camp', kind: 'camp' },
+  { key: 'sq1', kind: 'squad' },
+  { key: 'sq2', kind: 'squad', needs: ['sq1'] },
+  { key: 'chest1', kind: 'chest', needs: ['sq2'] },
+  { key: 'mine1', kind: 'mine', needs: ['sq1'] },
+  { key: 'event1', kind: 'event', needs: ['mine1', 'sq2'] },
+  { key: 'forkA', kind: 'shrine', needs: ['event1'] },
+  { key: 'forkB', kind: 'event', needs: ['event1'] },
+  { key: 'cross', kind: 'squad', needsAny: ['forkA', 'forkB'] },
+  { key: 'node', kind: 'mine', needs: ['cross'] },
+  { key: 'gold', kind: 'mine', needs: ['cross'] },
+  { key: 'sq3', kind: 'squad', needs: ['node'] },
+  { key: 'event3', kind: 'event', needs: ['sq3'] },
+  { key: 'rich', kind: 'squad', needs: ['event3'] },
+  { key: 'chest2', kind: 'chest' },
+  { key: 'chest3', kind: 'chest' },
+  { key: 'guard', kind: 'squad', needs: ['sq3'] },
+  { key: 'fortress', kind: 'fortress', needs: ['guard'] },
 ];
-const ROADS: (string | P)[][] = [
-  ['camp', 'sq1', 'sq2', 'forkB', { x: 23, y: 16 }, 'cross'],
-  ['camp', 'mine1', 'event1', 'forkA', { x: 21, y: 19 }, { x: 23, y: 16 }],
-  ['sq2', 'chest1'],
-  ['sq1', { x: 13, y: 18 }, 'event1'],
-  ['cross', { x: 31, y: 14 }, 'node', 'chest3'],
-  ['node', 'gold'],
-  [{ x: 31, y: 14 }, 'sq3', 'guard', 'fortress'],
-  ['sq3', 'chest2'],
-  ['sq3', 'event3', 'rich'],
-];
-const PROPS: { kind: PropKind; at: P }[] = [
-  { kind: 'ruins', at: { x: 3, y: 13 } },
-  { kind: 'stones', at: { x: 12, y: 18 } },
-  { kind: 'graves', at: { x: 22, y: 22 } },
-  { kind: 'wreck', at: { x: 33, y: 17 } },
-  { kind: 'ruins', at: { x: 38, y: 8 } },
-  { kind: 'graves', at: { x: 45, y: 12 } },
+type Prop = { kind: PropKind; near: string; dx: number; dy: number };
+/** Украшения полян: рядом со слотом, ближайший свободный гекс выбирает построитель (`settleProps`) */
+const PROPS: Prop[] = [
+  { kind: 'ruins', near: 'camp', dx: -2, dy: -2 },
+  { kind: 'stones', near: 'sq1', dx: 2, dy: 1 },
+  { kind: 'graves', near: 'event1', dx: 2, dy: 2 },
+  { kind: 'wreck', near: 'cross', dx: -2, dy: 2 },
+  { kind: 'ruins', near: 'node', dx: 3, dy: -2 },
+  { kind: 'graves', near: 'guard', dx: 0, dy: 3 },
 ];
 
 /** Содержимое слота в главе */
@@ -73,8 +64,8 @@ interface ChapterDef {
   level: number;
   chapter: number;
   prefix: string;
-  flipX?: boolean;
-  flipY?: boolean;
+  /** Схема карты (`layouts.ts`): ключи — слоты */
+  layout: RegionLayout;
   seed: number;
   lake?: number;
   rock?: number;
@@ -83,39 +74,43 @@ interface ChapterDef {
   wild: PropKind[];
   next?: string;
   fill: Record<string, Fill>;
-  /** Свои объекты главы сверх схемы (сопровождение Корха): место в координатах схемы, до поворота; `needs` — ключи слотов */
-  extra?: (Fill & { key: string; at: P; kind: WorldObj['kind']; needs?: string[] })[];
-  /** Свои дороги главы сверх схемы */
-  extraRoads?: (string | P)[][];
+  /** Свои объекты главы сверх слотов (сопровождение Корха, отряд «Гончие бездны»): место — в схеме, `needs` — ключи слотов */
+  extra?: (Fill & { key: string; kind: WorldObj['kind']; needs?: string[] })[];
   /** Свои замки слота вместо схемы (ключи слотов): строгий порядок там, где у Лороведа нет развилки */
   needs?: Record<string, { needs?: string[]; needsAny?: string[] }>;
 }
 
 function makeChapter(d: ChapterDef): RegionSpec {
-  const tx = (p: P): P => ({ x: d.flipX ? W - 1 - p.x : p.x, y: d.flipY ? H - 1 - p.y : p.y });
-  const id = (key: string) => (key === 'camp' ? `${d.prefix}camp` : `${d.prefix}${key}`);
-  const slotAt = (k: string) => (SLOTS.find((s) => s.key === k) ?? d.extra?.find((e) => e.key === k))!.at;
-  const at = (k: string | P): P => tx(typeof k === 'string' ? slotAt(k) : k);
+  const id = (key: string) => `${d.prefix}${key}`;
+  const hex = (key: string) => {
+    const q = d.layout.at[key];
+    if (!q) throw new Error(`${d.id}: в схеме нет места для «${key}»`);
+    return snapHex(q[0], q[1]);
+  };
   const objects: WorldObj[] = SLOTS.map((s) => {
     const lock = d.needs?.[s.key] ?? s;
     return {
       kind: s.kind,
       ...d.fill[s.key],
       id: id(s.key),
-      ...tx(s.at),
+      ...hex(s.key),
       ...(lock.needs ? { needs: lock.needs.map(id) } : {}),
       ...(lock.needsAny ? { needsAny: lock.needsAny.map(id) } : {}),
     };
   });
-  for (const { key, at: p, needs, ...fill } of d.extra ?? []) objects.push({ ...fill, id: id(key), ...tx(p), ...(needs ? { needs: needs.map(id) } : {}) });
+  for (const { key, needs, ...fill } of d.extra ?? []) objects.push({ ...fill, id: id(key), ...hex(key), ...(needs ? { needs: needs.map(id) } : {}) });
   const fortress = objects.find((o) => o.kind === 'fortress')!;
   fortress.weakenedBy = id('node');
-  const river = (y: number) => {
-    const ry = d.flipY ? H - 1 - y : y;
-    const x = baseRiver(ry);
-    return d.flipX ? W - 2 - x : x;
+  const camp = hex('camp');
+  const L = d.layout;
+  const ren = (p: string | [number, number]) => (typeof p === 'string' ? id(p) : p);
+  const layout: RegionLayout = {
+    ...L,
+    at: Object.fromEntries(Object.entries(L.at).map(([k, v]) => [id(k), v])),
+    edges: L.edges.map((e) => ({ ...e, pts: e.pts.map(ren) })),
+    isles: L.isles && Object.fromEntries(Object.entries(L.isles).map(([k, v]) => [id(k), v])),
+    chokes: L.chokes?.map(id),
   };
-  const camp = at('camp');
   return {
     id: d.id,
     name: d.name,
@@ -123,12 +118,14 @@ function makeChapter(d: ChapterDef): RegionSpec {
     chapter: d.chapter,
     w: W,
     h: H,
-    start: { x: camp.x + (d.flipX ? -1 : 1), y: camp.y },
+    start: { x: camp.x + 1, y: camp.y },
     objects,
-    roads: [...ROADS, ...(d.extraRoads ?? [])].map((chain) => chain.map(at)),
-    props: PROPS.map((p) => ({ kind: p.kind, ...tx(p.at) }) as WorldProp),
-    river,
-    crossings: [at('cross')],
+    roads: [],
+    props: PROPS.map((p) => {
+      const c = hex(p.near);
+      return { kind: p.kind, x: c.x + p.dx, y: c.y + p.dy } as WorldProp;
+    }),
+    layout,
     seed: d.seed,
     lake: d.lake,
     rock: d.rock,
@@ -146,14 +143,15 @@ const BOG = makeChapter({
   level: 2,
   chapter: 2,
   prefix: 'bog_',
+  layout: BOG_LAYOUT,
   seed: 200,
-  lake: 0.66,
+  lake: 0.22, // вокруг мостков в основном вода
   rock: 0.62,
   forest: 0.55,
   wild: ['deadwood', 'castle', 'statue', 'deadwood', 'tower', 'crystals'],
   next: 'ice',
-  // Грибная роща — основной путь (редакция Артура 2026-11-07), святилище — необязательное
-  needs: { cross: { needs: ['forkB'] } },
+  // Грибная роща — основной путь (редакция Артура 2026-11-07), святилище — необязательное; круг у лагеря: отряды и обоз, потом по гати в деревню
+  needs: { event1: { needs: ['sq2', 'chest1'] }, forkA: { needs: ['forkB'] }, cross: { needs: ['forkB'] } },
   fill: {
     camp: { name: 'Лагерь у второго артефакта', text: 'Лагерь перенесли к новому артефакту. Вокруг топь и туман.' },
     sq1: { name: 'Топь у входа', waves: 4, reward: { gold: 60 }, text: 'Из тумана идут тела. Не орки и не звери.' },
@@ -218,7 +216,7 @@ const ICE = makeChapter({
   level: 3,
   chapter: 3,
   prefix: 'ice_',
-  flipY: true,
+  layout: ICE_LAYOUT,
   seed: 300,
   lake: 0.74,
   rock: 0.4,
@@ -226,7 +224,18 @@ const ICE = makeChapter({
   hills: 0.55,
   wild: ['crystals', 'cliff', 'statue', 'tower', 'crystals', 'cliff'],
   next: 'ash',
-  needs: { rich: { needs: ['event3'] }, guard: { needs: ['rich'] } },
+  // Петля вокруг озера: дозор, караван, застава, малый артефакт, стела, Алтарь инея, назад в лагерь на оборону; потом ущелье и переправа
+  needs: {
+    event1: { needs: ['sq1'] },
+    sq2: { needs: ['event1'] },
+    node: { needs: ['sq2'] },
+    forkA: { needs: ['node'] },
+    forkB: { needs: ['node'] },
+    sq3: { needs: ['forkA'] },
+    rich: { needs: ['event3'] },
+    cross: { needs: ['rich'] },
+    guard: { needs: ['cross'] },
+  },
   fill: {
     camp: { name: 'Лагерь у третьего артефакта', text: 'Снег и ветер. Холод здесь чужой: его держит чья-то воля.' },
     sq1: { name: 'Ледяной дозор', waves: 5, reward: { gold: 80 }, text: 'Неофиты культа. Мороз их не берёт.' },
@@ -288,7 +297,7 @@ const ASH = makeChapter({
   level: 4,
   chapter: 4,
   prefix: 'ash_',
-  flipX: true,
+  layout: ASH_LAYOUT,
   seed: 400,
   lake: 0.76,
   rock: 0.42,
@@ -296,12 +305,21 @@ const ASH = makeChapter({
   hills: 0.5,
   wild: ['cliff', 'deadwood', 'statue', 'castle', 'cliff', 'crystals'],
   next: 'dusk',
-  needs: { forkB: { needs: ['forkA'] }, cross: { needs: ['forkA', 'forkB'] }, rich: { needs: ['event3'] }, guard: { needs: ['rich'] } },
+  // Спираль: малый артефакт — раньше моста, дальше по витку к Вратам
+  needs: {
+    event1: { needs: ['sq2'] },
+    forkB: { needs: ['forkA'] },
+    node: { needs: ['forkB'] },
+    gold: { needs: ['node'] },
+    cross: { needs: ['node'] },
+    sq3: { needs: ['cross'] },
+    rich: { needs: ['event3'] },
+    guard: { needs: ['rich'] },
+  },
   // «Обменяться и сопроводить отряд» (Г4-04, Артур 2026-11-07): бой из 6 волн демонов у дороги к малому артефакту
   extra: [
     {
       key: 'escort',
-      at: { x: 16, y: 28 },
       kind: 'squad',
       name: 'Сопровождение Корха',
       waves: 6,
@@ -311,7 +329,6 @@ const ASH = makeChapter({
       text: 'Отряд Корха идёт к малому артефакту. Демоны ждут на дороге: удержать позиции, пока чужаки проходят.',
     },
   ],
-  extraRoads: [['forkA', { x: 18, y: 27 }, 'escort']],
   fill: {
     camp: { name: 'Лагерь у четвёртого артефакта', text: 'Земля тёплая под ногами. Пепел оседает на палатках, кристалл мутнеет.' },
     sq1: { name: 'Жаровня', waves: 6, reward: { gold: 100 }, text: 'Первые демоны. Огонь для них родной.' },
@@ -382,14 +399,22 @@ const DUSK = makeChapter({
   level: 5,
   chapter: 5,
   prefix: 'dusk_',
-  flipX: true,
-  flipY: true,
+  layout: DUSK_LAYOUT,
   seed: 500,
   lake: 0.72,
   rock: 0.55,
   forest: 0.6,
   wild: ['tower', 'castle', 'statue', 'crystals', 'tower', 'castle'],
-  needs: { forkB: { needs: ['forkA'] }, cross: { needs: ['forkA', 'forkB'] }, guard: { needs: ['event3'] } },
+  // Два крыла вокруг Чёрного озера в любом порядке: север — Корх и малый артефакт, юг — латники и зал; потом мост и прямая дорога штурма
+  needs: {
+    event1: { needs: ['sq1'] },
+    sq2: { needs: ['event1'] },
+    node: { needs: ['forkA'] },
+    forkB: { needs: ['sq2'] },
+    cross: { needs: ['node', 'forkB'] },
+    sq3: { needs: ['cross'] },
+    guard: { needs: ['event3'] },
+  },
   fill: {
     camp: { name: 'Лагерь у последнего артефакта', text: 'Пятый артефакт. Дальше только врата и то, что за ними.' },
     sq1: { name: 'Тропа теней', waves: 6, reward: { gold: 110 }, text: 'Эльфы-отступники. Часть выстрелов летит мимо.' },

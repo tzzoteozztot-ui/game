@@ -6,6 +6,7 @@
  */
 import { SCENE_AT } from './dialogs';
 import { CHAPTER_SPECS } from './chapters';
+import { FRONTIER_LAYOUT } from './layouts';
 
 export type Terrain = 'grass' | 'road' | 'forest' | 'hills' | 'water' | 'rock' | 'wood';
 export type ResKey = 'gold' | 'wood' | 'crystal';
@@ -131,6 +132,7 @@ export interface WorldState {
   equip: Partial<Record<ItemSlot, string>>; // надетые: слот → id предмета
   scenes: string[]; // показанные сцены диалогов (src/campaign/dialogs.ts)
   flags: string[]; // выборы в событиях — для будущих глав
+  lv?: number; // версия расположения карт (`LAYOUT_VERSION`): у старых сохранений нет — при загрузке герой встаёт у лагеря
   dayPart?: number; // сколько третей дня уже прошло на привалах (просьба Артура 2026-11-12: отдых на выбор)
 }
 
@@ -168,6 +170,8 @@ export interface RegionSpec {
   wild?: PropKind[];
   /** Следующая глава после взятия крепости */
   next?: string;
+  /** Схема карты (2026-11-13): место, дороги и местность строятся по ней, а не по зерну; `roads`, `river` и `crossings` тогда не нужны */
+  layout?: RegionLayout;
 }
 
 function mulberry(seed: number) {
@@ -227,8 +231,6 @@ export function hexLine(a: { x: number; y: number }, b: { x: number; y: number }
   return out;
 }
 
-const FORD = { x: riverX(10), y: 10 };
-const BRIDGE = { x: riverX(23), y: 23 };
 
 const FRONTIER_OBJECTS: WorldObj[] = [
   { id: 'camp', kind: 'camp', x: 5, y: 16, name: 'Лагерь экспедиции', text: 'Здесь встанут кузня, казна и стены. Пока лагерь только разбит.' },
@@ -248,11 +250,11 @@ const FRONTIER_OBJECTS: WorldObj[] = [
     text: 'Здесь орки собирают силы для набега. Бой не обязателен, но лагерь богат.',
   },
   // Переправы
-  { id: 'ford', kind: 'squad', x: FORD.x, y: FORD.y, name: 'Застава у брода', waves: 5, reward: { gold: 70 }, needs: ['sq3'], text: 'Брод через реку держат воины рода. Другого пути на тот берег почти нет.' },
-  { id: 'bridge', kind: 'squad', x: BRIDGE.x, y: BRIDGE.y, name: 'Засада у моста', waves: 5, reward: { gold: 60, wood: 10 }, needs: ['sq3'] },
+  { id: 'ford', kind: 'squad', x: 26, y: 8, name: 'Застава у брода', waves: 5, reward: { gold: 70 }, needs: ['sq3'], text: 'Брод через реку держат воины рода. Другого пути на тот берег почти нет.' },
+  { id: 'bridge', kind: 'squad', x: 27, y: 22, name: 'Засада у моста', waves: 5, reward: { gold: 60, wood: 10 }, needs: ['sq3'] },
   // Восточный берег
   { id: 'goldmine', kind: 'mine', x: 31, y: 4, name: 'Рудник', waves: 5, income: { gold: 20 }, needs: ['sq4'] },
-  { id: 'node', kind: 'mine', x: 38, y: 28, name: 'Малый артефакт', waves: 6, income: { crystal: 1 }, item: 'shard', needs: ['sq5'], needsAny: ['goldmine', 'shrine2'], text: 'Малый артефакт той же породы, что и большой. Орки охраняют его, как святыню.' },
+  { id: 'node', kind: 'mine', x: 38, y: 28, name: 'Малый артефакт', waves: 6, income: { crystal: 1 }, item: 'shard', needs: ['sq5'], text: 'Малый артефакт той же породы, что и большой. Орки охраняют его, как святыню.' },
   { id: 'sq4', kind: 'squad', x: 33, y: 13, name: 'Боевой отряд', waves: 6, reward: { gold: 80, crystal: 1 }, needsAny: ['ford', 'bridge'] },
   { id: 'sq5', kind: 'squad', x: 33, y: 22, name: 'Стая гончих', waves: 6, reward: { gold: 80 }, needsAny: ['ford', 'bridge'] },
   { id: 'sq6', kind: 'squad', x: 40, y: 8, name: 'Шаманы ущелья', waves: 7, reward: { gold: 90, crystal: 2 }, needs: ['node'] },
@@ -273,39 +275,168 @@ const FRONTIER_OBJECTS: WorldObj[] = [
   },
 ];
 
-/** Дороги: цепочки точек, между ними — прямые по гексам */
-const FRONTIER_ROADS: { x: number; y: number }[][] = [
-  [{ x: 5, y: 16 }, { x: 10, y: 14 }, { x: 16, y: 9 }, FORD, { x: 30, y: 10 }, { x: 33, y: 13 }, { x: 42, y: 15 }, { x: 47, y: 15 }],
-  [{ x: 5, y: 16 }, { x: 12, y: 20 }, { x: 18, y: 23 }, BRIDGE, { x: 33, y: 22 }, { x: 41, y: 22 }, { x: 42, y: 15 }],
-  [{ x: 10, y: 14 }, { x: 8, y: 10 }, { x: 6, y: 6 }],
-  [{ x: 12, y: 20 }, { x: 8, y: 26 }],
-  [{ x: 5, y: 16 }, { x: 4, y: 22 }],
-  [{ x: 12, y: 20 }, { x: 19, y: 16 }],
-  [{ x: 18, y: 23 }, { x: 17, y: 27 }],
-  [{ x: 16, y: 9 }, { x: 14, y: 4 }, { x: 21, y: 3 }],
-  [{ x: 30, y: 10 }, { x: 35, y: 7 }, { x: 31, y: 4 }],
-  [{ x: 35, y: 7 }, { x: 40, y: 8 }, { x: 45, y: 3 }],
-  [{ x: 40, y: 8 }, { x: 48, y: 6 }],
-  [{ x: 33, y: 13 }, { x: 30, y: 18 }, { x: 33, y: 22 }],
-  [{ x: 33, y: 22 }, { x: 38, y: 28 }, { x: 45, y: 28 }],
-  [{ x: 41, y: 22 }, { x: 48, y: 22 }],
-];
-
 /** Украшения на полянах (у дорог) — мельница, хутора, костры */
 const FRONTIER_PROPS: WorldProp[] = [
   { kind: 'windmill', x: 3, y: 14 },
-  { kind: 'farm', x: 7, y: 18 },
-  { kind: 'stones', x: 13, y: 15 },
-  { kind: 'wreck', x: 21, y: 22 },
-  { kind: 'graves', x: 36, y: 25 },
-  { kind: 'orcCamp', x: 45, y: 13 },
+  { kind: 'farm', x: 8, y: 19 },
+  { kind: 'stones', x: 12, y: 13 },
+  { kind: 'wreck', x: 22, y: 20 },
+  { kind: 'graves', x: 30, y: 25 },
+  { kind: 'orcCamp', x: 42, y: 13 },
   { kind: 'orcCamp', x: 46, y: 18 },
-  { kind: 'ruins', x: 37, y: 9 },
+  { kind: 'ruins', x: 35, y: 12 },
 ];
 
 /** Крупные украшения в непроходимой местности: занимают гекс и соседей (`BIG_PROPS` — радиус 1) */
 const BIG_PROPS: PropKind[] = ['castle', 'cliff'];
 const WILD_KINDS: PropKind[] = ['castle', 'cliff', 'tower', 'crystals', 'deadwood', 'statue', 'cliff', 'tower', 'castle', 'deadwood'];
+
+/**
+ * Схема карты главы (просьба Артура 2026-11-13: «перенеси все схемы», схемы — design/campaign-maps-proposal).
+ * Координаты — как на схеме: 52×32, дробные (`snapHex` ставит точку в гекс). Дороги идут между объектами и точками,
+ * хребты и реки непроходимы, кроме гексов дороги: так отряд в проходе или на мосту нельзя обойти.
+ */
+export interface RegionLayout {
+  /** Место объектов: id (в главах 2–5 до сборки — ключ слота) → точка схемы */
+  at: Record<string, [number, number]>;
+  /** Дороги: цепочки из объектов и точек; `opt` — необязательное ответвление; `gati` — мостки по воде (вода вокруг них заливается сама) */
+  edges: { pts: (string | [number, number])[]; opt?: boolean; gati?: boolean }[];
+  /** Хребты: ломаная и толщина (в гексах); проходимы только дорогой */
+  ridges?: { pts: [number, number][]; w: number }[];
+  /** Реки и лава: так же, переходятся по гексам дороги (мост, брод) */
+  rivers?: { pts: [number, number][]; w: number }[];
+  /** Озёра: эллипс */
+  lakes?: { x: number; y: number; rx: number; ry: number }[];
+  /** Суша среди воды (сухой лес главы 2): многоугольники, внутри — проходимое вперемешку с чащей */
+  lands?: [number, number][][];
+  /** Острова под объектами: id → радиус схемы */
+  isles?: Record<string, number>;
+  /** Объекты-горловины: вокруг них дорога не расширяется и поляны нет, обойти отряд негде */
+  chokes?: string[];
+}
+
+/** Гекс, ближайший к точке схемы (на схеме нечётные ряды не сдвинуты, в игре — на полгекса вправо) */
+export function snapHex(x: number, y: number): { x: number; y: number } {
+  const r = Math.round(y);
+  return { x: Math.round(x - 0.5 * (r & 1)), y: r };
+}
+
+function segDist(px: number, py: number, ax: number, ay: number, bx: number, by: number): number {
+  const dx = bx - ax;
+  const dy = by - ay;
+  const l2 = dx * dx + dy * dy;
+  const t = l2 ? Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / l2)) : 0;
+  return Math.hypot(px - (ax + t * dx), py - (ay + t * dy));
+}
+function polyDist(px: number, py: number, pts: [number, number][]): number {
+  let m = Infinity;
+  for (let i = 0; i + 1 < pts.length; i++) m = Math.min(m, segDist(px, py, pts[i][0], pts[i][1], pts[i + 1][0], pts[i + 1][1]));
+  return m;
+}
+function inPolygon(px: number, py: number, poly: [number, number][]): boolean {
+  let inside = false;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const [xi, yi] = poly[i];
+    const [xj, yj] = poly[j];
+    if (yi > py !== yj > py && px < ((xj - xi) * (py - yi)) / (yj - yi) + xi) inside = !inside;
+  }
+  return inside;
+}
+
+/** Украшения полян: каждое — в ближайший свободный проходимый гекс (не дорога, не объект) в трёх гексах от желаемого места; не нашлось — пропадает */
+function settleProps(props: WorldProp[], g: string[][], objects: WorldObj[]): WorldProp[] {
+  const used = new Set(objects.map((o) => `${o.x},${o.y}`));
+  const out: WorldProp[] = [];
+  for (const p of props) {
+    let best: { x: number; y: number } | null = null;
+    let bd = 99;
+    for (let y = p.y - 3; y <= p.y + 3; y++)
+      for (let x = p.x - 4; x <= p.x + 4; x++) {
+        const d = hexDistance(p, { x, y });
+        if (d > 3 || d >= bd || g[y]?.[x] !== '.' || used.has(`${x},${y}`)) continue;
+        best = { x, y };
+        bd = d;
+      }
+    if (!best) continue;
+    used.add(`${best.x},${best.y}`);
+    out.push({ kind: p.kind, ...best });
+  }
+  return out;
+}
+
+/** Местность по схеме: дороги, обочины, острова, поляны, хребты, реки; всё остальное — глушь (чаща, горы, вода) */
+function rasterLayout(spec: RegionSpec, g: string[][]) {
+  const L = spec.layout!;
+  const FW = spec.w;
+  const FH = spec.h;
+  const sd = spec.seed ?? 0;
+  const inside = (x: number, y: number) => x > 0 && y > 0 && x < FW - 1 && y < FH - 1;
+  const at = (x: number, y: number): [number, number] => [x + 0.5 * (y & 1), y];
+  const hexOf = (p: string | [number, number]) => {
+    const q = typeof p === 'string' ? L.at[p] : p;
+    return snapHex(q[0], q[1]);
+  };
+  const cells: { x: number; y: number; sx: number; sy: number }[] = [];
+  for (let y = 0; y < FH; y++) for (let x = 0; x < FW; x++) cells.push({ x, y, sx: x + 0.5 * (y & 1), sy: y });
+  const blocked: string[][] = Array.from({ length: FH }, () => Array(FW).fill(''));
+  // Хребты, реки, озёра: непроходимо, пока дорога не проложена поверх
+  for (const c of cells) {
+    if (L.ridges?.some((r) => polyDist(c.sx, c.sy, r.pts) <= r.w / 2)) blocked[c.y][c.x] = 'r';
+    if (L.rivers?.some((r) => polyDist(c.sx, c.sy, r.pts) <= r.w / 2) || L.lakes?.some((l) => ((c.sx - l.x) / l.rx) ** 2 + ((c.sy - l.y) / l.ry) ** 2 <= 1)) blocked[c.y][c.x] = 'w';
+  }
+  // Дороги
+  const chains = L.edges.map((e) => ({ ...e, hexes: e.pts.map(hexOf) }));
+  const gati: { x: number; y: number }[] = [];
+  for (const e of chains)
+    for (let i = 0; i + 1 < e.hexes.length; i++)
+      for (const p of hexLine(e.hexes[i], e.hexes[i + 1])) {
+        if (!inside(p.x, p.y)) continue;
+        g[p.y][p.x] = '=';
+        if (e.gati) gati.push(p);
+      }
+  const chokes = new Set(L.chokes ?? []);
+  const chokeObjs = spec.objects.filter((o) => chokes.has(o.id));
+  const nearChoke = (x: number, y: number) => chokeObjs.some((o) => hexDistance(o, { x, y }) <= 2);
+  const free = (x: number, y: number) => inside(x, y) && !g[y][x] && !blocked[y][x];
+  // Острова под объектами
+  for (const o of spec.objects) {
+    const rad = L.isles?.[o.id];
+    if (!rad || chokes.has(o.id)) continue;
+    const [ox, oy] = at(o.x, o.y);
+    for (const c of cells) if (free(c.x, c.y) && Math.hypot(c.sx - ox, c.sy - oy) <= rad * 0.62) g[c.y][c.x] = '.';
+  }
+  // Обочины: дорога шириной в 1–3 гекса (по шуму), необязательные ответвления уже
+  const wide = valueNoise(51 + sd, 3, FW, FH);
+  for (const e of chains) {
+    if (e.gati) continue;
+    const line = e.hexes.map((h) => at(h.x, h.y));
+    for (const c of cells) if (free(c.x, c.y) && !nearChoke(c.x, c.y) && polyDist(c.sx, c.sy, line) <= 1.05 && wide(c.x, c.y) > (e.opt ? 0.58 : 0.42)) g[c.y][c.x] = '.';
+  }
+  // Поляны вокруг объектов
+  for (const o of spec.objects) {
+    if (chokes.has(o.id)) continue;
+    const rad = o.kind === 'camp' || o.kind === 'fortress' ? 2 : 1;
+    for (let y = o.y - rad; y <= o.y + rad; y++) for (let x = o.x - rad - 1; x <= o.x + rad + 1; x++) if (free(x, y) && hexDistance(o, { x, y }) <= rad) g[y][x] = '.';
+  }
+  for (const o of spec.objects) if (g[o.y][o.x] !== '=') g[o.y][o.x] = '.';
+  // Суша среди воды: проходимое вперемешку с чащей
+  const dry = valueNoise(63 + sd, 3, FW, FH);
+  const inLand = (x: number, y: number) => !!L.lands?.some((poly) => inPolygon(...at(x, y), poly));
+  for (const c of cells) if (inLand(c.x, c.y) && free(c.x, c.y)) g[c.y][c.x] = dry(c.x, c.y) > 0.42 ? '.' : 'd';
+  // Мостки: гексы рядом с ними — вода, иначе мостков не видно
+  for (const p of gati) for (const n of hexNeighbours(p.x, p.y)) if (inside(n.x, n.y) && !g[n.y][n.x]) g[n.y][n.x] = 'w';
+  // Глушь
+  const mtn = valueNoise(23 + sd, 5, FW, FH);
+  const lake = valueNoise(77 + sd, 4, FW, FH);
+  for (const c of cells) {
+    if (g[c.y][c.x]) continue;
+    const b = blocked[c.y][c.x];
+    if (b) g[c.y][c.x] = b;
+    else if (!inside(c.x, c.y)) g[c.y][c.x] = 'r';
+    else if (lake(c.x, c.y) > (spec.lake ?? 0.8)) g[c.y][c.x] = 'w';
+    else g[c.y][c.x] = mtn(c.x, c.y) > (spec.rock ?? 0.5) ? 'r' : 'd';
+  }
+}
 
 /** Местность региона по описанию: дороги, обочины и поляны проходимы, остальное — горы, чаща, озёра, река */
 export function buildRegion(spec: RegionSpec): RegionDef {
@@ -320,6 +451,11 @@ export function buildRegion(spec: RegionSpec): RegionDef {
     const rx = rv(y);
     return x === rx || x === rx + 1 || (y > 0 && rv(y - 1) !== rx && x === Math.min(rx, rv(y - 1)) + 1);
   };
+  let sprops = spec.props;
+  if (spec.layout) {
+    rasterLayout(spec, g);
+    sprops = settleProps(spec.props, g, spec.objects);
+  } else {
   // 1. Дороги
   for (const chain of spec.roads)
     for (let i = 0; i + 1 < chain.length; i++) for (const p of hexLine(chain[i], chain[i + 1], spec.id === 'frontier')) if (inside(p.x, p.y)) g[p.y][p.x] = '=';
@@ -349,10 +485,11 @@ export function buildRegion(spec: RegionSpec): RegionDef {
       else if (lake(x, y) > (spec.lake ?? 0.8)) g[y][x] = 'w';
       else g[y][x] = mtn(x, y) > (spec.rock ?? 0.5) ? 'r' : 'd';
     }
+  }
   // 4. Проходимое разнообразим: лес и холмы (дороже по ходу)
   const forest = valueNoise(11 + sd, 4, FW, FH);
   const hills = valueNoise(31 + sd, 5, FW, FH);
-  const busy = new Set([...spec.objects, ...spec.props].map((o) => `${o.x},${o.y}`));
+  const busy = new Set([...spec.objects, ...sprops].map((o) => `${o.x},${o.y}`));
   for (let y = 0; y < FH; y++)
     for (let x = 0; x < FW; x++) {
       if (g[y][x] !== '.' || busy.has(`${x},${y}`)) continue;
@@ -418,9 +555,16 @@ export function buildRegion(spec: RegionSpec): RegionDef {
     terrain: g.map((row) => row.join('')),
     start: spec.start,
     objects: spec.objects,
-    props: [...spec.props, ...props],
+    props: [...sprops, ...props],
   };
 }
+
+/** Объекты на местах схемы */
+export const placed = (objs: WorldObj[], L: RegionLayout): WorldObj[] =>
+  objs.map((o) => {
+    const q = L.at[o.id];
+    return q ? { ...o, ...snapHex(q[0], q[1]) } : o;
+  });
 
 export const FRONTIER: RegionDef = buildRegion({
   id: 'frontier',
@@ -429,12 +573,11 @@ export const FRONTIER: RegionDef = buildRegion({
   chapter: 1,
   w: FW,
   h: FH,
-  start: { x: 6, y: 16 },
-  objects: FRONTIER_OBJECTS,
-  roads: FRONTIER_ROADS,
+  start: { x: 6, y: 15 },
+  objects: placed(FRONTIER_OBJECTS, FRONTIER_LAYOUT),
+  roads: [],
   props: FRONTIER_PROPS,
-  river: riverX,
-  crossings: [FORD, BRIDGE],
+  layout: { ...FRONTIER_LAYOUT, chokes: ['saw'] },
   next: 'bog',
 });
 
@@ -489,9 +632,13 @@ export function hexDistance(a: { x: number; y: number }, b: { x: number; y: numb
 // -------------------------------------------------------------
 // Состояние похода
 // -------------------------------------------------------------
+/** Версия расположения карт глав: 4 — схемы Артура от 2026-11-13. Прогресс (разбитое, ресурсы, лагерь, герой) переживает смену, герой возвращается к лагерю */
+export const LAYOUT_VERSION = 4;
+
 export function newWorld(region: RegionDef = FRONTIER): WorldState {
   const st: WorldState = {
     v: 3,
+    lv: LAYOUT_VERSION,
     region: region.id,
     hero: { ...region.start },
     day: 1,
@@ -823,6 +970,13 @@ export function normalizeWorld(v: unknown): WorldState | null {
   };
   const part = Math.max(0, Math.min(REST_PARTS - 1, Math.floor(num(o.dayPart))));
   if (part) st.dayPart = part;
+  st.lv = LAYOUT_VERSION;
+  if (o.lv !== LAYOUT_VERSION) {
+    // Карта перерисована: герой стоит у лагеря, туман — вокруг лагеря и всего, что уже пройдено
+    st.hero = { ...region.start };
+    st.seen = [];
+    revealAround(st, region, [region.start, ...region.objects.filter((ob) => isCleared(st, ob.id)).map((ob) => ({ x: ob.x, y: ob.y }))], SIGHT);
+  }
   // Сохранение до диалогов: пролог уже позади
   if (!Array.isArray(o.scenes) && (st.done.length || st.day > 1)) {
     // …и сцены уже пройденного не догоняют игрока все разом
