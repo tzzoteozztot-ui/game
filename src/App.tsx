@@ -1875,6 +1875,7 @@ export default function App() {
                   faction={gameState.nextWaveFaction}
                   isWaveActive={gameState.isWaveActive}
                   bossName={gameState.bossName}
+                  camp={gameState.heroToken}
                 />}
                 {/* Bottom corners: gold and lives on the left; the selected tower's card on the half away from it,
                     «Всё поле» on the right. Only the plates' own buttons take taps */}

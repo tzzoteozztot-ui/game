@@ -35,7 +35,7 @@ export function FieldStats({ heroToken = false, gold, lives, wave, maxWaves, end
           <GoldIcon size="1.15em" />
           {sandbox ? '∞' : gold}
         </span>
-        <span className="flex items-center gap-1 font-bold text-red-400" title={heroToken ? 'Прочность обороны Рена' : 'Прочность артефакта'}>
+        <span className="flex items-center gap-1 font-bold text-red-400" title={heroToken ? 'Прочность лагеря' : 'Прочность артефакта'}>
           <HeartCastleIcon size="1.15em" />
           {lives}
         </span>

@@ -18,6 +18,8 @@ interface WaveInfoProps {
   /** Поход: своё имя босса этого боя (Каллен) */
   bossName?: string | null;
   isWaveActive: boolean;
+  /** Поход: оборона лагеря Рена, а не артефакта */
+  camp?: boolean;
 }
 
 const CELL = `calc(100cqw / ${CONFIG.grid.cols})`;
@@ -27,7 +29,7 @@ const fmt = (n: number) => Math.round(n).toLocaleString('ru-RU');
 
 const towerName = (type: string) => CONFIG.towers[type as keyof typeof CONFIG.towers]?.name ?? '';
 
-export function WaveInfo({ nextWave, summary, faction, isWaveActive, bossName }: WaveInfoProps) {
+export function WaveInfo({ nextWave, summary, faction, isWaveActive, bossName, camp }: WaveInfoProps) {
   const [open, setOpen] = React.useState(false);
   // A new wave closes the totals of the previous one
   React.useEffect(() => {
@@ -106,7 +108,7 @@ export function WaveInfo({ nextWave, summary, faction, isWaveActive, bossName }:
             <span>Убито: {fmt(summary.killed)}</span>
             <span className={summary.leaked > 0 ? 'text-red-300' : ''}>Дошло: {fmt(summary.leaked)}</span>
             <span>Золото: +{fmt(summary.gold)}</span>
-            <span className={summary.lives > 0 ? 'text-red-300' : ''}>Артефакт: −{fmt(summary.lives)}</span>
+            <span className={summary.lives > 0 ? 'text-red-300' : ''}>{camp ? 'Лагерь' : 'Артефакт'}: −{fmt(summary.lives)}</span>
           </div>
           {(summary.towers.length > 0 || summary.other > 0) && (
             <div className="mt-[3px] pt-[3px] border-t border-white/15">

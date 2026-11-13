@@ -15,7 +15,7 @@ import {
   stepCost,
   restHero,
   REST_PARTS,
-  REST_MOVES,
+  restMoves,
   objectAt,
   isHostile,
   isSeen,
@@ -48,7 +48,6 @@ import { isDevMode } from '../devNotes';
 import { Scene, sceneFor, startTrigger, CAMP_SCENES } from '../campaign/dialogs';
 import { DialogBox } from './DialogBox';
 import { JournalPanel } from './JournalPanel';
-import { blockerFor } from '../campaign/zone';
 import { buildJournal } from '../campaign/journal';
 import { bakeTerrain, drawLive, loadExtras, hexAt, wx, wy, worldW, worldH, HW, P } from '../campaign/worldRender';
 import { sprites } from '../game/sprites';
@@ -343,13 +342,6 @@ export function WorldMap({ world, region, onChange, onBattle, onExit, onReset, o
         };
         if (o && isHostile(st, o)) {
           engage(o, stepCost(region, p));
-          return;
-        }
-        // Отряд держит соседние гексы: пройти мимо, не вступив в бой, нельзя
-        const guard = o ? null : blockerFor(st, region, st.hero, p);
-        const aim = steps[steps.length - 1];
-        if (guard && !(aim.x === guard.x && aim.y === guard.y)) {
-          engage(guard, 1);
           return;
         }
         const res: Arrival | null = stepHero(st, region, p);
@@ -652,6 +644,14 @@ export function WorldMap({ world, region, onChange, onBattle, onExit, onReset, o
           </div>
         )}
 
+        {/* Время суток: чем дальше день, тем темнее */}
+        {(world.dayPart ?? 0) > 0 && (
+          <div
+            className="absolute inset-0 pointer-events-none z-[5] transition-colors duration-700"
+            style={{ background: (world.dayPart ?? 0) === 1 ? 'rgba(40,20,60,0.18)' : 'rgba(10,10,40,0.38)' }}
+          />
+        )}
+
         {/* Отдых: сколько спать — столько ходов вернётся */}
         {restOpen && !notice && (
           <div className="absolute inset-0 bg-black/60 flex items-center justify-center p-4 z-10">
@@ -675,13 +675,13 @@ export function WorldMap({ world, region, onChange, onBattle, onExit, onReset, o
                         setRestOpen(false);
                         if (got) {
                           const t = resText(got);
-                          setNotice({ title: `День ${st.day}`, text: t ? `Промыслы принесли: ${t}` : 'Герой отдохнул, очки хода восстановлены.' });
+                          setNotice({ title: `День ${st.day}`, text: `${NIGHT_LINES[st.day % NIGHT_LINES.length]}\n\n${t ? `Промыслы принесли: ${t}` : 'Герой отдохнул, очки хода восстановлены.'}` });
                         }
                       }}
                     >
                       {night ? 'Спать до утра' : parts === 1 ? 'Привал (треть дня)' : 'Долгий привал (две трети дня)'}
                       <span className="block text-xs font-normal text-stone-400">
-                        {night ? `Новый день: ходы полные, промыслы приносят доход` : `+${parts * REST_MOVES} ходов, день продолжается`}
+                        {night ? `Новый день: ходы полные, промыслы приносят доход` : `+${parts * restMoves(world, region)} ходов${restMoves(world, region) > 10 ? ' (в лагере больше)' : ''}, день продолжается`}
                       </span>
                     </button>
                   );
@@ -913,6 +913,14 @@ function battleText(o: WorldObj, st?: WorldState): string {
 }
 
 /** Итог боя похода поверх поля: победа — награда и «На карту», поражение — «Ещё раз» или «На карту» */
+const NIGHT_LINES = [
+  'Ночь прошла тихо. Только ветер ходил вокруг костра.',
+  'Где-то далеко выли волки. К утру стихло.',
+  'Дозорный видел огни на холмах и не разбудил никого: огни погасли.',
+  'Кристалл на груди Рена до рассвета тихо гудел.',
+  'Мельхиор до утра писал при свече и записал всё, кроме снов.',
+]
+
 export function WorldBattleResult({ obj, won, onMap, onRetry }: { obj: WorldObj; won: boolean; onMap: () => void; onRetry: () => void }) {
   return (
     <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50">
@@ -923,7 +931,7 @@ export function WorldBattleResult({ obj, won, onMap, onRetry }: { obj: WorldObj;
         <p className="text-sm text-stone-300 mb-3 whitespace-pre-line">
           {won
             ? `${obj.name}: ${obj.kind === 'mine' ? `промысел наш, каждый день ${resText(obj.income)}` : `награда ${resText(obj.reward) || 'нет'}`}. Опыт героя +${battleXp(obj)}.${itemLine(obj.item)}`
-            : `${obj.name} устоял. Герой отошёл на прежнее место; отряд ждёт на месте.`}
+            : `Враги дошли до лагеря. ${obj.name} устоял. Герой отошёл на прежнее место; отряд ждёт на месте.`}
         </p>
         <div className={`grid ${won ? 'grid-cols-1' : 'grid-cols-2'} gap-2`}>
           {!won && (

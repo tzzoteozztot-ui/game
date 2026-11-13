@@ -18,7 +18,7 @@ function fmtTime(sec: number): string {
   return `${m}:${String(s).padStart(2, '0')}`;
 }
 
-export function RunStats({ stats }: { stats: RunSummary | null }) {
+export function RunStats({ stats, camp }: { stats: RunSummary | null; camp?: boolean }) {
   const [open, setOpen] = useState(false);
   if (!stats) return null;
   const top = stats.towers.slice(0, 6);
@@ -38,9 +38,9 @@ export function RunStats({ stats }: { stats: RunSummary | null }) {
       <div className="grid grid-cols-3 gap-y-1.5 mb-2">
         {cell('волн', fmt(stats.wave))}
         {cell('убито', fmt(stats.killed))}
-        {cell('дошло до артефакта', fmt(stats.leaked), stats.leaked > 0)}
+        {cell(camp ? 'дошло до лагеря' : 'дошло до артефакта', fmt(stats.leaked), stats.leaked > 0)}
         {cell('золото', `+${fmt(stats.gold)}`)}
-        {cell('урон артефакту', fmt(stats.lives), stats.lives > 0)}
+        {cell(camp ? 'урон лагерю' : 'урон артефакту', fmt(stats.lives), stats.lives > 0)}
         {cell('время', fmtTime(stats.seconds))}
       </div>
       {(stats.towers.length > 0 || rest > 0) && (
