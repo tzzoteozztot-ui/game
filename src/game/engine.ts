@@ -2752,10 +2752,11 @@ export class GameEngine {
 
   /** Cultist towers standing in a figure: Х (plus, 5 cells), П (5), Т (4). Figures may overlap and share towers
    *  (a tower can be in several figures); each figure is counted once. */
-  private findMegas(): Mega[] {
+  private findMegas(extra?: { x: number; y: number }): Mega[] {
     const cells = new Map<string, Tower>();
     // собранные башни в фигуры не входят: мегабашня не растворяется в новой фигуре
     for (const t of this.towers) if (CONFIG.towers[t.type].race === 'cultists' && !t.fused) cells.set(`${t.x},${t.y}`, t);
+    if (extra) cells.set(`${extra.x},${extra.y}`, { id: '__new', x: extra.x, y: extra.y } as Tower); // предпросмотр: башня, которую ещё держат в руке
     const has = (p: { x: number; y: number }) => cells.has(`${p.x},${p.y}`);
     const out: Mega[] = [];
     const seen = new Set<string>();
@@ -2802,6 +2803,24 @@ export class GameEngine {
       }
     }
     return out;
+  }
+
+  private figureHintKey = '';
+  private figureHintCells = new Map<string, Mega[]>();
+
+  /** Предпросмотр постановки культиста: на каких свободных клетках башня замкнёт фигуру (с уже стоящими) */
+  private figureHints(): Map<string, Mega[]> {
+    const key = this.towers.map((t) => `${t.x},${t.y}${t.fused ? 'f' : ''}`).join(';');
+    if (key === this.figureHintKey) return this.figureHintCells;
+    this.figureHintKey = key;
+    this.figureHintCells = new Map();
+    for (let y = 0; y < CONFIG.grid.rows; y++)
+      for (let x = 0; x < CONFIG.grid.cols; x++) {
+        if (!this.isCellFree(x, y)) continue;
+        const made = this.findMegas({ x, y }).filter((g) => g.ids.includes('__new'));
+        if (made.length) this.figureHintCells.set(`${x},${y}`, made);
+      }
+    return this.figureHintCells;
   }
 
   private stun(e: Enemy, time: number) {
@@ -5442,6 +5461,39 @@ export class GameEngine {
       ctx.strokeStyle = isFree ? CONFIG.binder.color : '#e0452f';
       ctx.lineWidth = 2;
       this.cellShape(ctx, 'stroke', this.hoverCell, 1);
+    }
+    if (this.placingTowerType && CONFIG.towers[this.placingTowerType].race === 'cultists' && !this.hyperPlan) {
+      // Культисты: клетки, где башня замкнёт фигуру, светятся; под курсором показаны все клетки фигуры
+      const hints = this.figureHints();
+      const pulseH = 0.5 + 0.5 * Math.sin(timeSec * 4);
+      ctx.save();
+      for (const k of hints.keys()) {
+        const [cx, cy] = k.split(',').map(Number);
+        ctx.fillStyle = `rgba(127, 200, 240, ${0.14 + 0.14 * pulseH})`;
+        ctx.strokeStyle = '#bfe8ff';
+        ctx.lineWidth = 2;
+        this.cellShape(ctx, 'fill', { x: cx, y: cy }, 2);
+        this.cellShape(ctx, 'stroke', { x: cx, y: cy }, 3);
+      }
+      const hov = this.hoverCell && hints.get(`${this.hoverCell.x},${this.hoverCell.y}`);
+      if (hov) {
+        ctx.strokeStyle = '#bfe8ff';
+        ctx.fillStyle = 'rgba(191, 232, 255, 0.2)';
+        ctx.lineWidth = 3;
+        for (const g of hov)
+          for (const id of g.ids) {
+            const t = id === '__new' ? this.hoverCell : this.towers.find((o) => o.id === id);
+            if (t) {
+              this.cellShape(ctx, 'fill', t, 2);
+              this.cellShape(ctx, 'stroke', t, 2);
+            }
+          }
+        ctx.font = 'bold 12px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillStyle = '#d6f0ff';
+        ctx.fillText([...new Set(hov.map((g) => (g.shape === 'P' ? 'Подкова' : 'Клин')))].join(' + ') + '!', centerX(this.hoverCell!), centerY(this.hoverCell!) - cellSize * 0.75);
+      }
+      ctx.restore();
     }
     if (this.placingTowerType && this.hoverCell) {
       const hx = this.hoverCell.x;
