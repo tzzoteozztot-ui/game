@@ -1,0 +1,69 @@
+period L1 x0.5 60fps: fires@10.008,20.017,30.025,40.033,50.042,60.05 gaps=10.008,10.009,10.008,10.008,10.009,10.008
+period L1 x1 60fps: fires@10,20,30,40,50,60 gaps=10,10,10,10,10,10
+period L1 x1.5 60fps: fires@10.025,20.05,30.075,40.1,50.125,60.15 gaps=10.025,10.025,10.025,10.025,10.025,10.025
+period L1 x2 60fps: fires@10.033,20.067,30.1,40.133,50.167,60.2 gaps=10.033,10.034,10.033,10.033,10.034,10.033
+period L1 x2.5 60fps: fires@10.042,20.083,30.125,40.167,50.208,60.25 gaps=10.042,10.041,10.042,10.042,10.041,10.042
+period L1 x3 60fps: fires@10.05,20.1,30.15,40.2,50.25,60.3 gaps=10.05,10.05,10.05,10.05,10.05,10.05
+period L1 x5 60fps: fires@10.083,20.083,30.167,40.167,50.25,60.25 gaps=10.083,10,10.084,10,10.083,10
+period L2 x0.5 60fps: fires@12,24,36,48,60 gaps=12,12,12,12,12
+period L2 x1 60fps: fires@12,24,36,48,60 gaps=12,12,12,12,12
+period L2 x1.5 60fps: fires@12,24,36,48,60 gaps=12,12,12,12,12
+period L2 x2 30fps: fires@12.067,24.067,36.133,48.133,60.2 gaps=12.067,12,12.066,12,12.067
+period L2 x2 60fps: fires@12,24,36,48,60 gaps=12,12,12,12,12
+period L2 x2.5 30fps: fires@12.083,24.083,36.167,48.167,60.25 gaps=12.083,12,12.084,12,12.083
+period L2 x2.5 60fps: fires@12,24,36,48,60 gaps=12,12,12,12,12
+period L2 x3 30fps: fires@12.1,24.1,36.2,48.2,60.3 gaps=12.1,12,12.1,12,12.1
+period L2 x3 60fps: fires@12,24,36,48,60 gaps=12,12,12,12,12
+period L2 x5 30fps: fires@12.167,24.167,36.167,48.167,60.333 gaps=12.167,12,12,12,12.166
+period L2 x5 60fps: fires@12,24,36,48,60 gaps=12,12,12,12,12
+period L3 x0.5 60fps: fires@12,24,36,48.008,60.017 gaps=12,12,12,12.008,12.009
+period L3 x1 60fps: fires@12.017,24.033,36.05,48.067,60.083 gaps=12.017,12.016,12.017,12.017,12.016
+period L3 x1.5 60fps: fires@12.025,24.05,36.075,48.1,60.125 gaps=12.025,12.025,12.025,12.025,12.025
+period L3 x2 60fps: fires@12.033,24.067,36.1,48.133,60.167 gaps=12.033,12.034,12.033,12.033,12.034
+period L3 x2.5 60fps: fires@12.042,24.083,36.125,48.167,60.208 gaps=12.042,12.041,12.042,12.042,12.041
+period L3 x3 60fps: fires@12.05,24.1,36.15,48.2,60.25 gaps=12.05,12.05,12.05,12.05,12.05
+period L3 x5 60fps: fires@12.083,24.083,36.167,48.167,60.25 gaps=12.083,12,12.084,12,12.083
+period L4 x0.5 60fps: fires@10.008,20.017,30.025,40.033,50.042,60.05 gaps=10.008,10.009,10.008,10.008,10.009,10.008
+period L4 x1 60fps: fires@10.017,20.033,30.05,40.067,50.083,60.1 gaps=10.017,10.016,10.017,10.017,10.016,10.017
+period L4 x1.5 60fps: fires@10.025,20.05,30.075,40.1,50.125,60.15 gaps=10.025,10.025,10.025,10.025,10.025,10.025
+period L4 x2 60fps: fires@10.033,20.067,30.1,40.133,50.167,60.2 gaps=10.033,10.034,10.033,10.033,10.034,10.033
+period L4 x2.5 60fps: fires@10.042,20.083,30.125,40.167,50.208,60.25 gaps=10.042,10.041,10.042,10.042,10.041,10.042
+period L4 x3 60fps: fires@10.05,20.1,30.15,40.2,50.25,60.3 gaps=10.05,10.05,10.05,10.05,10.05,10.05
+period L4 x5 60fps: fires@10.083,20.083,30.167,40.167,50.25,60.25 gaps=10.083,10,10.084,10,10.083,10
+period L5 x0.5 60fps: fires@15.008,30.017,45.025,60.033 gaps=15.008,15.009,15.008,15.008
+period L5 x1 60fps: fires@15,30,45,60 gaps=15,15,15,15
+period L5 x1.5 60fps: fires@15,30,45,60 gaps=15,15,15,15
+period L5 x2 30fps: fires@15.067,30.067,45.133,60.133 gaps=15.067,15,15.066,15
+period L5 x2 60fps: fires@15,30,45,60 gaps=15,15,15,15
+period L5 x2.5 30fps: fires@15.083,30.083,45.167,60.167 gaps=15.083,15,15.084,15
+period L5 x2.5 60fps: fires@15,30,45,60 gaps=15,15,15,15
+period L5 x3 30fps: fires@15.1,30.1,45.2,60.2 gaps=15.1,15,15.1,15
+period L5 x3 60fps: fires@15,30,45,60 gaps=15,15,15,15
+period L5 x5 30fps: fires@15.167,30.167,45.167,60.167 gaps=15.167,15,15,15
+period L5 x5 60fps: fires@15,30,45,60 gaps=15,15,15,15
+warcry: boss=2.97 near(2.4)=2.97 far(2.6)=0.00 flyer=2.97
+warcry speed: normal=0.900 cry=1.232 ratio=1.369 after=0.900 timerAfter=-0.00
+warcry x5 game duration=3.000 s
+lich one corpse (cast 6 game s later), x0.5: {"revived":0,"game":40,"graveyard":0}
+lich one corpse (cast 6 game s later), x1: {"revived":1,"game":40,"graveyard":0}
+lich one corpse (cast 6 game s later), x1.5: {"revived":1,"game":40,"graveyard":0}
+lich one corpse (cast 6 game s later), x2: {"revived":2,"game":40,"graveyard":0}
+lich one corpse (cast 6 game s later), x2.5: {"revived":2,"game":40,"graveyard":0}
+lich one corpse (cast 6 game s later), x3: {"revived":3,"game":40,"graveyard":0}
+lich one corpse (cast 6 game s later), x5: {"revived":3,"game":40,"graveyard":1}
+lich corpse (cast 6 game s later) then pause 11 real s, x1: {"revived":0,"game":40,"graveyard":0}
+lich 5 corpses at dist 0.5,1.1,1.7,2.3,2.9 cells -> revived 3: d=0.5 hp=252/839 gold=14 hasRevived=false; d=1.1 hp=252/839 gold=14 hasRevived=false; d=1.7 hp=252/839 gold=14 hasRevived=false
+lich graveyard after cast: 5 entries (not removed)
+ice: boss cell 1,3; tie at 1 cells: 2,3 & 0,3; frozen=2,3:4.00 0,3:0.00 11,7:0.00
+ice x5: thaw after 4.000 game s (from ~3.99 left), shots while frozen=0, shots in 0.5 s real after=4, projBefore=2
+ice no towers: timer after=0.000 (reset, waits full 12 s)
+imps easy: n=3 hp=196/196/196 speed=1.60 cells/s gold=0 pathIndex=12 (boss 12) distanceTraveled=0 (boss 800) remaining imp=2240 boss=1440
+imps normal: n=3 hp=245/245/245 speed=1.60 cells/s gold=0 pathIndex=12 (boss 12) distanceTraveled=0 (boss 800) remaining imp=2240 boss=1440
+first-priority order: boss, imp, imp, imp
+imps after 30 s: left=6, lives 20 -> 14
+imps hard: n=3 hp=319/319/319 speed=1.60 cells/s gold=0 pathIndex=12 (boss 12) distanceTraveled=0 (boss 800) remaining imp=2240 boss=1440
+queen dash: from pathIndex 5+0.6 to 8; moved 2.40 cells straight; along path 2.40 cells; distanceTraveled +3.00 cells; invuln=3.00
+queen burn during invuln: hp 3843.2 -> 3793.2 (invuln left 2.00)
+queen hit during invuln via applyDamageToEnemy: hp 3793.2 -> 3793.2
+queen invuln after 3.1 s: -0.000
+queen dash on last cell: dist to castle 0.40 -> 1.00 cells (moved back)
