@@ -45,7 +45,7 @@ export function DialogBox({ scene, onDone }: DialogBoxProps) {
     const t0 = performance.now();
     const id = setInterval(() => {
       const n = Math.min(total, Math.floor(((performance.now() - t0) / 1000) * CHARS_PER_SECOND) + 1);
-      setShown(n);
+      setShown((p) => Math.max(p, n)); // касание уже показало реплику целиком — таймер не откатывает её назад
       if (n >= total) clearInterval(id);
     }, 30);
     return () => clearInterval(id);
