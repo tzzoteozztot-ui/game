@@ -1721,6 +1721,13 @@ export default function App() {
             else logWorldNote(world, 'open');
             setScreen('world');
           }}
+          onResetWorld={() => {
+            sound.init();
+            logReason('new');
+            clearBattleSave();
+            setWorld(newWorld());
+            setScreen('world');
+          }}
           onStartSandbox={(level, enemies, randomRoad) => handleSandboxStart(level, enemies, randomRoad)}
           onStartBrawl={handleBrawlStart}
           onOpenBrawlLobby={(m, level, bots, randomRoad) => {
