@@ -169,7 +169,7 @@ export function TowerPanel({
           <div className="w-[var(--h-head)] h-[var(--h-head)] flex items-center justify-center bg-black/30 rounded border border-white/10 shrink-0 text-red-400">
             <HeartCastleIcon size="70%" />
           </div>
-          <div className="flex-1 font-bold text-[length:var(--fs-md)] text-[#7fd6e0]">{heroToken ? 'Рен' : 'Артефакт'}</div>
+          <div className="flex-1 font-bold text-[length:var(--fs-md)] text-[#7fd6e0]">{heroToken ? 'Лагерь' : 'Артефакт'}</div>
           {closeBtn}
         </div>
         <div className="grid grid-cols-3 gap-1 text-[length:var(--fs-sm)] tabular-nums leading-tight">
@@ -215,7 +215,7 @@ export function TowerPanel({
           type="button"
           onClick={onUpgradeCastle}
           disabled={!canBuy}
-          title="Усилить защиту артефакта"
+          title={heroToken ? 'Усилить защиту лагеря' : 'Усилить защиту артефакта'}
           className={`h-[var(--h-btn)] px-1 rounded font-bold flex flex-col items-center justify-center leading-none transition-all shrink-0 ${
             canBuy
               ? 'bg-teal-950/60 hover:bg-teal-900/60 text-[#7fd6e0] border border-[#7fd6e0]/60 cursor-pointer'

@@ -915,7 +915,7 @@ export function WorldBattleResult({ obj, won, onMap, onRetry }: { obj: WorldObj;
         <p className="text-sm text-stone-300 mb-3 whitespace-pre-line">
           {won
             ? `${obj.name}: ${obj.kind === 'mine' ? `промысел наш, каждый день ${resText(obj.income)}` : `награда ${resText(obj.reward) || 'нет'}`}. Опыт героя +${battleXp(obj)}.${itemLine(obj.item)}`
-            : `${obj.name} устоял. Герой отошёл на прежнее место; отряд ждёт на месте.`}
+            : `Враги дошли до лагеря. ${obj.name} устоял. Герой отошёл на прежнее место; отряд ждёт на месте.`}
         </p>
         <div className={`grid ${won ? 'grid-cols-1' : 'grid-cols-2'} gap-2`}>
           {!won && (
