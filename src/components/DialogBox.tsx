@@ -7,18 +7,8 @@ import { useEffect, useState } from 'react';
 import { sound } from '../game/audio';
 import { setDevScene } from '../devNotes';
 import { Scene, SPEAKER_COLORS, SPEAKER_ROLES } from '../campaign/dialogs';
+import { portraitFile, portraitFiles } from '../campaign/portraits';
 
-/** Портреты говорящих (public/portraits/) */
-const PORTRAITS: Record<string, string> = {
-  Рен: 'ren',
-  Эхо: 'lina',
-  Каллен: 'kallen',
-  Наместник: 'oris',
-  Мельхиор: 'melkhior',
-  Гарт: 'gart',
-  Сефира: 'sefira',
-  Осип: 'osip',
-};
 const CHARS_PER_SECOND = 55;
 
 interface DialogBoxProps {
@@ -39,6 +29,10 @@ export function DialogBox({ scene, onDone }: DialogBoxProps) {
   };
 
   useEffect(() => setI(0), [scene.id]);
+  // Портреты сцены грузим заранее, чтобы смена эмоции не мигала
+  useEffect(() => {
+    for (const who of new Set(scene.lines.map((l) => l.who))) for (const f of portraitFiles(who)) new Image().src = `portraits/${f}.jpg`;
+  }, [scene]);
   // Свои звуки: щелчок реплики и озвучка (public/sounds/README.md)
   useEffect(() => {
     sound.play('dialog.line');
@@ -80,7 +74,7 @@ export function DialogBox({ scene, onDone }: DialogBoxProps) {
 
   if (!line) return null;
   const color = SPEAKER_COLORS[line.who] ?? '#e8e2cf';
-  const portrait = PORTRAITS[line.who];
+  const portrait = portraitFile(line.who, line.mood);
   const role = line.role ?? SPEAKER_ROLES[line.who];
   return (
     <div className="fixed inset-x-0 bottom-0 z-[60] flex justify-center px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pointer-events-none">
@@ -95,7 +89,7 @@ export function DialogBox({ scene, onDone }: DialogBoxProps) {
           style={{ borderColor: color }}
         >
           {portrait ? (
-            <img src={`portraits/${portrait}.jpg`} alt={line.who} draggable={false} className="h-full w-full object-cover object-top" />
+            <img src={`portraits/${portrait}.jpg`} alt={line.who} key={portrait} draggable={false} className="h-full w-full object-cover object-top" />
           ) : (
             <div className="flex h-full w-full items-center justify-center text-4xl font-black" style={{ color }}>
               {line.who.slice(0, 1)}

@@ -730,6 +730,9 @@ test('гексовое поле (опыт): центр клетки возвра
 // -------------------------------------------------------------
 // Поход по глобальной карте (src/campaign/world.ts)
 // -------------------------------------------------------------
+import { MOODS } from '../campaign/moods';
+import { PORTRAITS, portraitFile } from '../campaign/portraits';
+import { existsSync } from 'node:fs';
 import * as D from '../campaign/dialogs';
 import * as W from '../campaign/world';
 
@@ -934,6 +937,21 @@ test('world: the tutorial trail — locks open in order and the whole chapter ca
   assert.equal(W.armyLevel({ ...st, owned: ['node'] }, fort), 'easy');
   // Scenes come from the Lore Keeper's script: every scene has lines
   for (const sc of D.SCENES) assert.ok(sc.lines.length > 0, sc.id);
+  // Emotion markup (moods.ts) points at real lines whose speaker has a portrait for that mood
+  for (const [id, byLine] of Object.entries(MOODS)) {
+    const sc = D.SCENES.find((s) => s.id === id);
+    assert.ok(sc, `moods: scene ${id}`);
+    for (const [i, mood] of Object.entries(byLine)) {
+      const line: D.DialogLine | undefined = sc!.lines[Number(i)];
+      assert.ok(line, `moods: ${id}#${i} exists`);
+      assert.equal(line!.mood, mood, `${id}#${i} mood applied`);
+      assert.ok(PORTRAITS[line!.who]?.[mood], `moods: ${id}#${i} ${line!.who} has a '${mood}' portrait`);
+    }
+  }
+  for (const set of Object.values(PORTRAITS)) for (const f of Object.values(set)) assert.ok(existsSync(`public/portraits/${f}.jpg`), `portrait file ${f}`);
+  assert.equal(portraitFile('Рен', 'sad'), 'ren-sad');
+  assert.equal(portraitFile('Рен'), 'ren-neutral');
+  assert.equal(portraitFile('Каллен', 'sad'), 'kallen', 'no emotions → old portrait');
   // A scene plays once
   assert.ok(D.sceneFor('before:ford', []));
   assert.equal(D.sceneFor('before:bridge', ['levels']), null, 'the river fork shares one lesson');

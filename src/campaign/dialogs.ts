@@ -12,11 +12,14 @@ import { SCRIPT_CH2 } from './script_ch2';
 import { SCRIPT_CH3 } from './script_ch3';
 import { SCRIPT_CH4 } from './script_ch4';
 import { SCRIPT_CH5 } from './script_ch5';
+import { MOODS } from './moods';
+import type { Mood } from './portraits';
 
 export interface DialogLine {
   who: string;
   text: string;
   role?: string; // подпись в скобках, если не обычная (`SPEAKER_ROLES`)
+  mood?: Mood; // эмоция говорящего (портрет меняется, `portraits.ts`); нет — спокойный; размечается в `moods.ts`
   if?: string; // реплика звучит при флагах выбора: «korh-trade», «!korh-fight» — флага нет; через запятую — все сразу
 }
 export interface Scene {
@@ -71,7 +74,10 @@ export const SPEAKER_ROLES: Record<string, string> = {
 
 
 /** Сцены всех глав. Тексты — из сценариев Лороведа (scripts/dialogs_from_md.py пересобирает script_ch<N>.ts) */
-export const SCENES: Scene[] = [...SCRIPT_CH1, ...SCRIPT_CH2, ...SCRIPT_CH3, ...SCRIPT_CH4, ...SCRIPT_CH5];
+export const SCENES: Scene[] = [...SCRIPT_CH1, ...SCRIPT_CH2, ...SCRIPT_CH3, ...SCRIPT_CH4, ...SCRIPT_CH5].map((sc) => {
+  const moods = MOODS[sc.id];
+  return moods ? { ...sc, lines: sc.lines.map((l, i) => (moods[i] ? { ...l, mood: moods[i] } : l)) } : sc;
+});
 
 /** Повод начала главы: в Пограничье — `start`, дальше — `start:<регион>` */
 export const startTrigger = (region: string) => (region === 'frontier' ? 'start' : `start:${region}`);
