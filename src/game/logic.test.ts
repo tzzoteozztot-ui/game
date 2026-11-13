@@ -763,8 +763,9 @@ test('world: the river is crossed only through the ford or the bridge squad', ()
   }
   W.winBattle(st, r, 'ford');
   st.hero = { ...r.start };
-  const toFort = W.findPath(st, r, fort);
-  assert.ok(toFort, 'the ford opens the way');
+  assert.ok(W.findPath(st, r, r.objects.find((o) => o.id === 'sq4')!), 'the ford opens the way to the east bank');
+  // Схема 2026-11-13: за рекой хребет с проходами у шаманов и всадников — к крепости лишь через разбитые отряды
+  assert.equal(W.findPath(st, r, fort), null, 'the fortress still waits behind the squads of the east bank');
 });
 
 test('world: the region is mostly wild — the hero walks roads and clearings, every object is reachable', () => {
@@ -1256,4 +1257,20 @@ test('world editor: map notes survive a round trip and junk notes are dropped', 
   const r: W.RegionDef = JSON.parse(JSON.stringify(W.FRONTIER));
   const back = W.normalizeRegion({ ...r, notes: [{ id: 'n1', x: 100, y: 200, text: 'мост уже' }, { id: 'bad', x: 'a', y: 1, text: 'x' }] });
   assert.deepEqual(back?.notes, [{ id: 'n1', x: 100, y: 200, text: 'мост уже' }]);
+});
+
+test('world: a save from before the new map layouts keeps its progress and puts the hero at the camp', () => {
+  const r = W.FRONTIER;
+  const old = { ...W.newWorld(r), hero: { x: 30, y: 10 }, done: ['sq1', 'sq2'], res: { gold: 120, wood: 5, crystal: 1 }, lv: undefined } as unknown as W.WorldState;
+  const back = W.normalizeWorld(JSON.parse(JSON.stringify(old)))!;
+  assert.ok(back);
+  assert.deepEqual(back.hero, r.start);
+  assert.deepEqual(back.done, ['sq1', 'sq2']);
+  assert.equal(back.res.gold, 120);
+  assert.equal(back.lv, W.LAYOUT_VERSION);
+  const sq2 = r.objects.find((o) => o.id === 'sq2')!;
+  assert.ok(W.isSeen(back, r, sq2.x, sq2.y), 'what was cleared stays on the map');
+  // новая карта не двигает героя при следующей загрузке
+  const again = W.normalizeWorld({ ...back, hero: { x: 12, y: 17 } })!;
+  assert.deepEqual(again.hero, { x: 12, y: 17 });
 });
