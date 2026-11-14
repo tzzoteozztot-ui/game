@@ -95,6 +95,7 @@ export function DialogBox({ scene, onDone }: DialogBoxProps) {
               {line.who.slice(0, 1)}
             </div>
           )}
+          <img src="ui/button_stone.webp" alt="" draggable={false} className="pointer-events-none absolute inset-0 h-full w-full object-fill" />
         </div>
         <div className="flex min-w-0 flex-1 flex-col">
           <div className="flex items-center gap-2 mb-1">
@@ -118,6 +119,7 @@ export function DialogBox({ scene, onDone }: DialogBoxProps) {
               Пропустить
             </button>
           </div>
+          <img src="ui/divider.webp" alt="" draggable={false} className="pointer-events-none mx-auto mb-1 h-3 w-full object-contain opacity-60" />
           <p className="min-h-[3.6em] text-[13px] sm:text-[15px] leading-snug text-[#ece6d2]">
             {line.text.slice(0, shown)}
             <span className="invisible">{line.text.slice(shown)}</span>
