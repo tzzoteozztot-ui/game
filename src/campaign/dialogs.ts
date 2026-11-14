@@ -20,6 +20,7 @@ export interface DialogLine {
   text: string;
   role?: string; // подпись в скобках, если не обычная (`SPEAKER_ROLES`)
   mood?: Mood; // эмоция говорящего (портрет меняется, `portraits.ts`); нет — спокойный; размечается в `moods.ts`
+  hint?: string; // пояснение игроку про кнопки и клавиши: строка под репликой, не слова героя (`{игроку: …}` в сценарии)
   if?: string; // реплика звучит при флагах выбора: «korh-trade», «!korh-fight» — флага нет; через запятую — все сразу
 }
 export interface Scene {

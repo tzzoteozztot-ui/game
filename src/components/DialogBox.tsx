@@ -122,6 +122,11 @@ export function DialogBox({ scene, onDone }: DialogBoxProps) {
             {line.text.slice(0, shown)}
             <span className="invisible">{line.text.slice(shown)}</span>
           </p>
+          {line.hint && !typing && (
+            <p className="mt-1 rounded border border-teal-300/25 bg-teal-300/10 px-2 py-1 text-[11px] sm:text-xs leading-snug text-teal-100/90">
+              ⓘ {line.hint}
+            </p>
+          )}
           <div className="mt-auto text-right text-[11px] text-teal-300/70">
             {typing ? '' : i + 1 < scene.lines.length ? 'Дальше ▸' : 'Закрыть ▸'}
           </div>
