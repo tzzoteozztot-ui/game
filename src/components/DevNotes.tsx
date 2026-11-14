@@ -2,6 +2,7 @@
  * Режим разработчика: кнопка «✎» на краю экрана (и клавиша ` — «ё»), окно заметки с категорией и выгрузкой файла.
  * Показывается только при включённом режиме (см. src/devNotes.ts).
  */
+import { askConfirm } from './AskDialog';
 import { useEffect, useState, useSyncExternalStore } from 'react';
 import { addDevNote, DEV_CATEGORIES, DevCategory, DevNote, isDevMode, loadDevNotes, onDevModeChange, removeDevNote, clearDevNotes, downloadDevNotes } from '../devNotes';
 import type { WorldState } from '../campaign/world';
@@ -148,10 +149,11 @@ export function DevNotes({ getContext, onSaved, onOpenChange, getWorld }: Props)
                   <button
                     type="button"
                     onClick={() => {
-                      if (window.confirm('Удалить все заметки? Скачайте файл заранее.')) {
+                      askConfirm('Удалить все заметки? Скачайте файл заранее.', 'Удалить').then((ok) => {
+                        if (!ok) return;
                         clearDevNotes();
                         setNotes([]);
-                      }
+                      });
                     }}
                     className="text-[11px] text-red-300 hover:text-red-200 cursor-pointer"
                   >

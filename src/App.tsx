@@ -54,6 +54,8 @@ import { DevNotes } from './components/DevNotes';
 import { DevNote } from './devNotes';
 import { HERO_ABILITIES } from './game/config';
 import { fullscreenSupported, toggleFullscreen } from './fullscreen';
+import { AskHost, askConfirm, askText } from './components/AskDialog';
+import { FullscreenCorner } from './components/FullscreenCorner';
 import { AccountModal, SyncState } from './components/AccountModal';
 import { downloadRunLog } from './game/runLog';
 import { logWorldChange, logReason, logWorldNote, logBattleStart, logBattleEnd, type CampaignBattle } from './campaign/worldLog';
@@ -890,7 +892,14 @@ export default function App() {
     // Бой с армией: есть сохранение с передышки — предложить продолжить (просьба Артура 2026-11-12)
     let saved = obj.army && !fresh ? loadBattleSave() : null;
     if (saved && (saved.obj !== obj.id || saved.region !== (world?.region ?? 'frontier'))) saved = null;
-    if (saved && !window.confirm(`Есть сохранённый бой: пройдено этапов — ${saved.stage} из ${saved.total}. Продолжить с него? (Отмена — начать бой заново)`)) saved = null;
+    if (saved) {
+      const sv = saved;
+      askConfirm(`Есть сохранённый бой: пройдено этапов — ${sv.stage} из ${sv.total}. Продолжить с него?`, 'Продолжить', 'Начать заново').then((ok) => launchWorldBattle(obj, ok ? sv : null));
+      return;
+    }
+    launchWorldBattle(obj, null);
+  };
+  const launchWorldBattle = (obj: WorldObj, saved: ReturnType<typeof loadBattleSave>) => {
     if (obj.army && !saved) clearBattleSave();
     if (engineRef.current) engineRef.current.worldBattleStarted = false; // снимок состояния пока от прошлого боя
     setWorldBattle(obj);
@@ -1674,6 +1683,8 @@ export default function App() {
     <div className="w-full h-full overflow-hidden bg-[#121118] text-[#f4f2e6] flex flex-col font-sans select-none">
       {/* 1. Portrait Warning */}
       {isPortrait && <OrientationWarning />}
+      <AskHost />
+      {screen !== 'playing' && <FullscreenCorner />}
 
       {/* 2. Main Menu Screen */}
       {screen === 'menu' && (
@@ -2025,14 +2036,15 @@ export default function App() {
                     const draft = engine?.mapEditDraft();
                     if (!engine || !draft) return;
                     const base = draft.name && !MAPS.some((m) => m.name === draft.name) && draft.name !== 'Случайная' ? draft.name : `Моя карта ${customMaps.length + 1}`;
-                    const name = window.prompt('Название карты (то же название перезапишет её)', base);
-                    if (name === null) return;
-                    setCustomMaps(saveCustomMap({ ...draft, name: name.trim() || base }));
-                    engine.mapEditLoad({ ...draft, name: name.trim() || base });
+                    askText('Название карты (то же название перезапишет её)', base).then((name) => {
+                      if (name === null) return;
+                      setCustomMaps(saveCustomMap({ ...draft, name: name.trim() || base }));
+                      engine.mapEditLoad({ ...draft, name: name.trim() || base });
+                    });
                   }}
                   onDelete={(id) => {
                     const m = customMaps.find((x) => x.id === id);
-                    if (m && window.confirm(`Удалить карту «${m.name}»?`)) setCustomMaps(deleteCustomMap(id));
+                    if (m) askConfirm(`Удалить карту «${m.name}»?`, 'Удалить').then((ok) => ok && setCustomMaps(deleteCustomMap(id)));
                   }}
                   compact={layout === 'bottom'}
                 />

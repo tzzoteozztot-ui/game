@@ -4,6 +4,7 @@
  * Сетка гексов видна, только когда герой выбран: касание героя — выбрать, касание гекса — путь, ещё раз — идти.
  * Логика — src/campaign/world.ts, рисование — src/campaign/worldRender.ts; бой отряда запускает App через `onBattle`.
  */
+import { askConfirm } from './AskDialog';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   WorldState,
@@ -513,7 +514,7 @@ export function WorldMap({ world, region, onChange, onBattle, onExit, onReset, o
   return (
     <div className="fixed inset-0 bg-[#0b0a10] text-[#f4f2e6] flex flex-col select-none">
       {/* Верхняя полоса: регион, день, ход, ресурсы, кнопки */}
-      <div className="absolute top-0 inset-x-0 z-[5] flex items-center gap-1.5 sm:gap-2 px-2 sm:px-3 py-1 bg-[#171520]/55 border-b border-[#2d2938]/60 text-xs sm:text-sm flex-wrap">
+      <div className="absolute top-0 inset-x-0 z-[5] flex items-center gap-1.5 sm:gap-2 pl-2 sm:pl-3 pr-14 sm:pr-16 py-1 bg-[#171520]/55 border-b border-[#2d2938]/60 text-xs sm:text-sm flex-wrap">
         <button className="px-2 py-1 rounded bg-[#2a2635]/80 hover:bg-[#3a3448]" title="В главное меню" onClick={onExit}>
           ← <span className="hidden lg:inline">В меню</span>
         </button>
@@ -829,8 +830,8 @@ export function WorldMap({ world, region, onChange, onBattle, onExit, onReset, o
                       className={`py-1.5 rounded text-sm font-bold ${r.id === region.id ? 'bg-amber-800/70' : 'bg-[#2a2635] hover:bg-[#3a3448]'}`}
                       onClick={() => {
                         setSavesOpen(false);
-                        if (r.id === region.id && !window.confirm("Начать эту главу заново? Прогресс главы пропадёт.")) return;
-                        goNext(r);
+                        if (r.id !== region.id) return goNext(r);
+                        askConfirm('Начать эту главу заново? Прогресс главы пропадёт.', 'Начать заново').then((ok) => ok && goNext(r));
                       }}
                     >
                       {r.chapter ?? 1}

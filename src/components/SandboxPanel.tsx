@@ -4,6 +4,7 @@
  * отсюда же открывается окно состава волны и скачивается лог партии.
  */
 
+import { askConfirm } from './AskDialog';
 import { useEffect, useState } from 'react';
 import { CONFIG, RaceId, TowerType } from '../game/config';
 import { TowerSpriteIcon } from './Icons';
@@ -80,7 +81,7 @@ export function SandboxPanel({ race, maxLevel, selectedTower, inHand, onTake, on
           value={race}
           onChange={(e) => {
             const r = e.target.value as RaceId;
-            if (r !== race && window.confirm('Сменить расу? Башни с поля и из рюкзака уберутся, враги тоже.')) onRace(r);
+            if (r !== race) askConfirm('Сменить расу? Башни с поля и из рюкзака уберутся, враги тоже.', 'Сменить').then((ok) => ok && onRace(r));
           }}
           title="Ваша раса: башни в лавке свободного режима. Смена начинает поле заново на той же карте"
           className={SELECT}
