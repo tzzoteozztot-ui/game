@@ -26,12 +26,19 @@ export const PORTRAITS: Record<string, Partial<Record<Mood, string>> & { neutral
     sad: 'ren-sad',
     smile: 'ren-smile',
   },
+  Каллен: {
+    neutral: 'kallen-neutral',
+    determined: 'kallen-determined',
+    angry: 'kallen-angry',
+    worried: 'kallen-worried',
+    sad: 'kallen-sad',
+    smile: 'kallen-smile',
+  },
 };
 
 /** Говорящие с одним портретом, без эмоций */
 export const LEGACY_PORTRAITS: Record<string, string> = {
   Эхо: 'lina',
-  Каллен: 'kallen',
   Наместник: 'oris',
   Мельхиор: 'melkhior',
   Гарт: 'gart',
