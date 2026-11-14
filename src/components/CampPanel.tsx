@@ -15,7 +15,7 @@ export function CampPanel({ world, onUpgrade, onClose }: CampPanelProps) {
   return (
     <div className="absolute inset-0 bg-black/70 flex items-center justify-center p-2 sm:p-4 z-20" onClick={onClose}>
       <div
-        className="bg-[#171520] border border-[#3b354a] rounded-xl p-3 sm:p-4 w-full max-w-4xl max-h-full overflow-y-auto shadow-2xl"
+        className="ui-frame p-2 sm:p-3 w-full max-w-4xl max-h-full overflow-y-auto shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center gap-3 mb-1">

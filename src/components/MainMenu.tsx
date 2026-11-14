@@ -157,14 +157,14 @@ function HomePage({ onChangePage, onOpenDuel, duelAvailable, accountLabel }: Mai
             key={it.key}
             type="button"
             onClick={it.onClick}
-            className={`w-full min-h-[60px] short:min-h-[56px] px-4 py-2 rounded-lg border text-center transition-all cursor-pointer active:translate-y-0.5 shadow-md ${
+            className={`w-full min-h-[60px] short:min-h-[56px] px-4 py-2 text-center cursor-pointer active:translate-y-0.5 ${
               it.main
-                ? 'bg-amber-500 hover:bg-amber-400 border-amber-300 text-stone-950 shadow-amber-950/50'
-                : 'bg-[#1a1724] hover:bg-[#252033] border-[#3d384d] hover:border-amber-400 text-stone-100'
+                ? 'ui-btn-wood text-stone-50'
+                : 'ui-btn text-stone-100'
             }`}
           >
             <span className="block text-base short:text-sm font-black uppercase tracking-wider leading-tight">{it.title}</span>
-            <span className={`block text-[11px] leading-snug mt-0.5 ${it.main ? 'text-stone-900/80 font-semibold' : 'text-stone-400'}`}>
+            <span className={`block text-[11px] leading-snug mt-0.5 ${it.main ? 'text-amber-100/90 font-semibold' : 'text-stone-400'}`}>
               {it.hint}
             </span>
           </button>

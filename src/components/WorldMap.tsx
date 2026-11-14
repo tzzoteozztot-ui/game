@@ -657,7 +657,7 @@ export function WorldMap({ world, region, onChange, onBattle, onExit, onReset, o
         {/* Отдых: сколько спать — столько ходов вернётся */}
         {restOpen && !notice && (
           <div className="absolute inset-0 bg-black/60 flex items-center justify-center p-4 z-10">
-            <div className="bg-[#171520] border border-[#3b354a] rounded-xl p-4 max-w-sm w-full shadow-2xl">
+            <div className="ui-frame p-2 sm:p-3 max-w-sm w-full shadow-2xl">
               <h3 className="text-lg font-black text-amber-300 mb-1">Отдых</h3>
               <p className="text-sm text-stone-300 mb-3">
                 День {world.day}, прошло {world.dayPart ?? 0} из {REST_PARTS} частей. Чем дольше отдых, тем больше ходов вернётся.
@@ -699,7 +699,7 @@ export function WorldMap({ world, region, onChange, onBattle, onExit, onReset, o
         {/* Окно события */}
         {notice && (
           <div className="absolute inset-0 bg-black/60 flex items-center justify-center p-4 z-10">
-            <div className="bg-[#171520] border border-[#3b354a] rounded-xl p-4 max-w-sm w-full max-h-full overflow-y-auto shadow-2xl">
+            <div className="ui-frame p-2 sm:p-3 max-w-sm w-full max-h-full overflow-y-auto shadow-2xl">
               <h3 className="text-lg font-black text-amber-300 mb-2">{notice.title}</h3>
               <p className="text-sm text-stone-200 whitespace-pre-line mb-4">{notice.text}</p>
               {notice.event?.choices ? (
@@ -771,7 +771,7 @@ export function WorldMap({ world, region, onChange, onBattle, onExit, onReset, o
 
         {savesOpen && (
           <div className="absolute inset-0 bg-black/60 flex items-center justify-center p-4 z-10" onClick={() => setSavesOpen(false)}>
-            <div className="bg-[#171520] border border-[#3b354a] rounded-xl p-4 max-w-md w-full shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="ui-frame p-2 sm:p-3 max-w-md w-full shadow-2xl" onClick={(e) => e.stopPropagation()}>
               <h3 className="text-lg font-black text-amber-300 mb-1">Сохранения</h3>
               <p className="text-xs text-stone-400 mb-3">Поход и так сохраняется сам после каждого шага. Ячейки — чтобы вернуться к нужному дню.</p>
               <button className="w-full mb-3 py-1.5 rounded bg-[#2a2635] hover:bg-red-900/70 text-sm" onClick={() => { setSavesOpen(false); setConfirmReset(true); }}>
@@ -874,7 +874,7 @@ export function WorldMap({ world, region, onChange, onBattle, onExit, onReset, o
 
         {confirmReset && (
           <div className="absolute inset-0 bg-black/60 flex items-center justify-center p-4 z-10">
-            <div className="bg-[#171520] border border-[#3b354a] rounded-xl p-4 max-w-sm w-full shadow-2xl">
+            <div className="ui-frame p-2 sm:p-3 max-w-sm w-full shadow-2xl">
               <h3 className="text-lg font-black text-amber-300 mb-2">Начать поход заново?</h3>
               <p className="text-sm text-stone-200 mb-4">Ресурсы, промыслы и разбитые отряды пропадут. Лог похода тоже начнётся заново — если он нужен, сначала скачайте его в «Сохранениях».</p>
               <div className="grid grid-cols-2 gap-2">
@@ -930,7 +930,7 @@ const NIGHT_LINES = [
 export function WorldBattleResult({ obj, won, onMap, onRetry }: { obj: WorldObj; won: boolean; onMap: () => void; onRetry: () => void }) {
   return (
     <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50">
-      <div className={`bg-[#171520] border-2 ${won ? 'border-amber-500/70' : 'border-red-800/70'} rounded-xl p-4 max-w-sm w-full text-center text-[#f4f2e6]`}>
+      <div className={`ui-frame p-2 max-w-sm w-full text-center text-[#f4f2e6]`}>
         <h2 className={`text-2xl font-black tracking-wider mb-2 ${won ? 'text-amber-300' : 'text-red-400'}`}>
           {won ? (obj.kind === 'fortress' ? 'КРЕПОСТЬ ПАЛА!' : obj.army ? 'ЛАГЕРЬ РАЗБИТ' : 'ОТРЯД РАЗБИТ') : 'ОТСТУПЛЕНИЕ'}
         </h2>

@@ -72,7 +72,7 @@ export function AskHost() {
   if (!ask) return null;
   return (
     <div className="fixed inset-0 bg-black/75 flex items-center justify-center p-4 z-[100]" role="dialog" aria-modal="true">
-      <div className="bg-[#171520] border border-[#3b354a] rounded-xl p-4 max-w-sm w-full shadow-2xl text-[#f4f2e6]">
+      <div className="ui-frame p-2 max-w-sm w-full shadow-2xl text-[#f4f2e6]">
         <p className="text-sm leading-snug mb-3">{ask.text}</p>
         {ask.kind === 'text' && (
           <input
@@ -89,7 +89,7 @@ export function AskHost() {
         <div className="flex gap-2 justify-end">
           <button
             type="button"
-            className="px-3 py-2 rounded bg-[#2a2635] hover:bg-[#3a3448] text-sm font-bold"
+            className="ui-btn px-2 py-1 text-sm font-bold"
             onClick={() => close(ask.kind === 'confirm' ? false : null)}
           >
             {ask.kind === 'confirm' ? ask.no : 'Отмена'}
@@ -97,7 +97,7 @@ export function AskHost() {
           <button
             type="button"
             autoFocus={ask.kind === 'confirm'}
-            className="px-3 py-2 rounded bg-amber-800/80 hover:bg-amber-700 text-sm font-bold"
+            className="ui-btn-wood px-2 py-1 text-sm font-bold"
             onClick={() => close(ask.kind === 'confirm' ? true : val)}
           >
             {ask.kind === 'confirm' ? ask.yes : 'Готово'}

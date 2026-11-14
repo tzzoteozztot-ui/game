@@ -163,7 +163,7 @@ export function DuelResultModal({ outcome, wave, stats, onToMenu }: { outcome: D
   return (
     <div className="fixed inset-0 bg-black/85 flex items-center justify-center p-4 z-50">
       <div
-        className={`bg-[#171520] border-2 ${won ? 'border-amber-500/70' : 'border-red-800/70'} rounded-xl p-4 short:p-3 max-w-sm w-full max-h-[94vh] flex flex-col overflow-hidden shadow-2xl text-center text-[#f4f2e6]`}
+        className={`ui-frame p-2 max-w-sm w-full max-h-[94vh] flex flex-col overflow-hidden shadow-2xl text-center text-[#f4f2e6]`}
       >
         <div className="min-h-0 flex-1 overflow-y-auto pr-1 -mr-1">
         <h2 className={`text-2xl font-black tracking-wider mb-2 ${won ? 'text-amber-300' : 'text-red-400'}`}>
@@ -255,7 +255,7 @@ export function DefeatModal({ stats, wave, endless, best, onRestart, onToMenu }:
   const [prevBest] = useState(best);
   return (
     <div className="fixed inset-0 bg-black/85 flex items-center justify-center p-4 z-50">
-      <div className="bg-[#171520] border-2 border-red-800/70 rounded-xl p-4 short:p-3 max-w-sm w-full max-h-[94vh] flex flex-col overflow-hidden shadow-2xl text-center text-[#f4f2e6]">
+      <div className="ui-frame p-2 max-w-sm w-full max-h-[94vh] flex flex-col overflow-hidden shadow-2xl text-center text-[#f4f2e6]">
         <div className="min-h-0 flex-1 overflow-y-auto pr-1 -mr-1">
         <h2 className="text-2xl font-black text-red-400 tracking-wider mb-2">
           РУБЕЖ ПАЛ
@@ -302,7 +302,7 @@ export function DefeatModal({ stats, wave, endless, best, onRestart, onToMenu }:
 export function HowToPlayModal({ onClose }: { onClose: () => void }) {
   return (
     <div className="fixed inset-0 bg-black/85 flex items-center justify-center p-4 z-50">
-      <div className="bg-[#171520] border border-[#3b354a] rounded-xl p-5 sm:p-6 max-w-lg w-full max-h-[88vh] overflow-y-auto shadow-2xl text-[#f4f2e6] text-xs leading-relaxed">
+      <div className="ui-frame p-3 sm:p-4 max-w-lg w-full max-h-[88vh] overflow-y-auto shadow-2xl text-[#f4f2e6] text-xs leading-relaxed">
         <div className="flex items-center justify-between pb-3 border-b border-[#2d2938] mb-4">
           <h2 className="text-lg font-black text-amber-300 tracking-wide">
             Как играть в «Тёмный рубеж»
