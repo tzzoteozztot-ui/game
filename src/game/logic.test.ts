@@ -952,7 +952,8 @@ test('world: the tutorial trail — locks open in order and the whole chapter ca
   for (const set of Object.values(PORTRAITS)) for (const f of Object.values(set)) assert.ok(existsSync(`public/portraits/${f}.jpg`), `portrait file ${f}`);
   assert.equal(portraitFile('Рен', 'sad'), 'ren-sad');
   assert.equal(portraitFile('Рен'), 'ren-neutral');
-  assert.equal(portraitFile('Каллен', 'sad'), 'kallen', 'no emotions → old portrait');
+  assert.equal(portraitFile('Осип', 'sad'), 'osip', 'no emotions → old portrait');
+  assert.equal(portraitFile('Каллен', 'sad'), 'kallen-sad');
   // A scene plays once
   assert.ok(D.sceneFor('before:ford', []));
   assert.equal(D.sceneFor('before:bridge', ['levels']), null, 'the river fork shares one lesson');

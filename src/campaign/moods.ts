@@ -6,7 +6,7 @@
  */
 import type { Mood } from './portraits';
 
-export const MOODS: Record<string, Record<number, Mood>> = {
+const REN_MOODS: Record<string, Record<number, Mood>> = {
   'start': { 7: 'determined', 9: 'determined', 15: 'determined' },
   'sq1': { 1: 'smile' },
   'sq1-after': { 2: 'smile' },
@@ -71,3 +71,28 @@ export const MOODS: Record<string, Record<number, Mood>> = {
   'after:dusk_fortress': { 6: 'sad', 9: 'sad', 11: 'sad' },
   'start:dusk': { 2: 'sad' },
 };
+
+/** Эмоции Каллена (Артур 2026-11-14): те же сцены, номера его реплик; у Рена и Каллена в одной сцене записи сливаются */
+const KALLEN_MOODS: Record<string, Record<number, Mood>> = {
+  'kallen': { 0: 'determined', 2: 'smile', 3: 'smile', 7: 'smile' },
+  'fortress-after': { 5: 'smile', 7: 'determined' },
+  'start:bog': { 3: 'smile', 5: 'smile', 8: 'smile' },
+  'before:bog_sq2': { 0: 'worried' },
+  'event:bog_event1': { 1: 'sad', 6: 'sad' },
+  'choice:bog_event1:1': { 0: 'determined' },
+  'choice:bog_event1:2': { 0: 'determined' },
+  'loot:bog_forkA': { 4: 'worried' },
+  'before:bog_sq3': { 2: 'worried', 4: 'smile' },
+  'before:bog_fortress': { 2: 'worried', 9: 'determined', 11: 'determined', 13: 'smile' },
+  'after:bog_fortress': { 11: 'smile', 13: 'sad', 16: 'smile' },
+  'start:ice': { 0: 'smile', 2: 'smile', 8: 'smile' },
+  'after:ice_sq3': { 1: 'smile', 3: 'smile', 4: 'worried', 7: 'worried', 10: 'worried', 13: 'worried' },
+  'wave:ice_event3:8': { 0: 'sad', 2: 'sad', 4: 'worried', 7: 'sad', 8: 'determined' },
+  'after:ice_event3': { 1: 'sad', 2: 'sad', 3: 'sad' },
+};
+
+export const MOODS: Record<string, Record<number, Mood>> = (() => {
+  const all: Record<string, Record<number, Mood>> = {};
+  for (const set of [REN_MOODS, KALLEN_MOODS]) for (const [id, byLine] of Object.entries(set)) all[id] = { ...all[id], ...byLine };
+  return all;
+})();
