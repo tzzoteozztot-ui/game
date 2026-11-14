@@ -32,3 +32,36 @@ body,
 .tut-pulse {
   animation: tut-pulse 1s ease-in-out infinite;
 }
+
+/* Интерфейс из Draw Things (public/ui): рамки и кнопки через border-image, середина растягивается под размер */
+.ui-frame {
+  border: 18px solid transparent;
+  border-image: url(/ui/frame_wide.webp) 40 / 18px stretch;
+  background: #171520;
+  border-radius: 0;
+}
+.ui-btn,
+.ui-btn-wood {
+  border: 12px solid transparent;
+  border-radius: 0;
+  background: none;
+  color: #f4f2e6;
+  text-shadow: 0 1px 2px #000;
+  filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.6));
+  transition: filter 0.1s;
+}
+.ui-btn {
+  border-image: url(/ui/button_wide.webp) 34 fill / 12px stretch;
+}
+.ui-btn-wood {
+  border-image: url(/ui/button_wood.webp) 60 fill / 14px stretch;
+  border-width: 14px;
+}
+.ui-btn:hover,
+.ui-btn-wood:hover {
+  filter: brightness(1.25) drop-shadow(0 2px 3px rgba(0, 0, 0, 0.6));
+}
+/* пустая ячейка рюкзака */
+.ui-slot {
+  background: url(/ui/icon_slot.webp) center / 100% 100% no-repeat;
+}

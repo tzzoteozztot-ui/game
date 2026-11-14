@@ -23,7 +23,7 @@ export function SpecModal({ towerType, level = 2, onSelectSpec }: SpecModalProps
 
   return (
     <div className="fixed inset-0 bg-black/85 flex items-center justify-center p-4 z-50 animate-fade-in">
-      <div className="bg-[#171520] border-2 border-amber-600/70 rounded-xl p-5 sm:p-6 max-w-md w-full shadow-2xl text-[#f4f2e6]">
+      <div className="ui-frame p-3 sm:p-4 max-w-md w-full shadow-2xl text-[#f4f2e6]">
         {/* Header */}
         <div className="text-center mb-5">
           <div className="w-12 h-12 mx-auto mb-2 flex items-center justify-center bg-[#13111a] rounded-lg border border-[#383347]">

@@ -68,7 +68,7 @@ export function AccountModal({ user, syncState, onClose }: AccountModalProps) {
     <div className="fixed inset-0 bg-black/85 flex items-center justify-center p-4 z-50 overflow-y-auto">
       {/* Keys typed here must not reach the game's shortcuts */}
       <div
-        className="my-auto bg-[#171520] border-2 border-[#3b354a] rounded-xl p-5 max-w-sm w-full shadow-2xl text-[#f4f2e6]"
+        className="my-auto ui-frame p-3 max-w-sm w-full shadow-2xl text-[#f4f2e6]"
         onKeyDown={(e) => e.stopPropagation()}
       >
         <h2 className="text-xl font-black text-amber-300 tracking-wide mb-1 text-center">Аккаунт</h2>

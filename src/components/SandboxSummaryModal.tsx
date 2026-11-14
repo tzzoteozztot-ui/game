@@ -12,7 +12,7 @@ export function SandboxSummaryModal({ summary, onClose }: { summary: WaveSummary
   return (
     <div className="fixed inset-0 z-40 bg-black/60 flex items-center justify-center p-2" onClick={onClose}>
       <div
-        className="w-full max-w-sm max-h-full overflow-y-auto bg-[#171520] border border-[#383347] rounded-lg p-3 text-xs text-[#f4f2e6] flex flex-col gap-1.5 select-none"
+        className="w-full max-w-sm max-h-full overflow-y-auto ui-frame p-2 text-xs text-[#f4f2e6] flex flex-col gap-1.5 select-none"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between">

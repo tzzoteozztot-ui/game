@@ -50,7 +50,7 @@ export function JournalPanel({ journal, region, onShow, onClose }: { journal: Jo
   const { goal } = journal;
   return (
     <div className="absolute inset-0 bg-black/70 flex items-center justify-center p-2 sm:p-4 z-20" onClick={onClose}>
-      <div className="bg-[#171520] border border-[#3b354a] rounded-xl p-3 sm:p-4 w-full max-w-2xl max-h-full overflow-y-auto shadow-2xl" onClick={(e) => e.stopPropagation()}>
+      <div className="ui-frame p-2 sm:p-3 w-full max-w-2xl max-h-full overflow-y-auto shadow-2xl" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center gap-3 mb-2">
           <h3 className="text-lg font-black text-amber-300">Дневник · {region.name}</h3>
           <span className="text-xs text-stone-400">

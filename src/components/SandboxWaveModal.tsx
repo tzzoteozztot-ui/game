@@ -44,7 +44,7 @@ export function SandboxWaveModal({ value, isSpawning, onChange, onPreset, onLaun
   return (
     <div className="fixed inset-0 z-40 bg-black/70 flex items-center justify-center p-2" onClick={onClose}>
       <div
-        className="w-full max-w-lg max-h-full overflow-y-auto bg-[#171520] border border-[#383347] rounded-lg p-3 flex flex-col gap-2 text-[#f4f2e6] select-none"
+        className="w-full max-w-lg max-h-full overflow-y-auto ui-frame p-2 flex flex-col gap-2 text-[#f4f2e6] select-none"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between">

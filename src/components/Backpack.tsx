@@ -64,7 +64,7 @@ export function Backpack({ items, slots, placingSlot, onSelect, onSell, onMerge 
           return (
             <div
               key={i}
-              className="h-[var(--h-pack,clamp(20px,5.2cqh,44px))] rounded border border-dashed border-[#2d2938] bg-[#121118]/50"
+              className="h-[var(--h-pack,clamp(20px,5.2cqh,44px))] ui-slot opacity-80"
             />
           );
         }
