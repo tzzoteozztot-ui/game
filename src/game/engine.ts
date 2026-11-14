@@ -239,6 +239,7 @@ const GAIT: Partial<Record<EnemyType, { stride: number; lift: number; tilt: numb
   boss: { stride: 40, lift: 1.5, tilt: 0.04 },
 };
 const MAX_CORPSES = 30;
+const SNAPSHOT_GAP = 66; // ms between the snapshots the simulation asks for (the player's own actions go out at once)
 const HEX_BAKE = 2; // гексовое поле запекается вдвое крупнее для чёткости
 const HEX_PREF_KEY = 'dark_frontier_hex_field'; // свободный режим: '0' — квадратное поле для сравнения
 const SANDBOX_GOLD = 999999; // свободный режим: золото каждый кадр возвращается к этому числу
@@ -647,12 +648,14 @@ export class GameEngine {
   // Field view: zoom (1 = whole field) and the visible top-left corner in field coordinates.
   // Drawing only: game rules always work in field coordinates
   public viewZoom = 1;
+  private inStep = false; // the frame's simulation is running: snapshots wait for its end
+  private statePending = false; // a snapshot was asked for and has not gone out yet
   private selectedDamageDirty = false; // the selected tower dealt damage since the last snapshot
   private selectedDamageShown = 0; // performance.now() of the last snapshot
   private selectedSideShown: 'left' | 'right' | null = null; // selectedSide in the last snapshot
   public viewX = 0;
   public viewY = 0;
-  private dpr = 1; // device pixel ratio the canvas bitmap was sized for
+  private dpr = 1; // bitmap px per logical px of the field (see resizeCanvas)
 
   // Callbacks to UI
   public onStateChange?: (snapshot: GameStateSnapshot) => void;
@@ -700,22 +703,39 @@ export class GameEngine {
     }
   }
 
+  private canvasWatch: ResizeObserver | null = null;
+
   public setCanvas(canvas: HTMLCanvasElement) {
+    if (canvas !== this.canvas) {
+      // The bitmap follows the size the canvas is shown at (a rotated phone, a resized window)
+      this.canvasWatch?.disconnect();
+      this.canvasWatch = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(() => this.resizeCanvas());
+      this.canvasWatch?.observe(canvas);
+    }
     this.canvas = canvas;
     this.ctx = canvas.getContext('2d');
     this.resizeCanvas();
     this.generateGrass();
   }
 
+  /**
+   * The bitmap holds as many pixels as the screen shows: a phone gets fewer than devicePixelRatio alone would
+   * give (the field is narrower than its logical 896 px there), a large monitor gets more and stays sharp.
+   * Not above ×3 (the most a phone had before); a canvas that is not laid out yet takes devicePixelRatio.
+   */
   public resizeCanvas() {
     if (!this.canvas) return;
     const dpr = window.devicePixelRatio || 1;
-    this.dpr = dpr;
-    // Logical dimensions: CONFIG.grid.totalWidth x totalHeight
-    this.canvas.width = CONFIG.grid.totalWidth * dpr;
-    this.canvas.height = CONFIG.grid.totalHeight * dpr;
-    if (this.ctx) {
-      this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const shown = this.canvas.clientWidth;
+    // Logical dimensions: CONFIG.grid.totalWidth x totalHeight; the bitmap matches the screen pixel for pixel
+    const w = shown > 0 ? Math.min(3 * CONFIG.grid.totalWidth, Math.max(64, Math.round(shown * dpr))) : Math.round(CONFIG.grid.totalWidth * dpr);
+    const scale = w / CONFIG.grid.totalWidth;
+    const h = Math.round(CONFIG.grid.totalHeight * scale);
+    this.dpr = scale;
+    if (this.canvas.width !== w || this.canvas.height !== h) {
+      this.canvas.width = w;
+      this.canvas.height = h;
+      if (this.ctx) this.ctx.setTransform(scale, 0, 0, scale, 0, 0);
     }
   }
 
@@ -1304,16 +1324,24 @@ export class GameEngine {
         // Game time runs at the chosen speed in steps of at most 0.05 s
         const gameDt = dt * this.speedMultiplier;
         const steps = Math.max(1, Math.ceil(gameDt / 0.05 - 1e-9));
-        for (let s = 0; s < steps; s++) {
-          this.update(gameDt / steps);
+        // Snapshots asked for inside the simulation (every kill, every hit on the artifact) wait: one goes out below
+        this.inStep = true;
+        try {
+          for (let s = 0; s < steps; s++) {
+            this.update(gameDt / steps);
+          }
+          if (this.duelSpeedable && this.clockFrozenAt === null) this.duelSkew += Math.min(rawDt, 0.25) * 1000 * (this.speedMultiplier - 1);
+          this.tickWaveCountdown(Math.min(rawDt, 0.25));
+        } finally {
+          this.inStep = false;
         }
-        if (this.duelSpeedable && this.clockFrozenAt === null) this.duelSkew += Math.min(rawDt, 0.25) * 1000 * (this.speedMultiplier - 1);
-        this.tickWaveCountdown(Math.min(rawDt, 0.25));
       }
 
       // The selected tower's card shows its damage: refresh it a few times a second while it hits
       if (this.selectedLive()) this.selectedDamageDirty = true;
       if (this.selectedDamageDirty && time - this.selectedDamageShown > 250) this.notifyState();
+      // The interface redraws on every snapshot: in a thick fight they come no more often than SNAPSHOT_GAP
+      else if (this.statePending && time - this.selectedDamageShown >= SNAPSHOT_GAP) this.notifyState();
 
       this.render();
       this.animFrameId = requestAnimationFrame(frame);
@@ -1542,6 +1570,7 @@ export class GameEngine {
       cancelAnimationFrame(this.animFrameId);
       this.animFrameId = null;
     }
+    if (this.statePending) this.notifyState(); // a snapshot held back for the next frame goes out now
   }
 
   public setAutoStart(on: boolean) {
@@ -5009,6 +5038,11 @@ export class GameEngine {
   public notifyState() {
     if (this.isGameOver || this.isVictory) this.logEnd();
     if (!this.onStateChange) return;
+    if (this.inStep) {
+      this.statePending = true;
+      return;
+    }
+    this.statePending = false;
     const selected = this.selectedTowerId ? this.towers.find((t) => t.id === this.selectedTowerId) || null : null;
     this.selectedDamageDirty = false;
     this.selectedDamageShown = performance.now();
