@@ -31,7 +31,7 @@ export function TowerSpriteIcon({ type, size = 24, color, level = 1 }: { type: T
   if (failed) return <TowerShapeIcon type={type} size={size} color={color} />;
   return (
     <img
-      src={`sprites/${sources[step]}.png${tries ? `?retry=${tries}` : ''}`}
+      src={`sprites/${sources[step]}.webp${tries ? `?retry=${tries}` : ''}`}
       alt=""
       draggable={false}
       onError={() => (step + 1 < sources.length ? setStep(step + 1) : setFailed(true))}

@@ -138,7 +138,7 @@ function BeastImage({ creature, factionId }: { creature: BestiaryCreature; facti
   if (step >= sources.length) return <div className="w-full h-full" aria-hidden />;
   return (
     <img
-      src={`sprites/${sources[step]}.png`}
+      src={`sprites/${sources[step]}.webp`}
       alt={creature.name}
       draggable={false}
       onError={() => setStep((n) => n + 1)}

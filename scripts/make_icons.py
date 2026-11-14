@@ -1,6 +1,6 @@
 """Значки игры для экрана «Домой» (public/icons/): маг на тёмном фоне с золотым свечением.
 
-Запуск: python3 scripts/make_icons.py  (нужен Pillow; берёт public/sprites/tower_mage.png)
+Запуск: python3 scripts/make_icons.py  (нужен Pillow; берёт public/sprites/tower_mage_1.webp)
 """
 
 import os
@@ -19,7 +19,7 @@ def icon(size):
     r = size * 0.36
     ImageDraw.Draw(glow).ellipse((size / 2 - r, size * 0.5 - r, size / 2 + r, size * 0.5 + r), fill=GLOW + (90,))
     img.alpha_composite(glow.filter(ImageFilter.GaussianBlur(size * 0.08)))
-    fig = Image.open(os.path.join(ROOT, 'public', 'sprites', 'tower_mage.png')).convert('RGBA')
+    fig = Image.open(os.path.join(ROOT, 'public', 'sprites', 'tower_mage_1.webp')).convert('RGBA')
     h = round(size * 0.66)  # inside the maskable safe zone (80 % circle)
     w = round(fig.width * h / fig.height)
     fig = fig.resize((w, h), Image.LANCZOS)

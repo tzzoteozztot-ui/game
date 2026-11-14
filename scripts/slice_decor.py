@@ -1,4 +1,4 @@
-"""Нарезка листов декора (фон-маджента): art/concepts/decor-<набор>.* -> public/tiles/<набор>/decor/*.png.
+"""Нарезка листов декора (фон-маджента): art/concepts/decor-<набор>.* -> public/tiles/<набор>/decor/*.webp (без потерь).
 Запуск: python3 scripts/slice_decor.py [frontier|swamp|ice|scorched|citadel]  (без аргумента — все наборы; нужны numpy, Pillow, scipy)
 Пограничье: только мелкое (камни, кусты, пень, трава); крупные камни, заборы и знамёна не нарезаем (решение Артура 2026-11-01: «мелкий декор»).
 Рамки — по ограничивающим прямоугольникам фигур на листе."""
@@ -164,7 +164,7 @@ def slice_sheet(name, src, key, items):
         k = 96 / max(t.size)
         if k < 1:
             t = t.resize((round(t.width * k), round(t.height * k)), Image.LANCZOS)
-        t.save(out + item + '.png', optimize=True)
+        t.save(out + item + '.webp', lossless=True, quality=100, method=6, exact=True)
         print(name, item, t.size)
 
 

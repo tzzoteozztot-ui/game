@@ -1,4 +1,4 @@
-"""Нарезка листа магических наростов (закрытые клетки) art/concepts/blocked-growth.jpg → public/tiles/blocked/growth1..4.png.
+"""Нарезка листа магических наростов (закрытые клетки) art/concepts/blocked-growth.jpg → public/tiles/blocked/growth1..4.webp (без потерь).
 
 Лист Gemini: 4 панели на мадженте, в каждой кристаллы на серой земле. Землю убираем: остаются бирюзовые
 кристаллы, их светлые ядра, прожилки и тёмный контур вокруг них. Каждая панель обрезается в квадрат вокруг
@@ -45,7 +45,7 @@ def main():
         edge = np.minimum.reduce([xx, yy, side - 1 - xx, side - 1 - yy]) / (side * 0.12)
         al = al * np.clip(edge, 0, 1)
         img = Image.fromarray(np.dstack([sub[:, sx:sx + side], al]).astype(np.uint8), 'RGBA')
-        img.convert('RGBa').resize((SIZE, SIZE), Image.LANCZOS).convert('RGBA').save(os.path.join(OUT, f'growth{i + 1}.png'), optimize=True)
+        img.convert('RGBa').resize((SIZE, SIZE), Image.LANCZOS).convert('RGBA').save(os.path.join(OUT, f'growth{i + 1}.webp'), lossless=True, quality=100, method=6, exact=True)
         print(f'growth{i + 1}')
 
 

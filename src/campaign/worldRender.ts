@@ -64,18 +64,18 @@ function rnd(x: number, y: number, k: number) {
 // Дополнительные картинки из других биомов (тростник, могилы, костёр, колонны…)
 // -------------------------------------------------------------
 const EXTRA: Record<string, string> = {
-  reeds: 'tiles/swamp/decor/reeds.png',
-  lily: 'tiles/swamp/decor/lily.png',
-  grave1: 'tiles/swamp/decor/grave1.png',
-  grave2: 'tiles/swamp/decor/grave2.png',
-  bones: 'tiles/swamp/decor/bones.png',
-  log: 'tiles/swamp/decor/log.png',
-  snag: 'tiles/swamp/decor/snag.png',
-  firepit: 'tiles/scorched/decor/firepit.png',
-  column: 'tiles/citadel/decor/column.png',
-  slab1: 'tiles/citadel/decor/slab1.png',
-  slab2: 'tiles/citadel/decor/slab2.png',
-  crystal: 'tiles/ice/decor/crystal1.png',
+  reeds: 'tiles/swamp/decor/reeds.webp',
+  lily: 'tiles/swamp/decor/lily.webp',
+  grave1: 'tiles/swamp/decor/grave1.webp',
+  grave2: 'tiles/swamp/decor/grave2.webp',
+  bones: 'tiles/swamp/decor/bones.webp',
+  log: 'tiles/swamp/decor/log.webp',
+  snag: 'tiles/swamp/decor/snag.webp',
+  firepit: 'tiles/scorched/decor/firepit.webp',
+  column: 'tiles/citadel/decor/column.webp',
+  slab1: 'tiles/citadel/decor/slab1.webp',
+  slab2: 'tiles/citadel/decor/slab2.webp',
+  crystal: 'tiles/ice/decor/crystal1.webp',
 };
 let extraPromise: Promise<Map<string, HTMLImageElement>> | null = null;
 export function loadExtras(): Promise<Map<string, HTMLImageElement>> {
