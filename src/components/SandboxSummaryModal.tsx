@@ -2,7 +2,6 @@
  * Свободный режим: итоги зачищенной волны окном по кнопке в колонке (на поле кнопок нет, чтобы не закрывать клетки).
  */
 
-import React from 'react';
 import { CONFIG } from '../game/config';
 import type { WaveSummary } from '../game/engine';
 

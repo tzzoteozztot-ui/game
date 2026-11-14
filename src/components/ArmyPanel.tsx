@@ -3,7 +3,6 @@
  * the tower shop. They leave with the next wave; every send raises the gold of later rounds.
  */
 
-import React from 'react';
 import { CONFIG } from '../game/config';
 import { SEND_TYPES, SendType, calculateSendIncome } from '../game/rules';
 import { GoldIcon } from './Icons';

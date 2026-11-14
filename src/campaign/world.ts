@@ -204,9 +204,6 @@ function valueNoise(seed: number, step: number, w = FW, h = FH) {
   };
 }
 
-/** Ось реки: по одному x на ряд, течёт с севера на юг */
-export const riverX = (y: number) => Math.round(26 + 2 * Math.sin(y / 4.2));
-
 /** Прямая по гексам. `legacy` — прежнее округление с ошибкой (бывают пропуски гекса): по нему построено Пограничье, менять нельзя — сдвинутся дороги в сохранениях */
 export function hexLine(a: { x: number; y: number }, b: { x: number; y: number }, legacy = false): { x: number; y: number }[] {
   const n = hexDistance(a, b);

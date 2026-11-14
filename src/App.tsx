@@ -1456,6 +1456,8 @@ export default function App() {
     if (!engine) return;
     const tg = e.target as HTMLElement | null;
     if (tg && (tg.tagName === 'TEXTAREA' || tg.tagName === 'INPUT')) return; // набор текста (заметка разработчика)
+    // Сочетания браузера и системы (Cmd+R, Cmd+S, Ctrl+C) — не команды игры; зажатая клавиша срабатывает один раз
+    if (e.metaKey || e.ctrlKey || e.altKey || e.repeat) return;
 
     if (e.key === ' ' || e.code === 'Space') {
       if (screen === 'briefing') {
@@ -1463,6 +1465,8 @@ export default function App() {
         handleStartBattle();
       } else if (screen === 'playing' && !engine.isPaused) {
         e.preventDefault();
+        // Пробел не должен заодно «нажать» кнопку, на которой остался фокус после клика (Safari, Firefox)
+        if (document.activeElement instanceof HTMLButtonElement) document.activeElement.blur();
         handleStartWave();
       }
     } else if (e.key === 'Enter') {

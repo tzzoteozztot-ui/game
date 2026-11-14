@@ -4,7 +4,6 @@
  * The wave button is over the field (FieldHud).
  */
 
-import React from 'react';
 import { CONFIG, DAMAGE_TYPES, TowerType } from '../game/config';
 import { TowerSpriteIcon, GoldIcon, BinderIcon } from './Icons';
 

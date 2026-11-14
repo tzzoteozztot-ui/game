@@ -4,7 +4,7 @@
  * отсюда же открывается окно состава волны и скачивается лог партии.
  */
 
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { CONFIG, RaceId, TowerType } from '../game/config';
 import { TowerSpriteIcon } from './Icons';
 

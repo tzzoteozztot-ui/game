@@ -3,7 +3,7 @@
  * its code. The one who creates the room picks the map (the level selected in the menu).
  */
 
-import React, { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { CONFIG, RaceId } from '../game/config';
 import { RacePicker } from './RacePicker';
 import { DuelLink, newRoomCode, openDuel } from '../duel';

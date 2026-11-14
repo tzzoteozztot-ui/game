@@ -5,8 +5,7 @@
 import { RunStats } from './RunStats';
 import type { RunSummary } from '../game/engine';
 import type { BrawlSnapshot } from '../brawl';
-import React, { useState } from 'react';
-import { sound } from '../game/audio';
+import { useState } from 'react';
 import { CONFIG } from '../game/config';
 import { useFullscreen, isStandalone, HOME_SCREEN_HINT } from '../fullscreen';
 

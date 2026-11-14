@@ -3,7 +3,6 @@
  * Triggered upon reaching Level 2. Mandatory and irreversible.
  */
 
-import React from 'react';
 import { TowerType, CONFIG } from '../game/config';
 import { TowerSpriteIcon } from './Icons';
 

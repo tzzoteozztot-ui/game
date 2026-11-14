@@ -3,7 +3,7 @@
  * описание — по лору (данные в src/bestiary.ts).
  */
 
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { CONFIG, DAMAGE_TYPES, RACE_IDS, RaceId, stanceText } from '../game/config';
 import { BESTIARY, BestiaryCreature, KIND_LABELS, TOWER_LORE, RACE_TOWER_LORE } from '../bestiary';
 import { attackStats } from '../game/towerStats';

@@ -108,7 +108,7 @@ export function WorldEditor({ regionId, onClose, onSaved, onPlay }: Props) {
   const [rid, setRid] = useState(regionId);
   const base = REGIONS[rid];
   const draft = useRef<Draft>(fromRegion(base));
-  const [rev, setRev] = useState(0); // правка черновика
+  const [, setRev] = useState(0); // правка черновика
   const [settled, setSettled] = useState(0); // правка закончена (отпустили кисть) — можно запекать
   const [dirty, setDirty] = useState(false);
   const undo = useRef<string[]>([]);

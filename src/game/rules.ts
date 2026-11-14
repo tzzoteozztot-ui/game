@@ -2,7 +2,7 @@
  * Core Game Rules & Formulas for «Тёмный рубеж»
  */
 
-import { CONFIG, TowerType, Difficulty, EnemyType, WaveDef, DamageType } from './config';
+import { CONFIG, Difficulty, EnemyType, WaveDef, DamageType } from './config';
 
 export function calculateStartingGold(level: number, difficulty: Difficulty): number {
   const diffMult = CONFIG.difficulty[difficulty].goldMult;
