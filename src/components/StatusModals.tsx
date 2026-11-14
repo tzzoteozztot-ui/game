@@ -7,6 +7,7 @@ import type { RunSummary } from '../game/engine';
 import type { BrawlSnapshot } from '../brawl';
 import { useState } from 'react';
 import { CONFIG } from '../game/config';
+import { FullscreenCorner } from './FullscreenCorner';
 import { useFullscreen, isStandalone, HOME_SCREEN_HINT } from '../fullscreen';
 
 // -------------------------------------------------------------
@@ -43,6 +44,7 @@ export function PauseModal({
   const [showHint, setShowHint] = useState(false);
   return (
     <div className="fixed inset-0 bg-black/85 flex flex-col items-center overflow-y-auto p-4 z-50">
+      <FullscreenCorner />
       <div className="my-auto bg-[#171520] border border-[#3b354a] rounded-xl p-5 short:p-3 max-w-sm short:max-w-xl w-full shadow-2xl text-[#f4f2e6]">
         <h2 className="text-xl font-black text-center text-amber-300 tracking-wider mb-4 short:mb-2">
           {duel ? 'МЕНЮ' : 'ПАУЗА'}

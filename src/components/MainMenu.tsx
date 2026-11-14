@@ -11,6 +11,7 @@ import { RacePicker } from './RacePicker';
 import { endlessRecordKey } from '../progress';
 import { LockIcon, SoundIcon, FullscreenIcon } from './Icons';
 import { useFullscreen, isStandalone, HOME_SCREEN_HINT } from '../fullscreen';
+import { askConfirm } from './AskDialog';
 import { isDevMode, onDevModeChange, setDevMode, loadDevNotes, downloadDevNotes } from '../devNotes';
 import { downloadRunLog, hasSavedRunLog } from '../game/runLog';
 import { downloadCampaignLog, hasCampaignLog } from '../campaign/worldLog';
@@ -135,17 +136,6 @@ function HomePage({ onChangePage, onOpenDuel, duelAvailable, accountLabel }: Mai
 
   return (
     <div className="relative w-full max-w-sm short:max-w-2xl flex flex-col items-center">
-      {!standalone && (
-        <button
-          type="button"
-          onClick={() => (fullscreen.supported ? fullscreen.toggle() : setHint(!hint))}
-          title={fullscreen.active ? 'Обычный экран (F)' : 'Во весь экран (F)'}
-          aria-label={fullscreen.active ? 'Обычный экран' : 'Во весь экран'}
-          className="fixed top-2 right-2 sm:top-3 sm:right-3 w-10 h-10 flex items-center justify-center rounded bg-[#1a1724] hover:bg-[#252033] border border-[#383347] text-stone-300 text-lg cursor-pointer z-10"
-        >
-          <FullscreenIcon active={fullscreen.active} />
-        </button>
-      )}
 
       <div className="text-center mb-4 short:mb-2 short:flex short:items-center short:gap-2">
         <Crest className="w-14 h-10 mx-auto mb-2 short:mx-0 short:mb-0 short:w-10 short:h-8" />
@@ -229,7 +219,7 @@ function CampaignPage({ onBack, onOpenWorld, onResetWorld, worldSummary }: MainM
                     <button
                       type="button"
                       onClick={() => {
-                        if (window.confirm('Начать поход заново? Ресурсы, промыслы, лагерь и разбитые отряды пропадут. Лог похода тоже начнётся заново.')) onResetWorld();
+                        askConfirm('Начать поход заново? Ресурсы, промыслы, лагерь и разбитые отряды пропадут. Лог похода тоже начнётся заново.', 'Начать заново').then((ok) => ok && onResetWorld());
                       }}
                       className={`${BTN} bg-[#2a2635] hover:bg-red-900/70`}
                     >

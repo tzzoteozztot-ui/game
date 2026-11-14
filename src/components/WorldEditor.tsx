@@ -4,6 +4,7 @@
  * украшения и старт героя. Вид «Схема» — цветные гексы (быстро), «Как в игре» — запечённая карта и живой слой.
  * Проверка «пройдём ли» — src/campaign/regionCheck.ts. Правка хранится на устройстве (`setRegionEdit`) и скачивается файлом.
  */
+import { askConfirm } from './AskDialog';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   RegionDef,
@@ -172,8 +173,8 @@ export function WorldEditor({ regionId, onClose, onSaved, onPlay }: Props) {
   };
   const switchRegion = (id: string) => {
     if (id === rid) return;
-    if (dirty && !window.confirm('Несохранённые правки этой карты пропадут. Перейти?')) return;
-    loadRegion(REGIONS[id], id);
+    if (!dirty) return loadRegion(REGIONS[id], id);
+    askConfirm('Несохранённые правки этой карты пропадут. Перейти?', 'Перейти').then((ok) => ok && loadRegion(REGIONS[id], id));
   };
 
   // ---------------------------------------------------------------- ресурсы
@@ -549,11 +550,14 @@ export function WorldEditor({ regionId, onClose, onSaved, onPlay }: Props) {
     const r = toRegion();
     const res = checkRegion(r);
     setReport(res);
-    if (res.errors.length && !window.confirm(`В карте ${res.errors.length} ошиб. (список справа). Сохранить всё равно?`)) return;
-    const ok = setRegionEdit(r);
-    setDirty(false);
-    setMsg(ok ? 'Сохранено на этом устройстве.' : 'Карта применена, но хранилище не приняло запись: после перезапуска пропадёт. Скачайте файл.');
-    onSaved(r);
+    const doSave = () => {
+      const ok = setRegionEdit(r);
+      setDirty(false);
+      setMsg(ok ? 'Сохранено на этом устройстве.' : 'Карта применена, но хранилище не приняло запись: после перезапуска пропадёт. Скачайте файл.');
+      onSaved(r);
+    };
+    if (!res.errors.length) return doSave();
+    askConfirm(`В карте ${res.errors.length} ошиб. (список справа). Сохранить всё равно?`, 'Сохранить').then((ok) => ok && doSave());
   };
   const download = () => {
     const blob = new Blob([JSON.stringify(toRegion(), null, 1)], { type: 'application/json' });
@@ -578,11 +582,13 @@ export function WorldEditor({ regionId, onClose, onSaved, onPlay }: Props) {
     });
   };
   const reset = () => {
-    if (!window.confirm('Вернуть встроенную карту? Ваши правки этой главы пропадут.')) return;
-    clearRegionEdit(rid);
-    loadRegion(REGIONS[rid]);
-    onSaved(REGIONS[rid]);
-    setMsg('Встроенная карта возвращена.');
+    askConfirm('Вернуть встроенную карту? Ваши правки этой главы пропадут.', 'Вернуть').then((ok) => {
+      if (!ok) return;
+      clearRegionEdit(rid);
+      loadRegion(REGIONS[rid]);
+      onSaved(REGIONS[rid]);
+      setMsg('Встроенная карта возвращена.');
+    });
   };
 
   // ---------------------------------------------------------------- панель объекта
@@ -647,8 +653,8 @@ export function WorldEditor({ regionId, onClose, onSaved, onPlay }: Props) {
   return (
     <div className="fixed inset-0 z-[60] bg-[#0d0c13] text-[#f4f2e6] flex flex-col" style={{ paddingLeft: 'env(safe-area-inset-left)', paddingRight: 'env(safe-area-inset-right)' }}>
       {/* верхняя строка */}
-      <div className="flex items-center gap-1.5 px-2 py-1.5 bg-[#171520] border-b border-[#3b354a] flex-wrap">
-        <button className="px-2.5 py-1.5 rounded bg-[#2a2635] hover:bg-[#3a3448] text-sm font-bold" onClick={() => (!dirty || window.confirm('Закрыть без сохранения?')) && onClose()}>
+      <div className="flex items-center gap-1.5 pl-2 pr-14 py-1.5 bg-[#171520] border-b border-[#3b354a] flex-wrap">
+        <button className="px-2.5 py-1.5 rounded bg-[#2a2635] hover:bg-[#3a3448] text-sm font-bold" onClick={() => (dirty ? askConfirm('Закрыть без сохранения?', 'Закрыть').then((ok) => ok && onClose()) : onClose())}>
           ✕ Закрыть
         </button>
         <select className="px-2 py-1.5 rounded bg-[#2a2635] text-sm" value={rid} onChange={(e) => switchRegion(e.target.value)}>
@@ -677,10 +683,13 @@ export function WorldEditor({ regionId, onClose, onSaved, onPlay }: Props) {
             const r = toRegion();
             const res = checkRegion(r);
             if (res.errors.length) return (setReport(res), setMsg('Сначала исправьте ошибки: по такой карте не пройти.'));
-            if (dirty && !window.confirm('Начать главу с начала на этой карте? Она сохранится на устройстве, поход этой главы начнётся заново.')) return;
-            setRegionEdit(r);
-            onSaved(r);
-            onPlay(REGIONS[rid]);
+            const go = () => {
+              setRegionEdit(r);
+              onSaved(r);
+              onPlay(REGIONS[rid]);
+            };
+            if (!dirty) return go();
+            askConfirm('Начать главу с начала на этой карте? Она сохранится на устройстве, поход этой главы начнётся заново.', 'Начать').then((ok) => ok && go());
           }}
           title="Сохранить и пройти главу с начала"
         >
