@@ -41,11 +41,18 @@ export interface EventChoice {
 /** Украшения карты без действия: мельница, руины, могилы, костры… (только отрисовка) */
 export type PropKind = 'windmill' | 'ruins' | 'graves' | 'orcCamp' | 'stones' | 'farm' | 'wreck'
   // крупные, в непроходимой местности
-  | 'castle' | 'cliff' | 'tower' | 'crystals' | 'deadwood' | 'statue';
+  | 'castle' | 'cliff' | 'tower' | 'crystals' | 'deadwood' | 'statue'
+  // модуль-картинка из `modules.ts` («mod:<id>»): башни, стены, ворота, руины и природа; собираются в редакторе
+  | `mod:${string}`;
 export interface WorldProp {
   kind: PropKind;
   x: number;
   y: number;
+  /** Модуль: сдвиг от центра гекса, px мира (шаг `MODULE_SNAP`) — стены и башни встают встык */
+  ox?: number;
+  oy?: number;
+  /** Модуль: зеркально по горизонтали (стена «\» из «/») */
+  flip?: boolean;
 }
 
 export interface WorldObj {
@@ -1242,7 +1249,18 @@ export function normalizeRegion(v: unknown, base: RegionDef | undefined = undefi
     if (terrainAt(orig, o.x, o.y) === null) return null;
     objects.push(o);
   }
-  const props = Array.isArray(r.props) ? r.props.filter((p) => pt(p) && typeof p.kind === 'string') : [];
+  const num = (v: unknown) => typeof v === 'number' && isFinite(v);
+  const props: WorldProp[] = Array.isArray(r.props)
+    ? r.props
+        .filter((p) => pt(p) && typeof p.kind === 'string')
+        .map((p) => {
+          const q: WorldProp = { kind: p.kind, x: p.x, y: p.y };
+          if (num(p.ox) && p.ox) q.ox = p.ox;
+          if (num(p.oy) && p.oy) q.oy = p.oy;
+          if (p.flip === true) q.flip = true;
+          return q;
+        })
+    : [];
   const notes: MapNote[] = Array.isArray(r.notes)
     ? r.notes.filter((n): n is MapNote => !!n && typeof n.id === 'string' && typeof n.text === 'string' && typeof n.x === 'number' && typeof n.y === 'number' && isFinite(n.x) && isFinite(n.y))
     : [];

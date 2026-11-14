@@ -5,6 +5,7 @@
  */
 import { invasion, RegionDef, WorldState, WorldObj, WorldProp, bigPropHexes, terrainAt, regionW, regionH, hexNeighbours, isSeen, objectAt, isLocked, stepCost, RES_ICONS, ResKey, TERRAIN_COST } from './world';
 import { sprites, drawSprite } from '../game/sprites';
+import { MODULES, moduleImageKey, moduleOf, moduleUrl, type ModuleDef } from './modules';
 import { smallDecor, TILESETS, type Tileset } from '../game/tiles';
 
 export type P = { x: number; y: number };
@@ -76,6 +77,8 @@ const EXTRA: Record<string, string> = {
   slab1: 'tiles/citadel/decor/slab1.webp',
   slab2: 'tiles/citadel/decor/slab2.webp',
   crystal: 'tiles/ice/decor/crystal1.webp',
+  // модули редактора (modules.ts)
+  ...Object.fromEntries(MODULES.map((m) => [moduleImageKey(m), moduleUrl(m)])),
 };
 let extraPromise: Promise<Map<string, HTMLImageElement>> | null = null;
 export function loadExtras(): Promise<Map<string, HTMLImageElement>> {
@@ -580,8 +583,24 @@ function statue(ctx: CanvasRenderingContext2D, x: number, y: number, s: number) 
 
 type Drawable = { y: number; draw: () => void };
 
+/** Модуль-картинка: низ по центру в точке гекса со сдвигом; якорь чуть ниже центра гекса. Возвращает глубину (y низа) */
+export function drawModule(ctx: CanvasRenderingContext2D, p: WorldProp, m: ModuleDef, extras: Map<string, HTMLImageElement> | null | undefined): number {
+  const x = wx(p) + (p.ox ?? 0);
+  const y = wy(p) + (p.oy ?? 0) + HH * 0.25;
+  const im = extras?.get(moduleImageKey(m));
+  if (im) {
+    const dh = (im.height / im.width) * m.w;
+    ctx.save();
+    ctx.translate(x, y);
+    if (p.flip) ctx.scale(-1, 1);
+    ctx.drawImage(im, -m.w / 2, -dh, m.w, dh);
+    ctx.restore();
+  }
+  return y;
+}
+
 /** Украшения карты: то, что стоит на земле, — в общий список по глубине */
-function propDrawables(ctx: CanvasRenderingContext2D, p: WorldProp, img: (n: string) => HTMLImageElement | null): Drawable[] {
+function propDrawables(ctx: CanvasRenderingContext2D, p: WorldProp, img: (n: string) => HTMLImageElement | null, extrasMap: Map<string, HTMLImageElement> | null): Drawable[] {
   const x = wx(p);
   const y = wy(p);
   const put = (n: string, dx: number, dy: number, w: number, flip = false) => {
@@ -595,6 +614,11 @@ function propDrawables(ctx: CanvasRenderingContext2D, p: WorldProp, img: (n: str
     ctx.restore();
   };
   const s = HW;
+  const mod = moduleOf(p.kind);
+  if (mod) {
+    const y0 = wy(p) + (p.oy ?? 0) + HH * 0.25;
+    return [{ y: y0, draw: () => void drawModule(ctx, p, mod, extrasMap) }];
+  }
   switch (p.kind) {
     case 'windmill':
       return [
@@ -685,6 +709,8 @@ function propDrawables(ctx: CanvasRenderingContext2D, p: WorldProp, img: (n: str
       return [-0.25, 0.2, 0].map((d, i) => ({ y: y + HH * (0.1 + i * 0.12), draw: () => deadTree(ctx, x + d * s, y + HH * (0.1 + i * 0.12), s * (0.8 - i * 0.12), i) }));
     case 'statue':
       return [{ y: y + HH * 0.3, draw: () => statue(ctx, x, y + HH * 0.3, s * 1.0) }];
+    default:
+      return [];
   }
 }
 
@@ -958,7 +984,7 @@ export function bakeTerrain(r: RegionDef, tiles: Tileset | null, extras: Map<str
       }
       if (reeds && t === 'water' && rnd(x, y, 22) > 0.75) items.push({ y: py, draw: () => put('lily', px, py + HH * 0.1, HW * 0.28) });
     }
-  for (const p of r.props ?? []) items.push(...propDrawables(ctx, p, img));
+  for (const p of r.props ?? []) items.push(...propDrawables(ctx, p, img, extras));
   items.sort((a, b) => a.y - b.y);
   for (const it of items) it.draw();
 

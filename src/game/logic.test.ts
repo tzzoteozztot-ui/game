@@ -1275,3 +1275,17 @@ test('world: a save from before the new map layouts keeps its progress and puts 
   const again = W.normalizeWorld({ ...back, hero: { x: 12, y: 17 } })!;
   assert.deepEqual(again.hero, { x: 12, y: 17 });
 });
+
+test('модули карты: у каждого есть файл, id уникальны, нормализация региона хранит сдвиг и зеркало', async () => {
+  const { MODULES } = await import('../campaign/modules');
+  const fs = await import('node:fs');
+  const ids = new Set(MODULES.map((m) => m.id));
+  assert.equal(ids.size, MODULES.length);
+  for (const m of MODULES) assert.ok(fs.existsSync(`public/modules/${m.file}.webp`), m.file);
+  const W = await import('../campaign/world');
+  const orig = W.REGIONS.frontier;
+  const wire = JSON.parse(JSON.stringify(orig));
+  wire.props = [{ kind: 'mod:tower_0', x: 5, y: 5, ox: 16, oy: -32, flip: true }, { kind: 'mod:wall_0', x: 6, y: 5 }];
+  const n = W.normalizeRegion(wire, orig)!;
+  assert.deepEqual(n.props, wire.props);
+});

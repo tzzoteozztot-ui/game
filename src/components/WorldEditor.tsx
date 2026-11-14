@@ -28,7 +28,8 @@ import {
   regionH,
 } from '../campaign/world';
 import { checkRegion } from '../campaign/regionCheck';
-import { bakeTerrain, drawLive, loadExtras, hexAt, hexPath, wx, wy, worldW, worldH, HW, HH, P } from '../campaign/worldRender';
+import { MODULES, MODULE_BY_ID, MODULE_GROUPS, MODULE_PREFIX, MODULE_SNAP, moduleOf, moduleUrl, type ModuleGroup } from '../campaign/modules';
+import { bakeTerrain, drawLive, drawModule, loadExtras, hexAt, hexPath, wx, wy, worldW, worldH, HW, HH, P } from '../campaign/worldRender';
 import { sprites } from '../game/sprites';
 import { loadTileset, Tileset, TILESETS } from '../game/tiles';
 
@@ -41,7 +42,7 @@ interface Props {
   onPlay: (r: RegionDef) => void;
 }
 
-type Tool = 'hand' | 'paint' | 'obj' | 'select' | 'prop' | 'start' | 'erase' | 'note';
+type Tool = 'hand' | 'paint' | 'obj' | 'select' | 'prop' | 'module' | 'start' | 'erase' | 'note';
 interface Draft {
   terrain: string[][];
   objects: WorldObj[];
@@ -118,6 +119,10 @@ export function WorldEditor({ regionId, onClose, onSaved, onPlay }: Props) {
   const [radius, setRadius] = useState(0);
   const [kind, setKind] = useState<WorldObjKind>('squad');
   const [propKind, setPropKind] = useState<PropKind>('ruins');
+  const [modId, setModId] = useState('tower_0');
+  const [modGroup, setModGroup] = useState<ModuleGroup>('tower');
+  const [modFlip, setModFlip] = useState(false);
+  const [modSnap, setModSnap] = useState(true);
   const [sel, setSel] = useState<string | null>(null);
   const [selNote, setSelNote] = useState<string | null>(null);
   const [view, setView] = useState<'scheme' | 'game'>('scheme');
@@ -134,6 +139,7 @@ export function WorldEditor({ regionId, onClose, onSaved, onPlay }: Props) {
   const cam = useRef({ zoom: 0.5, x: 0, y: 0 });
   const camReady = useRef(false);
   const hover = useRef<P | null>(null);
+  const hoverW = useRef<P | null>(null); // точка мира под курсором (для призрака модуля)
 
   const stub = useMemo(() => ({ ...base, terrain: Array(regionH(base)).fill('.'.repeat(regionW(base))) }) as RegionDef, [base]);
   const toRegion = (): RegionDef => {
@@ -273,6 +279,11 @@ export function WorldEditor({ regionId, onClose, onSaved, onPlay }: Props) {
       drawLive(ctx, toRegion(), st, { selected: false, path: null, target: null, extras, time: performance.now() });
     } else {
       for (const p of d.props) {
+        const m = moduleOf(p.kind);
+        if (m) {
+          drawModule(ctx, p, m, extras);
+          continue;
+        }
         ctx.fillStyle = 'rgba(255,255,255,0.55)';
         ctx.font = `${HH * 0.3}px sans-serif`;
         ctx.textAlign = 'center';
@@ -333,6 +344,25 @@ export function WorldEditor({ regionId, onClose, onSaved, onPlay }: Props) {
       ctx.strokeStyle = '#7dfcff';
       ctx.lineWidth = 4;
       ctx.stroke();
+    }
+    if (tool === 'module' && hoverW.current) {
+      const m = MODULE_BY_ID[modId];
+      const g = hoverW.current;
+      const cell = cellAt(g.x * c.zoom + c.x, g.y * c.zoom + c.y);
+      if (m && cell) {
+        let ox = g.x - wx(cell);
+        let oy = g.y - HH * 0.25 - wy(cell);
+        const st = modSnap ? MODULE_SNAP : 1;
+        ox = Math.round(ox / st) * st;
+        oy = Math.round(oy / st) * st;
+        ctx.globalAlpha = 0.6;
+        drawModule(ctx, { kind: `${MODULE_PREFIX}${m.id}` as PropKind, x: cell.x, y: cell.y, ox, oy, flip: modFlip }, m, extras);
+        ctx.globalAlpha = 1;
+        ctx.fillStyle = '#7dfcff';
+        ctx.beginPath();
+        ctx.arc(wx(cell) + ox, wy(cell) + oy + HH * 0.25, 4, 0, Math.PI * 2);
+        ctx.fill();
+      }
     }
     if (hover.current && (tool === 'paint' || tool === 'obj' || tool === 'prop' || tool === 'start')) {
       for (const p of brushCells(hover.current)) {
@@ -431,6 +461,57 @@ export function WorldEditor({ regionId, onClose, onSaved, onPlay }: Props) {
   // ---------------------------------------------------------------- касания
   const ptrs = useRef(new Map<number, { x: number; y: number }>());
   const gesture = useRef<{ mode: 'pan' | 'pinch' | 'tool' | null; last?: P; dist?: number }>({ mode: null });
+  /** Модуль: касание ставит его в точку мира (привязка к шагу внутри гекса); ластик стирает ближайший модуль под касанием. true — касание обработано */
+  const placeModule = (gx: number, gy: number): boolean => {
+    const d = draft.current;
+    if (tool === 'erase') {
+      let best = -1;
+      let bd = Infinity;
+      d.props.forEach((q, i) => {
+        const m = moduleOf(q.kind);
+        if (!m) return;
+        const bx = wx(q) + (q.ox ?? 0);
+        const by = wy(q) + (q.oy ?? 0) + HH * 0.25;
+        const h = (m.w * 1.2) / 2;
+        if (Math.abs(gx - bx) < m.w / 2 && gy < by + 6 && gy > by - h * 2) {
+          const dist = Math.hypot(gx - bx, gy - (by - h / 1.5));
+          if (dist < bd) (bd = dist), (best = i);
+        }
+      });
+      if (best < 0) return false;
+      pushUndo();
+      d.props.splice(best, 1);
+      bump();
+      setSettled((n) => n + 1);
+      return true;
+    }
+    if (tool !== 'module') return false;
+    const m = MODULE_BY_ID[modId];
+    if (!m) return true;
+    // низ модуля — под точкой касания (якорь модуля ниже центра гекса на HH·0,25)
+    const cell = cellAt(gx * cam.current.zoom + cam.current.x, (gy + 0) * cam.current.zoom + cam.current.y);
+    if (!cell) return true;
+    let ox = gx - wx(cell);
+    let oy = gy - HH * 0.25 - wy(cell);
+    if (modSnap) {
+      ox = Math.round(ox / MODULE_SNAP) * MODULE_SNAP;
+      oy = Math.round(oy / MODULE_SNAP) * MODULE_SNAP;
+    } else {
+      ox = Math.round(ox);
+      oy = Math.round(oy);
+    }
+    const kind = `${MODULE_PREFIX}${m.id}` as PropKind;
+    if (d.props.some((q) => q.kind === kind && q.x === cell.x && q.y === cell.y && (q.ox ?? 0) === ox && (q.oy ?? 0) === oy && !!q.flip === modFlip)) return true;
+    pushUndo();
+    const q: WorldProp = { kind, x: cell.x, y: cell.y };
+    if (ox) q.ox = ox;
+    if (oy) q.oy = oy;
+    if (modFlip) q.flip = true;
+    d.props.push(q);
+    bump();
+    setSettled((n) => n + 1);
+    return true;
+  };
   const cellAt = (sx: number, sy: number) => {
     const c = cam.current;
     return hexAt(stub, (sx - c.x) / c.zoom, (sy - c.y) / c.zoom);
@@ -469,6 +550,10 @@ export function WorldEditor({ regionId, onClose, onSaved, onPlay }: Props) {
         bump();
       }
       return;
+    }
+    if (tool === 'module' || tool === 'erase') {
+      const c = cam.current;
+      if (placeModule((p.x - c.x) / c.zoom, (p.y - c.y) / c.zoom)) return;
     }
     const cell = cellAt(p.x, p.y);
     if (!cell) return;
@@ -512,6 +597,7 @@ export function WorldEditor({ regionId, onClose, onSaved, onPlay }: Props) {
     }
     const cell = cellAt(p.x, p.y);
     hover.current = cell;
+    hoverW.current = { x: (p.x - c.x) / c.zoom, y: (p.y - c.y) / c.zoom };
     if (g.mode === 'tool' && cell && (tool === 'paint' || tool === 'select')) apply(cell, false);
     else draw();
   };
@@ -706,6 +792,7 @@ export function WorldEditor({ regionId, onClose, onSaved, onPlay }: Props) {
           {toolBtn('obj', '📍', 'Поставить объект')}
           {toolBtn('select', '🎯', 'Выбрать и переносить объект')}
           {toolBtn('prop', '🌲', 'Украшение (только вид)')}
+          {toolBtn('module', '🏰', 'Модули: башни, стены, ворота, руины, природа — собирайте замки')}
           {toolBtn('start', '🚩', 'Старт героя')}
           {toolBtn('erase', '🧽', 'Стереть объект или украшение')}
           {toolBtn('note', '📝', 'Пометка: текст в любом месте карты')}
@@ -721,7 +808,7 @@ export function WorldEditor({ regionId, onClose, onSaved, onPlay }: Props) {
             onPointerMove={onMove}
             onPointerUp={onUp}
             onPointerCancel={onUp}
-            onPointerLeave={() => ((hover.current = null), draw())}
+            onPointerLeave={() => ((hover.current = null), (hoverW.current = null), draw())}
             onWheel={onWheel}
             onContextMenu={(e) => e.preventDefault()}
           />
@@ -774,6 +861,35 @@ export function WorldEditor({ regionId, onClose, onSaved, onPlay }: Props) {
                 ))}
               </div>
               <p className="text-[11px] text-stone-400 mt-1">Крупные «глушь» ставьте в непроходимой местности; на схеме они видны как ◆, в виде «Как в игре» — настоящие.</p>
+            </>
+          )}
+          {tool === 'module' && (
+            <>
+              <div className="font-bold text-amber-300 mb-1">Модули</div>
+              <div className="flex flex-wrap gap-1 mb-1">
+                {MODULE_GROUPS.map((g) => (
+                  <button key={g.id} className={`px-1.5 py-0.5 rounded text-xs ${modGroup === g.id ? 'bg-amber-800/70' : 'bg-[#2a2635]'}`} onClick={() => setModGroup(g.id)}>
+                    {g.name}
+                  </button>
+                ))}
+              </div>
+              <div className="grid grid-cols-3 gap-1 max-h-48 overflow-y-auto">
+                {MODULES.filter((m) => m.group === modGroup).map((m) => (
+                  <button key={m.id} title={m.name} className={`h-16 rounded p-0.5 flex items-center justify-center ${modId === m.id ? 'bg-amber-800/70 ring-1 ring-amber-300' : 'bg-[#2a2635]'}`} onClick={() => setModId(m.id)}>
+                    <img src={new URL(moduleUrl(m), document.baseURI).href} alt={m.name} className="max-h-full max-w-full object-contain pointer-events-none" draggable={false} />
+                  </button>
+                ))}
+              </div>
+              <div className="text-xs mt-1 text-stone-300">{MODULE_BY_ID[modId]?.name}</div>
+              <div className="flex gap-1 mt-1">
+                <button className={`px-2 py-1 rounded text-xs ${modFlip ? 'bg-amber-700' : 'bg-[#2a2635]'}`} onClick={() => setModFlip((v) => !v)}>
+                  ⇋ Зеркально
+                </button>
+                <button className={`px-2 py-1 rounded text-xs ${modSnap ? 'bg-amber-700' : 'bg-[#2a2635]'}`} onClick={() => setModSnap((v) => !v)}>
+                  {modSnap ? `Шаг ${MODULE_SNAP} px` : 'Свободно'}
+                </button>
+              </div>
+              <p className="text-[11px] text-stone-400 mt-1">Касание ставит модуль основанием в эту точку; несколько модулей в одном гексе можно. Стена «\» — «/» с зеркалом. Углы стен — башней. 🧽 стирает модуль под касанием, ↶ отменяет. Только вид: ходов и боёв не меняет.</p>
             </>
           )}
           {tool === 'note' && (
