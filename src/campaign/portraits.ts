@@ -37,6 +37,11 @@ export const LEGACY_PORTRAITS: Record<string, string> = {
   Гарт: 'gart',
   Сефира: 'sefira',
   Осип: 'osip',
+  Шаман: 'shaman',
+  Ургаш: 'urgash',
+  Сорн: 'sorn',
+  Фелла: 'fella',
+  Сайрит: 'sairit',
 };
 
 /** Файл портрета для говорящего и эмоции; `null` — портрета нет (рисуется буква) */
