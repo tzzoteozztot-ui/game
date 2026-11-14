@@ -19,7 +19,7 @@ export function EnemyIcon({ type, faction, alt, title, className, style }: { typ
   if (step >= sources.length) return null;
   return (
     <img
-      src={`sprites/${sources[step]}.png`}
+      src={`sprites/${sources[step]}.webp`}
       alt={alt}
       title={title}
       draggable={false}

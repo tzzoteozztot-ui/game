@@ -5737,7 +5737,7 @@ export class GameEngine {
     if (!GameEngine.growthImgs) {
       GameEngine.growthImgs = [1, 2, 3, 4].map((i) => {
         const img = new Image();
-        img.src = `tiles/blocked/growth${i}.png`;
+        img.src = `tiles/blocked/growth${i}.webp`;
         return img;
       });
     }
@@ -5993,7 +5993,7 @@ export class GameEngine {
     ctx.fill();
   }
 
-  // Castle sprite (public/sprites/castle.png), drawn in depth order with the towers; larger than its cell
+  // Castle sprite (public/sprites/castle.webp), drawn in depth order with the towers; larger than its cell
   private renderCastleFigure(ctx: CanvasRenderingContext2D, cellSize: number, timeSec: number) {
     if (this.heroToken) {
       this.renderHeroToken(ctx, cellSize, timeSec);
@@ -6147,7 +6147,7 @@ export class GameEngine {
     ctx.globalAlpha = 1;
   }
 
-  // Each level has its own figure (public/sprites/tower_<type>_<level>.png)
+  // Each level has its own figure (public/sprites/tower_<type>_<level>.webp)
   // Towers of the playable factions use a unit of their faction for now (lore/faction-towers-table.md, part 4);
   // a missing faction figure falls back to the common one tinted in the faction's color
   private towerSprite(type: TowerType, level: number): PreparedSprite | null {

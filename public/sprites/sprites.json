@@ -1,6 +1,6 @@
 {
   "tower_archer_1": {
-    "file": "tower_archer_1.png",
+    "file": "tower_archer_1.webp",
     "w": 130,
     "h": 171,
     "drawH": 56.9,
@@ -9,7 +9,7 @@
     "facing": 1
   },
   "tower_archer_2": {
-    "file": "tower_archer_2.png",
+    "file": "tower_archer_2.webp",
     "w": 149,
     "h": 174,
     "drawH": 58.0,
@@ -18,7 +18,7 @@
     "facing": 1
   },
   "tower_archer_3": {
-    "file": "tower_archer_3.png",
+    "file": "tower_archer_3.webp",
     "w": 173,
     "h": 204,
     "drawH": 68.1,
@@ -27,7 +27,7 @@
     "facing": 1
   },
   "tower_priest_1": {
-    "file": "tower_priest_1.png",
+    "file": "tower_priest_1.webp",
     "w": 107,
     "h": 176,
     "drawH": 58.8,
@@ -36,7 +36,7 @@
     "facing": 1
   },
   "tower_priest_2": {
-    "file": "tower_priest_2.png",
+    "file": "tower_priest_2.webp",
     "w": 139,
     "h": 183,
     "drawH": 61.1,
@@ -45,7 +45,7 @@
     "facing": 1
   },
   "tower_priest_3": {
-    "file": "tower_priest_3.png",
+    "file": "tower_priest_3.webp",
     "w": 146,
     "h": 197,
     "drawH": 65.8,
@@ -54,7 +54,7 @@
     "facing": 1
   },
   "tower_mage_1": {
-    "file": "tower_mage_1.png",
+    "file": "tower_mage_1.webp",
     "w": 116,
     "h": 174,
     "drawH": 58.0,
@@ -63,7 +63,7 @@
     "facing": 1
   },
   "tower_mage_2": {
-    "file": "tower_mage_2.png",
+    "file": "tower_mage_2.webp",
     "w": 128,
     "h": 189,
     "drawH": 62.9,
@@ -72,7 +72,7 @@
     "facing": 1
   },
   "tower_mage_3": {
-    "file": "tower_mage_3.png",
+    "file": "tower_mage_3.webp",
     "w": 153,
     "h": 204,
     "drawH": 68.1,
@@ -81,7 +81,7 @@
     "facing": 1
   },
   "tower_ballista_1": {
-    "file": "tower_ballista_1.png",
+    "file": "tower_ballista_1.webp",
     "w": 174,
     "h": 140,
     "drawH": 46.5,
@@ -90,7 +90,7 @@
     "facing": 1
   },
   "tower_ballista_2": {
-    "file": "tower_ballista_2.png",
+    "file": "tower_ballista_2.webp",
     "w": 188,
     "h": 154,
     "drawH": 51.2,
@@ -99,7 +99,7 @@
     "facing": 1
   },
   "tower_ballista_3": {
-    "file": "tower_ballista_3.png",
+    "file": "tower_ballista_3.webp",
     "w": 201,
     "h": 189,
     "drawH": 62.9,
@@ -108,7 +108,7 @@
     "facing": 1
   },
   "tower_orc_spear_1": {
-    "file": "tower_orc_spear_1.png",
+    "file": "tower_orc_spear_1.webp",
     "w": 152,
     "h": 168,
     "drawH": 55.9,
@@ -117,7 +117,7 @@
     "facing": 1
   },
   "tower_orc_spear_2": {
-    "file": "tower_orc_spear_2.png",
+    "file": "tower_orc_spear_2.webp",
     "w": 175,
     "h": 187,
     "drawH": 62.4,
@@ -126,7 +126,7 @@
     "facing": 1
   },
   "tower_orc_spear_3": {
-    "file": "tower_orc_spear_3.png",
+    "file": "tower_orc_spear_3.webp",
     "w": 165,
     "h": 223,
     "drawH": 74.2,
@@ -135,7 +135,7 @@
     "facing": 1
   },
   "tower_orc_totem_1": {
-    "file": "tower_orc_totem_1.png",
+    "file": "tower_orc_totem_1.webp",
     "w": 107,
     "h": 180,
     "drawH": 60.0,
@@ -144,7 +144,7 @@
     "facing": 1
   },
   "tower_orc_totem_2": {
-    "file": "tower_orc_totem_2.png",
+    "file": "tower_orc_totem_2.webp",
     "w": 107,
     "h": 186,
     "drawH": 61.9,
@@ -153,7 +153,7 @@
     "facing": 1
   },
   "tower_orc_totem_3": {
-    "file": "tower_orc_totem_3.png",
+    "file": "tower_orc_totem_3.webp",
     "w": 144,
     "h": 223,
     "drawH": 74.2,
@@ -162,7 +162,7 @@
     "facing": 1
   },
   "tower_orc_trebuchet_1": {
-    "file": "tower_orc_trebuchet_1.png",
+    "file": "tower_orc_trebuchet_1.webp",
     "w": 158,
     "h": 160,
     "drawH": 53.3,
@@ -171,7 +171,7 @@
     "facing": 1
   },
   "tower_orc_trebuchet_2": {
-    "file": "tower_orc_trebuchet_2.png",
+    "file": "tower_orc_trebuchet_2.webp",
     "w": 162,
     "h": 162,
     "drawH": 54.0,
@@ -180,7 +180,7 @@
     "facing": 1
   },
   "tower_orc_trebuchet_3": {
-    "file": "tower_orc_trebuchet_3.png",
+    "file": "tower_orc_trebuchet_3.webp",
     "w": 204,
     "h": 223,
     "drawH": 74.4,
@@ -189,7 +189,7 @@
     "facing": 1
   },
   "tower_orc_cage_1": {
-    "file": "tower_orc_cage_1.png",
+    "file": "tower_orc_cage_1.webp",
     "w": 137,
     "h": 159,
     "drawH": 53.0,
@@ -198,7 +198,7 @@
     "facing": 1
   },
   "tower_orc_cage_2": {
-    "file": "tower_orc_cage_2.png",
+    "file": "tower_orc_cage_2.webp",
     "w": 157,
     "h": 169,
     "drawH": 56.2,
@@ -207,7 +207,7 @@
     "facing": 1
   },
   "tower_orc_cage_3": {
-    "file": "tower_orc_cage_3.png",
+    "file": "tower_orc_cage_3.webp",
     "w": 196,
     "h": 218,
     "drawH": 72.7,
@@ -216,7 +216,7 @@
     "facing": 1
   },
   "tower_und_archer_1": {
-    "file": "tower_und_archer_1.png",
+    "file": "tower_und_archer_1.webp",
     "w": 132,
     "h": 164,
     "drawH": 54.7,
@@ -225,7 +225,7 @@
     "facing": 1
   },
   "tower_und_archer_2": {
-    "file": "tower_und_archer_2.png",
+    "file": "tower_und_archer_2.webp",
     "w": 142,
     "h": 189,
     "drawH": 62.9,
@@ -234,7 +234,7 @@
     "facing": 1
   },
   "tower_und_archer_3": {
-    "file": "tower_und_archer_3.png",
+    "file": "tower_und_archer_3.webp",
     "w": 167,
     "h": 207,
     "drawH": 69.1,
@@ -243,7 +243,7 @@
     "facing": 1
   },
   "tower_und_digger_1": {
-    "file": "tower_und_digger_1.png",
+    "file": "tower_und_digger_1.webp",
     "w": 139,
     "h": 140,
     "drawH": 46.6,
@@ -252,7 +252,7 @@
     "facing": 1
   },
   "tower_und_digger_2": {
-    "file": "tower_und_digger_2.png",
+    "file": "tower_und_digger_2.webp",
     "w": 153,
     "h": 182,
     "drawH": 60.7,
@@ -261,7 +261,7 @@
     "facing": 1
   },
   "tower_und_digger_3": {
-    "file": "tower_und_digger_3.png",
+    "file": "tower_und_digger_3.webp",
     "w": 181,
     "h": 212,
     "drawH": 70.8,
@@ -270,7 +270,7 @@
     "facing": 1
   },
   "tower_und_cauldron_1": {
-    "file": "tower_und_cauldron_1.png",
+    "file": "tower_und_cauldron_1.webp",
     "w": 136,
     "h": 145,
     "drawH": 48.2,
@@ -279,7 +279,7 @@
     "facing": 1
   },
   "tower_und_cauldron_2": {
-    "file": "tower_und_cauldron_2.png",
+    "file": "tower_und_cauldron_2.webp",
     "w": 150,
     "h": 184,
     "drawH": 61.4,
@@ -288,7 +288,7 @@
     "facing": 1
   },
   "tower_und_cauldron_3": {
-    "file": "tower_und_cauldron_3.png",
+    "file": "tower_und_cauldron_3.webp",
     "w": 173,
     "h": 209,
     "drawH": 69.6,
@@ -297,7 +297,7 @@
     "facing": 1
   },
   "tower_und_crypt_1": {
-    "file": "tower_und_crypt_1.png",
+    "file": "tower_und_crypt_1.webp",
     "w": 139,
     "h": 151,
     "drawH": 50.2,
@@ -306,7 +306,7 @@
     "facing": 1
   },
   "tower_und_crypt_2": {
-    "file": "tower_und_crypt_2.png",
+    "file": "tower_und_crypt_2.webp",
     "w": 166,
     "h": 191,
     "drawH": 63.8,
@@ -315,7 +315,7 @@
     "facing": 1
   },
   "tower_und_crypt_3": {
-    "file": "tower_und_crypt_3.png",
+    "file": "tower_und_crypt_3.webp",
     "w": 195,
     "h": 212,
     "drawH": 70.8,
@@ -324,7 +324,7 @@
     "facing": 1
   },
   "tower_cul_archer_1": {
-    "file": "tower_cul_archer_1.png",
+    "file": "tower_cul_archer_1.webp",
     "w": 104,
     "h": 149,
     "drawH": 49.7,
@@ -333,7 +333,7 @@
     "facing": 1
   },
   "tower_cul_archer_2": {
-    "file": "tower_cul_archer_2.png",
+    "file": "tower_cul_archer_2.webp",
     "w": 126,
     "h": 169,
     "drawH": 56.2,
@@ -342,7 +342,7 @@
     "facing": 1
   },
   "tower_cul_archer_3": {
-    "file": "tower_cul_archer_3.png",
+    "file": "tower_cul_archer_3.webp",
     "w": 185,
     "h": 220,
     "drawH": 73.2,
@@ -351,7 +351,7 @@
     "facing": 1
   },
   "tower_cul_altar_1": {
-    "file": "tower_cul_altar_1.png",
+    "file": "tower_cul_altar_1.webp",
     "w": 98,
     "h": 156,
     "drawH": 52.1,
@@ -360,7 +360,7 @@
     "facing": 1
   },
   "tower_cul_altar_2": {
-    "file": "tower_cul_altar_2.png",
+    "file": "tower_cul_altar_2.webp",
     "w": 112,
     "h": 169,
     "drawH": 56.2,
@@ -369,7 +369,7 @@
     "facing": 1
   },
   "tower_cul_altar_3": {
-    "file": "tower_cul_altar_3.png",
+    "file": "tower_cul_altar_3.webp",
     "w": 154,
     "h": 202,
     "drawH": 67.2,
@@ -378,7 +378,7 @@
     "facing": 1
   },
   "tower_cul_pillar_1": {
-    "file": "tower_cul_pillar_1.png",
+    "file": "tower_cul_pillar_1.webp",
     "w": 98,
     "h": 169,
     "drawH": 56.4,
@@ -387,7 +387,7 @@
     "facing": 1
   },
   "tower_cul_pillar_2": {
-    "file": "tower_cul_pillar_2.png",
+    "file": "tower_cul_pillar_2.webp",
     "w": 113,
     "h": 180,
     "drawH": 60.0,
@@ -396,7 +396,7 @@
     "facing": 1
   },
   "tower_cul_pillar_3": {
-    "file": "tower_cul_pillar_3.png",
+    "file": "tower_cul_pillar_3.webp",
     "w": 152,
     "h": 223,
     "drawH": 74.4,
@@ -405,7 +405,7 @@
     "facing": 1
   },
   "tower_cul_spike_1": {
-    "file": "tower_cul_spike_1.png",
+    "file": "tower_cul_spike_1.webp",
     "w": 99,
     "h": 146,
     "drawH": 48.5,
@@ -414,7 +414,7 @@
     "facing": 1
   },
   "tower_cul_spike_2": {
-    "file": "tower_cul_spike_2.png",
+    "file": "tower_cul_spike_2.webp",
     "w": 112,
     "h": 175,
     "drawH": 58.3,
@@ -423,7 +423,7 @@
     "facing": 1
   },
   "tower_cul_spike_3": {
-    "file": "tower_cul_spike_3.png",
+    "file": "tower_cul_spike_3.webp",
     "w": 155,
     "h": 222,
     "drawH": 73.9,
@@ -432,7 +432,7 @@
     "facing": 1
   },
   "tower_dem_ember_1": {
-    "file": "tower_dem_ember_1.png",
+    "file": "tower_dem_ember_1.webp",
     "w": 133,
     "h": 155,
     "drawH": 51.8,
@@ -441,7 +441,7 @@
     "facing": 1
   },
   "tower_dem_ember_2": {
-    "file": "tower_dem_ember_2.png",
+    "file": "tower_dem_ember_2.webp",
     "w": 151,
     "h": 169,
     "drawH": 56.4,
@@ -450,7 +450,7 @@
     "facing": 1
   },
   "tower_dem_ember_3": {
-    "file": "tower_dem_ember_3.png",
+    "file": "tower_dem_ember_3.webp",
     "w": 205,
     "h": 211,
     "drawH": 70.3,
@@ -459,7 +459,7 @@
     "facing": 1
   },
   "tower_dem_warper_1": {
-    "file": "tower_dem_warper_1.png",
+    "file": "tower_dem_warper_1.webp",
     "w": 134,
     "h": 153,
     "drawH": 50.9,
@@ -468,7 +468,7 @@
     "facing": 1
   },
   "tower_dem_warper_2": {
-    "file": "tower_dem_warper_2.png",
+    "file": "tower_dem_warper_2.webp",
     "w": 159,
     "h": 176,
     "drawH": 58.6,
@@ -477,7 +477,7 @@
     "facing": 1
   },
   "tower_dem_warper_3": {
-    "file": "tower_dem_warper_3.png",
+    "file": "tower_dem_warper_3.webp",
     "w": 203,
     "h": 212,
     "drawH": 70.6,
@@ -486,7 +486,7 @@
     "facing": 1
   },
   "tower_dem_rift_1": {
-    "file": "tower_dem_rift_1.png",
+    "file": "tower_dem_rift_1.webp",
     "w": 134,
     "h": 142,
     "drawH": 47.3,
@@ -495,7 +495,7 @@
     "facing": 1
   },
   "tower_dem_rift_2": {
-    "file": "tower_dem_rift_2.png",
+    "file": "tower_dem_rift_2.webp",
     "w": 173,
     "h": 180,
     "drawH": 60.0,
@@ -504,7 +504,7 @@
     "facing": 1
   },
   "tower_dem_rift_3": {
-    "file": "tower_dem_rift_3.png",
+    "file": "tower_dem_rift_3.webp",
     "w": 199,
     "h": 218,
     "drawH": 72.7,
@@ -513,7 +513,7 @@
     "facing": 1
   },
   "tower_dem_gate_1": {
-    "file": "tower_dem_gate_1.png",
+    "file": "tower_dem_gate_1.webp",
     "w": 134,
     "h": 171,
     "drawH": 57.1,
@@ -522,7 +522,7 @@
     "facing": 1
   },
   "tower_dem_gate_2": {
-    "file": "tower_dem_gate_2.png",
+    "file": "tower_dem_gate_2.webp",
     "w": 180,
     "h": 176,
     "drawH": 58.8,
@@ -531,7 +531,7 @@
     "facing": 1
   },
   "tower_dem_gate_3": {
-    "file": "tower_dem_gate_3.png",
+    "file": "tower_dem_gate_3.webp",
     "w": 213,
     "h": 212,
     "drawH": 70.8,
@@ -540,7 +540,7 @@
     "facing": 1
   },
   "tower_elf_archer_1": {
-    "file": "tower_elf_archer_1.png",
+    "file": "tower_elf_archer_1.webp",
     "w": 122,
     "h": 165,
     "drawH": 55.0,
@@ -549,7 +549,7 @@
     "facing": 1
   },
   "tower_elf_archer_2": {
-    "file": "tower_elf_archer_2.png",
+    "file": "tower_elf_archer_2.webp",
     "w": 148,
     "h": 177,
     "drawH": 59.0,
@@ -558,7 +558,7 @@
     "facing": 1
   },
   "tower_elf_archer_3": {
-    "file": "tower_elf_archer_3.png",
+    "file": "tower_elf_archer_3.webp",
     "w": 187,
     "h": 236,
     "drawH": 78.7,
@@ -567,7 +567,7 @@
     "facing": 1
   },
   "tower_elf_weaver_1": {
-    "file": "tower_elf_weaver_1.png",
+    "file": "tower_elf_weaver_1.webp",
     "w": 106,
     "h": 151,
     "drawH": 50.2,
@@ -576,7 +576,7 @@
     "facing": 1
   },
   "tower_elf_weaver_2": {
-    "file": "tower_elf_weaver_2.png",
+    "file": "tower_elf_weaver_2.webp",
     "w": 127,
     "h": 177,
     "drawH": 59.0,
@@ -585,7 +585,7 @@
     "facing": 1
   },
   "tower_elf_weaver_3": {
-    "file": "tower_elf_weaver_3.png",
+    "file": "tower_elf_weaver_3.webp",
     "w": 190,
     "h": 230,
     "drawH": 76.8,
@@ -594,7 +594,7 @@
     "facing": 1
   },
   "tower_elf_sphere_1": {
-    "file": "tower_elf_sphere_1.png",
+    "file": "tower_elf_sphere_1.webp",
     "w": 104,
     "h": 153,
     "drawH": 51.1,
@@ -603,7 +603,7 @@
     "facing": 1
   },
   "tower_elf_sphere_2": {
-    "file": "tower_elf_sphere_2.png",
+    "file": "tower_elf_sphere_2.webp",
     "w": 133,
     "h": 175,
     "drawH": 58.3,
@@ -612,7 +612,7 @@
     "facing": 1
   },
   "tower_elf_sphere_3": {
-    "file": "tower_elf_sphere_3.png",
+    "file": "tower_elf_sphere_3.webp",
     "w": 165,
     "h": 220,
     "drawH": 73.4,
@@ -621,7 +621,7 @@
     "facing": 1
   },
   "tower_elf_blade_1": {
-    "file": "tower_elf_blade_1.png",
+    "file": "tower_elf_blade_1.webp",
     "w": 151,
     "h": 140,
     "drawH": 46.8,
@@ -630,7 +630,7 @@
     "facing": 1
   },
   "tower_elf_blade_2": {
-    "file": "tower_elf_blade_2.png",
+    "file": "tower_elf_blade_2.webp",
     "w": 159,
     "h": 177,
     "drawH": 59.0,
@@ -639,7 +639,7 @@
     "facing": 1
   },
   "tower_elf_blade_3": {
-    "file": "tower_elf_blade_3.png",
+    "file": "tower_elf_blade_3.webp",
     "w": 211,
     "h": 230,
     "drawH": 76.8,
@@ -648,7 +648,7 @@
     "facing": 1
   },
   "enemy_infantry": {
-    "file": "enemy_infantry.png",
+    "file": "enemy_infantry.webp",
     "w": 103,
     "h": 102,
     "drawH": 34,
@@ -657,7 +657,7 @@
     "facing": -1
   },
   "enemy_scout": {
-    "file": "enemy_scout.png",
+    "file": "enemy_scout.webp",
     "w": 86,
     "h": 96,
     "drawH": 32,
@@ -666,7 +666,7 @@
     "facing": -1
   },
   "enemy_heavy": {
-    "file": "enemy_heavy.png",
+    "file": "enemy_heavy.webp",
     "w": 117,
     "h": 120,
     "drawH": 40,
@@ -675,7 +675,7 @@
     "facing": 1
   },
   "enemy_flyer": {
-    "file": "enemy_flyer.png",
+    "file": "enemy_flyer.webp",
     "w": 140,
     "h": 102,
     "drawH": 34,
@@ -684,7 +684,7 @@
     "facing": 1
   },
   "enemy_shaman": {
-    "file": "enemy_shaman.png",
+    "file": "enemy_shaman.webp",
     "w": 69,
     "h": 108,
     "drawH": 36,
@@ -693,7 +693,7 @@
     "facing": 1
   },
   "enemy_swarm": {
-    "file": "enemy_swarm.png",
+    "file": "enemy_swarm.webp",
     "w": 67,
     "h": 48,
     "drawH": 16,
@@ -702,7 +702,7 @@
     "facing": 1
   },
   "enemy_heavy_1": {
-    "file": "enemy_heavy_1.png",
+    "file": "enemy_heavy_1.webp",
     "w": 97,
     "h": 120,
     "drawH": 40,
@@ -711,7 +711,7 @@
     "facing": 1
   },
   "enemy_scout_1": {
-    "file": "enemy_scout_1.png",
+    "file": "enemy_scout_1.webp",
     "w": 57,
     "h": 96,
     "drawH": 32,
@@ -720,7 +720,7 @@
     "facing": 1
   },
   "enemy_infantry_1": {
-    "file": "enemy_infantry_1.png",
+    "file": "enemy_infantry_1.webp",
     "w": 78,
     "h": 102,
     "drawH": 34,
@@ -729,7 +729,7 @@
     "facing": 1
   },
   "enemy_shaman_1": {
-    "file": "enemy_shaman_1.png",
+    "file": "enemy_shaman_1.webp",
     "w": 64,
     "h": 108,
     "drawH": 36,
@@ -738,7 +738,7 @@
     "facing": 1
   },
   "enemy_infantry_2": {
-    "file": "enemy_infantry_2.png",
+    "file": "enemy_infantry_2.webp",
     "w": 92,
     "h": 102,
     "drawH": 34,
@@ -747,7 +747,7 @@
     "facing": 1
   },
   "enemy_scout_2": {
-    "file": "enemy_scout_2.png",
+    "file": "enemy_scout_2.webp",
     "w": 61,
     "h": 96,
     "drawH": 32,
@@ -756,7 +756,7 @@
     "facing": 1
   },
   "enemy_shaman_2": {
-    "file": "enemy_shaman_2.png",
+    "file": "enemy_shaman_2.webp",
     "w": 75,
     "h": 108,
     "drawH": 36,
@@ -765,7 +765,7 @@
     "facing": 1
   },
   "enemy_heavy_2": {
-    "file": "enemy_heavy_2.png",
+    "file": "enemy_heavy_2.webp",
     "w": 76,
     "h": 120,
     "drawH": 40,
@@ -774,7 +774,7 @@
     "facing": 1
   },
   "enemy_infantry_3": {
-    "file": "enemy_infantry_3.png",
+    "file": "enemy_infantry_3.webp",
     "w": 65,
     "h": 102,
     "drawH": 34,
@@ -783,7 +783,7 @@
     "facing": 1
   },
   "enemy_scout_3": {
-    "file": "enemy_scout_3.png",
+    "file": "enemy_scout_3.webp",
     "w": 64,
     "h": 96,
     "drawH": 32,
@@ -792,7 +792,7 @@
     "facing": 1
   },
   "enemy_heavy_3": {
-    "file": "enemy_heavy_3.png",
+    "file": "enemy_heavy_3.webp",
     "w": 96,
     "h": 120,
     "drawH": 40,
@@ -801,7 +801,7 @@
     "facing": 1
   },
   "enemy_flyer_3": {
-    "file": "enemy_flyer_3.png",
+    "file": "enemy_flyer_3.webp",
     "w": 127,
     "h": 102,
     "drawH": 34,
@@ -810,7 +810,7 @@
     "facing": 1
   },
   "enemy_shaman_3": {
-    "file": "enemy_shaman_3.png",
+    "file": "enemy_shaman_3.webp",
     "w": 66,
     "h": 108,
     "drawH": 36,
@@ -819,7 +819,7 @@
     "facing": 1
   },
   "enemy_swarm_3": {
-    "file": "enemy_swarm_3.png",
+    "file": "enemy_swarm_3.webp",
     "w": 41,
     "h": 48,
     "drawH": 16,
@@ -828,7 +828,7 @@
     "facing": 1
   },
   "enemy_infantry_4": {
-    "file": "enemy_infantry_4.png",
+    "file": "enemy_infantry_4.webp",
     "w": 84,
     "h": 102,
     "drawH": 34,
@@ -837,7 +837,7 @@
     "facing": 1
   },
   "enemy_flyer_4": {
-    "file": "enemy_flyer_4.png",
+    "file": "enemy_flyer_4.webp",
     "w": 75,
     "h": 102,
     "drawH": 34,
@@ -846,7 +846,7 @@
     "facing": 1
   },
   "enemy_heavy_4": {
-    "file": "enemy_heavy_4.png",
+    "file": "enemy_heavy_4.webp",
     "w": 121,
     "h": 120,
     "drawH": 40,
@@ -855,7 +855,7 @@
     "facing": 1
   },
   "enemy_shaman_4": {
-    "file": "enemy_shaman_4.png",
+    "file": "enemy_shaman_4.webp",
     "w": 56,
     "h": 108,
     "drawH": 36,
@@ -864,7 +864,7 @@
     "facing": 1
   },
   "enemy_infantry_5": {
-    "file": "enemy_infantry_5.png",
+    "file": "enemy_infantry_5.webp",
     "w": 82,
     "h": 102,
     "drawH": 34,
@@ -873,7 +873,7 @@
     "facing": 1
   },
   "enemy_heavy_5": {
-    "file": "enemy_heavy_5.png",
+    "file": "enemy_heavy_5.webp",
     "w": 110,
     "h": 120,
     "drawH": 40,
@@ -882,7 +882,7 @@
     "facing": 1
   },
   "enemy_scout_5": {
-    "file": "enemy_scout_5.png",
+    "file": "enemy_scout_5.webp",
     "w": 83,
     "h": 96,
     "drawH": 32,
@@ -891,7 +891,7 @@
     "facing": 1
   },
   "enemy_flyer_1": {
-    "file": "enemy_flyer_1.png",
+    "file": "enemy_flyer_1.webp",
     "w": 106,
     "h": 102,
     "drawH": 34,
@@ -900,7 +900,7 @@
     "facing": 1
   },
   "enemy_swarm_1": {
-    "file": "enemy_swarm_1.png",
+    "file": "enemy_swarm_1.webp",
     "w": 63,
     "h": 48,
     "drawH": 16,
@@ -909,7 +909,7 @@
     "facing": 1
   },
   "enemy_flyer_2": {
-    "file": "enemy_flyer_2.png",
+    "file": "enemy_flyer_2.webp",
     "w": 118,
     "h": 102,
     "drawH": 34,
@@ -918,7 +918,7 @@
     "facing": 1
   },
   "enemy_swarm_2": {
-    "file": "enemy_swarm_2.png",
+    "file": "enemy_swarm_2.webp",
     "w": 109,
     "h": 48,
     "drawH": 16,
@@ -927,7 +927,7 @@
     "facing": 1
   },
   "enemy_scout_4": {
-    "file": "enemy_scout_4.png",
+    "file": "enemy_scout_4.webp",
     "w": 161,
     "h": 96,
     "drawH": 32,
@@ -936,7 +936,7 @@
     "facing": 1
   },
   "enemy_swarm_4": {
-    "file": "enemy_swarm_4.png",
+    "file": "enemy_swarm_4.webp",
     "w": 39,
     "h": 48,
     "drawH": 16,
@@ -945,7 +945,7 @@
     "facing": 1
   },
   "enemy_imp": {
-    "file": "enemy_imp.png",
+    "file": "enemy_imp.webp",
     "w": 76,
     "h": 72,
     "drawH": 24,
@@ -954,7 +954,7 @@
     "facing": 1
   },
   "enemy_flyer_5": {
-    "file": "enemy_flyer_5.png",
+    "file": "enemy_flyer_5.webp",
     "w": 97,
     "h": 102,
     "drawH": 34,
@@ -963,7 +963,7 @@
     "facing": 1
   },
   "enemy_shaman_5": {
-    "file": "enemy_shaman_5.png",
+    "file": "enemy_shaman_5.webp",
     "w": 83,
     "h": 108,
     "drawH": 36,
@@ -972,7 +972,7 @@
     "facing": 1
   },
   "enemy_swarm_5": {
-    "file": "enemy_swarm_5.png",
+    "file": "enemy_swarm_5.webp",
     "w": 40,
     "h": 48,
     "drawH": 16,
@@ -981,7 +981,7 @@
     "facing": 1
   },
   "enemy_infantry_6": {
-    "file": "enemy_infantry_6.png",
+    "file": "enemy_infantry_6.webp",
     "w": 51,
     "h": 102,
     "drawH": 34,
@@ -990,7 +990,7 @@
     "facing": 1
   },
   "enemy_scout_6": {
-    "file": "enemy_scout_6.png",
+    "file": "enemy_scout_6.webp",
     "w": 64,
     "h": 96,
     "drawH": 32,
@@ -999,7 +999,7 @@
     "facing": 1
   },
   "enemy_heavy_6": {
-    "file": "enemy_heavy_6.png",
+    "file": "enemy_heavy_6.webp",
     "w": 80,
     "h": 120,
     "drawH": 40,
@@ -1008,7 +1008,7 @@
     "facing": 1
   },
   "enemy_flyer_6": {
-    "file": "enemy_flyer_6.png",
+    "file": "enemy_flyer_6.webp",
     "w": 146,
     "h": 102,
     "drawH": 34,
@@ -1017,7 +1017,7 @@
     "facing": 1
   },
   "enemy_shaman_6": {
-    "file": "enemy_shaman_6.png",
+    "file": "enemy_shaman_6.webp",
     "w": 81,
     "h": 108,
     "drawH": 36,
@@ -1026,7 +1026,7 @@
     "facing": 1
   },
   "enemy_swarm_6": {
-    "file": "enemy_swarm_6.png",
+    "file": "enemy_swarm_6.webp",
     "w": 46,
     "h": 48,
     "drawH": 16,
@@ -1035,7 +1035,7 @@
     "facing": 1
   },
   "boss_6": {
-    "file": "boss_6.png",
+    "file": "boss_6.webp",
     "w": 121,
     "h": 216,
     "drawH": 72,
@@ -1044,7 +1044,7 @@
     "facing": 1
   },
   "boss_1": {
-    "file": "boss_1.png",
+    "file": "boss_1.webp",
     "w": 159,
     "h": 216,
     "drawH": 72,
@@ -1053,7 +1053,7 @@
     "facing": 1
   },
   "boss_2": {
-    "file": "boss_2.png",
+    "file": "boss_2.webp",
     "w": 136,
     "h": 216,
     "drawH": 72,
@@ -1062,7 +1062,7 @@
     "facing": 1
   },
   "boss_3": {
-    "file": "boss_3.png",
+    "file": "boss_3.webp",
     "w": 138,
     "h": 216,
     "drawH": 72,
@@ -1071,7 +1071,7 @@
     "facing": 1
   },
   "boss_4": {
-    "file": "boss_4.png",
+    "file": "boss_4.webp",
     "w": 175,
     "h": 216,
     "drawH": 72,
@@ -1080,7 +1080,7 @@
     "facing": 1
   },
   "boss_5": {
-    "file": "boss_5.png",
+    "file": "boss_5.webp",
     "w": 214,
     "h": 216,
     "drawH": 72,
@@ -1089,7 +1089,7 @@
     "facing": 1
   },
   "binder": {
-    "file": "binder.png",
+    "file": "binder.webp",
     "w": 76,
     "h": 132,
     "drawH": 44,
@@ -1098,7 +1098,7 @@
     "facing": 1
   },
   "binder_triple": {
-    "file": "binder_triple.png",
+    "file": "binder_triple.webp",
     "w": 92,
     "h": 150,
     "drawH": 50,
@@ -1107,7 +1107,7 @@
     "facing": 1
   },
   "castle": {
-    "file": "castle.png",
+    "file": "castle.webp",
     "w": 214,
     "h": 252,
     "drawH": 84,
@@ -1116,7 +1116,7 @@
     "facing": 1
   },
   "mega_T": {
-    "file": "mega_T.png",
+    "file": "mega_T.webp",
     "w": 257,
     "h": 300,
     "drawH": 96.0,
@@ -1125,7 +1125,7 @@
     "facing": 1
   },
   "mega_P": {
-    "file": "mega_P.png",
+    "file": "mega_P.webp",
     "w": 258,
     "h": 300,
     "drawH": 112.0,

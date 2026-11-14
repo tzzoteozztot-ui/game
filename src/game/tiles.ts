@@ -128,7 +128,7 @@ export function loadDecor(name: string): Promise<Tileset> {
               resolve();
             };
             img.onerror = () => resolve();
-            img.src = new URL(`${n}.png`, base).href;
+            img.src = new URL(`${n}.webp`, base).href;
           })
       )
     ).then(() => set);

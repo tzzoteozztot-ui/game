@@ -1,7 +1,7 @@
 """Нарезка листов концептов art/concepts/*.png на спрайты с прозрачным фоном.
 
 Запуск: python3 scripts/slice_sprites.py  (нужны numpy и Pillow)
-Результат: public/sprites/*.png и public/sprites/sprites.json.
+Результат: public/sprites/*.webp (без потерь) и public/sprites/sprites.json.
 
 Фон листов ровный светло-серый. Пиксели фона, связанные с краем листа, и
 крупные замкнутые «карманы» фона становятся прозрачными; переходный ободок
@@ -334,7 +334,7 @@ def main():
         out_h = round(draw_h * SCALE)
         out_w = max(1, round(img.width * out_h / img.height))
         img = img.convert('RGBa').resize((out_w, out_h), Image.LANCZOS).convert('RGBA')
-        img.save(os.path.join(OUT, name + '.png'), optimize=True)
+        img.save(os.path.join(OUT, name + '.webp'), lossless=True, quality=100, method=6, exact=True)
 
         # Точка привязки: середина нижней десятой части фигуры, по низу
         crop = a[top:bottom, left:right]
@@ -343,7 +343,7 @@ def main():
         anchor_x = float((cols * np.arange(cols.size)).sum() / cols.sum() / crop.shape[1])
 
         meta[name] = {
-            'file': name + '.png',
+            'file': name + '.webp',
             'w': out_w,
             'h': out_h,
             'drawH': draw_h,
