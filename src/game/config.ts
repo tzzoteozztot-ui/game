@@ -602,7 +602,7 @@ export const CONFIG = {
       traitName: 'Закалка',
       traitDesc: 'Все замедления слабее вдвое.',
       bossName: 'Ледяной жрец Хельдрим',
-      bossDesc: 'Раз в 12 с замораживает ближайшую башню на 4 с.',
+      bossDesc: 'Раз в 12 с замораживает ближайшую башню в 3 клетках от себя на 4 с.',
       resist: ['ice'],
       weak: ['fire'],
     },
@@ -642,6 +642,11 @@ export const CONFIG = {
   ] as FactionDef[],
 
   // Люди (faction 6): предложение Claude, утвердил Артур 2026-10-31
+  // Ледяной жрец: заморозка достаёт только башни рядом (Артур 2026-11-14: «через всё поле» не задумано); радиус как у Лича и «Врат»
+  iceBoss: {
+    freezeRadius: 3, // cells around the boss
+  },
+
   humans: {
     repairDelay: 3, // s without damage before repair starts
     repairPerSec: 0.02, // share of max HP restored per second
