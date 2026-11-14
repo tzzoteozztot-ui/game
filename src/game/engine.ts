@@ -2502,21 +2502,22 @@ export class GameEngine {
       }
     }
 
-    // Level 3: Ледяной жрец (Ice Priest) - every 12s freezes closest tower for 4s
+    // Level 3: Ледяной жрец (Ice Priest) - every 12s freezes the closest tower within freezeRadius cells for 4s;
+    // with no tower in reach the ability stays ready and goes off at the first tower he comes up to
     if (boss.faction === 3 && boss.bossAbilityTimer >= 12) {
-      boss.bossAbilityTimer = 0;
       let closestTower: Tower | null = null;
-      let minDist = Infinity;
+      let minDist = CONFIG.iceBoss.freezeRadius * CONFIG.grid.cellSize;
       for (const t of this.towers) {
         const tx = centerX(t);
         const ty = centerY(t);
         const d = Math.hypot(tx - boss.x, ty - boss.y);
-        if (d < minDist) {
+        if (d <= minDist) {
           minDist = d;
           closestTower = t;
         }
       }
       if (closestTower) {
+        boss.bossAbilityTimer = 0;
         closestTower.frozenTimer = 4.0;
         this.addFloatingText('БАШНЯ ЗАМОРОЖЕНА!', boss.x, boss.y - 18, '#7fc8f0');
         this.spawnRing(centerX(closestTower), centerY(closestTower), '#7fc8f0');
