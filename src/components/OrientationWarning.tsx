@@ -3,7 +3,6 @@
  * Prompts user to rotate device to landscape.
  */
 
-import React from 'react';
 import { HOME_SCREEN_HINT, isStandalone, toggleFullscreen, useFullscreen } from '../fullscreen';
 
 export function OrientationWarning() {

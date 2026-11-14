@@ -6,7 +6,7 @@
  * life), the host answers everyone with «lobby» every second, and «go» starts the game.
  */
 
-import React, { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { CONFIG, Difficulty, RaceId } from '../game/config';
 import { newMapSeed } from '../game/mapgen';
 import { RacePicker } from './RacePicker';

@@ -116,18 +116,6 @@ export function HeartCastleIcon({ size = 18 }: { size?: number | string }) {
   );
 }
 
-export function StarIcon({ filled, size = 18 }: { filled: boolean; size?: number | string }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-      <polygon
-        points="12,2 15,9 22,9 17,14 19,21 12,17 5,21 7,14 2,9 9,9"
-        fill={filled ? '#f4c06a' : '#2f3542'}
-        stroke={filled ? '#a67c1e' : '#1f242e'}
-        strokeWidth="1.5"
-      />
-    </svg>
-  );
-}
 
 export function LockIcon({ size = 18 }: { size?: number | string }) {
   return (

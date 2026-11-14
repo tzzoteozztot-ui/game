@@ -81,7 +81,6 @@ let scene: DevScene | null = null;
 export const setDevScene = (s: DevScene | null) => {
   scene = s;
 };
-export const currentDevScene = () => scene;
 
 // ---------- заметки ----------
 

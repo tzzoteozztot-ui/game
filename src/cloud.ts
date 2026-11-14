@@ -38,16 +38,6 @@ function message(err: unknown): string {
   return 'Не получилось. Попробуйте ещё раз.';
 }
 
-export async function currentUser(): Promise<User | null> {
-  if (!cloudEnabled) return null;
-  try {
-    const { data } = await (await client()).auth.getSession();
-    return data.session?.user ?? null;
-  } catch {
-    return null;
-  }
-}
-
 export function onUserChange(cb: (user: User | null) => void): () => void {
   if (!cloudEnabled) return () => {};
   let unsub = () => {};

@@ -2,7 +2,7 @@
 // и небо над полем по биомам. Пока задников от художников нет, небо рисуется кодом; рисуется один раз и кэшируется.
 import { CONFIG } from './config';
 import { Point } from './maps';
-import { centerX, centerY, cellPath, hexView } from './grid';
+import { centerX, centerY, hexView } from './grid';
 import { Tileset } from './tiles';
 
 /** Детерминированный случайный ряд, чтобы задник не менялся от кадра к кадру */

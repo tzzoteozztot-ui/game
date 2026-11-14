@@ -3,7 +3,6 @@
  * заготовка «как в бесконечном режиме» и запуск. Настройки хранит App — при повторном открытии они на месте.
  */
 
-import React from 'react';
 import { CONFIG, EnemyType } from '../game/config';
 import { EnemyIcon } from './EnemyIcon';
 

@@ -5,7 +5,7 @@
  * Настройки (account, sound, bestiary, how to play, full screen).
  */
 
-import React, { useRef, useState, useSyncExternalStore } from 'react';
+import { useRef, useState, useSyncExternalStore } from 'react';
 import { CONFIG, Difficulty, RaceId } from '../game/config';
 import { RacePicker } from './RacePicker';
 import { endlessRecordKey } from '../progress';

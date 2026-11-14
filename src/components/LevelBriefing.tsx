@@ -3,7 +3,6 @@
  * Shows map name, faction traits, boss ability, and Start CTA.
  */
 
-import React from 'react';
 import { RaceId, CONFIG, stanceText } from '../game/config';
 
 interface LevelBriefingProps {

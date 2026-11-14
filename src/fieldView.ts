@@ -4,7 +4,7 @@
  * только тем, кто смотрит (`watch`), раз в 0,5 с. У ботов поля нет — смотреть можно только игроков.
  */
 
-import { CONFIG, TowerType } from './game/config';
+import { CONFIG } from './game/config';
 import { GRID_COLS, GRID_ROWS, CASTLE, MapDef } from './game/maps';
 import { SEND_TYPES, waveDefinition, type SendType } from './game/rules';
 

@@ -4,7 +4,7 @@
  * Заготовка — готовая карта, случайная дорога или своя сохранённая; «Применить» ставит карту на поле.
  */
 
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { CONFIG } from '../game/config';
 import { MapEditTool } from '../game/mapEditor';
 import { GameStateSnapshot } from '../game/engine';
