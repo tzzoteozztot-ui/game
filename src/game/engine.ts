@@ -2583,7 +2583,6 @@ export class GameEngine {
   // -------------------------------------------------------------
   private towerAttack(tower: Tower, part: TowerPart) {
     this.dmgSource = tower.id;
-    const baseDef = CONFIG.towers[part.type];
     const towerPxX = centerX(tower);
     const towerPxY = centerY(tower);
     const stats = attackStats(part.type, part.level, part.specs);
@@ -2745,7 +2744,7 @@ export class GameEngine {
           m.lines.push(`Мегабашня Т: +${Math.round(mech.megaT * 100)} % урона`);
         } else if (g.shape === 'P') {
           m.range *= 1 + mech.megaPRange;
-          m.lines.push(`Мегабашня П: +${Math.round(mech.megaPRange * 100)} % радиуса, заморозка в центре подковы`);
+          m.lines.push(`Мегабашня П: +${Math.round(mech.megaPRange * 100)} % радиуса, заморозка в центре ${isHex() ? 'кольца' : 'подковы'}`);
         }
       }
     }
@@ -2871,7 +2870,6 @@ export class GameEngine {
     const mech = CONFIG.raceMech;
     if (Math.random() < Math.min(1, tower.critT / mech.critFull)) {
       tower.critT = 0;
-      const cs = CONFIG.grid.cellSize;
       this.addFloatingText('КРИТ!', centerX(tower), (centerY(tower) - CONFIG.grid.cellSize / 2 + 4), '#3ed6c4');
       return mech.critMult;
     }
@@ -4395,7 +4393,6 @@ export class GameEngine {
       cooldownTimer: 0,
       smiteTimer: 2.5,
     };
-    const cs = CONFIG.grid.cellSize;
     this.spawnPuff(centerX(partner), centerY(partner), CONFIG.binder.color);
     this.spawnPuff(centerX(binder), centerY(binder), CONFIG.binder.color);
     this.spawnRing(centerX(tower), centerY(tower), CONFIG.binder.color);
@@ -4407,7 +4404,6 @@ export class GameEngine {
   }
 
   private warnBindLevel(at: { x: number; y: number }) {
-    const cs = CONFIG.grid.cellSize;
     this.addFloatingText('Связка — только Ур.2 и Ур.3', centerX(at), centerY(at) - 16, '#e0452f');
   }
 
@@ -4430,7 +4426,6 @@ export class GameEngine {
       }
       return false;
     }
-    const cs = CONFIG.grid.cellSize;
     for (const b of this.nearest(this.plainBinders().filter((b) => b !== sel), sel).slice(0, 2)) {
       this.binders.splice(this.binders.indexOf(b), 1);
       this.spawnPuff(centerX(b), centerY(b), CONFIG.binder.color);
@@ -4504,7 +4499,6 @@ export class GameEngine {
       part.level += 1;
       part.specs = part.level === 3 ? [...part.specs, ...part.specs, ...part.specs] : [];
     }
-    const cs = CONFIG.grid.cellSize;
     this.spawnPuff(centerX(binder), centerY(binder), CONFIG.binder.color);
     this.spawnRing(centerX(tower), centerY(tower), '#f4c06a');
     this.addFloatingText('УРОВЕНЬ +1!', centerX(tower), centerY(tower) - 16, '#f4c06a');
