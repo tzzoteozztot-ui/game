@@ -653,7 +653,7 @@ export function WorldEditor({ regionId, onClose, onSaved, onPlay }: Props) {
   return (
     <div className="fixed inset-0 z-[60] bg-[#0d0c13] text-[#f4f2e6] flex flex-col" style={{ paddingLeft: 'env(safe-area-inset-left)', paddingRight: 'env(safe-area-inset-right)' }}>
       {/* верхняя строка */}
-      <div className="flex items-center gap-1.5 px-2 py-1.5 bg-[#171520] border-b border-[#3b354a] flex-wrap">
+      <div className="flex items-center gap-1.5 pl-2 pr-14 py-1.5 bg-[#171520] border-b border-[#3b354a] flex-wrap">
         <button className="px-2.5 py-1.5 rounded bg-[#2a2635] hover:bg-[#3a3448] text-sm font-bold" onClick={() => (dirty ? askConfirm('Закрыть без сохранения?', 'Закрыть').then((ok) => ok && onClose()) : onClose())}>
           ✕ Закрыть
         </button>
