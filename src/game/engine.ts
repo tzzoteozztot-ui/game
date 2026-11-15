@@ -6756,7 +6756,7 @@ export class GameEngine {
       if ((e.stunTimer ?? 0) > 0 && (e.heldTimer ?? 0) <= 0) marks.push('st_stun');
       if (e.curseTimer > 0) marks.push('st_mark');
       if (marks.length) {
-        const s = isBoss ? 22 : 16;
+        const s = isBoss ? 32 : 24;
         const hasBar = isBoss || e.hp < e.maxHp;
         const y0 = topY - (hasBar ? (isBoss ? 14 : 10) : 3) - s;
         const x0 = e.x - (marks.length * s) / 2;
