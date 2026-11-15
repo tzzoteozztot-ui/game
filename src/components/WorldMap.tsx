@@ -31,6 +31,7 @@ import {
   WorldSlot,
   loadSlots,
   saveSlot,
+  deleteSlot,
   SLOT_COUNT,
   upgradeCamp,
   toggleEquip,
@@ -814,6 +815,23 @@ export function WorldMap({ world, region, onChange, onBattle, onExit, onReset, o
                         }}
                       >
                         Загрузить
+                      </button>
+                      <button
+                        className="px-2.5 py-1.5 rounded bg-[#2a2635] hover:bg-red-900/70 text-sm font-bold disabled:opacity-40"
+                        disabled={!sl}
+                        title="Удалить сохранение"
+                        aria-label={`Удалить сохранение в ячейке ${i + 1}`}
+                        onClick={() => {
+                          if (!sl) return;
+                          askConfirm(`Удалить сохранение в ячейке ${i + 1} (день ${sl.day})? Это нельзя отменить.`, 'Удалить').then((ok) => {
+                            if (!ok) return;
+                            deleteSlot(i);
+                            logWorldNote(world, 'slot-delete', { slot: i + 1 });
+                            setSlots(loadSlots());
+                          });
+                        }}
+                      >
+                        Удалить
                       </button>
                     </div>
                   );

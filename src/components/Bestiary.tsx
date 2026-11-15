@@ -5,7 +5,7 @@
 
 import { useEffect, useState } from 'react';
 import { CONFIG, DAMAGE_TYPES, RACE_IDS, RaceId, stanceText } from '../game/config';
-import { BESTIARY, BestiaryCreature, KIND_LABELS, TOWER_LORE, RACE_TOWER_LORE } from '../bestiary';
+import { BESTIARY, BESTIARY_CHARACTERS, BestiaryCreature, KIND_LABELS, TOWER_LORE, RACE_TOWER_LORE } from '../bestiary';
 import { attackStats } from '../game/towerStats';
 import { TowerSpriteIcon } from './Icons';
 import { Ico, dmgIcon } from '../icons';
@@ -148,8 +148,44 @@ function BeastImage({ creature, factionId }: { creature: BestiaryCreature; facti
   );
 }
 
+/** Вкладка «Персонажи»: портреты и описания героев и важных лиц кампании */
+function CharactersSection() {
+  return (
+    <div className="max-w-5xl mx-auto flex flex-col gap-4 pt-1">
+      {BESTIARY_CHARACTERS.map((g) => (
+        <section key={g.title}>
+          <h3 className="text-lg font-black text-amber-300 mb-2">{g.title}</h3>
+          <div className="grid grid-cols-1 min-[520px]:grid-cols-2 gap-2 sm:gap-3">
+            {g.characters.map((c) => (
+              <article key={c.name} className="rounded-lg border border-[#3d384d] bg-[#1a1724] overflow-hidden flex">
+                <img
+                  src={`portraits/${c.portrait}.jpg`}
+                  alt={c.name}
+                  draggable={false}
+                  loading="lazy"
+                  className="shrink-0 w-24 sm:w-28 object-cover object-top bg-black/40"
+                />
+                <div className="p-3 flex-1 min-w-0">
+                  <div className="text-[10px] uppercase font-bold tracking-wider text-amber-500">{c.role}</div>
+                  <h4 className="font-black text-stone-100 text-sm sm:text-base leading-tight">{c.name}</h4>
+                  <div className="mt-1.5 space-y-1.5 text-[13px] leading-relaxed text-stone-300">
+                    {c.lore.map((p, i) => (
+                      <p key={i}>{p}</p>
+                    ))}
+                  </div>
+                </div>
+              </article>
+            ))}
+          </div>
+        </section>
+      ))}
+    </div>
+  );
+}
+
 export function Bestiary({ onClose, initialFaction = 1 }: { onClose: () => void; initialFaction?: number }) {
   const [factionId, setFactionId] = useState(initialFaction);
+  const [charsTab, setCharsTab] = useState(false);
   const faction = BESTIARY.find((f) => f.id === factionId) ?? BESTIARY[0];
   const conf = CONFIG.factions.find((f) => f.id === faction.id);
   const palette = CONFIG.palettes[faction.id - 1];
@@ -186,10 +222,10 @@ export function Bestiary({ onClose, initialFaction = 1 }: { onClose: () => void;
             key={f.id}
             type="button"
             role="tab"
-            aria-selected={f.id === faction.id}
-            onClick={() => setFactionId(f.id)}
+            aria-selected={!charsTab && f.id === faction.id}
+            onClick={() => { setFactionId(f.id); setCharsTab(false); }}
             className={`shrink-0 min-h-[38px] px-3 rounded text-xs font-bold cursor-pointer flex items-center gap-1.5 ${
-              f.id === faction.id
+              !charsTab && f.id === faction.id
                 ? 'bg-amber-600 text-stone-950'
                 : 'bg-[#221f2d] text-stone-300 hover:bg-[#2c283a] border border-[#383347]'
             }`}
@@ -201,11 +237,23 @@ export function Bestiary({ onClose, initialFaction = 1 }: { onClose: () => void;
             {f.name}
           </button>
         ))}
+        <button
+          type="button"
+          role="tab"
+          aria-selected={charsTab}
+          onClick={() => setCharsTab(true)}
+          className={`shrink-0 min-h-[38px] px-3 rounded text-xs font-bold cursor-pointer ${
+            charsTab ? 'bg-amber-600 text-stone-950' : 'bg-[#221f2d] text-stone-300 hover:bg-[#2c283a] border border-[#383347]'
+          }`}
+        >
+          Персонажи
+        </button>
       </div>
       </div>
 
       <div className="flex-1 min-h-0 overflow-y-auto px-2 sm:px-4 pb-4">
-        <div className="max-w-5xl mx-auto flex flex-col gap-3 pt-1">
+        {charsTab && <CharactersSection />}
+        {!charsTab && <div className="max-w-5xl mx-auto flex flex-col gap-3 pt-1">
           <section className="rounded-lg border border-[#3d384d] bg-[#1a1724] p-3 sm:p-4">
             <div className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5">
               <h3 className="text-lg font-black text-amber-300">{faction.name}</h3>
@@ -263,9 +311,9 @@ export function Bestiary({ onClose, initialFaction = 1 }: { onClose: () => void;
               );
             })}
           </div>
-        </div>
+        </div>}
         {/* The same faction as a playable race: its towers right below its creatures */}
-        {race && (
+        {!charsTab && race && (
           <div className="mt-4">
             <TowerSection race={race} />
           </div>

@@ -6073,11 +6073,38 @@ export class GameEngine {
    * стоит Рен. Пока без отдельной фигуры — медальон с портретом (public/portraits/ren.jpg) на месте артефакта; клетка, урон и защита прежние
    */
   private renderHeroToken(ctx: CanvasRenderingContext2D, cellSize: number, timeSec: number) {
+    const c = CONFIG.grid.castleCells[0];
+    // Правка 2026-11-15 (заметка разработчика: «Рен будет стоять в центре»): стоит фигурой Рена в центре поля, на месте артефакта (его в боях похода на своём поле нет);
+    // клетка, урон и защита прежние. Пока картинка грузится, остаётся медальон
+    const fig = gfx('hero_ren');
+    if (fig) {
+      const fx = centerX(c);
+      const fy = centerY(c) + cellSize * 0.32;
+      const h = cellSize * 1.9;
+      const w = h * (fig.naturalWidth / fig.naturalHeight);
+      const pulse = 0.5 + 0.5 * Math.sin(timeSec * 2);
+      ctx.save();
+      const ring = ctx.createRadialGradient(fx, fy, cellSize * 0.1, fx, fy, cellSize * 0.75);
+      ring.addColorStop(0, `rgba(94, 234, 212, ${0.28 + 0.12 * pulse})`);
+      ring.addColorStop(1, 'rgba(94, 234, 212, 0)');
+      ctx.fillStyle = ring;
+      ctx.beginPath();
+      ctx.ellipse(fx, fy, cellSize * 0.75, cellSize * 0.32, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.35)';
+      ctx.beginPath();
+      ctx.ellipse(fx, fy, cellSize * 0.3, cellSize * 0.11, 0, 0, Math.PI * 2);
+      ctx.fill();
+      // фигура стоит ногами в точке (fx, fy); в файле низ ног — 245 из 256 px
+      ctx.drawImage(fig, fx - w / 2, fy - h * (245 / 256) + Math.sin(timeSec * 1.6) * 0.8, w, h);
+      ctx.restore();
+      this.renderBoonOrbs(ctx, cellSize, timeSec);
+      return;
+    }
     if (!this.heroImg) {
       this.heroImg = new Image();
       this.heroImg.src = 'portraits/ren.jpg';
     }
-    const c = CONFIG.grid.castleCells[0];
     const x = centerX(c);
     const y = centerY(c) - 4 + Math.sin(timeSec * 1.6) * 1.2;
     const r = cellSize * 0.46;

@@ -1076,6 +1076,17 @@ export function saveSlot(i: number, st: WorldState) {
   }
 }
 
+/** Удалить сохранение из ячейки (просьба Артура 2026-11-15); текущий поход не трогает */
+export function deleteSlot(i: number) {
+  const slots = loadSlots();
+  slots[i] = null;
+  try {
+    localStorage.setItem(SLOTS_KEY, JSON.stringify(slots));
+  } catch {
+    // нет хранилища
+  }
+}
+
 // -------------------------------------------------------------
 // Лагерь (просьба Артура 2026-11-06): за ресурсы качаются пассивки — те же усиления, что в Потасовке
 // (BOONS в config.ts), каждый уровень — ещё одна доля усиления на все бои похода. Постройки — по людям
