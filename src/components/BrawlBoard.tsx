@@ -29,7 +29,7 @@ export function BrawlBoard({ snap, canWatch, watchId, onWatch }: { snap: BrawlSn
           className="pointer-events-auto w-full flex items-center justify-between gap-1 px-[0.5em] py-[0.35em] font-bold text-amber-300 cursor-pointer hover:bg-white/5"
         >
           <span>Игроки {snap.alive}/{snap.seats.length}</span>
-          <span className="text-stone-400">{open ? '▴' : '▾'}</span>
+          <span className="text-stone-400"><Ico n={open ? 'arrow_up' : 'arrow_down'} className="!h-[1em] !w-[1em]" /></span>
         </button>
         {open && snap.currentId && (
           <div className="px-[0.5em] pb-[0.15em] text-[0.9em] text-orange-300 truncate" title="Его враги сейчас на вашем поле">

@@ -8,6 +8,7 @@ import type { RunSummary } from '../game/engine';
 import { specSummary } from '../game/towerStats';
 import { CONFIG, TowerType } from '../game/config';
 import { downloadRunLog, hasSavedRunLog } from '../game/runLog';
+import { Ico } from '../icons';
 
 const fmt = (n: number) => Math.round(n).toLocaleString('ru-RU');
 const towerName = (type: string) => CONFIG.towers[type as TowerType]?.name ?? '';
@@ -52,7 +53,7 @@ export function RunStats({ stats, camp }: { stats: RunSummary | null; camp?: boo
             className="w-full min-h-[36px] flex items-center justify-between text-[11px] text-stone-300 cursor-pointer"
           >
             <span>Урон башен · {stats.towers.length} шт.</span>
-            <span className="text-stone-400">{open ? 'Свернуть ▲' : 'Развернуть ▼'}</span>
+            <span className="text-stone-400">{open ? <>Свернуть <Ico n="arrow_up" className="!h-[1em] !w-[1em]" /></> : <>Развернуть <Ico n="arrow_down" className="!h-[1em] !w-[1em]" /></>}</span>
           </button>
           {open && <div className="flex flex-col gap-1.5 tabular-nums mt-1">
             {top.map((t, i) => {

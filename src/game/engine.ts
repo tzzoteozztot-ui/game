@@ -32,6 +32,7 @@ import {
   canBindLevels,
 } from './rules';
 import { sound } from './audio';
+import { gfx, drawAimed } from '../gfx';
 import { sprites, drawSprite, PreparedSprite, SpritePose, SpriteVariant } from './sprites';
 import { bakeHexGround, bakeHexSky, backdropImage } from './hexScene';
 import { TILESETS, DECOR_ONLY, loadTileset, loadDecor, bakeField, bakeDecor, Tileset } from './tiles';
@@ -556,6 +557,8 @@ export class GameEngine {
   public binders: Binder[] = [];
   public enemies: Enemy[] = [];
   public projectiles: Projectile[] = [];
+  /** Картинки-эффекты Draw Things (взрыв, лёд, яд…): всплывают на месте и гаснут */
+  private fxList: { name: string; x: number; y: number; size: number; life: number; maxLife: number }[] = [];
   public floatingTexts: FloatingText[] = [];
   private particles: Particle[] = [];
   private corpses: Corpse[] = [];
@@ -867,6 +870,7 @@ export class GameEngine {
     this.deadEnemiesGraveyard = [];
     this.corpses = [];
     for (const p of this.particles) p.active = false;
+    this.fxList = [];
 
     this.isSpawning = false;
     this.waveInProgress = false;
@@ -1470,11 +1474,13 @@ export class GameEngine {
       const heal = Math.min(def.value, Math.max(0, this.livesMax() - this.lives));
       this.lives += heal;
       this.spawnRing(castleX(), castleY(), '#3ed6c4');
+      this.spawnFx('heal', castleX(), castleY(), 56, 0.7);
     } else if (def.id === 'shard') {
       for (const e of [...this.enemies]) {
         const frac = e.type === 'boss' || e.type === 'heavy' ? def.boss ?? def.value : def.value;
         this.directDamage(e, (e.hp * frac) / Math.max(0.1, 1 - Math.min(0.9, e.magicResist)), 'hero', 'lightning');
         this.spawnRing(e.x, e.y, '#3ed6c4');
+        this.spawnFx('shock', e.x, e.y, 34, 0.4);
       }
     }
     s.left = def.cooldown;
@@ -2428,6 +2434,7 @@ export class GameEngine {
     if (!this.isGameOver && !this.isVictory) this.updateGuard(dt);
 
     // 6. Update particles
+    this.updateFx(dt);
     for (const p of this.particles) {
       if (!p.active) continue;
       p.x += p.vx * dt;
@@ -2521,6 +2528,7 @@ export class GameEngine {
         closestTower.frozenTimer = 4.0;
         this.addFloatingText('БАШНЯ ЗАМОРОЖЕНА!', boss.x, boss.y - 18, '#7fc8f0');
         this.spawnRing(centerX(closestTower), centerY(closestTower), '#7fc8f0');
+        this.spawnFx('frost', centerX(closestTower), centerY(closestTower), 48, 0.7);
       }
     }
 
@@ -2567,8 +2575,10 @@ export class GameEngine {
       for (const e of [boss, ...carried]) {
         if (e.sieging) continue;
         this.spawnRing(e.x, e.y, '#5b8fd8');
+        this.spawnFx('gate_open', e.x, e.y, 52, 0.6);
         this.advanceAlongPath(e, hum.gateCells);
         this.spawnRing(e.x, e.y, '#5b8fd8');
+        this.spawnFx('gate_open', e.x, e.y, 52, 0.6);
       }
     }
   }
@@ -2936,6 +2946,7 @@ export class GameEngine {
       for (const e of inRange) this.stun(e, time);
       sound.playShot('priest');
       this.spawnRing(tx, ty, '#d6f0ff', rangePx - 8);
+      this.spawnFx('frost', tx, ty, Math.max(40, rangePx * 1.5), 0.6);
     } else if (def.special === 'crypt') {
       const souls = tower.souls ?? 0;
       if (souls <= 0) {
@@ -2945,6 +2956,7 @@ export class GameEngine {
       tower.souls = 0;
       sound.playShot('mage');
       this.spawnRing(tx, ty, '#c9d6b0', rangePx - 8);
+      this.spawnFx('poison_cloud', tx, ty, Math.max(40, rangePx * 1.5), 0.6);
       for (const e of inRange) {
         this.dmgSource = tower.id;
         this.applyDamageToEnemy(e, stats.damage * mods.dmg * souls, 'poison', tower.type, []);
@@ -3200,6 +3212,7 @@ export class GameEngine {
       }
     }
     this.spawnRing(tx, ty, '#ff7a3a', 36);
+    this.spawnFx('explosion', tx, ty, 64, 0.5);
     this.addFloatingText(ab.name.toUpperCase() + '!', tx, ty - 20, '#ff7a3a');
     sound.playBossSpawn();
     this.notifyState();
@@ -3283,6 +3296,7 @@ export class GameEngine {
     this.markModsDirty();
     this.spawnPuff(centerX(victim), centerY(victim), '#ff4a2f');
     this.spawnRing(gx, gy, '#ff4a2f', st.range * cs);
+    this.spawnFx('explosion', gx, gy, Math.max(50, st.range * cs * 1.6), 0.5);
     this.addFloatingText('ЖЕРТВА!', gx, gy - 20, '#ff4a2f');
     sound.playBossSpawn();
     for (const e of hit) {
@@ -3304,6 +3318,7 @@ export class GameEngine {
 
     sound.playShot('priest');
     this.spawnRing(towerPxX, towerPxY, '#f2f0e0');
+    this.spawnFx('heal', towerPxX, towerPxY, 36, 0.5);
 
     for (const e of [...this.enemies]) {
       if (e.isReviving) continue;
@@ -3393,6 +3408,7 @@ export class GameEngine {
       const isFire = p.specs.includes('fire');
       const isFrost = p.specs.includes('frost');
       this.spawnRing(impactX, impactY, isFire ? '#ff4a2f' : isFrost ? '#7fc8f0' : '#8f6bff');
+      this.spawnFx(isFire ? 'explosion' : isFrost ? 'frost' : 'shock', impactX, impactY, Math.max(30, aoeRadiusPx * 1.7));
 
       for (const e of [...this.enemies]) {
         if (e.isReviving) continue;
@@ -4167,6 +4183,7 @@ export class GameEngine {
         this.spawnSpark(destX, destY, def.race ? def.color : DAMAGE_TYPES[p.damageType].color);
         if (target) target.hitFlashTimer = 0.08;
         if (p.aoeRadius > 0) this.spawnRing(destX, destY, '#8f6bff');
+        this.spawnFx('spark', destX, destY, 20, 0.18);
         this.projectiles.splice(i, 1);
       } else {
         p.currentX += (dx / dist) * p.speed * dt;
@@ -4175,6 +4192,7 @@ export class GameEngine {
     }
 
     for (const e of this.enemies) if (e.hitFlashTimer > 0) e.hitFlashTimer -= dt;
+    this.updateFx(dt);
     for (const p of this.particles) {
       if (!p.active) continue;
       p.x += p.vx * dt;
@@ -5020,6 +5038,33 @@ export class GameEngine {
     }
   }
 
+  /** Эффект-картинка из public/gfx (fx_<имя>): растёт от 60 % до 100 % размера и гаснет */
+  public spawnFx(name: 'explosion' | 'frost' | 'spark' | 'poison_cloud' | 'heal' | 'shock' | 'gate_open', x: number, y: number, size: number, life = 0.45) {
+    if (this.fxList.length > 40) this.fxList.shift();
+    this.fxList.push({ name: name === 'gate_open' ? name : `fx_${name}`, x, y, size, life: 0, maxLife: life });
+  }
+
+  private updateFx(dt: number) {
+    for (let i = this.fxList.length - 1; i >= 0; i--) {
+      const f = this.fxList[i];
+      f.life += dt;
+      if (f.life >= f.maxLife) this.fxList.splice(i, 1);
+    }
+  }
+
+  private renderFx(ctx: CanvasRenderingContext2D) {
+    for (const f of this.fxList) {
+      const img = gfx(f.name);
+      if (!img) continue;
+      const k = f.life / f.maxLife;
+      const s = f.size * (0.6 + 0.4 * Math.min(1, k * 2.5));
+      ctx.save();
+      ctx.globalAlpha = Math.max(0, 1 - k * k);
+      this.upright(ctx, f.x, f.y, () => ctx.drawImage(img, f.x - s / 2, f.y - s / 2, s, s));
+      ctx.restore();
+    }
+  }
+
   public spawnRing(x: number, y: number, color: string, grow = 28) {
     const p = this.particles.find((item) => !item.active);
     if (!p) return;
@@ -5652,6 +5697,8 @@ export class GameEngine {
         ctx.globalAlpha = 1;
       }
     }
+
+    this.renderFx(ctx);
 
     // 11. Render Floating Texts
     ctx.font = 'bold 13px sans-serif';
@@ -6681,7 +6728,7 @@ export class GameEngine {
     }
 
     // Cursed: a violet rune over the head that pulses while the curse lasts
-    if (e.curseTimer > 0) {
+    if (e.curseTimer > 0 && !gfx('st_mark')) {
       const pulse = 0.75 + 0.25 * Math.sin(timeSec * 8 + e.animSeed);
       const cy = topY - (isBoss || e.hp < e.maxHp ? 16 : 8);
       ctx.save();
@@ -6698,6 +6745,26 @@ export class GameEngine {
       ctx.lineTo(e.x + 6, cy);
       ctx.stroke();
       ctx.restore();
+    }
+
+    // Статусы значками (Draw Things): замедление, поджог, яд, оглушение, метка
+    {
+      const marks: string[] = [];
+      if (e.slowPercent > 0) marks.push('st_slow');
+      if (e.burnTimer > 0) marks.push('st_burn');
+      if ((e.poisonTimer ?? 0) > 0) marks.push('st_poison');
+      if ((e.stunTimer ?? 0) > 0 && (e.heldTimer ?? 0) <= 0) marks.push('st_stun');
+      if (e.curseTimer > 0) marks.push('st_mark');
+      if (marks.length) {
+        const s = isBoss ? 22 : 16;
+        const hasBar = isBoss || e.hp < e.maxHp;
+        const y0 = topY - (hasBar ? (isBoss ? 14 : 10) : 3) - s;
+        const x0 = e.x - (marks.length * s) / 2;
+        marks.forEach((m, i) => {
+          const im = gfx(m);
+          if (im) ctx.drawImage(im, x0 + i * s, y0, s, s);
+        });
+      }
     }
 
     // Health Bar:
@@ -6996,7 +7063,36 @@ export class GameEngine {
     }
   }
 
+  /** Картинка снаряда: имя файла в public/gfx и размер в px; null — рисуем прежним кодом */
+  private projectileArt(p: Projectile): { name: string; size: number } | null {
+    if (p.isRam) return { name: 'proj_bolt', size: 28 };
+    switch (p.towerType) {
+      case 'archer':
+        return { name: 'proj_arrow', size: 22 };
+      case 'ballista':
+        return { name: 'proj_bolt', size: 28 };
+      case 'mage':
+        return p.specs.includes('fire') ? { name: 'proj_fire', size: 22 } : p.specs.includes('frost') ? { name: 'proj_ice', size: 22 } : { name: 'proj_magic', size: 18 };
+      case 'priest':
+        return { name: 'proj_magic', size: 14 };
+      case 'orc_trebuchet':
+        return { name: 'proj_stone', size: 22 };
+    }
+    if (p.damageType === 'phys') return { name: p.towerType === 'cul_spike' ? 'proj_bolt' : 'proj_arrow', size: p.towerType === 'cul_spike' ? 26 : 20 };
+    const byType: Record<string, string> = { fire: 'proj_fire', ice: 'proj_ice', lightning: 'proj_lightning', poison: 'proj_poison' };
+    return { name: byType[p.damageType] ?? 'proj_magic', size: 20 };
+  }
+
   private renderProjectile(ctx: CanvasRenderingContext2D, p: Projectile) {
+    const art = this.projectileArt(p);
+    const img = art ? gfx(art.name) : null;
+    if (art && img) {
+      const dx = p.targetX - p.currentX;
+      const dy = p.targetY - p.currentY;
+      const far = Math.hypot(dx, dy) > 2;
+      drawAimed(ctx, img, p.currentX, p.currentY, far ? dx : p.targetX - p.startX, far ? dy : p.targetY - p.startY, art.size);
+      return;
+    }
     if (p.isRam) {
       // Piercing heavy bolt line
       ctx.strokeStyle = '#c9663a';

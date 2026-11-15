@@ -82,6 +82,13 @@ const EXTRA: Record<string, string> = {
   'ico:wood': 'ui-icons/res_wood.webp',
   'ico:crystal': 'ui-icons/res_crystal.webp',
   'ico:lock': 'ui-icons/map_lock.webp',
+  // объекты карты и Рен (Draw Things, 2026-11-15, batch2)
+  'obj:camp': 'gfx/map_obj_camp.webp',
+  'obj:fortress': 'gfx/map_obj_fortress.webp',
+  'obj:chest': 'gfx/map_obj_chest.webp',
+  'obj:shrine': 'gfx/map_obj_shrine.webp',
+  'obj:mine': 'gfx/map_obj_mine.webp',
+  'hero:ren': 'gfx/hero_ren.webp',
   // модули редактора (modules.ts)
   ...Object.fromEntries(MODULES.map((m) => [moduleImageKey(m), moduleUrl(m)])),
 };
@@ -1055,7 +1062,37 @@ export function drawLive(
     items.push({
       y: foot,
       draw: () => {
-        if (o.kind === 'camp') {
+        const objIm = opts.extras?.get(`obj:${o.kind}`);
+        if (objIm) {
+          // Картинка объекта (квадрат 256×256, низ фигуры у нижнего края)
+          const S = HW * ({ camp: 1.05, fortress: 1.75, chest: 1, shrine: 1.15, mine: 1.4 }[o.kind as 'camp'] ?? 1.2);
+          ctx.fillStyle = 'rgba(0,0,0,0.3)';
+          ctx.beginPath();
+          ctx.ellipse(px, foot, S * 0.3, S * 0.07, 0, 0, Math.PI * 2);
+          ctx.fill();
+          // Лагерь: магический объект в центре остаётся прежним, палатка с костром рядом
+          const cx = o.kind === 'camp' ? px - HW * 0.5 : px;
+          if (o.kind === 'camp') spr('castle', px + HW * 0.12, foot, HH * 1.2);
+          ctx.save();
+          if (o.kind === 'shrine' && st.done.includes(o.id)) ctx.globalAlpha = 0.7;
+          ctx.drawImage(objIm, cx - S / 2, foot - S * 0.96, S, S);
+          ctx.restore();
+          if (o.kind === 'mine') {
+            const ours = st.owned.includes(o.id);
+            const res = o.income ? (Object.keys(o.income)[0] as ResKey) : 'gold';
+            ctx.strokeStyle = '#ccc';
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            ctx.moveTo(px + HW * 0.45, foot);
+            ctx.lineTo(px + HW * 0.45, foot - HH * 0.75);
+            ctx.stroke();
+            ctx.fillStyle = ours ? '#3ed6c4' : '#9b1c1c';
+            ctx.fillRect(px + HW * 0.45, foot - HH * 0.75, HW * 0.2, HH * 0.14);
+            const rIm = opts.extras?.get(`ico:${res}`);
+            if (rIm) glowImage(ctx, rIm, px - HW * 0.5 - HW * 0.12, foot - HH * 0.35 - HW * 0.12, HW * 0.24, HW * 0.24);
+            if (!ours && o.waves) spr(`enemy_infantry_${lvl}`, px - HW * 0.05, foot + HH * 0.12, HH * 0.6);
+          }
+        } else if (o.kind === 'camp') {
           tent(ctx, px - HW * 0.45, py + HH * 0.05, HW * 0.6, '#5d6f86', '#3e4c5e');
           tent(ctx, px + HW * 0.45, py + HH * 0.1, HW * 0.55, '#5d6f86', '#3e4c5e');
           if (!spr('castle', px, foot, HH * 1.2)) {
@@ -1235,7 +1272,12 @@ export function drawLive(
         ctx.lineWidth = 2;
         ctx.stroke();
       }
-      if (!spr('enemy_heavy_6', hx, hy + HH * 0.3, HH * 0.95, 1)) {
+      const renIm = opts.extras?.get('hero:ren');
+      if (renIm) {
+        const h = HH * 1.25;
+        const w = (renIm.width / renIm.height) * h;
+        ctx.drawImage(renIm, hx - w / 2, hy + HH * 0.3 - h, w, h);
+      } else if (!spr('enemy_heavy_6', hx, hy + HH * 0.3, HH * 0.95, 1)) {
         ctx.fillStyle = '#3ed6c4';
         ctx.beginPath();
         ctx.arc(hx, hy, HW * 0.2, 0, Math.PI * 2);

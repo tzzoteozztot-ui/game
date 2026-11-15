@@ -637,7 +637,7 @@ export function WorldMap({ world, region, onChange, onBattle, onExit, onReset, o
               <div className="flex items-center gap-3 flex-wrap">
                 <span>{region.name}: артефакт наш.</span>
                 <button className="px-3 py-1.5 rounded bg-amber-700/90 hover:bg-amber-600 text-white font-bold" onClick={() => goNext(nextRegion)}>
-                  Дальше: {nextRegion.name} ▸
+                  Дальше: {nextRegion.name} <Ico n="arrow_right" className="!h-[1em] !w-[1.2em]" />
                 </button>
               </div>
             ) : (
