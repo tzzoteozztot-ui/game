@@ -1297,3 +1297,22 @@ test('модули карты: у каждого есть файл, id уник�
   const n = W.normalizeRegion(wire, orig)!;
   assert.deepEqual(n.props, wire.props);
 });
+
+// Свои наборы правок (src/tuning.ts): действуют только после applyPreset, resetTuning возвращает стандарт
+test('набор правок меняет числа башни и откатывается к стандарту', async () => {
+  const { applyPreset, resetTuning, newPreset } = await import('../tuning');
+  const { CONFIG } = await import('./config');
+  const { attackStats } = await import('./towerStats');
+  const base = { cost: CONFIG.towers.archer.cost, dmg: attackStats('archer', 1, []).damage, up: CONFIG.upgrade.lvl2DamageMult };
+  const p = newPreset('тест');
+  p.towers = { archer: { cost: 1, damage: base.dmg * 10 } };
+  p.upgrade = { lvl2DamageMult: 5 };
+  applyPreset(p);
+  assert.equal(CONFIG.towers.archer.cost, 1);
+  assert.equal(attackStats('archer', 1, []).damage, base.dmg * 10);
+  assert.equal(CONFIG.upgrade.lvl2DamageMult, 5);
+  resetTuning();
+  assert.equal(CONFIG.towers.archer.cost, base.cost);
+  assert.equal(attackStats('archer', 1, []).damage, base.dmg);
+  assert.equal(CONFIG.upgrade.lvl2DamageMult, base.up);
+});
