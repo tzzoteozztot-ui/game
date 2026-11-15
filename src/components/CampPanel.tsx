@@ -4,6 +4,7 @@
  */
 import { BOONS } from '../game/config';
 import { CAMP_BUILDINGS, RES_ICONS, ResKey, WorldState, campCost, campMax, canAfford } from '../campaign/world';
+import { Ico, resIcon } from '../icons';
 
 interface CampPanelProps {
   world: WorldState;
@@ -23,7 +24,7 @@ export function CampPanel({ world, onUpgrade, onClose }: CampPanelProps) {
           <span className="text-xs sm:text-sm text-stone-300 flex gap-2">
             {(Object.keys(RES_ICONS) as ResKey[]).map((k) => (
               <span key={k}>
-                {RES_ICONS[k]} {world.res[k]}
+                <Ico n={resIcon(k)} /> {world.res[k]}
               </span>
             ))}
           </span>
@@ -70,7 +71,7 @@ export function CampPanel({ world, onUpgrade, onClose }: CampPanelProps) {
                         disabled={!ok}
                         onClick={() => onUpgrade(id)}
                       >
-                        {max ? 'Максимум' : (Object.keys(cost!) as ResKey[]).filter((k) => cost![k]).map((k) => `${RES_ICONS[k]}${cost![k]}`).join(' ')}
+                        {max ? 'Максимум' : (Object.keys(cost!) as ResKey[]).filter((k) => cost![k]).map((k) => <span key={k} className="mr-1"><Ico n={resIcon(k)} />{cost![k]}</span>)}
                       </button>
                     </div>
                   );

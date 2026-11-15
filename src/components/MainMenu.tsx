@@ -17,6 +17,7 @@ import { downloadRunLog, hasSavedRunLog } from '../game/runLog';
 import { downloadCampaignLog, hasCampaignLog } from '../campaign/worldLog';
 import { loadWorld } from '../campaign/world';
 import { CAMPAIGNS } from '../campaign/campaigns';
+import { Ico } from '../icons';
 
 export type GameMode = 'endless' | 'duel';
 export type MenuPage = 'home' | 'campaign' | 'endless' | 'brawl' | 'sandbox' | 'settings';
@@ -228,7 +229,7 @@ function CampaignPage({ onBack, onOpenWorld, onResetWorld, worldSummary }: MainM
                   )}
                 </>
               ) : (
-                <div className="text-[11px] text-stone-500 uppercase tracking-wider">🔒 Скоро</div>
+                <div className="text-[11px] text-stone-500 uppercase tracking-wider"><Ico n="map_lock" /> Скоро</div>
               )}
             </div>
           );

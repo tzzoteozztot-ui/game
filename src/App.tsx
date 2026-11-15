@@ -62,6 +62,7 @@ import { logWorldChange, logReason, logWorldNote, logBattleStart, logBattleEnd, 
 import { Progress, EMPTY_PROGRESS, readLocalProgress, writeLocalProgress, mergeProgress, isEmptyProgress, endlessRecordKey } from './progress';
 import { cloudEnabled, onUserChange, loadCloudProgress, saveCloudProgress, loadCloudWorld, saveCloudWorld } from './cloud';
 import type { User } from '@supabase/supabase-js';
+import { Ico } from './icons';
 
 type ScreenState = 'menu' | 'briefing' | 'duelLobby' | 'brawlLobby' | 'playing' | 'world';
 
@@ -1863,7 +1864,7 @@ export default function App() {
                     title="Посмотреть поле соперника"
                     className="absolute right-1 top-1 px-2 py-1 rounded-md bg-black/45 border border-white/10 text-white/90 text-[clamp(10px,1.6vh,14px)] cursor-pointer hover:bg-black/60"
                   >
-                    👁 Соперник
+                    <Ico n="ui_eye" /> Соперник
                   </button>
                 )}
                 {!brawl && gameState.duel && botWatch && duelLinkRef.current && (
@@ -1997,7 +1998,7 @@ export default function App() {
                           : 'bg-[#221f2d] hover:bg-[#2c283a] text-stone-300 border border-[#383347]'
                       }`}
                     >
-                      {tab === 'towers' ? 'Башни' : armyLocked ? '🔒 Армия' : `Армия${gameState.duelOutgoingCost > 0 ? ' •' : ''}`}
+                      {tab === 'towers' ? 'Башни' : armyLocked ? <><Ico n="map_lock" /> Армия</> : `Армия${gameState.duelOutgoingCost > 0 ? ' •' : ''}`}
                     </button>
                   ))}
                 </div>

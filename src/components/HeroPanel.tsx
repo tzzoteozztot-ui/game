@@ -4,6 +4,7 @@
  */
 import { BOONS, HERO_ABILITIES } from '../game/config';
 import { HERO_ITEMS, HERO_LEVELS, ItemSlot, SLOT_NAMES, WorldState, heroLevel } from '../campaign/world';
+import { Ico, skillIcon, itemIcon } from '../icons';
 
 interface HeroPanelProps {
   world: WorldState;
@@ -54,7 +55,7 @@ export function HeroPanel({ world, onToggle, onClose }: HeroPanelProps) {
                 const open = a.unlock <= lvl;
                 return (
                   <div key={a.id} className={`flex items-center gap-2 bg-[#1f1c29] rounded px-2 py-1.5 ${open ? '' : 'opacity-50'}`}>
-                    <span className="text-2xl w-8 text-center">{a.icon}</span>
+                    <span className="text-2xl w-8 text-center"><Ico n={skillIcon(a.id)} className="!h-8 !w-8 !align-middle" /></span>
                     <div className="flex-1 min-w-0">
                       <div className="text-sm font-bold">{a.name}</div>
                       <div className="text-xs text-stone-400 leading-tight">
@@ -78,7 +79,7 @@ export function HeroPanel({ world, onToggle, onClose }: HeroPanelProps) {
                     <div className="text-[11px] text-stone-500">{SLOT_NAMES[slot]}</div>
                     {def ? (
                       <div className="text-sm font-bold leading-tight">
-                        {def.icon} {def.name}
+                        <Ico n={itemIcon(def.id)} /> {def.name}
                       </div>
                     ) : (
                       <div className="text-sm text-stone-600">пусто</div>
@@ -100,7 +101,7 @@ export function HeroPanel({ world, onToggle, onClose }: HeroPanelProps) {
                     className={`text-left rounded px-2 py-1 border ${on ? 'border-[#3ed6c4]/70 bg-[#3ed6c4]/10' : 'border-[#2d2938] bg-[#1f1c29] hover:bg-[#2a2635]'}`}
                   >
                     <div className="text-sm font-bold">
-                      {def.icon} {def.name} <span className="text-[11px] font-normal text-stone-500">· {SLOT_NAMES[def.slot]}</span>
+                      <Ico n={itemIcon(def.id)} /> {def.name} <span className="text-[11px] font-normal text-stone-500">· {SLOT_NAMES[def.slot]}</span>
                       {on && <span className="text-[11px] text-[#3ed6c4]"> · надето</span>}
                     </div>
                     <div className="text-xs text-stone-400 leading-tight">{perkText(def.perks)}. {def.text}</div>

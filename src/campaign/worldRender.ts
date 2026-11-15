@@ -77,6 +77,11 @@ const EXTRA: Record<string, string> = {
   slab1: 'tiles/citadel/decor/slab1.webp',
   slab2: 'tiles/citadel/decor/slab2.webp',
   crystal: 'tiles/ice/decor/crystal1.webp',
+  // значки (Draw Things, 2026-11-15)
+  'ico:gold': 'ui-icons/res_gold.webp',
+  'ico:wood': 'ui-icons/res_wood.webp',
+  'ico:crystal': 'ui-icons/res_crystal.webp',
+  'ico:lock': 'ui-icons/map_lock.webp',
   // модули редактора (modules.ts)
   ...Object.fromEntries(MODULES.map((m) => [moduleImageKey(m), moduleUrl(m)])),
 };
@@ -1173,7 +1178,9 @@ export function drawLive(
           ctx.fillRect(px + HW * 0.32, foot - HH * 0.75, HW * 0.2, HH * 0.14);
           ctx.font = `${HW * 0.22}px sans-serif`;
           ctx.textAlign = 'center';
-          ctx.fillText(RES_ICONS[res], px - HW * 0.3, foot - HH * 0.05);
+          const resIm = opts.extras?.get(`ico:${res}`);
+          if (resIm) ctx.drawImage(resIm, px - HW * 0.3 - HW * 0.12, foot - HH * 0.05 - HW * 0.2, HW * 0.24, HW * 0.24);
+          else ctx.fillText(RES_ICONS[res], px - HW * 0.3, foot - HH * 0.05);
           if (!ours && o.waves) spr(`enemy_infantry_${lvl}`, px - HW * 0.05, foot + HH * 0.12, HH * 0.6);
         }
         // Сила врага — число волн на табличке
@@ -1197,7 +1204,9 @@ export function drawLive(
           ctx.fill();
           ctx.font = `${HW * 0.18}px sans-serif`;
           ctx.textAlign = 'center';
-          ctx.fillText('🔒', px - HW * 0.3, py - HH * 0.35 + HW * 0.065);
+          const lockIm = opts.extras?.get('ico:lock');
+          if (lockIm) ctx.drawImage(lockIm, px - HW * 0.3 - HW * 0.11, py - HH * 0.35 - HW * 0.11, HW * 0.22, HW * 0.22);
+          else ctx.fillText('🔒', px - HW * 0.3, py - HH * 0.35 + HW * 0.065);
         }
       },
     });

@@ -9,6 +9,7 @@
 import React from 'react';
 import { CONFIG } from '../game/config';
 import type { BrawlSnapshot } from '../brawl';
+import { Ico } from '../icons';
 
 const CELL = `calc(100cqw / ${CONFIG.grid.cols})`;
 
@@ -58,12 +59,11 @@ export function BrawlBoard({ snap, canWatch, watchId, onWatch }: { snap: BrawlSn
                   <div className="flex items-center gap-[0.3em]">
                     <span className="inline-block w-[0.6em] h-[0.6em] rounded-full shrink-0" style={{ backgroundColor: color }} />
                     <span className={`flex-1 min-w-0 truncate ${s.kind === 'you' ? 'font-black' : 'font-semibold'}`}>
-                      {isCur && '🗡'}
-                      {isOpp && '⚔'}
+                      {(isCur || isOpp) && <Ico n="ui_enemy" />}
                       {(isCur || isOpp) && ' '}
-                      {isGhost && '👻 '}
+                      {isGhost && <><Ico n="ui_ghost" />{' '}</>}
                       {s.name}
-                      {watchable && <span className="text-stone-400"> 👁</span>}
+                      {watchable && <span className="text-stone-400"> <Ico n="ui_eye" /></span>}
                     </span>
                     <span className="font-bold">{s.out ? `${s.place}-е` : s.lives}</span>
                   </div>

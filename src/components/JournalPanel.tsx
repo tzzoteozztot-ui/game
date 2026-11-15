@@ -4,8 +4,9 @@
  */
 import { Journal, JournalTask } from '../campaign/journal';
 import { WorldObj, RegionDef, resText } from '../campaign/world';
+import { Ico, IconName } from '../icons';
 
-const KIND_ICON: Record<WorldObj['kind'], string> = { camp: '⛺', squad: '⚔', fortress: '🏰', chest: '📦', mine: '⛏', shrine: '🗿', event: '❓' };
+const KIND_ICON: Record<WorldObj['kind'], IconName> = { camp: 'map_camp', squad: 'ui_enemy', fortress: 'map_fortress', chest: 'map_chest', mine: 'map_mine', shrine: 'map_idol', event: 'map_event' };
 const KIND_HINT: Record<WorldObj['kind'], string> = {
   camp: 'Лагерь',
   squad: 'Бой',
@@ -22,7 +23,7 @@ function Row({ t, onShow }: { t: JournalTask; onShow: (o: WorldObj) => void }) {
   const income = resText(o.income);
   return (
     <div className={`flex items-start gap-2 rounded-lg border p-2 ${t.locked ? 'border-[#2d2938] bg-black/20 opacity-80' : 'border-[#3b354a] bg-black/30'}`}>
-      <span className="text-xl leading-none mt-0.5">{t.locked ? '🔒' : KIND_ICON[o.kind]}</span>
+      <span className="text-xl leading-none mt-0.5"><Ico n={t.locked ? 'map_lock' : KIND_ICON[o.kind]} className="!h-6 !w-6 !align-middle" /></span>
       <div className="flex-1 min-w-0">
         <div className="flex items-baseline gap-2 flex-wrap">
           <span className="font-bold text-amber-100">{o.name}</span>
