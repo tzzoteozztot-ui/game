@@ -1,12 +1,13 @@
 /**
  * Чужое поле в «Потасовке» (просьба Артура 2026-11-08): схема поля другого игрока, только чтение.
  * Каждое поле считает его хозяин, поэтому по сети идёт снимок: башни и враги в клетках. Снимок уходит
- * только тем, кто смотрит (`watch`), раз в 0,5 с. У ботов поля нет — смотреть можно только игроков.
+ * только тем, кто смотрит (`watch`), раз в 0,5 с. У ботов поля нет — оно собирается из их чисел (`botFieldView`).
  */
 
 import { CONFIG } from './game/config';
 import { GRID_COLS, GRID_ROWS, CASTLE, MapDef } from './game/maps';
 import { SEND_TYPES, waveDefinition, type SendType } from './game/rules';
+import { centerX, centerY, groundToCellF } from './game/grid';
 
 export interface FieldView {
   wave: number; // волн запущено
@@ -56,8 +57,8 @@ export interface BotWatchInfo {
   roundT: number; // секунд от начала текущего раунда
   roundLength: number;
   faction: number; // чьи враги идут к нему
-  pending?: Partial<Record<SendType, number>>; // присланные ему враги: ждут у входа до его следующей волны
-  joined?: Partial<Record<SendType, number>>; // присланные, что вошли в его последнюю волну
+  pending?: Partial<Record<SendType, number>>; // присланные ему враги с началом текущей волны: идут по полю
+  joined?: Partial<Record<SendType, number>>; // присланные с прошлой волной: доходят
 }
 
 function hashSeed(s: string): number {
@@ -78,7 +79,6 @@ function rng(seed: number) {
 }
 
 const DIFF_MULT = { easy: 0.75, normal: 1, hard: 1.3 };
-const ENEMY_CELLS_PER_S = 1;
 
 export function botFieldView(info: BotWatchInfo, map: MapDef): FieldView {
   const rand = rng(hashSeed(info.id));
@@ -110,62 +110,61 @@ export function botFieldView(info: BotWatchInfo, map: MapDef): FieldView {
     const level = Math.min(maxLevel, 1 + (info.wave >= 4 + i * 0.6 ? 1 : 0) + (info.wave >= 10 + i * 1.2 ? 1 : 0));
     towers.push([cells[i].x, cells[i].y, type, level, 0]);
   }
-  // Враги идут по дорогам своей волны, пока не дойдут (волна — первые две трети раунда); виды — по составу волны
-  const w = Math.max(1, info.wave);
-  const def = waveDefinition(w);
-  const kinds: string[] = [];
-  for (const [type, count] of Object.entries(def)) {
-    if (type === 'boss') continue;
-    for (let i = 0; i < Math.max(1, Math.round(Number(count) / 3)); i++) kinds.push(type);
-  }
-  if (!kinds.length) kinds.push('infantry');
-  const n = Math.min(40, Math.round(3 + w * 1.2));
+  // Враги идут по дорогам своей волны со своей скоростью и гибнут по пути (у сильного бота раньше); недобитые
+  // прошлой волны идут дальше, а не пропадают с началом раунда. Точки считаются на земле (между центрами гексов),
+  // иначе на гексах врага дёргает вбок при переходе из ряда в ряд.
   const enemies: FieldView['enemies'] = [];
-  const at = (path: MapDef['paths'][number], pos: number): [number, number] => {
+  const ground = (c: { x: number; y: number }) => ({ x: centerX(c), y: centerY(c) });
+  const cell = (gx: number, gy: number): [number, number] => {
+    const c = groundToCellF(gx, gy);
+    return [c.x, c.y];
+  };
+  const walk = (id: string, type: string, path: MapDef['paths'][number], t: number, sent: boolean) => {
+    if (t < 0) return;
+    const speed = CONFIG.enemies[type as keyof typeof CONFIG.enemies]?.speed ?? 1;
+    const pos = t * speed;
+    const luck = rng(hashSeed(info.id + id))();
+    const len = path.length - 1;
+    // где враг падёт: присланные и босс идут дальше обычных
+    const dieAt = len * Math.min(1, (sent || type === 'boss' ? 0.6 : 0.3) + luck * 0.6) / Math.min(1.3, Math.max(0.8, strong));
+    if (pos >= Math.min(len, dieAt)) return;
+    const hp = Math.max(6, Math.round(100 * (1 - pos / dieAt)));
+    if (type === 'flyer') {
+      const a = ground(path[0]);
+      const b = ground(CASTLE);
+      const f = pos / len;
+      enemies.push([id, ...cell(a.x + (b.x - a.x) * f, a.y + (b.y - a.y) * f), hp, type]);
+      return;
+    }
     const k = Math.floor(pos);
     const f = pos - k;
-    return [path[k].x + (path[k + 1].x - path[k].x) * f, path[k].y + (path[k + 1].y - path[k].y) * f];
+    const a = ground(path[k]);
+    const b = ground(path[k + 1]);
+    enemies.push([id, ...cell(a.x + (b.x - a.x) * f, a.y + (b.y - a.y) * f), hp, type]);
   };
-  for (let i = 0; i < n; i++) {
-    const path = map.paths[i % map.paths.length];
-    const start = (i / n) * 0.5 * info.roundLength;
-    const pos = (info.roundT - start) * ENEMY_CELLS_PER_S;
-    const jitter = rand();
-    const boss = w % 12 === 0 && i === 0 && 'boss' in def;
-    const type = boss ? 'boss' : kinds[i % kinds.length];
-    const hp = Math.max(8, Math.round(100 - (pos / path.length) * 85 * Math.min(1, 0.4 + strong * 0.4) - jitter * 12));
-    if (pos < 0) continue;
-    if (type === 'flyer') {
-      const f = pos / path.length;
-      if (f >= 1) continue;
-      enemies.push([`w${w}-${i}`, path[0].x + (CASTLE.x - path[0].x) * f, path[0].y + (CASTLE.y - path[0].y) * f, hp, type]);
-    } else if (pos < path.length - 1) {
-      const [x, y] = at(path, pos);
-      enemies.push([`w${w}-${i}`, x, y, hp, type]);
+  for (let back = 0; back < 2; back++) {
+    const w = info.wave - back;
+    if (w < 1) break;
+    const t0 = info.roundT + back * info.roundLength;
+    const def = waveDefinition(w);
+    const kinds: string[] = [];
+    for (const [type, count] of Object.entries(def)) {
+      if (type === 'boss') continue;
+      for (let i = 0; i < Math.max(1, Math.round(Number(count) / 3)); i++) kinds.push(type);
     }
-  }
-  // Присланные соперниками: вошедшие в волну идут вместе с ней (летуны напрямую к артефакту), ждущие стоят у входа
-  let j = 0;
-  for (const type of SEND_TYPES) {
-    for (let i = 0; i < Math.min(30, info.joined?.[type] ?? 0); i++, j++) {
-      const path = map.paths[j % map.paths.length];
-      const pos = (info.roundT - (0.05 * info.roundLength + (j % 12) * 0.9)) * ENEMY_CELLS_PER_S;
-      if (pos < 0) continue;
-      if (type === 'flyer') {
-        const f = pos / path.length;
-        if (f >= 1) continue;
-        enemies.push([`s${w}-${j}`, path[0].x + (CASTLE.x - path[0].x) * f, path[0].y + (CASTLE.y - path[0].y) * f, 100, type]);
-      } else if (pos < path.length - 1) {
-        const [x, y] = at(path, pos);
-        enemies.push([`s${w}-${j}`, x, y, 100, type]);
+    if (!kinds.length) kinds.push('infantry');
+    const n = Math.min(40, Math.round(3 + w * 1.2));
+    for (let i = 0; i < n; i++) {
+      const boss = w % 12 === 0 && i === 0 && 'boss' in def;
+      walk(`w${w}-${i}`, boss ? 'boss' : kinds[i % kinds.length], map.paths[i % map.paths.length], t0 - (i / n) * 0.5 * info.roundLength, false);
+    }
+    // Присланные соперниками выходят с началом волны, как у игрока (`pending` — пришли с этой волной, `joined` — с прошлой)
+    const sends = back === 0 ? info.pending : info.joined;
+    let j = 0;
+    for (const type of SEND_TYPES) {
+      for (let i = 0; i < Math.min(30, sends?.[type] ?? 0); i++, j++) {
+        walk(`s${w}-${j}`, type, map.paths[j % map.paths.length], t0 - 1 - j * 0.7, true);
       }
-    }
-  }
-  let q = 0;
-  for (const type of SEND_TYPES) {
-    for (let i = 0; i < Math.min(30, info.pending?.[type] ?? 0); i++, q++) {
-      const e = map.paths[q % map.paths.length][0];
-      enemies.push([`p${q}`, e.x + ((q % 5) - 2) * 0.12, e.y + (Math.floor(q / map.paths.length) % 3) * 0.12, 100, type]);
     }
   }
   return { wave: info.wave, lives: Math.round(info.lives), towers, enemies, faction: info.faction };

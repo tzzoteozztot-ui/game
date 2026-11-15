@@ -4008,7 +4008,8 @@ export class GameEngine {
   // берутся из снимков `FieldView` и плавно едут к новым точкам.
   // -------------------------------------------------------------
   public spectating = false;
-  private specTargets = new Map<string, { x: number; y: number }>();
+  private specTargets = new Map<string, { x: number; y: number; v: number }>();
+  private specAppliedAt = 0;
 
   public startSpectate(level: number, mapSeed: number | null, race: RaceId) {
     this.startLevel(level, 'normal', false, undefined, race, null, mapSeed ? generateMap(level, mapSeed) : null);
@@ -4037,16 +4038,26 @@ export class GameEngine {
       keep.push(t);
     }
     this.towers = keep;
+    // враг доходит до новой точки как раз к следующему снимку: шаг ровный, без рывков
+    const now = performance.now() / 1000;
+    const gap = Math.min(1.2, Math.max(0.2, now - this.specAppliedAt)) * 1.05;
+    this.specAppliedAt = now;
     const seen = new Set<string>();
     const next: Enemy[] = [];
     for (const [id, cx, cy, hpPct, type] of v.enemies) {
       seen.add(id);
       const g = cellFToGround(cx, cy);
-      this.specTargets.set(id, g);
       let e = this.enemies.find((o) => o.id === id);
       if (!e) {
         e = this.blankEnemy(id, type as EnemyType, v.faction, g.x, g.y);
       }
+      const dist = Math.hypot(g.x - e.x, g.y - e.y);
+      if (dist > 3 * CONFIG.grid.cellSize) {
+        // рывок (врата, воскрешение): не тянем через всё поле
+        e.x = g.x;
+        e.y = g.y;
+      }
+      this.specTargets.set(id, { x: g.x, y: g.y, v: dist / gap });
       e.hp = (e.maxHp * hpPct) / 100;
       next.push(e);
     }
@@ -4054,18 +4065,20 @@ export class GameEngine {
     this.enemies = next;
   }
 
-  /** Кадр чужого поля: враги плавно едут к своим целям */
+  /** Кадр чужого поля: враги идут к точкам последнего снимка ровным шагом (скорость — чтобы дойти к следующему снимку) */
   private spectateStep(dt: number) {
-    const k = 1 - Math.exp(-dt / 0.2);
     for (const e of this.enemies) {
       const g = this.specTargets.get(e.id);
       if (!g) continue;
-      const dx = (g.x - e.x) * k;
-      const dy = (g.y - e.y) * k;
-      e.x += dx;
-      e.y += dy;
-      e.distanceTraveled += Math.hypot(dx, dy);
-      if (Math.abs(dx) > 0.02) e.facing = dx > 0 ? 1 : -1;
+      const rx = g.x - e.x;
+      const ry = g.y - e.y;
+      const left = Math.hypot(rx, ry);
+      if (left < 0.01) continue;
+      const k = Math.min(1, (g.v * dt) / left);
+      e.x += rx * k;
+      e.y += ry * k;
+      e.distanceTraveled += left * k;
+      if (Math.abs(rx) > 1) e.facing = rx > 0 ? 1 : -1;
     }
   }
 
