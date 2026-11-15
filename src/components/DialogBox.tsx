@@ -1,6 +1,6 @@
 /**
  * Окно диалога на весь экран (просьба Артура 2026-11-15, схема как в «Metal Gear»): сверху портреты участников слева и справа
- * от центральной панели с именем, снизу широкая рамка с текстом. Закрывает всё остальное, кнопок две — «Назад» и «Далее».
+ * от центральной панели с именем, снизу широкая рамка с текстом. Закрывает всё остальное, кнопок три — «Назад», «Далее» и «Пропустить» (вся сцена).
  * Участник виден от своей первой реплики в сцене до последней, потом уходит из окна; участников больше двух — места им больше.
  * Говорящий ярче остальных. Текст проявляется буква за буквой; касание, Пробел или Enter — показать реплику целиком, ещё раз — следующая;
  * Backspace или стрелка влево — назад; Esc — пропустить сцену.
@@ -101,7 +101,7 @@ export function DialogBox({ scene, onDone }: DialogBoxProps) {
   const role = line.role ?? SPEAKER_ROLES[line.who];
   const lastLine = i + 1 >= scene.lines.length;
   const btn =
-    'ui-btn min-w-[84px] px-2 py-0.5 text-[13px] sm:text-sm font-bold tracking-wide disabled:opacity-35 disabled:pointer-events-none';
+    'ui-btn min-w-[84px] px-2 py-0.5 whitespace-nowrap text-[13px] sm:text-sm font-bold tracking-wide disabled:opacity-35 disabled:pointer-events-none';
   return (
     <div
       role="dialog"
@@ -156,7 +156,7 @@ export function DialogBox({ scene, onDone }: DialogBoxProps) {
             </p>
           )}
         </div>
-        <div className="flex shrink-0 flex-col justify-center gap-2">
+        <div className="flex shrink-0 flex-col justify-center gap-1.5 sm:gap-2">
           <button
             type="button"
             className={btn}
@@ -177,6 +177,16 @@ export function DialogBox({ scene, onDone }: DialogBoxProps) {
             }}
           >
             Назад
+          </button>
+          <button
+            type="button"
+            className={btn}
+            onClick={(e) => {
+              e.stopPropagation();
+              onDone();
+            }}
+          >
+            Пропустить
           </button>
         </div>
       </div>
