@@ -29,6 +29,7 @@ import { SandboxWaveModal, SandboxWave } from './components/SandboxWaveModal';
 import { rollShop, ShopPity } from './game/shop';
 import { TowerPanel, WaitingHint } from './components/TowerPanel';
 import { SpecModal } from './components/SpecModal';
+import { applyPreset, resetTuning, TuningPreset } from './tuning';
 import { MainMenu, GameMode, MenuPage } from './components/MainMenu';
 import { Bestiary } from './components/Bestiary';
 import { DuelLobby } from './components/DuelLobby';
@@ -551,6 +552,15 @@ export default function App() {
       setTimeout(begin, 50);
     }
   };
+  // Редактор: набор правок действует только в этом запуске, выход в меню возвращает стандартный баланс
+  const handleTestRun = (preset: TuningPreset | null, level: number) => {
+    if (preset) applyPreset(preset);
+    else resetTuning();
+    handleSandboxStart(level, 0, false);
+  };
+  useEffect(() => {
+    if (screen === 'menu') resetTuning();
+  }, [screen]);
   const launchSandboxWave = () => {
     sound.init();
     const engine = engineRef.current;
@@ -1747,6 +1757,7 @@ export default function App() {
             setWorld(newWorld());
             setScreen('world');
           }}
+          onTestRun={handleTestRun}
           onStartSandbox={(level, enemies, randomRoad) => handleSandboxStart(level, enemies, randomRoad)}
           onStartBrawl={handleBrawlStart}
           onOpenBrawlLobby={(m, level, bots, randomRoad) => {

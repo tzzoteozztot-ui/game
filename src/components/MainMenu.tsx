@@ -5,6 +5,8 @@
  * Настройки (account, sound, bestiary, how to play, full screen).
  */
 
+import { TowerEditor } from './TowerEditor';
+import type { TuningPreset } from '../tuning';
 import { useRef, useState, useSyncExternalStore } from 'react';
 import { CONFIG, Difficulty, RaceId } from '../game/config';
 import { RacePicker } from './RacePicker';
@@ -20,7 +22,7 @@ import { CAMPAIGNS } from '../campaign/campaigns';
 import { Ico } from '../icons';
 
 export type GameMode = 'endless' | 'duel';
-export type MenuPage = 'home' | 'campaign' | 'endless' | 'brawl' | 'sandbox' | 'settings';
+export type MenuPage = 'home' | 'campaign' | 'endless' | 'brawl' | 'sandbox' | 'editor' | 'settings';
 
 interface MainMenuProps {
   page: MenuPage;
@@ -45,6 +47,7 @@ interface MainMenuProps {
   onOpenWorld: () => void; // кампания: поход по глобальной карте
   onResetWorld: () => void; // кампания: начать поход заново (после подтверждения в окне выбора)
   worldSummary: string | null; // в окне выбора кампании: где остановились («Глава 2 · Болотный склеп · день 7»); null — похода ещё нет
+  onTestRun: (preset: TuningPreset | null, level: number) => void; // редактор: тестовый запуск с набором правок (свободный режим)
   onStartSandbox: (level: number, enemies: number, randomRoad: boolean) => void; // свободный режим: карта, чьи враги (0 — хозяева карты), дорога
   onStartBrawl: (level: number, bots: Difficulty, randomRoad: boolean) => void;
   onOpenBrawlLobby: (mode: 'host' | 'join', level: number, bots: Difficulty, randomRoad: boolean) => void; // network brawl (needs the server)
@@ -106,6 +109,7 @@ export function MainMenu(props: MainMenuProps) {
         {page === 'endless' && <LevelPage {...props} onBack={home} />}
         {page === 'brawl' && <BrawlPage {...props} onBack={home} />}
         {page === 'sandbox' && <SandboxPage {...props} onBack={home} />}
+        {page === 'editor' && <TowerEditor onBack={home} level={props.selectedLevel} onSelectLevel={props.onSelectLevel} onTestRun={(p) => props.onTestRun(p, Math.max(1, Math.min(CONFIG.levelCount, props.selectedLevel)))} />}
         {page === 'settings' && <SettingsPage {...props} onBack={home} />}
       </div>
     </div>
@@ -124,6 +128,7 @@ function HomePage({ onChangePage, onOpenDuel, duelAvailable, accountLabel }: Mai
     { key: 'endless', title: 'Бесконечный режим', hint: 'Волны без конца, рекорд волны', onClick: () => onChangePage('endless') },
     { key: 'brawl', title: 'Потасовка', hint: 'Восемь рубежей, соперник меняется каждую волну', onClick: () => onChangePage('brawl') },
     { key: 'sandbox', title: 'Свободный режим', hint: 'Золото без счёта, башни любого уровня, волны вручную, лог', onClick: () => onChangePage('sandbox') },
+    { key: 'editor', title: 'Редактор', hint: 'Свойства башен: свои наборы, тестовый запуск', onClick: () => onChangePage('editor') },
     ...(duelAvailable
       ? [{ key: 'duel', title: 'Дуэль', hint: 'С игроком по коду комнаты или с ботом', onClick: onOpenDuel }]
       : []),
