@@ -4,6 +4,7 @@
  */
 import { useState } from 'react';
 import type { GameStateSnapshot } from '../game/engine';
+import { Ico, skillIcon } from '../icons';
 
 export const HERO_KEYS = ['Z', 'X', 'C'];
 
@@ -35,7 +36,7 @@ export function HeroBar({ skills, onCast }: { skills: GameStateSnapshot['heroSki
                 ready ? 'bg-black/60 border-amber-500/80 hover:bg-black/80 active:scale-95 shadow-[0_0_8px_rgba(244,192,106,0.5)]' : 'bg-black/50 border-[#3b354a] opacity-80'
               }`}
             >
-              <span className={ready ? '' : 'grayscale opacity-50'}>{s.icon}</span>
+              <span className={ready ? '' : 'grayscale opacity-50'}><Ico n={skillIcon(s.id)} /></span>
               {!ready && (
                 <>
                   <span className="absolute bottom-0 left-0 right-0 bg-black/60" style={{ height: `${(s.left / s.cooldown) * 100}%` }} />

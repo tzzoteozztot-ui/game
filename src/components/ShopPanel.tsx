@@ -6,6 +6,7 @@
 
 import { CONFIG, DAMAGE_TYPES, TowerType } from '../game/config';
 import { TowerSpriteIcon, GoldIcon, BinderIcon } from './Icons';
+import { Ico, dmgIcon } from '../icons';
 
 export interface ShopCard {
   id: string;
@@ -80,7 +81,7 @@ export function ShopPanel({
             <span className="text-amber-300 font-bold flex items-center gap-1 min-w-0">
               <span className="hidden @min-[200px]:inline text-stone-400 font-normal">В руке:</span>
               <span className="truncate">{inHandDef.name}</span>
-              {placingIsTriplet && <span className="text-amber-400 font-black">★</span>}
+              {placingIsTriplet && <span className="text-amber-400 font-black"><Ico n="star" /></span>}
             </span>
             <span className="hidden @min-[240px]:inline text-[length:var(--fs-sm)] text-stone-400 shrink-0">тапните клетку</span>
           </>
@@ -168,7 +169,7 @@ export function ShopPanel({
                   className="absolute top-0.5 right-1 text-amber-400 text-[length:var(--fs-lg)] font-black leading-none drop-shadow"
                   title={card.level3 ? 'Готовая башня Ур.3' : 'Триплет (Ур.2)'}
                 >
-                  {card.level3 ? '★★' : '★'}
+                  {card.level3 ? <><Ico n="star" /><Ico n="star" /></> : <Ico n="star" />}
                 </span>
               )}
 
@@ -177,7 +178,7 @@ export function ShopPanel({
                 className="absolute top-0.5 left-1 text-[length:var(--fs-xs)] leading-none opacity-90"
                 title={`Урон: ${DAMAGE_TYPES[baseDef.damageType].name}`}
               >
-                {DAMAGE_TYPES[baseDef.damageType].icon}
+                <Ico n={dmgIcon(baseDef.damageType)} />
               </span>
 
               {/* Tower Shape & Color Icon */}
@@ -209,7 +210,7 @@ export function ShopPanel({
           }`}
           title="Обновить лавку (R)"
         >
-          <span className="text-[length:var(--fs-lg)] leading-none">↻</span>
+          <span className="text-[length:var(--fs-lg)] leading-none"><Ico n="ui_refresh" /></span>
           {/* The word is dropped in a narrow column, the icon and the price stay */}
           <span className="hidden @min-[150px]:inline text-[length:var(--fs-xs)] whitespace-nowrap">Обновить</span>
           <span className="flex items-center gap-0.5 text-amber-300 tabular-nums font-bold leading-none">

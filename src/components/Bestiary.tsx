@@ -8,6 +8,7 @@ import { CONFIG, DAMAGE_TYPES, RACE_IDS, RaceId, stanceText } from '../game/conf
 import { BESTIARY, BestiaryCreature, KIND_LABELS, TOWER_LORE, RACE_TOWER_LORE } from '../bestiary';
 import { attackStats } from '../game/towerStats';
 import { TowerSpriteIcon } from './Icons';
+import { Ico, dmgIcon } from '../icons';
 
 const num = (n: number) => String(Math.round(n * 10) / 10).replace('.', ',');
 
@@ -77,7 +78,7 @@ function TowerSection({ race }: { race: RaceId }) {
               <div className="p-3 flex-1 min-w-0">
                 <div className="text-[10px] uppercase font-bold tracking-wider text-amber-500">
                   <span style={{ color: DAMAGE_TYPES[t.damageType].color }}>
-                    {DAMAGE_TYPES[t.damageType].icon} {type === 'mage' ? 'Урон: молния, со свойством — огонь или лёд' : `Урон: ${DAMAGE_TYPES[t.damageType].name.toLowerCase()}`}
+                    <Ico n={dmgIcon(t.damageType)} /> {type === 'mage' ? 'Урон: молния, со свойством — огонь или лёд' : `Урон: ${DAMAGE_TYPES[t.damageType].name.toLowerCase()}`}
                   </span>
                   {t.minTier ? ` · с ${t.minTier}-го яруса лавки` : ''}
                 </div>

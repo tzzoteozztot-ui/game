@@ -12,6 +12,7 @@ import { newMapSeed } from '../game/mapgen';
 import { RacePicker } from './RacePicker';
 import { RoomLink, newRoomCode, openRoom } from '../duel';
 import { BrawlNetSetup, BrawlWire, LobbyPlayer, NAME_MAX, cleanName, cleanRace } from '../brawl';
+import { Ico } from '../icons';
 
 interface BrawlLobbyProps {
   mode: 'host' | 'join';
@@ -287,7 +288,7 @@ export function BrawlLobby({ mode, level: firstLevel, unlockedLevel, race, onCha
                         <span className="inline-block w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: CONFIG.palettes[CONFIG.races[p.race].faction - 1].enemies }} />
                         <span className={`flex-1 truncate ${p.id === myId ? 'text-amber-300 font-black' : 'text-stone-200 font-semibold'}`}>
                           {p.name}
-                          {i === 0 && ' 👑'}
+                          {i === 0 && <> <Ico n="ui_crown" /></>}
                         </span>
                         <span className="text-stone-500">{CONFIG.races[p.race].name}</span>
                       </>

@@ -6,6 +6,7 @@
 
 import { CONFIG, TowerType } from '../game/config';
 import { TowerSpriteIcon, BinderIcon } from './Icons';
+import { Ico } from '../icons';
 
 interface BackpackProps {
   items: { kind: 'tower' | 'binder'; type: TowerType | null; triplet: boolean; startLevel: number; sell: number; count: number; canMerge: boolean }[];
@@ -80,7 +81,7 @@ export function Backpack({ items, slots, placingSlot, onSelect, onSell, onMerge 
               picked ? 'border-amber-400 bg-amber-950/40 ring-1 ring-amber-400' : 'border-[#383347] bg-[#221f2d] hover:bg-[#2c283a]'
             }`}
           >
-            {item.triplet && <span className="absolute top-0 right-1 text-amber-400 font-black text-[length:var(--fs-md)] leading-none">{item.startLevel === 3 ? '★★' : '★'}</span>}
+            {item.triplet && <span className="absolute top-0 right-1 text-amber-400 font-black text-[length:var(--fs-md)] leading-none">{item.startLevel === 3 ? <><Ico n="star" /><Ico n="star" /></> : <Ico n="star" />}</span>}
             {item.count > 1 && (
               <span
                 className={`absolute bottom-0 right-1 font-black text-[length:var(--fs-sm)] leading-none tabular-nums ${item.canMerge ? 'text-amber-300' : 'text-stone-300'}`}

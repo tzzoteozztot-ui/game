@@ -30,6 +30,7 @@ const PANEL_VARS = {
 
 const glassBtn = 'rounded border border-white/15 bg-white/5 hover:bg-white/15 text-white/85 flex items-center justify-center leading-none cursor-pointer';
 import { attackStats, specSummary, towerDamageType } from '../game/towerStats';
+import { Ico, dmgIcon } from '../icons';
 
 interface TowerPanelProps {
   sellRatio?: number; // share of the price paid back on sale
@@ -300,7 +301,13 @@ export function TowerPanel({
   const other = second ? partStats(second) : null;
   const pair = (a: string | number, b: string | number | undefined) => (b === undefined ? `${a}` : `${a} / ${b}`);
   const dmgType = (p: TowerPart) => DAMAGE_TYPES[towerDamageType(p.type, p.specs)];
-  const typeIcon = pair(dmgType(tower).icon, second ? dmgType(second).icon : undefined);
+  const typeKey = (p: TowerPart) => towerDamageType(p.type, p.specs);
+  const typeIcon = (
+    <>
+      <Ico n={dmgIcon(typeKey(tower))} />
+      {second && <> / <Ico n={dmgIcon(typeKey(second))} /></>}
+    </>
+  );
   const typeTitle = pair(dmgType(tower).name, second ? dmgType(second).name : undefined);
 
   let refund = calculateSellRefund(baseDef.cost, tower.level, sellRatio, mergeNeed);
@@ -410,7 +417,7 @@ export function TowerPanel({
           { label: 'Период', value: `${pair(main.period, other?.period)}с`, color: 'text-stone-200' },
           { label: 'Радиус', value: pair(main.range, other?.range), color: 'text-stone-200' },
         ].map((st) => (
-          <div key={st.label} title={'title' in st ? st.title : undefined} className="flex items-baseline justify-center gap-1 min-w-0">
+          <div key={typeof st.label === "string" ? st.label : "dmg"} title={'title' in st ? st.title : undefined} className="flex items-baseline justify-center gap-1 min-w-0">
             <span className="text-[length:var(--fs-xs)] text-stone-400">{st.label}</span>
             <span className={`font-bold ${st.color} text-[length:var(--fs-md)]`}>{st.value}</span>
           </div>

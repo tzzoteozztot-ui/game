@@ -22,7 +22,6 @@ import {
   isSeen,
   terrainAt,
   resText,
-  RES_ICONS,
   RES_NAMES,
   ResKey,
   MOVES_PER_DAY,
@@ -58,6 +57,7 @@ import { logReason, logWorldNote, hasCampaignLog, onCampaignLogReady, downloadCa
 import { CampPanel } from './CampPanel';
 import { HeroPanel } from './HeroPanel';
 import { WorldEditor } from './WorldEditor';
+import { Ico, resIcon } from '../icons';
 
 interface WorldMapProps {
   world: WorldState;
@@ -529,7 +529,7 @@ export function WorldMap({ world, region, onChange, onBattle, onExit, onReset, o
         <span className="flex gap-2 ml-1">
           {(Object.keys(RES_NAMES) as ResKey[]).map((k) => (
             <span key={k} title={RES_NAMES[k]} className="whitespace-nowrap">
-              {RES_ICONS[k]} {world.res[k]}
+              <Ico n={resIcon(k)} /> {world.res[k]}
               {income[k] ? <span className="text-emerald-400 text-[0.85em]"> +{income[k]}</span> : null}
             </span>
           ))}
@@ -546,13 +546,13 @@ export function WorldMap({ world, region, onChange, onBattle, onExit, onReset, o
           Отдых
         </button>
         <button className="px-2 py-1 rounded bg-[#2a2635] hover:bg-[#3a3448] disabled:opacity-50" disabled={walking} title="Дневник: задачи главы" onClick={() => setJournalOpen(true)}>
-          📖<span className="hidden lg:inline"> Дневник</span>
+          <Ico n="ui_journal" /><span className="hidden lg:inline"> Дневник</span>
         </button>
         <button className="px-2 py-1 rounded bg-[#2a2635] hover:bg-[#3a3448] disabled:opacity-50" disabled={walking} title="Герой" onClick={() => setHeroOpen(true)}>
-          🛡<span className="hidden lg:inline"> Рен · ур. {heroLevel(world)}</span>
+          <Ico n="map_hero" /><span className="hidden lg:inline"> Рен · ур. {heroLevel(world)}</span>
         </button>
         <button className="px-2 py-1 rounded bg-[#2a2635] hover:bg-[#3a3448] disabled:opacity-50" disabled={walking} title="Лагерь" onClick={() => setCampOpen(true)}>
-          ⛺<span className="hidden lg:inline"> Лагерь</span>
+          <Ico n="map_camp" /><span className="hidden lg:inline"> Лагерь</span>
         </button>
         <button
           className="px-2 py-1 rounded bg-[#2a2635] hover:bg-[#3a3448] disabled:opacity-50"
@@ -563,7 +563,7 @@ export function WorldMap({ world, region, onChange, onBattle, onExit, onReset, o
             setSavesOpen(true);
           }}
         >
-          💾<span className="hidden lg:inline"> Сохранения</span>
+          <Ico n="ui_save" /><span className="hidden lg:inline"> Сохранения</span>
         </button>
       </div>
 
@@ -593,7 +593,7 @@ export function WorldMap({ world, region, onChange, onBattle, onExit, onReset, o
               requestDraw();
             }}
           >
-            ⌖
+            <Ico n="ui_center" />
           </button>
         </div>
 

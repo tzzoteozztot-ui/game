@@ -32,6 +32,7 @@ import { MODULES, MODULE_BY_ID, MODULE_GROUPS, MODULE_PREFIX, MODULE_SNAP, modul
 import { bakeTerrain, drawLive, drawModule, loadExtras, hexAt, hexPath, wx, wy, worldW, worldH, HW, HH, P } from '../campaign/worldRender';
 import { sprites } from '../game/sprites';
 import { loadTileset, Tileset, TILESETS } from '../game/tiles';
+import { Ico, resIcon, itemIcon } from '../icons';
 
 interface Props {
   regionId: string;
@@ -711,7 +712,7 @@ export function WorldEditor({ regionId, onClose, onSaved, onPlay }: Props) {
     <div className="grid grid-cols-3 gap-1">
       {(['gold', 'wood', 'crystal'] as const).map((k) => (
         <label key={k} className="text-[10px] text-stone-400">
-          {k === 'gold' ? '🪙' : k === 'wood' ? '🪵' : '💎'}
+          <Ico n={resIcon(k)} />
           <input
             className={inp}
             inputMode="numeric"
@@ -761,7 +762,7 @@ export function WorldEditor({ regionId, onClose, onSaved, onPlay }: Props) {
           ✔ Проверить
         </button>
         <button className="px-3 py-1.5 rounded bg-amber-700 hover:bg-amber-600 text-sm font-bold" onClick={save}>
-          💾 Сохранить{dirty ? ' •' : ''}
+          <Ico n="ui_save" /> Сохранить{dirty ? ' •' : ''}
         </button>
         <button
           className="px-2.5 py-1.5 rounded bg-[#2a2635] hover:bg-[#3a3448] text-sm"
@@ -977,7 +978,7 @@ export function WorldEditor({ regionId, onClose, onSaved, onPlay }: Props) {
                     <option value="">Нет</option>
                     {HERO_ITEMS.map((i) => (
                       <option key={i.id} value={i.id}>
-                        {i.icon} {i.name}
+                        <Ico n={itemIcon(i.id)} /> {i.name}
                       </option>
                     ))}
                   </select>
