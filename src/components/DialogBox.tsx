@@ -8,6 +8,7 @@ import { sound } from '../game/audio';
 import { setDevScene } from '../devNotes';
 import { Scene, SPEAKER_COLORS, SPEAKER_ROLES } from '../campaign/dialogs';
 import { portraitFile, portraitFiles } from '../campaign/portraits';
+import { Ico } from '../icons';
 
 const CHARS_PER_SECOND = 55;
 
@@ -130,7 +131,7 @@ export function DialogBox({ scene, onDone }: DialogBoxProps) {
             </p>
           )}
           <div className="mt-auto text-right text-[11px] text-teal-300/70">
-            {typing ? '' : i + 1 < scene.lines.length ? 'Дальше ▸' : 'Закрыть ▸'}
+            {typing ? '' : <>{i + 1 < scene.lines.length ? 'Дальше' : 'Закрыть'} <Ico n="arrow_right" className="!h-[1em] !w-[1.2em]" /></>}
           </div>
         </div>
       </div>

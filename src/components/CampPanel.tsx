@@ -57,8 +57,8 @@ export function CampPanel({ world, onUpgrade, onClose }: CampPanelProps) {
                         <div className="text-sm font-bold flex items-center gap-1.5">
                           {def.name}
                           <span className="text-[#3ed6c4] tracking-tighter">
-                            {'●'.repeat(lvl)}
-                            <span className="text-stone-600">{'●'.repeat(top - lvl)}</span>
+                            {Array.from({ length: lvl }, (_, i) => <Ico key={i} n="mark_dot" className="!h-[0.8em] !w-[0.8em]" />)}
+                            <span className="text-stone-600">{Array.from({ length: top - lvl }, (_, i) => <Ico key={i} n="mark_dot" className="!h-[0.8em] !w-[0.8em] grayscale opacity-40" />)}</span>
                           </span>
                         </div>
                         <div className="text-xs text-stone-400 leading-tight">

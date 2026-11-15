@@ -10,6 +10,7 @@ export type IconName =
   | 'skill_order' | 'skill_stone' | 'skill_shard'
   | 'item_sword' | 'item_crossbow' | 'item_mail' | 'item_plate' | 'item_idol' | 'item_shard' | 'item_banner' | 'item_token' | 'item_mirror' | 'item_warbanner'
   | 'map_fortress' | 'map_camp' | 'map_event' | 'map_lock' | 'map_chest' | 'map_idol' | 'map_mine' | 'map_shrine' | 'map_hero'
+  | 'arrow_right' | 'arrow_up' | 'arrow_down' | 'mark_dot' | 'mark_check'
   | 'ui_journal' | 'ui_save' | 'ui_center' | 'ui_eye' | 'ui_ghost' | 'ui_crown' | 'ui_refresh' | 'ui_close' | 'ui_back' | 'ui_enemy';
 
 /** Подсветка: иконки тёмные, на тёмном фоне окон без неё теряются. */
