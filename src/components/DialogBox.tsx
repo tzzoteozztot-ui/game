@@ -2,8 +2,8 @@
  * Окно диалога на весь экран (просьба Артура 2026-11-15, схема как в «Metal Gear»): сверху портреты участников слева и справа
  * от центральной панели с именем, снизу широкая рамка с текстом. Закрывает всё остальное, кнопок три — «Назад», «Далее» и «Пропустить» (вся сцена).
  * Участник виден от своей первой реплики в сцене до последней, потом уходит из окна; участников больше двух — места им больше.
- * Говорящий ярче остальных. Текст проявляется буква за буквой; касание, Пробел или Enter — показать реплику целиком, ещё раз — следующая;
- * Backspace или стрелка влево — назад; Esc — пропустить сцену.
+ * Говорящий ярче остальных. Текст проявляется буква за буквой; касание или Enter — показать реплику целиком, ещё раз — следующая;
+ * Backspace или стрелка влево — назад; Пробел — пропустить сцену (Esc не берём: он выводит из полного экрана).
  */
 import { useEffect, useMemo, useState } from 'react';
 import { sound } from '../game/audio';
@@ -75,7 +75,7 @@ export function DialogBox({ scene, onDone }: DialogBoxProps) {
     const onKey = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement | null;
       if (t && (t.tagName === 'TEXTAREA' || t.tagName === 'INPUT')) return; // печатают заметку разработчика
-      if (e.code === 'Space' || e.code === 'Enter') {
+      if (e.code === 'Enter') {
         e.preventDefault();
         e.stopImmediatePropagation();
         next();
@@ -83,7 +83,7 @@ export function DialogBox({ scene, onDone }: DialogBoxProps) {
         e.preventDefault();
         e.stopImmediatePropagation();
         prev();
-      } else if (e.code === 'Escape') {
+      } else if (e.code === 'Space') {
         e.preventDefault();
         e.stopImmediatePropagation();
         onDone();
