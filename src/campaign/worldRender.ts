@@ -603,6 +603,22 @@ function statue(ctx: CanvasRenderingContext2D, x: number, y: number, s: number) 
 
 type Drawable = { y: number; draw: () => void };
 
+/** Готовая картинка из public/modules (природа и руины, Draw Things): низ по центру в точке; false — картинки нет, рисуем кодом */
+function art(ctx: CanvasRenderingContext2D, extras: Map<string, HTMLImageElement> | null | undefined, id: string, x: number, y: number, w: number, flip = false): boolean {
+  const im = extras?.get(`m_${id}`);
+  if (!im) return false;
+  const dh = (im.height / im.width) * w;
+  ctx.save();
+  ctx.translate(x, y);
+  if (flip) ctx.scale(-1, 1);
+  ctx.drawImage(im, -w / 2, -dh, w, dh);
+  ctx.restore();
+  return true;
+}
+const OAKS = ['n_oak_a', 'n_oak_c', 'n_oak_a', 'n_oak_c', 'n_oak_b'];
+const DEADS = ['n_dead_a', 'n_dead_b', 'n_palm_dead'];
+const pick = <T,>(a: T[], t: number) => a[Math.min(a.length - 1, Math.floor(t * a.length))];
+
 /** Модуль-картинка: низ по центру в точке гекса со сдвигом; якорь чуть ниже центра гекса. Возвращает глубину (y низа) */
 export function drawModule(ctx: CanvasRenderingContext2D, p: WorldProp, m: ModuleDef, extras: Map<string, HTMLImageElement> | null | undefined): number {
   const x = wx(p) + (p.ox ?? 0);
@@ -718,17 +734,17 @@ function propDrawables(ctx: CanvasRenderingContext2D, p: WorldProp, img: (n: str
         { y: y + s * 0.2, draw: () => (put('firepit', 0, s * 0.2, s * 0.35), put('spear', s * 0.3, s * 0.2, s * 0.2)) },
       ];
     case 'castle':
-      return [{ y: y + HH * 0.6, draw: () => ruinedCastle(ctx, x, y + HH * 0.55, s * 2.3, (p.x * 7 + p.y) % 3) }];
+      return [{ y: y + HH * 0.6, draw: () => art(ctx, extrasMap, ['ruin_0', 'ruin_3', 'ruin_1'][(p.x * 7 + p.y) % 3], x, y + HH * 0.55, s * 2.0) || ruinedCastle(ctx, x, y + HH * 0.55, s * 2.3, (p.x * 7 + p.y) % 3) }];
     case 'cliff':
-      return [{ y: y + HH * 0.6, draw: () => cliff(ctx, x, y + HH * 0.6, s * 2.2, (p.x * 3 + p.y * 5) % 4) }];
+      return [{ y: y + HH * 0.6, draw: () => art(ctx, extrasMap, 'n_cliff', x, y + HH * 0.6, s * 1.3, (p.x + p.y) % 2 === 0) || cliff(ctx, x, y + HH * 0.6, s * 2.2, (p.x * 3 + p.y * 5) % 4) }];
     case 'tower':
-      return [{ y: y + HH * 0.3, draw: () => watchtower(ctx, x, y + HH * 0.3, s * 1.1, (p.x + p.y) % 2 === 0) }];
+      return [{ y: y + HH * 0.3, draw: () => ((p.x + p.y) % 2 === 0 ? art(ctx, extrasMap, 'tower_4', x, y + HH * 0.3, s * 1.1) : art(ctx, extrasMap, 'ruin_7', x, y + HH * 0.3, s * 1.1)) || watchtower(ctx, x, y + HH * 0.3, s * 1.1, (p.x + p.y) % 2 === 0) }];
     case 'crystals':
-      return [{ y: y + HH * 0.3, draw: () => crystalSpire(ctx, x, y + HH * 0.3, s * 1.0) }];
+      return [{ y: y + HH * 0.3, draw: () => art(ctx, extrasMap, 'n_rock_big', x, y + HH * 0.3, s * 1.1) || crystalSpire(ctx, x, y + HH * 0.3, s * 1.0) }];
     case 'deadwood':
-      return [-0.25, 0.2, 0].map((d, i) => ({ y: y + HH * (0.1 + i * 0.12), draw: () => deadTree(ctx, x + d * s, y + HH * (0.1 + i * 0.12), s * (0.8 - i * 0.12), i) }));
+      return [-0.25, 0.2, 0].map((d, i) => ({ y: y + HH * (0.1 + i * 0.12), draw: () => art(ctx, extrasMap, DEADS[i % 3], x + d * s, y + HH * (0.1 + i * 0.12), s * (0.8 - i * 0.12)) || deadTree(ctx, x + d * s, y + HH * (0.1 + i * 0.12), s * (0.8 - i * 0.12), i) }));
     case 'statue':
-      return [{ y: y + HH * 0.3, draw: () => statue(ctx, x, y + HH * 0.3, s * 1.0) }];
+      return [{ y: y + HH * 0.3, draw: () => art(ctx, extrasMap, 'n_rock_c', x, y + HH * 0.3, s * 0.7) || statue(ctx, x, y + HH * 0.3, s * 1.0) }];
     default:
       return [];
   }
@@ -933,7 +949,16 @@ export function bakeTerrain(r: RegionDef, tiles: Tileset | null, extras: Map<str
           const isPine = rnd(x, y, 50 + i) > 0.35;
           const dead = rnd(x, y, 55 + i) < B.dead * k;
           const snowRoll = rnd(x, y, 57 + i);
-          items.push({ y: ty, draw: () => (treeAt(k, snowRoll), dead ? deadTree(ctx, tx, ty, s * 0.9, Math.floor(tone * 10)) : isPine ? pine(ctx, tx, ty, s, tone) : oak(ctx, tx, ty, s * 0.9, tone)) });
+          items.push({
+            y: ty,
+            draw: () => {
+              if (dead ? art(ctx, extras, pick(DEADS, tone), tx, ty, s * 0.9, tone > 0.5) : isPine ? art(ctx, extras, 'n_pine_a', tx, ty, s * 0.8, tone > 0.5) : art(ctx, extras, pick(OAKS, tone), tx, ty, s * 1.15, tone > 0.5)) return;
+              treeAt(k, snowRoll);
+              if (dead) deadTree(ctx, tx, ty, s * 0.9, Math.floor(tone * 10));
+              else if (isPine) pine(ctx, tx, ty, s, tone);
+              else oak(ctx, tx, ty, s * 0.9, tone);
+            },
+          });
         }
       } else if (t === 'rock' && !busy) {
         const n = 1 + Math.floor(rnd(x, y, 8) * 2);
@@ -944,7 +969,7 @@ export function bakeTerrain(r: RegionDef, tiles: Tileset | null, extras: Map<str
           const kk = rnd(x, y, 90 + i);
           const top = y < H * 0.45 && kk > 0.4 && (B.snow !== 'none' || k < 0.5);
           const snow = top || (B.snow === 'all' && kk > 1 - 0.85 * k);
-          items.push({ y: ty, draw: () => peak(ctx, tx, ty, s, snow, kk) });
+          items.push({ y: ty, draw: () => art(ctx, extras, snow ? 'n_mount_a' : kk > 0.7 ? 'n_mountain_range' : 'n_mount_b', tx, ty, s * (snow ? 1.1 : 1.2), kk > 0.5) || peak(ctx, tx, ty, s, snow, kk) });
         }
       } else if (t === 'hills') {
         items.push({
@@ -962,6 +987,7 @@ export function bakeTerrain(r: RegionDef, tiles: Tileset | null, extras: Map<str
               ctx.ellipse(mx, my, HW * 0.32, HH * 0.2, 0, 0, Math.PI * 2);
               ctx.fill();
             }
+            if (rnd(x, y, 9) > 0.35) art(ctx, extras, 'n_mount_c', px + (rnd(x, y, 8) - 0.5) * HW * 0.3, py + HH * 0.2, HW * 0.95, rnd(x, y, 7) > 0.5);
             const own = rnd(x, y, 10) < k;
             const rocks = own ? B.rocks : N.rocks;
             if (rnd(x, y, 11) > 0.4) put(rocks[Math.floor(rnd(x, y, 12) * rocks.length)], px + (rnd(x, y, 13) - 0.5) * HW * 0.4, py + HH * 0.25, HW * 0.32, false, own);
@@ -986,12 +1012,21 @@ export function bakeTerrain(r: RegionDef, tiles: Tileset | null, extras: Map<str
           const ty = py + (rnd(x, y, 17) - 0.5) * HH * 0.4;
           const dead = rnd(x, y, 54) < B.dead * k;
           const snowRoll = rnd(x, y, 53);
-          items.push({ y: ty, draw: () => (treeAt(k, snowRoll), dead ? deadTree(ctx, tx, ty, HW * 0.5, 3) : oak(ctx, tx, ty, HW * 0.55, rnd(x, y, 18))) });
+          items.push({
+            y: ty,
+            draw: () => {
+              const q = rnd(x, y, 18);
+              if (dead ? art(ctx, extras, pick(DEADS, q), tx, ty, HW * 0.6, q > 0.5) : art(ctx, extras, pick(OAKS, q), tx, ty, HW * 0.7, q > 0.5)) return;
+              treeAt(k, snowRoll);
+              if (dead) deadTree(ctx, tx, ty, HW * 0.5, 3);
+              else oak(ctx, tx, ty, HW * 0.55, q);
+            },
+          });
         }
         if (t === 'grass' && rnd(x, y, 19) > 0.88) {
           const own = rnd(x, y, 23) < k;
           const bush = own ? B.bush : N.bush;
-          items.push({ y: py + HH * 0.2, draw: () => put(bush[Math.floor(rnd(x, y, 20) * bush.length)], px, py + HH * 0.2, HW * 0.35, false, own) });
+          items.push({ y: py + HH * 0.2, draw: () => art(ctx, extras, rnd(x, y, 24) > 0.5 ? 'n_bush_a' : 'n_bush_b', px, py + HH * 0.2, HW * 0.4, rnd(x, y, 25) > 0.5) || put(bush[Math.floor(rnd(x, y, 20) * bush.length)], px, py + HH * 0.2, HW * 0.35, false, own) });
         }
       }
       // Тростник у воды, кувшинки на воде
