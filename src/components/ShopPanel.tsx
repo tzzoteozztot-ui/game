@@ -30,6 +30,8 @@ interface ShopPanelProps {
   placingIsTriplet: boolean;
   onSelectCard: (index: number) => void;
   onReroll: () => void;
+  frozen?: boolean; // frozen shop: goods stay when a wave starts
+  onToggleFreeze?: () => void;
   onUpgradeTier: () => void;
 }
 
@@ -48,6 +50,8 @@ export function ShopPanel({
   placingIsTriplet,
   onSelectCard,
   onReroll,
+  frozen = false,
+  onToggleFreeze,
   onUpgradeTier,
 }: ShopPanelProps) {
   const tierCost = tier < 5 ? CONFIG.shop.tierUpgradeCosts[tier - 1] : null;
@@ -92,6 +96,20 @@ export function ShopPanel({
             </span>
             <span className="text-amber-400 font-bold text-[length:var(--fs-sm)] whitespace-nowrap">Ярус {tier}</span>
           </>
+        )}
+        {onToggleFreeze && (
+          <button
+            type="button"
+            onClick={onToggleFreeze}
+            aria-pressed={frozen}
+            title={frozen ? 'Лавка заморожена: товары не сменятся с волной (F — разморозить)' : 'Заморозить лавку: товары не сменятся с волной (F)'}
+            className={`shrink-0 flex items-center gap-0.5 px-1 py-0.5 rounded border text-[length:var(--fs-sm)] font-semibold leading-none cursor-pointer transition-colors ${
+              frozen ? 'bg-sky-900/70 border-sky-400 text-sky-200' : 'bg-[#221f2d] border-[#383347] text-stone-400 hover:text-stone-200'
+            }`}
+          >
+            <Ico n="dmg_ice" />
+            <span className="hidden @min-[200px]:inline whitespace-nowrap">{frozen ? 'Заморожена' : 'Заморозить'}</span>
+          </button>
         )}
       </div>
 
