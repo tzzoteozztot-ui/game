@@ -65,3 +65,10 @@ body,
 .ui-slot {
   background: url(/ui/icon_slot.webp) center / 100% 100% no-repeat;
 }
+
+/* появление портрета в окне диалога */
+@keyframes dlg-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; }
+}
+.dlg-in { animation: dlg-in 0.25s ease-out; }
