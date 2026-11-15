@@ -86,6 +86,14 @@ const EXTRA: Record<string, string> = {
   ...Object.fromEntries(MODULES.map((m) => [moduleImageKey(m), moduleUrl(m)])),
 };
 let extraPromise: Promise<Map<string, HTMLImageElement>> | null = null;
+/** Значок с подсветкой (иконки тёмные, на тёмной карте не видны). */
+function glowImage(ctx: CanvasRenderingContext2D, im: HTMLImageElement, x: number, y: number, w: number, h: number) {
+  ctx.save();
+  ctx.shadowColor = 'rgba(255,230,160,0.9)';
+  ctx.shadowBlur = 6;
+  ctx.drawImage(im, x, y, w, h);
+  ctx.restore();
+}
 export function loadExtras(): Promise<Map<string, HTMLImageElement>> {
   if (!extraPromise) {
     const m = new Map<string, HTMLImageElement>();
@@ -1179,7 +1187,7 @@ export function drawLive(
           ctx.font = `${HW * 0.22}px sans-serif`;
           ctx.textAlign = 'center';
           const resIm = opts.extras?.get(`ico:${res}`);
-          if (resIm) ctx.drawImage(resIm, px - HW * 0.3 - HW * 0.12, foot - HH * 0.05 - HW * 0.2, HW * 0.24, HW * 0.24);
+          if (resIm) glowImage(ctx, resIm, px - HW * 0.3 - HW * 0.12, foot - HH * 0.05 - HW * 0.2, HW * 0.24, HW * 0.24);
           else ctx.fillText(RES_ICONS[res], px - HW * 0.3, foot - HH * 0.05);
           if (!ours && o.waves) spr(`enemy_infantry_${lvl}`, px - HW * 0.05, foot + HH * 0.12, HH * 0.6);
         }
@@ -1205,7 +1213,7 @@ export function drawLive(
           ctx.font = `${HW * 0.18}px sans-serif`;
           ctx.textAlign = 'center';
           const lockIm = opts.extras?.get('ico:lock');
-          if (lockIm) ctx.drawImage(lockIm, px - HW * 0.3 - HW * 0.11, py - HH * 0.35 - HW * 0.11, HW * 0.22, HW * 0.22);
+          if (lockIm) glowImage(ctx, lockIm, px - HW * 0.3 - HW * 0.11, py - HH * 0.35 - HW * 0.11, HW * 0.22, HW * 0.22);
           else ctx.fillText('🔒', px - HW * 0.3, py - HH * 0.35 + HW * 0.065);
         }
       },
