@@ -22,7 +22,7 @@ import { CAMPAIGNS } from '../campaign/campaigns';
 import { Ico } from '../icons';
 
 export type GameMode = 'endless' | 'duel';
-export type MenuPage = 'home' | 'campaign' | 'endless' | 'brawl' | 'sandbox' | 'editor' | 'settings';
+export type MenuPage = 'home' | 'campaign' | 'endless' | 'brawl' | 'editor' | 'settings';
 
 interface MainMenuProps {
   page: MenuPage;
@@ -108,8 +108,7 @@ export function MainMenu(props: MainMenuProps) {
         {page === 'campaign' && <CampaignPage {...props} onBack={home} />}
         {page === 'endless' && <LevelPage {...props} onBack={home} />}
         {page === 'brawl' && <BrawlPage {...props} onBack={home} />}
-        {page === 'sandbox' && <SandboxPage {...props} onBack={home} />}
-        {page === 'editor' && <TowerEditor onBack={home} level={props.selectedLevel} onSelectLevel={props.onSelectLevel} onTestRun={(p) => props.onTestRun(p, Math.max(1, Math.min(CONFIG.levelCount, props.selectedLevel)))} />}
+        {page === 'editor' && <EditorPage {...props} onBack={home} />}
         {page === 'settings' && <SettingsPage {...props} onBack={home} />}
       </div>
     </div>
@@ -127,8 +126,7 @@ function HomePage({ onChangePage, onOpenDuel, duelAvailable, accountLabel }: Mai
     { key: 'campaign', title: 'Кампания', hint: 'Выбор кампании: поход Рена — пять глав, пять артефактов на глобальной карте', onClick: () => onChangePage('campaign'), main: true },
     { key: 'endless', title: 'Бесконечный режим', hint: 'Волны без конца, рекорд волны', onClick: () => onChangePage('endless') },
     { key: 'brawl', title: 'Потасовка', hint: 'Восемь рубежей, соперник меняется каждую волну', onClick: () => onChangePage('brawl') },
-    { key: 'sandbox', title: 'Свободный режим', hint: 'Золото без счёта, башни любого уровня, волны вручную, лог', onClick: () => onChangePage('sandbox') },
-    { key: 'editor', title: 'Редактор', hint: 'Свойства башен: свои наборы, тестовый запуск', onClick: () => onChangePage('editor') },
+    { key: 'editor', title: 'Редактор', hint: 'Свободная игра (золото без счёта, волны вручную, лог) и свойства башен', onClick: () => onChangePage('editor') },
     ...(duelAvailable
       ? [{ key: 'duel', title: 'Дуэль', hint: 'С игроком по коду комнаты или с ботом', onClick: onOpenDuel }]
       : []),
@@ -347,11 +345,10 @@ function BrawlPage({ onBack, unlockedLevel, selectedLevel, onSelectLevel, race, 
 // -------------------------------------------------------------
 // Sandbox: the starting map and the difficulty; race, enemies and the map itself change inside the mode (просьба Артура 2026-11-05)
 // -------------------------------------------------------------
-function SandboxPage({ onBack, selectedDifficulty, onChangeDifficulty, selectedLevel, onSelectLevel, onStartSandbox }: MainMenuProps & { onBack: () => void }) {
+function SandboxTab({ selectedDifficulty, onChangeDifficulty, selectedLevel, onSelectLevel, onStartSandbox }: MainMenuProps) {
   const level = Math.max(1, Math.min(CONFIG.levelCount, selectedLevel));
   return (
     <div className="w-full max-w-md short:max-w-3xl flex flex-col items-center">
-      <PageHeader title="Свободный режим" onBack={onBack} />
       <div className="w-full flex flex-col gap-2 short:grid short:grid-cols-2 short:gap-1.5 short:items-start">
         <div className={`${PANEL} w-full p-2.5 short:p-2 text-xs text-stone-300 leading-relaxed`}>
           Поле для проверок. Золото не кончается, любую башню своей расы можно взять сразу нужного уровня и со свойством, а выбранную —
@@ -711,6 +708,39 @@ function SettingsPage({
           </div>
         </section>
       </div>
+    </div>
+  );
+}
+
+// -------------------------------------------------------------
+// Редактор (просьба Артура 2026-11-15): одна точка входа — свободная игра и правка свойств башен; позже враги, волны, режимы
+// -------------------------------------------------------------
+function EditorPage(props: MainMenuProps & { onBack: () => void }) {
+  const [tab, setTab] = useState<'play' | 'towers'>('play');
+  return (
+    <div className="w-full max-w-3xl flex flex-col items-center">
+      <PageHeader title="Редактор" onBack={props.onBack} />
+      <div className="w-full grid grid-cols-2 gap-1 mb-2" role="tablist">
+        {([['play', 'Свободная игра'], ['towers', 'Свойства башен']] as const).map(([k, t]) => (
+          <button
+            key={k}
+            type="button"
+            role="tab"
+            aria-selected={tab === k}
+            onClick={() => setTab(k)}
+            className={`min-h-[38px] rounded border text-xs font-bold cursor-pointer ${
+              tab === k ? 'border-amber-400 bg-[#2a2236] text-amber-200' : 'border-[#383347] bg-[#221f2d] hover:bg-[#2c283a] text-stone-300'
+            }`}
+          >
+            {t}
+          </button>
+        ))}
+      </div>
+      {tab === 'play' ? (
+        <SandboxTab {...props} />
+      ) : (
+        <TowerEditor level={props.selectedLevel} onSelectLevel={props.onSelectLevel} onTestRun={(p) => props.onTestRun(p, Math.max(1, Math.min(CONFIG.levelCount, props.selectedLevel)))} />
+      )}
     </div>
   );
 }

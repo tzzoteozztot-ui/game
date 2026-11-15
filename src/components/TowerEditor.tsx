@@ -67,12 +67,10 @@ function NumCell({ value, def, onChange }: { value: number | undefined; def: num
 }
 
 export function TowerEditor({
-  onBack,
   onTestRun,
   level,
   onSelectLevel,
 }: {
-  onBack: () => void;
   onTestRun: (preset: TuningPreset | null) => void;
   level: number;
   onSelectLevel: (l: number) => void;
@@ -134,15 +132,8 @@ export function TowerEditor({
 
   return (
     <div className="w-full max-w-3xl flex flex-col items-center">
-      <div className="w-full flex items-center gap-2 mb-2">
-        <button type="button" onClick={onBack} className={`${BTN} shrink-0`} title="Назад (Esc)">
-          ← Назад
-        </button>
-        <h2 className="flex-1 text-center text-base sm:text-xl font-black text-amber-300 tracking-widest uppercase leading-none pr-[68px]">Редактор</h2>
-      </div>
-
       <div className={`${PANEL} w-full p-2.5 text-xs text-stone-300 leading-relaxed mb-2`}>
-        <b className="text-amber-300">Свойства башен.</b> Правки хранятся в наборе и действуют только в «Тестовом запуске» (свободный режим).
+        <b className="text-amber-300">Свойства башен.</b> Правки хранятся в наборе и действуют только в «Тестовом запуске» (свободная игра).
         Стандартный баланс игры не меняется: выход в меню возвращает обычные числа. Золотым подсвечено то, что отличается от стандарта.
       </div>
 
