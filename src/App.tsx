@@ -317,6 +317,14 @@ export default function App() {
 
   // Refreshes since the last ready card (the guarantee, CONFIG.shop.pity)
   const shopPityRef = useRef<ShopPity>({ since: 0 });
+  // Frozen shop: the free refresh at a wave start is skipped (the reroll button still works)
+  const [shopFrozen, setShopFrozen] = useState(false);
+  const shopFrozenRef = useRef(false);
+  const toggleShopFreeze = useCallback(() => {
+    shopFrozenRef.current = !shopFrozenRef.current;
+    setShopFrozen(shopFrozenRef.current);
+    sound.init();
+  }, []);
   // Generate 5 shop cards based on current tier
   const generateShopCards = useCallback((currentTier: number): (ShopCard | null)[] => {
     // The player's faction: its own towers (some only from a higher tier), binders and ★ cards where it has them
@@ -359,6 +367,7 @@ export default function App() {
 
     // Free shop refresh at the start of every wave, by button or by timer
     engine.onWaveStarted = () => {
+      if (shopFrozenRef.current) return; // frozen shop keeps its goods
       setShopCards(generateShopCards(engine.tier));
     };
 
@@ -377,7 +386,7 @@ export default function App() {
         if (canvasRef.current) {
           engine.setCanvas(canvasRef.current);
           engine.startLevel(1, 'normal');
-          setShopCards(generateShopCards(1));
+          shopFrozenRef.current = false; setShopFrozen(false); setShopCards(generateShopCards(1));
         }
       }, 50);
     }
@@ -499,7 +508,7 @@ export default function App() {
             return { currentId: b.currentId, opponentId: b.opponentId, ghostId: b.ghostId, ghostFoeId: b.ghostFoeId, alive: b.alive, seats: b.seats.map((s) => ({ id: s.id, name: s.name, race: s.race, kind: s.kind, lives: Math.round(s.lives), out: s.out, place: s.place })) };
           };
         }
-        setShopCards(generateShopCards(1));
+        shopFrozenRef.current = false; setShopFrozen(false); setShopCards(generateShopCards(1));
       }
     }, 50);
   };
@@ -747,7 +756,7 @@ export default function App() {
       if (canvasRef.current && engineRef.current) {
         engineRef.current.setCanvas(canvasRef.current);
         engineRef.current.startLevel(selectedLevel, difficulty, endless, enemyFaction, race, endless && randomMap ? newMapSeed() : null);
-        setShopCards(generateShopCards(1));
+        shopFrozenRef.current = false; setShopFrozen(false); setShopCards(generateShopCards(1));
       }
     }, 50);
   };
@@ -933,7 +942,7 @@ export default function App() {
         const region = REGIONS[world?.region ?? 'frontier'] ?? FRONTIER;
         engineRef.current.startWorldBattle(region.level, obj.waves ?? 3, battleSeed(obj), 'normal', { faction: obj.faction, bossLast: obj.bossLast, bossName: obj.bossName, bossTint: obj.bossTint, countMult: obj.countMult });
         heroIntoBattle(engineRef.current, obj);
-        setShopCards(generateShopCards(1));
+        shopFrozenRef.current = false; setShopFrozen(false); setShopCards(generateShopCards(1));
       }
     }, 50);
   };
@@ -973,7 +982,7 @@ export default function App() {
   const handleRestartLevel = () => {
     sound.init();
     setSpecModalTower(null);
-    setShopCards(generateShopCards(1));
+    shopFrozenRef.current = false; setShopFrozen(false); setShopCards(generateShopCards(1));
     const engine = engineRef.current;
     if (!engine) return;
 
@@ -1564,6 +1573,8 @@ export default function App() {
       if (screen === 'playing' && !engine.isPaused) {
         handleRerollShop();
       }
+    } else if (e.key === 'f' || e.key === 'F' || e.key === 'а' || e.key === 'А') {
+      if (screen === 'playing' && !engine.isPaused) toggleShopFreeze();
     } else if (e.key === 't' || e.key === 'T' || e.key === 'е' || e.key === 'Е') {
       if (screen === 'playing' && !engine.isPaused) {
         handleUpgradeTier();
@@ -2097,6 +2108,8 @@ export default function App() {
                 placingIsTriplet={engineRef.current?.placingIsTriplet || false}
                 onSelectCard={handleSelectShopCard}
                 onReroll={handleRerollShop}
+                frozen={shopFrozen}
+                onToggleFreeze={toggleShopFreeze}
                 onUpgradeTier={handleUpgradeTier}
               />
               )}
