@@ -1126,14 +1126,22 @@ test('botFieldView: поле бота растёт с волной и стоит
   assert.ok(b.enemies.length > 0);
 });
 
-test('botFieldView: присланные боту враги видны — ждущие у входа, вошедшие идут', () => {
+test('botFieldView: присланные боту враги выходят с волной и идут ровно, недобитые прошлой волны не пропадают', () => {
   const base = { id: 'bot1', race: 'humans' as const, difficulty: 'normal' as const, form: 1, lives: 150, wave: 3, roundT: 10, roundLength: 40, faction: 1 };
-  const none = botFieldView(base, MAPS[0]);
-  const waiting = botFieldView({ ...base, pending: { flyer: 3 } }, MAPS[0]);
-  assert.equal(waiting.enemies.length, none.enemies.length + 3);
-  assert.ok(waiting.enemies.filter((e) => e[4] === 'flyer').length >= 3);
-  const joined = botFieldView({ ...base, joined: { flyer: 4 } }, MAPS[0]);
-  assert.ok(joined.enemies.filter((e) => e[0].startsWith('s')).length > 0);
+  const sent = botFieldView({ ...base, pending: { flyer: 3, heavy: 2 } }, MAPS[0]);
+  assert.equal(sent.enemies.filter((e) => e[0].startsWith('s3-')).length, 5);
+  // в первую секунду раунда присланных ещё нет: они выходят со входа, а не стоят заранее
+  const early = botFieldView({ ...base, roundT: 0.5, pending: { flyer: 3 } }, MAPS[0]);
+  assert.equal(early.enemies.filter((e) => e[0].startsWith('s3-')).length, 0);
+  // прошлая волна ещё идёт
+  assert.ok(early.enemies.some((e) => e[0].startsWith('w2-')));
+  // шаг ровный: за 0,25 с враг сдвигается не больше чем на полклетки
+  const a = botFieldView({ ...base, roundT: 12 }, MAPS[0]);
+  const b = botFieldView({ ...base, roundT: 12.25 }, MAPS[0]);
+  for (const e of a.enemies) {
+    const n = b.enemies.find((o) => o[0] === e[0]);
+    if (n) assert.ok(Math.hypot(n[1] - e[1], n[2] - e[2]) < 0.8, e[0]);
+  }
 });
 
 test('лог похода: разность состояний называет действие и хранит все числа', async () => {
