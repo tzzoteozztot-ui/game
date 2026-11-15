@@ -52,6 +52,7 @@ export const LEGACY_PORTRAITS: Record<string, string> = {
   Корх: 'korh',
   Ксаар: 'xaar',
   Исс: 'iss',
+  Хельдрим: 'heldrim',
   'Бо-Рок': 'borok',
   "Мал'кеш": 'malkesh',
 };
