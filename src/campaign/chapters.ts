@@ -151,7 +151,7 @@ const BOG = makeChapter({
   wild: ['deadwood', 'castle', 'statue', 'deadwood', 'tower', 'crystals'],
   next: 'ice',
   // Грибная роща — основной путь (редакция Артура 2026-11-07), святилище — необязательное; круг у лагеря: отряды и обоз, потом по гати в деревню
-  needs: { event1: { needs: ['sq2', 'chest1'] }, forkA: { needs: ['forkB'] }, cross: { needs: ['forkB'] } },
+  needs: { event1: { needs: ['sq2', 'chest1'] }, gold: { needs: ['event1'] }, forkA: { needs: ['forkB'] }, cross: { needs: ['forkB'] }, rich: { needs: ['node'] } },
   fill: {
     camp: { name: 'Лагерь у второго артефакта', text: 'Лагерь перенесли к новому артефакту. Вокруг топь и туман.' },
     sq1: { name: 'Топь у входа', waves: 4, reward: { gold: 60 }, text: 'Из тумана идут тела. Не орки и не звери.' },
@@ -226,6 +226,7 @@ const ICE = makeChapter({
   next: 'ash',
   // Петля вокруг озера: дозор, караван, застава, малый артефакт, стела, Алтарь инея, назад в лагерь на оборону; потом ущелье и переправа
   needs: {
+    gold: { needs: ['sq1'] },
     event1: { needs: ['sq1'] },
     sq2: { needs: ['event1'] },
     node: { needs: ['sq2'] },
@@ -407,12 +408,15 @@ const DUSK = makeChapter({
   wild: ['tower', 'castle', 'statue', 'crystals', 'tower', 'castle'],
   // Два крыла вокруг Чёрного озера в любом порядке: север — Корх и малый артефакт, юг — латники и зал; потом мост и прямая дорога штурма
   needs: {
+    gold: { needs: ['sq1'] },
     event1: { needs: ['sq1'] },
     sq2: { needs: ['event1'] },
     node: { needs: ['forkA'] },
     forkB: { needs: ['sq2'] },
+    rich: { needs: ['forkB'] },
     cross: { needs: ['node', 'forkB'] },
     sq3: { needs: ['cross'] },
+    chest1: { needs: ['sq3'] },
     guard: { needs: ['event3'] },
   },
   fill: {

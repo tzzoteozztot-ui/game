@@ -1245,6 +1245,16 @@ test('world: every region can be finished — a squad never seals the way to wha
   }
 });
 
+test('world: side mines and optional camps in chapters 2–5 unlock from their road branch, not late river crossings', () => {
+  const byId = (r: W.RegionDef, id: string) => r.objects.find((o) => o.id === id)!;
+  assert.deepEqual(byId(W.REGIONS.bog, 'bog_gold').needs, ['bog_event1']);
+  assert.deepEqual(byId(W.REGIONS.bog, 'bog_rich').needs, ['bog_node']);
+  assert.deepEqual(byId(W.REGIONS.ice, 'ice_gold').needs, ['ice_sq1']);
+  assert.deepEqual(byId(W.REGIONS.dusk, 'dusk_gold').needs, ['dusk_sq1']);
+  assert.deepEqual(byId(W.REGIONS.dusk, 'dusk_rich').needs, ['dusk_forkB']);
+  assert.deepEqual(byId(W.REGIONS.dusk, 'dusk_chest1').needs, ['dusk_sq3']);
+});
+
 import { checkRegion } from '../campaign/regionCheck';
 
 test('world editor: built-in regions pass the check; a broken lock and a walled-in squad are caught; edits round-trip', () => {
