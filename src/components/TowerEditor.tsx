@@ -70,13 +70,15 @@ export function TowerEditor({
   onTestRun,
   level,
   onSelectLevel,
+  initialRace = 'humans',
 }: {
-  onTestRun: (preset: TuningPreset | null) => void;
+  onTestRun: (preset: TuningPreset | null, race: RaceId) => void;
   level: number;
   onSelectLevel: (l: number) => void;
+  initialRace?: RaceId;
 }) {
   const [store, setStore] = useState<TuningStore>(() => loadTuning());
-  const [race, setRace] = useState<RaceId>('humans');
+  const [race, setRace] = useState<RaceId>(initialRace);
   const active = store.presets.find((p) => p.id === store.activeId) ?? null;
 
   const commit = (next: TuningStore) => {
@@ -256,7 +258,7 @@ export function TowerEditor({
         </label>
         <button
           type="button"
-          onClick={() => onTestRun(active)}
+          onClick={() => onTestRun(active, race)}
           className="min-h-[42px] px-4 rounded bg-amber-500 hover:bg-amber-400 text-stone-950 font-black text-xs tracking-wider uppercase cursor-pointer active:translate-y-0.5"
         >
           Тестовый запуск{active && changes > 0 ? ` (${changes})` : ''}

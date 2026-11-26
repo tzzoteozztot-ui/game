@@ -47,7 +47,7 @@ interface MainMenuProps {
   onOpenWorld: () => void; // кампания: поход по глобальной карте
   onResetWorld: () => void; // кампания: начать поход заново (после подтверждения в окне выбора)
   worldSummary: string | null; // в окне выбора кампании: где остановились («Глава 2 · Болотный склеп · день 7»); null — похода ещё нет
-  onTestRun: (preset: TuningPreset | null, level: number) => void; // редактор: тестовый запуск с набором правок (свободный режим)
+  onTestRun: (preset: TuningPreset | null, level: number, race?: RaceId) => void; // редактор: тестовый запуск с набором правок (свободный режим)
   onStartSandbox: (level: number, enemies: number, randomRoad: boolean) => void; // свободный режим: карта, чьи враги (0 — хозяева карты), дорога
   onStartBrawl: (level: number, bots: Difficulty, randomRoad: boolean) => void;
   onOpenBrawlLobby: (mode: 'host' | 'join', level: number, bots: Difficulty, randomRoad: boolean) => void; // network brawl (needs the server)
@@ -756,7 +756,12 @@ function EditorPage(props: MainMenuProps & { onBack: () => void }) {
       {tab === 'play' ? (
         <SandboxTab {...props} />
       ) : (
-        <TowerEditor level={props.selectedLevel} onSelectLevel={props.onSelectLevel} onTestRun={(p) => props.onTestRun(p, Math.max(1, Math.min(CONFIG.levelCount, props.selectedLevel)))} />
+        <TowerEditor
+          level={props.selectedLevel}
+          onSelectLevel={props.onSelectLevel}
+          initialRace={props.race}
+          onTestRun={(p, r) => props.onTestRun(p, Math.max(1, Math.min(CONFIG.levelCount, props.selectedLevel)), r)}
+        />
       )}
     </div>
   );
