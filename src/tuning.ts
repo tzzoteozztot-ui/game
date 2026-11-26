@@ -72,6 +72,10 @@ function num(v: unknown): number | null {
   return typeof v === 'number' && Number.isFinite(v) && v > 0 ? v : null;
 }
 
+function ratio(v: unknown): number | null {
+  return typeof v === 'number' && Number.isFinite(v) && v >= 0 && v <= 1 ? v : null;
+}
+
 function cleanTowers(raw: any): TuningPreset['towers'] {
   const out: TuningPreset['towers'] = {};
   if (!raw || typeof raw !== 'object') return out;
@@ -79,9 +83,10 @@ function cleanTowers(raw: any): TuningPreset['towers'] {
     const src = raw[type];
     if (!src || typeof src !== 'object') continue;
     const patch: Partial<Record<TowerField, number>> = {};
+    const def = towerDefaultMap()[type];
     for (const f of TOWER_FIELDS) {
       const v = num(src[f]);
-      if (v !== null && (f !== 'aoe' || CONFIG.towers[type].aoe !== undefined)) patch[f] = v;
+      if (v !== null && def?.[f] !== undefined) patch[f] = v;
     }
     if (Object.keys(patch).length) out[type] = patch;
   }
@@ -92,7 +97,7 @@ function cleanUpgrade(raw: any): TuningPreset['upgrade'] {
   const out: TuningPreset['upgrade'] = {};
   if (!raw || typeof raw !== 'object') return out;
   for (const f of UPGRADE_FIELDS) {
-    const v = num(raw[f]);
+    const v = f === 'sellRatio' ? ratio(raw[f]) : num(raw[f]);
     if (v !== null) out[f] = v;
   }
   return out;
@@ -120,7 +125,7 @@ function takeDefaults(): Snapshot {
     const s: Partial<Record<TowerField, number>> = {};
     for (const f of TOWER_FIELDS) {
       const v = (def as any)[f];
-      if (typeof v === 'number') s[f] = v;
+      if (typeof v === 'number' && (f !== 'damage' || v > 0)) s[f] = v;
     }
     towers[type] = s;
   }
@@ -128,6 +133,10 @@ function takeDefaults(): Snapshot {
   for (const f of UPGRADE_FIELDS) upgrade[f] = CONFIG.upgrade[f];
   defaults = { towers, upgrade };
   return defaults;
+}
+
+function towerDefaultMap(): Snapshot['towers'] {
+  return takeDefaults().towers;
 }
 
 export function towerDefault(type: TowerType, f: TowerField): number | undefined {

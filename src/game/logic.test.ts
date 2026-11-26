@@ -1310,9 +1310,10 @@ test('модули карты: у каждого есть файл, id уник�
 
 // Свои наборы правок (src/tuning.ts): действуют только после applyPreset, resetTuning возвращает стандарт
 test('набор правок меняет числа башни и откатывается к стандарту', async () => {
-  const { applyPreset, resetTuning, newPreset } = await import('../tuning');
+  const { applyPreset, resetTuning, newPreset, towerDefault } = await import('../tuning');
   const { CONFIG } = await import('./config');
   const { attackStats } = await import('./towerStats');
+  assert.equal(towerDefault('cul_altar', 'damage'), undefined, 'алтарь без урона не показывает мёртвое поле урона');
   const base = { cost: CONFIG.towers.archer.cost, dmg: attackStats('archer', 1, []).damage, aoe: attackStats('mage', 1, []).aoeRadius, up: CONFIG.upgrade.lvl2DamageMult };
   const p = newPreset('тест');
   p.towers = { archer: { cost: 1, damage: base.dmg * 10 }, mage: { aoe: 2.5 } };
