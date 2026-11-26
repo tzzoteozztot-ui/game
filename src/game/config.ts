@@ -300,6 +300,7 @@ export const CONFIG = {
       damageType: 'lightning',
       cooldown: 1.4,
       range: 2.6,
+      aoe: 0.9,
       shape: 'rhombus',
       color: '#8f6bff',
       specs: [

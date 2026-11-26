@@ -90,9 +90,8 @@ export function attackStats(type: TowerType, level: number, allSpecs: readonly s
 
   const chain = n('lightning') ? (level >= 3 ? 5 : 4) * n('lightning') : 0;
 
-  let aoeRadius = 0;
-  if (type === 'mage') {
-    aoeRadius = 0.9;
+  let aoeRadius = def.aoe ?? 0;
+  if (type === 'mage' && aoeRadius > 0) {
     if (n('fire')) aoeRadius *= 1 + 0.4 * n('fire');
     if (n('frost')) aoeRadius *= 1 + 0.2 * n('frost');
   }
