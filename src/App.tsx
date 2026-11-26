@@ -544,7 +544,7 @@ export default function App() {
   const [sandboxSummaryOpen, setSandboxSummaryOpen] = useState(false);
   const [sandboxWave, setSandboxWave] = useState<SandboxWave>({ faction: 1, wave: 1, counts: {} });
   const [customMaps, setCustomMaps] = useState<SavedMap[]>(() => loadCustomMaps());
-  const handleSandboxStart = (level: number, enemies: number, randomRoad: boolean, seed: number | null = randomRoad ? newMapSeed() : null) => {
+  const handleSandboxStart = (level: number, enemies: number, randomRoad: boolean, seed: number | null = randomRoad ? newMapSeed() : null, startRace: RaceId = race) => {
     sound.init();
     setSandboxWaveOpen(false);
     setSandboxWave({ faction: enemies || level, wave: 1, counts: {} });
@@ -553,7 +553,7 @@ export default function App() {
     const begin = () => {
       if (!canvasRef.current || !engineRef.current) return;
       engineRef.current.setCanvas(canvasRef.current);
-      engineRef.current.startSandbox(level, difficulty, enemies || level, race, seed);
+      engineRef.current.startSandbox(level, difficulty, enemies || level, startRace, seed);
     };
     if (screen === 'playing') begin();
     else {
@@ -562,10 +562,11 @@ export default function App() {
     }
   };
   // Редактор: набор правок действует только в этом запуске, выход в меню возвращает стандартный баланс
-  const handleTestRun = (preset: TuningPreset | null, level: number) => {
+  const handleTestRun = (preset: TuningPreset | null, level: number, runRace?: RaceId) => {
+    if (runRace && runRace !== race) setRace(runRace);
     if (preset) applyPreset(preset);
     else resetTuning();
-    handleSandboxStart(level, 0, false);
+    handleSandboxStart(level, 0, false, null, runRace ?? race);
   };
   useEffect(() => {
     if (screen === 'menu') resetTuning();

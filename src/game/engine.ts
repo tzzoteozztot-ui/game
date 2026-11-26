@@ -804,6 +804,7 @@ export class GameEngine {
     setHex(true); // гексовое поле во всех режимах (выбор Артура 2026-11-06); квадраты — только в свободном режиме по кнопке
     this.race = CONFIG.races[race] ? race : 'humans';
     this.megas = [];
+    this.hyperPlan = null;
     this.fires = [];
     this.imps = [];
     this.blasts = [];
@@ -4613,6 +4614,7 @@ export class GameEngine {
     this.gold += refund;
     this.logEv('sell', { id: tower.id, type: tower.type, level: tower.level, second: tower.second ? tower.second.type : null, x: tower.x, y: tower.y, refund, damage: Math.round(this.runStats.dmg.get(tower.id) || 0) });
     this.towers.splice(idx, 1);
+    if (this.hyperPlan && (this.hyperPlan.mainId === towerId || this.hyperPlan.otherId === towerId)) this.hyperPlan = null;
     this.markModsDirty();
     this.selectedTowerId = null;
     sound.playBuy();
@@ -4736,14 +4738,13 @@ export class GameEngine {
     if (!this.hyperPlan && !this.startHyper(sel)) return null;
     const plan = this.hyperPlan!;
     const cells: { x: number; y: number }[] = [];
-    const around = (c: { x: number; y: number }) => [{ x: c.x + 1, y: c.y }, { x: c.x - 1, y: c.y }, { x: c.x, y: c.y + 1 }, { x: c.x, y: c.y - 1 }];
     const starts: { x: number; y: number }[] = [];
     for (let y = 0; y < CONFIG.grid.rows; y++) for (let x = 0; x < CONFIG.grid.cols; x++) if (this.hyperCellFree(x, y)) starts.push({ x, y });
     for (const st of this.nearest(starts, sel)) {
       cells.length = 0;
       cells.push(st);
       for (let k = 0; k < 2; k++) {
-        const next = this.nearest(around(cells[cells.length - 1]).filter((c) => this.hyperCellFree(c.x, c.y) && !cells.some((d) => d.x === c.x && d.y === c.y)), sel)[0];
+        const next = this.nearest(neighbours(cells[cells.length - 1]).filter((c) => this.hyperCellFree(c.x, c.y) && !cells.some((d) => d.x === c.x && d.y === c.y)), sel)[0];
         if (!next) break;
         cells.push(next);
       }

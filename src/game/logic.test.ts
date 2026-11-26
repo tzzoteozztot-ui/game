@@ -1245,6 +1245,16 @@ test('world: every region can be finished — a squad never seals the way to wha
   }
 });
 
+test('world: side mines and optional camps in chapters 2–5 unlock from their road branch, not late river crossings', () => {
+  const byId = (r: W.RegionDef, id: string) => r.objects.find((o) => o.id === id)!;
+  assert.deepEqual(byId(W.REGIONS.bog, 'bog_gold').needs, ['bog_event1']);
+  assert.deepEqual(byId(W.REGIONS.bog, 'bog_rich').needs, ['bog_node']);
+  assert.deepEqual(byId(W.REGIONS.ice, 'ice_gold').needs, ['ice_sq1']);
+  assert.deepEqual(byId(W.REGIONS.dusk, 'dusk_gold').needs, ['dusk_sq1']);
+  assert.deepEqual(byId(W.REGIONS.dusk, 'dusk_rich').needs, ['dusk_forkB']);
+  assert.deepEqual(byId(W.REGIONS.dusk, 'dusk_chest1').needs, ['dusk_sq3']);
+});
+
 import { checkRegion } from '../campaign/regionCheck';
 
 test('world editor: built-in regions pass the check; a broken lock and a walled-in squad are caught; edits round-trip', () => {
@@ -1300,19 +1310,22 @@ test('модули карты: у каждого есть файл, id уник�
 
 // Свои наборы правок (src/tuning.ts): действуют только после applyPreset, resetTuning возвращает стандарт
 test('набор правок меняет числа башни и откатывается к стандарту', async () => {
-  const { applyPreset, resetTuning, newPreset } = await import('../tuning');
+  const { applyPreset, resetTuning, newPreset, towerDefault } = await import('../tuning');
   const { CONFIG } = await import('./config');
   const { attackStats } = await import('./towerStats');
-  const base = { cost: CONFIG.towers.archer.cost, dmg: attackStats('archer', 1, []).damage, up: CONFIG.upgrade.lvl2DamageMult };
+  assert.equal(towerDefault('cul_altar', 'damage'), undefined, 'алтарь без урона не показывает мёртвое поле урона');
+  const base = { cost: CONFIG.towers.archer.cost, dmg: attackStats('archer', 1, []).damage, aoe: attackStats('mage', 1, []).aoeRadius, up: CONFIG.upgrade.lvl2DamageMult };
   const p = newPreset('тест');
-  p.towers = { archer: { cost: 1, damage: base.dmg * 10 } };
+  p.towers = { archer: { cost: 1, damage: base.dmg * 10 }, mage: { aoe: 2.5 } };
   p.upgrade = { lvl2DamageMult: 5 };
   applyPreset(p);
   assert.equal(CONFIG.towers.archer.cost, 1);
   assert.equal(attackStats('archer', 1, []).damage, base.dmg * 10);
+  assert.equal(attackStats('mage', 1, []).aoeRadius, 2.5);
   assert.equal(CONFIG.upgrade.lvl2DamageMult, 5);
   resetTuning();
   assert.equal(CONFIG.towers.archer.cost, base.cost);
   assert.equal(attackStats('archer', 1, []).damage, base.dmg);
+  assert.equal(attackStats('mage', 1, []).aoeRadius, base.aoe);
   assert.equal(CONFIG.upgrade.lvl2DamageMult, base.up);
 });

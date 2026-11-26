@@ -300,6 +300,7 @@ export const CONFIG = {
       damageType: 'lightning',
       cooldown: 1.4,
       range: 2.6,
+      aoe: 0.9,
       shape: 'rhombus',
       color: '#8f6bff',
       specs: [
@@ -662,7 +663,7 @@ export const CONFIG = {
   races: {
     humans: {
       id: 'humans', name: 'Люди', faction: 6, towers: ['archer', 'priest', 'mage', 'ballista'],
-      merge: 3, levelDamage: 3.3, levelRange: 1.1, binders: true, triplets: true,
+      merge: 3, levelDamage: 2.2, levelRange: 1.1, binders: true, triplets: true,
       features: ['Три одинаковые башни сливаются в следующий уровень; на Ур.2 — свойство на выбор, Ур.3 хранит три.', '«Связка» ставит две башни Ур.2–3 разных видов в одну клетку, тройная связка поднимает уровень.'],
     },
     orcs: {

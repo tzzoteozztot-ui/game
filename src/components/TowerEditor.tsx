@@ -29,7 +29,19 @@ const PANEL = 'bg-[#171520] rounded-lg border border-[#2d2938]';
 const BTN =
   'min-h-[36px] px-3 py-1.5 rounded bg-[#221f2d] hover:bg-[#2c283a] border border-[#383347] text-xs font-bold text-stone-200 transition-colors cursor-pointer';
 
-function NumCell({ value, def, onChange }: { value: number | undefined; def: number; onChange: (v: number | null) => void }) {
+function NumCell({
+  value,
+  def,
+  allowZero = false,
+  max,
+  onChange,
+}: {
+  value: number | undefined;
+  def: number;
+  allowZero?: boolean;
+  max?: number;
+  onChange: (v: number | null) => void;
+}) {
   const [text, setText] = useState<string | null>(null);
   const changed = value !== undefined && value !== def;
   return (
@@ -42,13 +54,15 @@ function NumCell({ value, def, onChange }: { value: number | undefined; def: num
           const t = e.target.value.replace(',', '.');
           setText(t);
           const v = Number(t);
-          if (t.trim() !== '' && Number.isFinite(v) && v > 0) onChange(v === def ? null : v);
+          const okMin = allowZero ? v >= 0 : v > 0;
+          const okMax = max === undefined || v <= max;
+          if (t.trim() !== '' && Number.isFinite(v) && okMin && okMax) onChange(v === def ? null : v);
         }}
         onBlur={() => setText(null)}
         className={`w-16 min-h-[32px] rounded border px-1.5 text-xs font-bold text-right ${
           changed ? 'bg-amber-950/60 border-amber-500 text-amber-200' : 'bg-[#221f2d] border-[#383347] text-stone-300'
         }`}
-        title={`Стандарт: ${def}`}
+        title={max !== undefined ? `Стандарт: ${def} (от ${allowZero ? 0 : '>0'} до ${max})` : `Стандарт: ${def}`}
       />
       <button
         type="button"
@@ -70,13 +84,15 @@ export function TowerEditor({
   onTestRun,
   level,
   onSelectLevel,
+  initialRace = 'humans',
 }: {
-  onTestRun: (preset: TuningPreset | null) => void;
+  onTestRun: (preset: TuningPreset | null, race: RaceId) => void;
   level: number;
   onSelectLevel: (l: number) => void;
+  initialRace?: RaceId;
 }) {
   const [store, setStore] = useState<TuningStore>(() => loadTuning());
-  const [race, setRace] = useState<RaceId>('humans');
+  const [race, setRace] = useState<RaceId>(initialRace);
   const active = store.presets.find((p) => p.id === store.activeId) ?? null;
 
   const commit = (next: TuningStore) => {
@@ -229,7 +245,13 @@ export function TowerEditor({
                 {UPGRADE_FIELDS.map((f) => (
                   <label key={f} className="flex flex-col gap-0.5">
                     <span className="text-[10px] text-stone-400">{UPGRADE_FIELD_LABELS[f]}</span>
-                    <NumCell value={active.upgrade[f]} def={upgradeDefault(f)} onChange={(v) => setUpgrade(f, v)} />
+                    <NumCell
+                      value={active.upgrade[f]}
+                      def={upgradeDefault(f)}
+                      allowZero={f === 'sellRatio'}
+                      max={f === 'sellRatio' ? 1 : undefined}
+                      onChange={(v) => setUpgrade(f, v)}
+                    />
                   </label>
                 ))}
               </div>
@@ -256,7 +278,7 @@ export function TowerEditor({
         </label>
         <button
           type="button"
-          onClick={() => onTestRun(active)}
+          onClick={() => onTestRun(active, race)}
           className="min-h-[42px] px-4 rounded bg-amber-500 hover:bg-amber-400 text-stone-950 font-black text-xs tracking-wider uppercase cursor-pointer active:translate-y-0.5"
         >
           Тестовый запуск{active && changes > 0 ? ` (${changes})` : ''}
