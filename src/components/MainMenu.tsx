@@ -345,9 +345,17 @@ function BrawlPage({ onBack, unlockedLevel, selectedLevel, onSelectLevel, race, 
 // -------------------------------------------------------------
 // Sandbox: the starting map and the difficulty; race, enemies and the map itself change inside the mode (просьба Артура 2026-11-05)
 // -------------------------------------------------------------
-function SandboxTab({ selectedDifficulty, onChangeDifficulty, selectedLevel, onSelectLevel, onTestRun }: MainMenuProps) {
-  const [presets] = useState(() => loadTuning().presets);
-  const [presetId, setPresetId] = useState('');
+function SandboxTab({
+  selectedDifficulty,
+  onChangeDifficulty,
+  selectedLevel,
+  onSelectLevel,
+  onTestRun,
+  presetId,
+  onPresetId,
+}: MainMenuProps & { presetId: string; onPresetId: (id: string) => void }) {
+  const presets = loadTuning().presets;
+  const currentPresetId = presets.some((p) => p.id === presetId) ? presetId : '';
   const level = Math.max(1, Math.min(CONFIG.levelCount, selectedLevel));
   return (
     <div className="w-full max-w-md short:max-w-3xl flex flex-col items-center">
@@ -376,8 +384,8 @@ function SandboxTab({ selectedDifficulty, onChangeDifficulty, selectedLevel, onS
           <label className={`${PANEL} w-full flex items-center justify-between gap-2 p-1`}>
             <span className="text-xs font-semibold text-stone-400 pl-3 short:pl-2">Свойства башен:</span>
             <select
-              value={presetId}
-              onChange={(e) => setPresetId(e.target.value)}
+              value={currentPresetId}
+              onChange={(e) => onPresetId(e.target.value)}
               className="min-h-[36px] short:min-h-[34px] flex-1 max-w-[220px] rounded bg-[#221f2d] border border-[#383347] px-2 text-xs font-bold text-stone-200 cursor-pointer"
             >
               <option value="">Стандарт</option>
@@ -407,7 +415,7 @@ function SandboxTab({ selectedDifficulty, onChangeDifficulty, selectedLevel, onS
           </div>
           <button
             type="button"
-            onClick={() => onTestRun(presets.find((p) => p.id === presetId) ?? null, level)}
+            onClick={() => onTestRun(presets.find((p) => p.id === currentPresetId) ?? null, level)}
             className="w-full min-h-[48px] short:min-h-[42px] py-2 px-4 rounded bg-amber-500 hover:bg-amber-400 text-stone-950 font-black text-sm short:text-xs tracking-wider uppercase transition-all shadow-lg shadow-amber-950/50 cursor-pointer active:translate-y-0.5"
           >
             Начать
@@ -734,6 +742,7 @@ function SettingsPage({
 // -------------------------------------------------------------
 function EditorPage(props: MainMenuProps & { onBack: () => void }) {
   const [tab, setTab] = useState<'play' | 'towers'>('play');
+  const [presetId, setPresetId] = useState('');
   return (
     <div className="w-full max-w-3xl flex flex-col items-center">
       <PageHeader title="Редактор" onBack={props.onBack} />
@@ -754,7 +763,7 @@ function EditorPage(props: MainMenuProps & { onBack: () => void }) {
         ))}
       </div>
       {tab === 'play' ? (
-        <SandboxTab {...props} />
+        <SandboxTab {...props} presetId={presetId} onPresetId={setPresetId} />
       ) : (
         <TowerEditor
           level={props.selectedLevel}
