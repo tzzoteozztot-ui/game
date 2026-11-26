@@ -311,6 +311,9 @@ export function TowerPanel({
   const typeTitle = pair(dmgType(tower).name, second ? dmgType(second).name : undefined);
 
   let refund = calculateSellRefund(baseDef.cost, tower.level, sellRatio, mergeNeed);
+  for (const part of tower.fused?.parts ?? []) {
+    refund += calculateSellRefund(CONFIG.towers[part.type].cost, part.level, sellRatio, mergeNeed);
+  }
   if (second && secondDef) {
     refund += calculateSellRefund(secondDef.cost, second.level, sellRatio);
     refund += Math.floor(CONFIG.binder.cost * sellRatio);
